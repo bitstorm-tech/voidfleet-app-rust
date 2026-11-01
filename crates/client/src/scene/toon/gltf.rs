@@ -1,8 +1,8 @@
-//! glTF-Erweiterung, die beim Laden der Schiffe ihre Materialien gegen Toon-Materialien tauscht (Port von
-//! `loadShipModels` in `scene/ship.ts`): Aus jedem glTF-Material mit `extras.vf` wird ein [`ToonMaterial`]
-//! (Label `<material>/toon`), jedes Primitiv bekommt es statt des `StandardMaterial` und, außer bei Hologrammen, eine
-//! Konturhülle als Kind (Label `<primitive>/outline`). Die Szenen der Modelle sind damit schon fertig, wenn sie geladen
-//! sind; gespawnt wird ohne weiteren Umbau.
+//! glTF-Erweiterung, die den Schiffen beim Laden ihre Toon-Materialien gibt (Port von `loadShipModels` in
+//! `scene/ship.ts`): Aus jedem glTF-Material mit `extras.vf` wird ein [`ToonMaterial`] (Label `<material>/toon`), jedes
+//! Primitiv bekommt es und, außer bei Hologrammen, eine Konturhülle als Kind (Label `<primitive>/outline`). Jedes
+//! Material der Modelle trägt den Vertrag; Bevys `StandardMaterial` für glTF ist abgeschaltet (`PbrPlugin` in
+//! `lib.rs`). Die Szenen der Modelle sind damit schon fertig, wenn sie geladen sind; gespawnt wird ohne weiteren Umbau.
 
 use bevy::{
     asset::LoadContext,
@@ -22,8 +22,7 @@ use super::{
     outline::{OUTLINE_MATERIAL, ToonOutline, outline_mesh},
 };
 
-/// Meldet die Erweiterung beim glTF-Loader an. Muss nach Bevys PBR-Erweiterung laufen, deren `StandardMaterial` sie
-/// wieder entfernt.
+/// Meldet die Erweiterung beim glTF-Loader an.
 pub(super) fn register(app: &mut App) {
     app.world_mut()
         .resource_mut::<GltfExtensionHandlers>()
@@ -119,9 +118,7 @@ impl GltfExtensionHandler for ToonGltf {
             return;
         };
         let toon = load_context.get_label_handle::<ToonMaterial>(format!("{material_label}/toon"));
-        entity
-            .remove::<MeshMaterial3d<StandardMaterial>>()
-            .insert(MeshMaterial3d(toon));
+        entity.insert(MeshMaterial3d(toon));
         if !spec.is_hologram() {
             let outline = load_context.get_label_handle::<Mesh>(outline_label(mesh, primitive));
             entity.with_child((
@@ -129,7 +126,6 @@ impl GltfExtensionHandler for ToonGltf {
                 ToonOutline,
                 Mesh3d(outline),
                 MeshMaterial3d(OUTLINE_MATERIAL),
-                Transform::default(),
             ));
         }
     }

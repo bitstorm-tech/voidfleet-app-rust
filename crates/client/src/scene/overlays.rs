@@ -21,7 +21,6 @@ use bevy::{
 use voidfleet_core::board::{Side, SlotRef};
 
 use super::{
-    animation::cubic_bezier,
     board::{BoardEntities, GHOST_LIFT},
     camera::BoardLayout,
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
@@ -167,24 +166,16 @@ fn tube(points: &[Vec3], radius: f32, sides: usize) -> Mesh {
     .with_inserted_indices(Indices::U32(indices))
 }
 
-/// `segments + 1` Punkte entlang der kubischen Bézierkurve durch `points`.
-fn bezier_points(points: [Vec3; 4], segments: usize) -> Vec<Vec3> {
-    (0..=segments)
-        .map(|step| cubic_bezier(points, step as f32 / segments as f32))
-        .collect()
-}
-
-/// Steil nach oben und leicht zum Ziel, am Ende senkrecht auf das Ziel herab.
+/// Bézierbogen aus `segments + 1` Punkten: steil nach oben und leicht zum Ziel, am Ende senkrecht auf das Ziel herab.
 fn arc(start: Vec3, head_base: Vec3, top: f32, segments: usize) -> Vec<Vec3> {
-    bezier_points(
-        [
-            start,
-            start + Vec3::Y * (top - start.y) + (head_base - start) * 0.25,
-            head_base + Vec3::Y * (top - head_base.y),
-            head_base,
-        ],
-        segments,
-    )
+    CubicSegment::new_bezier([
+        start,
+        start + Vec3::Y * (top - start.y) + (head_base - start) * 0.25,
+        head_base + Vec3::Y * (top - head_base.y),
+        head_base,
+    ])
+    .iter_positions(segments)
+    .collect()
 }
 
 /// Spitze nach unten: oben breit, unten null.
@@ -222,7 +213,6 @@ fn redraw(
             OverlayPart,
             Mesh3d(meshes.add(tube(&points, ARROW_RADIUS, 12))),
             MeshMaterial3d(arrow_material.clone()),
-            Transform::default(),
         ));
         commands.spawn((
             OverlayPart,
@@ -277,30 +267,28 @@ fn redraw(
                 OverlayPart,
                 Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(material.clone()),
-                Transform::default(),
             ));
         }
         let head_at = tip + Vec3::Y * LINE_HEAD_LENGTH / 2.0;
         let size = scale.sqrt();
         if line.fizzle {
             // Zwei gekreuzte Balken, immer zur Kamera gedreht.
-            commands
-                .spawn((
-                    OverlayPart,
-                    Billboard,
-                    Transform::from_translation(head_at),
-                    Visibility::default(),
-                ))
-                .with_children(|cross| {
-                    for angle in [FRAC_PI_4, -FRAC_PI_4] {
-                        cross.spawn((
-                            Mesh3d(fx.cube.clone()),
-                            MeshMaterial3d(material.clone()),
-                            Transform::from_rotation(Quat::from_rotation_z(angle))
-                                .with_scale(Vec3::new(CROSS_SIZE * size, CROSS_WIDTH, 0.01)),
-                        ));
-                    }
-                });
+            let bar = |angle: f32| {
+                let transform = Transform::from_rotation(Quat::from_rotation_z(angle))
+                    .with_scale(Vec3::new(CROSS_SIZE * size, CROSS_WIDTH, 0.01));
+                (
+                    Mesh3d(fx.cube.clone()),
+                    MeshMaterial3d(material.clone()),
+                    transform,
+                )
+            };
+            commands.spawn((
+                OverlayPart,
+                Billboard,
+                Transform::from_translation(head_at),
+                Visibility::default(),
+                children![bar(FRAC_PI_4), bar(-FRAC_PI_4)],
+            ));
         } else {
             commands.spawn((
                 OverlayPart,
@@ -333,7 +321,7 @@ fn redraw(
     if overlays.reticles.is_empty() {
         return;
     }
-    let reticle_material = materials.add(overlay_material(palette::DAMAGE, 0.9));
+    let reticle_material = MeshMaterial3d(materials.add(overlay_material(palette::DAMAGE, 0.9)));
     let ring = meshes.add(
         Torus::new(
             (RETICLE_DIAMETER - RETICLE_THICKNESS) / 2.0,
@@ -343,37 +331,37 @@ fn redraw(
         .minor_resolution(8)
         .major_resolution(48),
     );
+    // Die vier Striche ragen über den Ring hinaus nach außen.
+    let tick = |quarter: f32| {
+        let direction = Vec2::from_angle(quarter * FRAC_PI_2);
+        let at = direction * RETICLE_DIAMETER / 2.0;
+        (
+            Mesh3d(fx.cube.clone()),
+            reticle_material.clone(),
+            Transform::from_xyz(at.x, 0.0, at.y)
+                .with_rotation(Quat::from_rotation_y(-direction.to_angle()))
+                .with_scale(Vec3::new(
+                    RETICLE_TICK,
+                    RETICLE_THICKNESS,
+                    RETICLE_THICKNESS,
+                )),
+        )
+    };
     for slot in &overlays.reticles {
-        commands
-            .spawn((
-                OverlayPart,
-                Reticle,
-                Transform::from_xyz(0.0, RETICLE_HEIGHT, 0.0),
-                Visibility::default(),
-                ChildOf(board.pads[slot]),
-            ))
-            .with_children(|reticle| {
-                reticle.spawn((
-                    Mesh3d(ring.clone()),
-                    MeshMaterial3d(reticle_material.clone()),
-                ));
-                // Die vier Striche ragen über den Ring hinaus nach außen.
-                for quarter in 0..4 {
-                    let direction = Vec2::from_angle(quarter as f32 * FRAC_PI_2);
-                    let at = direction * RETICLE_DIAMETER / 2.0;
-                    reticle.spawn((
-                        Mesh3d(fx.cube.clone()),
-                        MeshMaterial3d(reticle_material.clone()),
-                        Transform::from_xyz(at.x, 0.0, at.y)
-                            .with_rotation(Quat::from_rotation_y(-direction.to_angle()))
-                            .with_scale(Vec3::new(
-                                RETICLE_TICK,
-                                RETICLE_THICKNESS,
-                                RETICLE_THICKNESS,
-                            )),
-                    ));
-                }
-            });
+        commands.spawn((
+            OverlayPart,
+            Reticle,
+            Transform::from_xyz(0.0, RETICLE_HEIGHT, 0.0),
+            Visibility::default(),
+            ChildOf(board.pads[slot]),
+            children![
+                (Mesh3d(ring.clone()), reticle_material.clone()),
+                tick(0.0),
+                tick(1.0),
+                tick(2.0),
+                tick(3.0),
+            ],
+        ));
     }
 }
 

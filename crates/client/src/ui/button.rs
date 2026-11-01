@@ -132,7 +132,6 @@ pub fn button(key: Key, node: Node) -> impl Bundle {
         ]),
         BorderColor::all(Color::BLACK.with_alpha(0.65)),
         BoxShadow::default(),
-        UiTransform::default(),
     )
 }
 
@@ -234,6 +233,7 @@ fn animate_keys(
     mut icons: Query<&mut ImageNode, With<KeyIcon>>,
 ) {
     let pulse = 15.0 + 9.0 * (time.elapsed_secs() / PULSE * std::f32::consts::PI).sin();
+    let delta = time.delta_secs();
     for (
         entity,
         key,
@@ -262,12 +262,10 @@ fn animate_keys(
         };
         let halo = if pulsing && !pressed { pulse } else { halo };
         let rate = if pressed { FOLLOW_PRESSED } else { FOLLOW };
-        let follow = 1.0 - (-rate * time.delta_secs()).exp();
-        let next = KeyMotion {
-            depth: motion.depth.lerp(depth, follow),
-            halo: motion.halo.lerp(halo, follow),
-            bright: motion.bright.lerp(bright, follow),
-        };
+        let mut next = *motion;
+        next.depth.smooth_nudge(&depth, rate, delta);
+        next.halo.smooth_nudge(&halo, rate, delta);
+        next.bright.smooth_nudge(&bright, rate, delta);
         let opacity = if disabled {
             0.5
         } else if dimmed {

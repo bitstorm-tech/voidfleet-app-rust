@@ -73,16 +73,15 @@ fn resolve(
     targets: &Query<&PickTarget>,
     ships: &Query<&OnSlot>,
 ) -> Option<PickTarget> {
-    std::iter::successors(Some(entity), |entity| {
-        parents.get(*entity).ok().map(ChildOf::parent)
-    })
-    .find_map(|entity| {
-        targets
-            .get(entity)
-            .ok()
-            .copied()
-            .or_else(|| ships.get(entity).ok().map(|on| PickTarget::Slot(on.0)))
-    })
+    std::iter::once(entity)
+        .chain(parents.iter_ancestors(entity))
+        .find_map(|entity| {
+            targets
+                .get(entity)
+                .ok()
+                .copied()
+                .or_else(|| ships.get(entity).ok().map(|on| PickTarget::Slot(on.0)))
+        })
 }
 
 fn track_hover(

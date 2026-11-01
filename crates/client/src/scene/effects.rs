@@ -16,9 +16,7 @@ use std::f32::consts::PI;
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::{
-    animation::{
-        Animation, AnimationScope, AnimationSystems, cubic_bezier, ease_in_cubic, ease_out_cubic,
-    },
+    animation::{Animation, AnimationScope, AnimationSystems},
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
     particles::{Burst, Emitter, Particles, SPHERE, ember, shot, smoke, soot},
     toon::ToonFlash,
@@ -541,7 +539,7 @@ struct Fade {
 
 /// Ein Blitz-Sprite (`flash`) oder eine Druckwelle (`shockwave`).
 #[derive(Component, Clone, Copy, Debug)]
-struct Sprite {
+struct FxSprite {
     position: Vec3,
     color: LinearRgba,
     size: f32,
@@ -565,7 +563,7 @@ struct BeamParts {
 
 /// Bézierbahn der Rakete.
 #[derive(Component, Clone, Copy)]
-struct MissilePath([Vec3; 4]);
+struct MissilePath(CubicSegment<Vec3>);
 
 /// Ein- und Ausblenden eines Traktorstrahls.
 #[derive(Component, Clone, Copy)]
@@ -613,7 +611,7 @@ impl Fx<'_, '_> {
         duration: f32,
         kind: SpriteKind,
     ) {
-        self.commands.spawn(Sprite {
+        self.commands.spawn(FxSprite {
             position,
             color,
             size,
@@ -707,7 +705,7 @@ fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
 
 /// Erst langsam, dann gleichmäßig: `easeInCubic` zu 40 %.
 fn bolt_travel(progress: f32) -> f32 {
-    ease_in_cubic(progress) * 0.4 + progress * 0.6
+    EaseFunction::CubicIn.sample_clamped(progress) * 0.4 + progress * 0.6
 }
 
 fn fly_bolts(mut bolts: Query<(&Bolt, &Animation, &mut Transform)>) {
@@ -781,7 +779,8 @@ fn start_target_ring(add: On<Add<TargetRing>>, rings: Query<&TargetRing>, mut fx
         Fade {
             size: 1.0,
             scale: |t| {
-                TARGET_RING_SIZE.0 + (TARGET_RING_SIZE.1 - TARGET_RING_SIZE.0) * ease_out_cubic(t)
+                let (from, to) = TARGET_RING_SIZE;
+                from + (to - from) * EaseFunction::CubicOut.sample_clamped(t)
             },
             alpha: |t| (t * 5.0).min(1.0) * (1.0 - t).powf(1.5),
         },
@@ -869,7 +868,8 @@ fn fade_beams(
             material.set_alpha((1.0 - progress).powi(2));
         }
         if let Ok((mut transform, material)) = parts.get_mut(beam_parts.sheath) {
-            let widen = BEAM_SHEATH * beam.width * (1.0 + 1.4 * ease_out_cubic(progress));
+            let eased = EaseFunction::CubicOut.sample_clamped(progress);
+            let widen = BEAM_SHEATH * beam.width * (1.0 + 1.4 * eased);
             transform.scale.x = widen;
             transform.scale.y = widen;
             if let Some(mut material) = materials.get_mut(&material.0) {
@@ -886,6 +886,7 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     let lift = missile.from + Vec3::new(0.0, MISSILE_ARC, -swing * MISSILE_SWING);
     let dive = missile.to + Vec3::new(0.0, MISSILE_ARC * 1.2, -swing * MISSILE_SWING * 0.4);
     let length = missile.from.distance(lift) + lift.distance(dive) + dive.distance(missile.to);
+    let path = CubicSegment::new_bezier([missile.from, lift, dive, missile.to]);
     let material = fx.material(FxMaterial::light(light(lighten(missile.color, 0.6))));
     let mesh = Mesh3d(fx.assets.sphere.clone());
     fx.commands.entity(add.entity).insert((
@@ -893,7 +894,7 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
         mesh,
         material,
         Transform::from_translation(missile.from).with_scale(Vec3::splat(0.15)),
-        MissilePath([missile.from, lift, dive, missile.to]),
+        MissilePath(path),
         Animation::new(length / MISSILE_SPEED),
     ));
     let trail = Burst {
@@ -921,8 +922,8 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
 fn fly_missiles(mut missiles: Query<(&MissilePath, &Animation, &mut Transform)>) {
     for (path, animation, mut transform) in &mut missiles {
         let progress = animation.progress();
-        transform.translation =
-            cubic_bezier(path.0, ease_in_cubic(progress) * 0.35 + progress * 0.65);
+        let travelled = EaseFunction::CubicIn.sample_clamped(progress) * 0.35 + progress * 0.65;
+        transform.translation = path.0.position(travelled);
     }
 }
 
@@ -1018,7 +1019,7 @@ fn start_bubble(add: On<Add<Bubble>>, bubbles: Query<&Bubble>, mut fx: Fx) {
         Transform::from_translation(bubble.position),
         Fade {
             size: bubble.size,
-            scale: |t| ease_out_cubic((t * 3.0).min(1.0)),
+            scale: |t| EaseFunction::CubicOut.sample_clamped(t * 3.0),
             alpha: |t| BUBBLE_ALPHA * ((1.0 - t) * 2.5).min(1.0),
         },
         Animation::new(BUBBLE_DURATION),
@@ -1038,14 +1039,14 @@ fn start_pulse(add: On<Add<Pulse>>, pulses: Query<&Pulse>, mut fx: Fx) {
         Transform::from_translation(pulse.position),
         Fade {
             size: pulse.size,
-            scale: ease_out_cubic,
+            scale: |t| EaseFunction::CubicOut.sample_clamped(t),
             alpha: |t| PULSE_ALPHA * (1.0 - t).powi(2),
         },
         Animation::new(pulse.duration),
     ));
 }
 
-fn start_sprite(add: On<Add<Sprite>>, sprites: Query<&Sprite>, mut fx: Fx) {
+fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {
     let sprite = *sprites.get(add.entity).expect("Blitz");
     let texture = match sprite.kind {
         SpriteKind::Flash => fx.assets.dot.clone(),
@@ -1060,12 +1061,12 @@ fn start_sprite(add: On<Add<Sprite>>, sprites: Query<&Sprite>, mut fx: Fx) {
     let fade = match sprite.kind {
         SpriteKind::Flash => Fade {
             size: sprite.size,
-            scale: |t| 0.6 + 0.4 * ease_out_cubic(t),
+            scale: |t| 0.6 + 0.4 * EaseFunction::CubicOut.sample_clamped(t),
             alpha: |t| (1.0 - t).powi(2),
         },
         SpriteKind::Shockwave | SpriteKind::FlatShockwave => Fade {
             size: sprite.size,
-            scale: ease_out_cubic,
+            scale: |t| EaseFunction::CubicOut.sample_clamped(t),
             alpha: |t| (1.0 - t).powf(1.5),
         },
     };
@@ -1235,9 +1236,9 @@ fn open_portals(
     for (warp, animation, mut transform, material) in &mut portals {
         let progress = animation.progress();
         let open = if progress < 0.25 {
-            ease_out_cubic(progress / 0.25)
+            EaseFunction::CubicOut.sample_clamped(progress / 0.25)
         } else {
-            1.0 - ease_in_cubic((progress - 0.25) / 0.75)
+            1.0 - EaseFunction::CubicIn.sample_clamped((progress - 0.25) / 0.75)
         };
         transform.scale = Vec3::splat((WARP_PORTAL * warp.size * open).max(0.01));
         if let Some(mut material) = materials.get_mut(&material.0) {
@@ -1378,7 +1379,5 @@ fn update_flash_light(lights: Query<(&FlashLight, &Animation)>, mut flash: ResMu
         position,
         intensity,
     });
-    if *flash != next {
-        *flash = next;
-    }
+    flash.set_if_neq(next);
 }

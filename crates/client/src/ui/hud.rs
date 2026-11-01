@@ -4,12 +4,10 @@
 //! Fähigkeiten und die Ankündigung einer neuen Runde.
 
 use bevy::{
-    input::mouse::MouseScrollUnit,
-    picking::events::PointerScroll,
     prelude::*,
     text::{LineHeight, Strikethrough},
     ui::InteractionDisabled,
-    ui_widgets::{Activate, observe},
+    ui_widgets::{Activate, ScrollArea, observe},
 };
 use voidfleet_core::board::{Side, overdrive_bonus};
 
@@ -60,12 +58,9 @@ struct LogPanel;
 #[derive(Component)]
 struct LogText;
 
-/// Das Banner für Befehle und Fähigkeiten und die Ankündigung einer neuen Runde; `elapsed` läuft bis `duration`.
+/// Das Banner für Befehle und Fähigkeiten und die Ankündigung einer neuen Runde, mit der Uhr seines Auftritts.
 #[derive(Component, Default)]
-struct Banner {
-    elapsed: f32,
-    duration: f32,
-}
+struct Banner(Timer);
 
 #[derive(Component)]
 struct RevealBanner;
@@ -127,6 +122,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
     commands.spawn((
         Name::new("Log"),
         LogPanel,
+        ScrollArea,
         Node {
             display: Display::None,
             position_type: PositionType::Absolute,
@@ -140,9 +136,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             ..default()
         },
         BackgroundColor(theme::PANEL),
-        ScrollPosition::default(),
         GlobalZIndex(5),
-        observe(scroll_log),
         children![(
             LogText,
             theme::text(fonts.body(14.0), "", palette::TEXT_DIM),
@@ -178,7 +172,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             },
             BackgroundColor(theme::PANEL),
             BorderColor::all(theme::ACCENT),
-            UiTransform::default(),
             UiOpacity(0.0),
             Visibility::Hidden,
             Pickable::IGNORE,
@@ -206,7 +199,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
                 (Color::NONE, 100.0),
             ]),
             BorderColor::all(palette::PLAYER.with_alpha(0.45)),
-            UiTransform::default(),
             UiOpacity(0.0),
             Visibility::Hidden,
             Pickable::IGNORE,
@@ -271,18 +263,18 @@ fn press_action(_: On<Activate>, hud: Res<HudState>, mut pressed: MessageWriter<
 
 /// Klappt das Log auf und zu.
 fn toggle_log(
-    _: On<Activate>,
+    activate: On<Activate>,
     mut commands: Commands,
     locale: Res<Locale>,
-    button: Single<(Entity, Has<Lit>, &mut Tooltip), With<LogButton>>,
+    mut buttons: Query<(Has<Lit>, &mut Tooltip)>,
     mut panel: Single<&mut Node, With<LogPanel>>,
 ) {
-    let (entity, expanded, mut tooltip) = button.into_inner();
+    let (expanded, mut tooltip) = buttons.get_mut(activate.entity).expect("Log-Knopf");
     let expanded = !expanded;
     if expanded {
-        commands.entity(entity).insert(Lit);
+        commands.entity(activate.entity).insert(Lit);
     } else {
-        commands.entity(entity).remove::<Lit>();
+        commands.entity(activate.entity).remove::<Lit>();
     }
     panel.display = if expanded {
         Display::Flex
@@ -295,21 +287,6 @@ fn toggle_log(
         locale.hud_show_log()
     }
     .into();
-}
-
-/// Das Mausrad scrollt das Log.
-fn scroll_log(
-    scroll: On<PointerScroll>,
-    mut panel: Single<(&mut ScrollPosition, &ComputedNode), With<LogPanel>>,
-) {
-    let line = match scroll.unit {
-        MouseScrollUnit::Line => 20.0,
-        MouseScrollUnit::Pixel => 1.0,
-    };
-    let (position, node) = &mut *panel;
-    let scale = node.inverse_scale_factor();
-    let max = ((node.content_size().y - node.size().y) * scale).max(0.0);
-    position.y = (position.y - scroll.y * line).clamp(0.0, max);
 }
 
 /// Hängt Zeilen ans Log und scrollt ans Ende.
@@ -402,8 +379,7 @@ fn update_action(
 
 /// Eine Zeile der Checkliste: Kästchen (erledigt mit Haken) und Text; nicht möglich ist sie blass und durchgestrichen.
 fn spawn_checklist_item(
-    commands: &mut Commands,
-    list: Entity,
+    list: &mut ChildSpawnerCommands,
     fonts: &Fonts,
     check: &Handle<Image>,
     text: &str,
@@ -425,42 +401,36 @@ fn spawn_checklist_item(
             Pickable::IGNORE,
         )
     });
-    let row = commands
-        .spawn((
+    list.spawn((
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: px(8),
+            ..default()
+        },
+        Pickable::IGNORE,
+    ))
+    .with_children(|row| {
+        row.spawn((
             Node {
+                width: px(12),
+                height: px(12),
+                border: UiRect::all(px(1.5)),
+                border_radius: BorderRadius::all(px(3)),
+                justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                column_gap: px(8),
                 ..default()
             },
+            BorderColor::all(color),
             Pickable::IGNORE,
-            ChildOf(list),
-            children![(
-                Node {
-                    width: px(12),
-                    height: px(12),
-                    border: UiRect::all(px(1.5)),
-                    border_radius: BorderRadius::all(px(3)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BorderColor::all(color),
-                Pickable::IGNORE,
-                Children::spawn(SpawnIter(tick.into_iter())),
-            )],
-        ))
-        .id();
-    let label = commands
-        .spawn((
+            Children::spawn(SpawnIter(tick.into_iter())),
+        ));
+        row.spawn((
             theme::text(fonts.display(18.0), text, color),
             LineHeight::RelativeToFont(1.1),
             Pickable::IGNORE,
-            ChildOf(row),
         ))
-        .id();
-    if state == TurnPartState::Blocked {
-        commands.entity(label).insert(Strikethrough);
-    }
+        .insert_if(Strikethrough, || state == TurnPartState::Blocked);
+    });
 }
 
 /// Die Zeilen der Checkliste: in Runde 1 zuerst das Flaggschiff, nach Grundmanöver und Fähigkeit die Feuerbefehle,
@@ -534,10 +504,14 @@ fn update_checklist(
     if *shown == lines {
         return;
     }
-    commands.entity(entity).despawn_related::<Children>();
-    for (text, state) in &lines {
-        spawn_checklist_item(&mut commands, entity, &fonts, &icons.check, text, *state);
-    }
+    commands
+        .entity(entity)
+        .despawn_related::<Children>()
+        .with_children(|list| {
+            for (text, state) in &lines {
+                spawn_checklist_item(list, &fonts, &icons.check, text, *state);
+            }
+        });
     *shown = lines;
 }
 
@@ -559,15 +533,14 @@ fn show_banner(
         Side::Enemy => palette::ENEMY,
     };
     border.set_all(color);
-    *state = Banner {
-        elapsed: 0.0,
-        duration: REVEAL_TIME * settings.time_scale(AnimationScope::General),
-    };
+    *state = Banner(Timer::from_seconds(
+        REVEAL_TIME * settings.time_scale(AnimationScope::General),
+        TimerMode::Once,
+    ));
     *visibility = Visibility::Inherited;
-    commands.entity(entity).despawn_related::<Children>();
-    if let Some(admiral) = message.admiral {
+    let portrait = message.admiral.map(|admiral| {
         let ring = palette::admiral_color(admiral);
-        commands.spawn((
+        (
             Node {
                 width: px(48),
                 height: px(48),
@@ -580,32 +553,36 @@ fn show_banner(
                 theme::ring(ring, 2.0),
             ]),
             Pickable::IGNORE,
-            ChildOf(entity),
-        ));
-    }
+        )
+    });
     let subtitle = message.subtitle.clone().map(|subtitle| {
         (
             theme::text(fonts.body(16.0), subtitle, palette::TEXT_DIM),
             Pickable::IGNORE,
         )
     });
-    commands.spawn((
-        Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            row_gap: px(2),
-            ..default()
-        },
-        Pickable::IGNORE,
-        ChildOf(entity),
-        Children::spawn((
+    commands
+        .entity(entity)
+        .despawn_related::<Children>()
+        .insert(Children::spawn((
+            SpawnIter(portrait.into_iter()),
             Spawn((
-                theme::caps(fonts.display(30.0), &message.title, theme::TRACKING, color),
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    row_gap: px(2),
+                    ..default()
+                },
                 Pickable::IGNORE,
+                Children::spawn((
+                    Spawn((
+                        theme::caps(fonts.display(30.0), &message.title, theme::TRACKING, color),
+                        Pickable::IGNORE,
+                    )),
+                    SpawnIter(subtitle.into_iter()),
+                )),
             )),
-            SpawnIter(subtitle.into_iter()),
-        )),
-    ));
+        )));
 }
 
 fn hide_banner(
@@ -613,7 +590,7 @@ fn hide_banner(
     mut banner: Single<&mut Banner, With<RevealBanner>>,
 ) {
     if messages.read().last().is_some() {
-        banner.elapsed = banner.duration;
+        banner.0.finish();
     }
 }
 
@@ -631,10 +608,10 @@ fn show_round_banner(
         return;
     };
     let (entity, mut state, mut visibility) = banner.into_inner();
-    *state = Banner {
-        elapsed: 0.0,
-        duration: ROUND_TIME * settings.time_scale(AnimationScope::General),
-    };
+    *state = Banner(Timer::from_seconds(
+        ROUND_TIME * settings.time_scale(AnimationScope::General),
+        TimerMode::Once,
+    ));
     *visibility = Visibility::Inherited;
     let bonus = overdrive_bonus(round);
     let rising = (bonus > overdrive_bonus(round.saturating_sub(1))).then(|| {
@@ -647,28 +624,30 @@ fn show_round_banner(
             Pickable::IGNORE,
         )
     });
-    commands.entity(entity).despawn_related::<Children>();
-    commands.entity(entity).insert(Children::spawn((
-        Spawn((
-            theme::caps(
-                fonts.display(16.0),
-                locale.hud_new_round(),
-                0.3,
-                palette::TEXT_DIM,
-            ),
-            Pickable::IGNORE,
-        )),
-        Spawn((
-            theme::caps(
-                fonts.display_bold(60.0),
-                &locale.hud_round(round),
-                0.04,
-                theme::ACCENT,
-            ),
-            Pickable::IGNORE,
-        )),
-        SpawnIter(rising.into_iter()),
-    )));
+    commands
+        .entity(entity)
+        .despawn_related::<Children>()
+        .insert(Children::spawn((
+            Spawn((
+                theme::caps(
+                    fonts.display(16.0),
+                    locale.hud_new_round(),
+                    0.3,
+                    palette::TEXT_DIM,
+                ),
+                Pickable::IGNORE,
+            )),
+            Spawn((
+                theme::caps(
+                    fonts.display_bold(60.0),
+                    &locale.hud_round(round),
+                    0.04,
+                    theme::ACCENT,
+                ),
+                Pickable::IGNORE,
+            )),
+            SpawnIter(rising.into_iter()),
+        )));
     sounds.write(PlayUiSound(UiSound::Round));
 }
 
@@ -687,11 +666,9 @@ fn animate_banners(
         if *visibility == Visibility::Hidden {
             continue;
         }
-        banner.elapsed += time.delta_secs();
-        let t = (banner.elapsed / banner.duration.max(f32::EPSILON)).min(1.0);
+        let t = banner.0.tick(time.delta()).fraction();
         let (fade_in, hold) = if round { (0.15, 0.75) } else { (0.12, 0.8) };
-        let rise = (t / fade_in).min(1.0);
-        let eased = 1.0 - (1.0 - rise).powi(2);
+        let eased = EaseFunction::QuadraticOut.sample_clamped(t / fade_in);
         let alpha = if t < fade_in {
             eased
         } else if t < hold {

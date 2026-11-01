@@ -171,13 +171,7 @@ pub fn sync_plan(
     focus: Res<BoardFocus>,
     models: Res<ShipModels>,
     board: Res<BoardEntities>,
-    mut ships: Query<(
-        Entity,
-        &Ship,
-        &OnSlot,
-        &mut ShipStatus,
-        Option<&mut ShipMarkers>,
-    )>,
+    mut ships: Query<(Entity, &Ship, &OnSlot, &mut ShipStatus, &mut ShipMarkers)>,
     mut overlays: ResMut<PlanOverlays>,
     mut columns: ResMut<ColumnMarks>,
 ) {
@@ -252,16 +246,9 @@ pub fn sync_plan(
         .planned_maneuver()
         .filter(|planned| !game.board.is_occupied(planned.to))
         .map(|planned| planned.from);
-    for (entity, ship, on, mut status, ship_markers) in &mut ships {
+    for (entity, ship, on, mut status, mut ship_markers) in &mut ships {
         let wanted_markers = markers.remove(&entity).unwrap_or_default();
-        match ship_markers {
-            Some(mut ship_markers) => {
-                ship_markers.set_if_neq(ShipMarkers(wanted_markers));
-            }
-            None => {
-                commands.entity(entity).insert(ShipMarkers(wanted_markers));
-            }
-        }
+        ship_markers.set_if_neq(ShipMarkers(wanted_markers));
         let next = if ship.ghost {
             ShipStatus {
                 doomed: losses.contains(&on.0),
@@ -280,7 +267,7 @@ pub fn sync_plan(
         };
         status.set_if_neq(next);
     }
-    // Neue Geister sind noch nicht in der Abfrage.
+    // Neue Geister sind noch nicht in der Abfrage: Ihre Marken ersetzen die leeren vom Spawnen.
     if !same {
         for entity in ghost_at.values() {
             let specs = markers.remove(entity).unwrap_or_default();
@@ -417,14 +404,14 @@ fn plan_overlays(
     next
 }
 
-/// Die Wiedergabe übernimmt:Geister, Pfeile, Bögen, Vorschau und die Marken der Feuerbefehle gehen.
+/// Die Wiedergabe übernimmt: Geister, Pfeile, Bögen, Vorschau und die Marken der Feuerbefehle gehen.
 fn clear_plan(
     mut commands: Commands,
-    mut ships: Query<(Entity, &Ship, &mut ShipStatus, Option<&mut ShipMarkers>)>,
+    mut ships: Query<(Entity, &Ship, &mut ShipStatus, &mut ShipMarkers)>,
     mut overlays: ResMut<PlanOverlays>,
     mut columns: ResMut<ColumnMarks>,
 ) {
-    for (entity, ship, mut status, markers) in &mut ships {
+    for (entity, ship, mut status, mut markers) in &mut ships {
         if ship.ghost {
             commands.entity(entity).despawn();
             continue;
@@ -432,10 +419,8 @@ fn clear_plan(
         status.preview = None;
         status.doomed = false;
         status.holding_fire = false;
-        if let Some(mut markers) = markers {
-            markers.remove(MarkerKind::Ready);
-            markers.remove(MarkerKind::Aim);
-        }
+        markers.remove(MarkerKind::Ready);
+        markers.remove(MarkerKind::Aim);
     }
     *overlays = PlanOverlays::default();
     *columns = ColumnMarks::default();

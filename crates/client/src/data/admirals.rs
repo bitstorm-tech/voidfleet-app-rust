@@ -41,10 +41,15 @@ impl AdmiralPortraits {
     }
 }
 
-pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let portraits = ADMIRAL_IDS
-        .into_iter()
-        .map(|admiral| (admiral, preload.track(server.load(portrait_path(admiral)))))
-        .collect();
-    commands.insert_resource(AdmiralPortraits(portraits));
+impl FromWorld for AdmiralPortraits {
+    fn from_world(world: &mut World) -> Self {
+        let server = world.resource::<AssetServer>().clone();
+        let mut preload = world.resource_mut::<Preload>();
+        Self(
+            ADMIRAL_IDS
+                .into_iter()
+                .map(|admiral| (admiral, preload.track(server.load(portrait_path(admiral)))))
+                .collect(),
+        )
+    }
 }

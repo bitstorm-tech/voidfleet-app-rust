@@ -1,14 +1,17 @@
 //! Tooltips (Ersatz für das `title`-Attribut des Browsers): Eine Entity mit [`Tooltip`] zeigt ihren Text, sobald der
 //! Zeiger eine Weile darüber ruht, in einem kleinen Feld neben dem Zeiger. Es gibt nur ein Feld; es liegt über allem.
 
-use bevy::{picking::hover::Hovered, prelude::*, window::PrimaryWindow};
+use bevy::{
+    picking::{hover::HoverMap, pointer::PointerId},
+    prelude::*,
+    window::PrimaryWindow,
+};
 
 use super::{Fonts, theme};
 use crate::palette;
 
 /// Der Text, der beim Überfahren erscheint; leer zeigt nichts.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
-#[require(Hovered)]
 pub struct Tooltip(pub String);
 
 /// So lange (Sekunden) muss der Zeiger ruhen, bis das Feld erscheint, und sein Abstand zum Zeiger.
@@ -65,18 +68,32 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
 fn follow_pointer(
     time: Res<Time>,
     mut hover: ResMut<TooltipHover>,
-    tooltips: Query<(Entity, &Tooltip, &Hovered)>,
+    hover_map: Res<HoverMap>,
+    parents: Query<&ChildOf>,
+    tooltips: Query<&Tooltip>,
     window: Single<&Window, With<PrimaryWindow>>,
     tooltip_box: Single<(&mut Node, &mut Visibility, &ComputedNode), With<TooltipBox>>,
     mut text: Single<&mut Text, With<TooltipText>>,
 ) {
-    // Der innerste überfahrene Tooltip gewinnt: Er ist der zuletzt entstandene unter den überfahrenen.
-    let hovered = tooltips
-        .iter()
-        .filter(|(_, tooltip, hovered)| hovered.get() && !tooltip.0.is_empty())
-        .max_by_key(|(entity, ..)| *entity);
+    // Der innerste Tooltip mit Text gewinnt: vom vordersten Treffer des Zeigers aus der erste nach außen.
+    let hovered = hover_map
+        .get(&PointerId::Mouse)
+        .into_iter()
+        .flatten()
+        .filter_map(|(&hit, data)| {
+            std::iter::once(hit)
+                .chain(parents.iter_ancestors(hit))
+                .find_map(|entity| {
+                    tooltips
+                        .get(entity)
+                        .ok()
+                        .filter(|tooltip| !tooltip.0.is_empty())
+                        .map(|tooltip| (data.depth, entity, tooltip))
+                })
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0));
     let now = time.elapsed_secs();
-    let current = hovered.map(|(entity, ..)| entity);
+    let current = hovered.map(|(_, entity, _)| entity);
     if current != hover.entity {
         *hover = TooltipHover {
             entity: current,
@@ -84,7 +101,7 @@ fn follow_pointer(
         };
     }
     let (mut node, mut visibility, computed) = tooltip_box.into_inner();
-    let (Some((_, tooltip, _)), Some(cursor)) = (hovered, window.cursor_position()) else {
+    let (Some((.., tooltip)), Some(cursor)) = (hovered, window.cursor_position()) else {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     };

@@ -121,7 +121,6 @@ fn skip(
     mut commands: Commands,
     mut playback: ResMut<Playback>,
     mut clock: ResMut<AnimationClock>,
-    floats: Query<Entity, With<FloatingText>>,
     mut stop: MessageWriter<StopSounds>,
     mut silence: MessageWriter<SilenceRadio>,
     mut banner: MessageWriter<HideBanner>,
@@ -131,9 +130,7 @@ fn skip(
     stop.write(StopSounds);
     silence.write(SilenceRadio);
     banner.write(HideBanner);
-    for float in &floats {
-        commands.entity(float).despawn();
-    }
+    commands.despawn_all::<With<FloatingText>>();
 }
 
 /// Beginnt den nächsten Schritt, sobald keiner mehr im Gang ist; übersprungen kommen die übrigen nur ins Log. Am Ende

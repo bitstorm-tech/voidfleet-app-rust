@@ -11,7 +11,8 @@ use bevy::{
     picking::Pickable,
     platform::collections::{HashMap, HashSet},
     prelude::*,
-    transform::commands::BuildChildrenTransformExt,
+    transform::{TransformSystems, commands::BuildChildrenTransformExt},
+    ui::UiSystems,
 };
 use voidfleet_core::board::{LaneType, SLOT_COUNT, Side, SlotRef, lane_slots};
 
@@ -192,7 +193,10 @@ impl Plugin for BoardPlugin {
             )
             .add_systems(
                 PostUpdate,
-                place_labels.after(bevy::transform::TransformSystems::Propagate),
+                // Nach den Lagen dieses Bilds und vor dem UI-Layout: Die Beschriftung steht im selben Bild dort.
+                place_labels
+                    .after(TransformSystems::Propagate)
+                    .before(UiSystems::Layout),
             );
     }
 }
@@ -297,7 +301,6 @@ fn spawn_board(
                             PadPart::Base,
                             Mesh3d(base_mesh.clone()),
                             MeshMaterial3d(base_material.clone()),
-                            Transform::default(),
                             Visibility::Hidden,
                         ));
                         pad.spawn((
@@ -318,7 +321,6 @@ fn spawn_board(
                         pad.spawn((
                             PickTarget::Slot(slot),
                             Mesh3d(pick_mesh.clone()),
-                            Transform::default(),
                             Pickable::default(),
                         ));
                         if side == Side::Enemy && lane == LaneType::Strike {
@@ -358,7 +360,6 @@ fn spawn_board(
                                         PICK_HEIGHT,
                                         MARK_SIZE + 0.4,
                                     ))),
-                                    Transform::default(),
                                     Pickable::default(),
                                 ));
                             });

@@ -19,6 +19,7 @@ use bevy::{
     picking::{events::PointerEnter, hover::Hovered},
     prelude::*,
     text::LineHeight,
+    time::Stopwatch,
 };
 use voidfleet_core::{
     admirals::AdmiralId,
@@ -55,8 +56,9 @@ pub struct CardAssets<'w> {
     pub locale: Res<'w, Locale>,
 }
 
-/// Eine Karte; `scale` ist ihr Maßstab.
+/// Eine Karte; `scale` ist ihr Maßstab. Ihre Ebene ([`ZIndex`] von [`Node`]) hebt sie beim Hover über die Nachbarn.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[require(HoverProgress)]
 pub struct CardView {
     pub card: CardFace,
     pub scale: f32,
@@ -85,18 +87,21 @@ pub enum CardHover {
     Raise,
 }
 
-/// Eine neu gezogene Karte fliegt nach `delay` Sekunden von unten ein und leuchtet danach kurz nach.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+/// Eine neu gezogene Karte fliegt nach einer Wartezeit von unten ein und leuchtet danach kurz nach.
+#[derive(Component, Clone, Debug)]
 pub struct CardDraw {
-    pub delay: f32,
-    elapsed: f32,
+    /// Bis zum Einflug.
+    delay: Timer,
+    /// Seit dem Einflug.
+    flight: Stopwatch,
 }
 
 impl CardDraw {
+    /// Fliegt nach `delay` Sekunden ein.
     pub fn after(delay: f32) -> Self {
         Self {
-            delay,
-            elapsed: 0.0,
+            delay: Timer::from_seconds(delay, TimerMode::Once),
+            flight: Stopwatch::new(),
         }
     }
 }
@@ -272,7 +277,6 @@ pub fn ship_card(assets: &CardAssets, ship: ShipId, scale: f32) -> impl Bundle {
         } else {
             Vec::new()
         }),
-        UiTransform::default(),
         Children::spawn((
             Spawn(halo(0.0)),
             Spawn(clipped_art(assets.art.get(Card::Ship(ship)), 0.5, 0.0)),
@@ -376,7 +380,6 @@ pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl
         BackgroundColor(theme::rgb(26, 28, 34)),
         BorderColor::all(Color::WHITE.with_alpha(0.08)),
         BoxShadow::default(),
-        UiTransform::default(),
         Children::spawn((
             Spawn(halo(4.0 * scale)),
             Spawn((
@@ -478,7 +481,6 @@ pub fn power_card(assets: &CardAssets, admiral: AdmiralId, scale: f32) -> impl B
             ..BorderColor::all(color.with_alpha(0.75))
         },
         BoxShadow(vec![theme::glow(color.with_alpha(0.35), 14.0 * scale)]),
-        UiTransform::default(),
         Children::spawn((
             Spawn(halo(4.0 * scale)),
             Spawn(clipped_art(assets.portraits.get(admiral), 0.22, 0.0)),
@@ -536,20 +538,34 @@ pub fn power_card(assets: &CardAssets, admiral: AdmiralId, scale: f32) -> impl B
     )
 }
 
-/// Zeigt den Rahmen gewählter und eingeplanter Karten.
-fn show_marks(
-    cards: Query<(&Children, Has<Marked>), With<CardView>>,
+/// Zeigt den Rahmen, sobald eine Karte gewählt oder eingeplant ist ([`Marked`] kommt immer erst nach dem Bau der
+/// Karte dazu, ihre Kinder stehen also schon).
+fn show_mark(
+    add: On<Add<Marked>>,
+    cards: Query<&Children>,
     mut frames: Query<&mut Visibility, With<SelectionFrame>>,
 ) {
-    for (children, marked) in &cards {
-        for &child in children {
-            if let Ok(mut visibility) = frames.get_mut(child) {
-                visibility.set_if_neq(if marked {
-                    Visibility::Inherited
-                } else {
-                    Visibility::Hidden
-                });
-            }
+    set_frame(add.entity, Visibility::Inherited, &cards, &mut frames);
+}
+
+/// Verbirgt den Rahmen wieder.
+fn hide_mark(
+    remove: On<Remove<Marked>>,
+    cards: Query<&Children>,
+    mut frames: Query<&mut Visibility, With<SelectionFrame>>,
+) {
+    set_frame(remove.entity, Visibility::Hidden, &cards, &mut frames);
+}
+
+fn set_frame(
+    card: Entity,
+    visibility: Visibility,
+    cards: &Query<&Children>,
+    frames: &mut Query<&mut Visibility, With<SelectionFrame>>,
+) {
+    for &child in cards.get(card).into_iter().flatten() {
+        if let Ok(mut frame) = frames.get_mut(child) {
+            frame.set_if_neq(visibility);
         }
     }
 }
@@ -558,23 +574,6 @@ fn show_marks(
 const DRAW_FLIGHT: f32 = 0.45;
 const DRAW_GLOW: f32 = 2.4;
 const HOVER_TIME: f32 = 0.12;
-
-/// `cubic-bezier(x1, y1, x2, y2)` aus CSS bei `t` (0–1): erst x nach dem Kurvenparameter auflösen, dann y.
-fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
-    let curve = |a: f32, b: f32, u: f32| {
-        3.0 * a * u * (1.0 - u).powi(2) + 3.0 * b * u.powi(2) * (1.0 - u) + u.powi(3)
-    };
-    let (mut low, mut high) = (0.0_f32, 1.0_f32);
-    for _ in 0..24 {
-        let mid = (low + high) / 2.0;
-        if curve(x1, x2, mid) < t {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-    curve(y1, y2, (low + high) / 2.0)
-}
 
 type CardMotion<'a> = (
     Entity,
@@ -597,6 +596,8 @@ fn animate_cards(
     mut sounds: MessageWriter<PlayUiSound>,
 ) {
     let delta = time.delta_secs();
+    // Einflug wie `cubic-bezier(0.2, 0.9, 0.3, 1.15)`: schießt über das Ziel hinaus, bevor er sich setzt.
+    let flight_curve = CubicSegment::new_bezier_easing((0.2, 0.9), (0.3, 1.15));
     for (entity, view, hover, hovered, draw, mut progress, mut transform, mut z, children) in
         &mut cards
     {
@@ -607,7 +608,7 @@ fn animate_cards(
         } else {
             (progress.0 - step).max(0.0)
         };
-        let eased = 1.0 - (1.0 - progress.0).powi(2);
+        let eased = EaseFunction::QuadraticOut.sample_clamped(progress.0);
         let (mut scale, mut shift, mut halo) = (1.0, Vec2::ZERO, Vec::new());
         match hover {
             Some(CardHover::Zoom {
@@ -627,17 +628,20 @@ fn animate_cards(
             None => {}
         }
         if let Some(mut draw) = draw {
-            let before = draw.elapsed;
-            draw.elapsed += delta;
-            if before <= draw.delay && draw.elapsed > draw.delay {
+            let waiting = draw.delay.remaining();
+            if draw.delay.tick(time.delta()).just_finished() {
                 sounds.write(PlayUiSound(UiSound::Draw));
             }
-            let since = draw.elapsed - draw.delay;
-            let flight = (since / DRAW_FLIGHT).clamp(0.0, 1.0);
-            shift.y += 120.0 * (1.0 - cubic_bezier(0.2, 0.9, 0.3, 1.15, flight));
+            let flying = draw.delay.is_finished();
+            if flying {
+                // Im Bild, in dem die Wartezeit abläuft, fliegt sie nur den Rest des Bildes.
+                draw.flight.tick(time.delta().saturating_sub(waiting));
+            }
+            let since = draw.flight.elapsed_secs();
+            shift.y += 120.0 * (1.0 - flight_curve.ease(since / DRAW_FLIGHT));
             // Nachleuchten: ein Drittel voll, dann ausblenden.
             let glow = 1.0 - ((since / DRAW_GLOW - 0.3) / 0.7).clamp(0.0, 1.0);
-            if since >= 0.0 && glow > 0.0 {
+            if flying && glow > 0.0 {
                 halo.push(theme::glow(
                     palette::SELECT.with_alpha(0.8 * glow),
                     24.0 * view.scale,
@@ -681,33 +685,13 @@ fn hover_sound(
     }
 }
 
-/// Jede Karte bekommt ihren Hover-Stand und eine Ebene, auf der sie sich über die Nachbarn heben kann.
-fn prepare_cards(mut commands: Commands, cards: Query<Entity, Added<CardView>>) {
-    for card in &cards {
-        commands
-            .entity(card)
-            .insert((HoverProgress::default(), ZIndex::default()));
-    }
-}
-
 pub(super) struct CardPlugin;
 
 impl Plugin for CardPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(hover_sound)
-            .add_systems(Update, (prepare_cards, show_marks, animate_cards).chain());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bezier_matches_css_endpoints() {
-        assert!(cubic_bezier(0.2, 0.9, 0.3, 1.15, 0.0).abs() < 1e-4);
-        assert!((cubic_bezier(0.2, 0.9, 0.3, 1.15, 1.0) - 1.0).abs() < 1e-4);
-        // Die Kurve schießt über das Ziel hinaus, bevor sie sich setzt.
-        assert!((10..20).any(|i| cubic_bezier(0.2, 0.9, 0.3, 1.15, i as f32 / 20.0) > 1.0));
+            .add_observer(show_mark)
+            .add_observer(hide_mark)
+            .add_systems(Update, animate_cards);
     }
 }

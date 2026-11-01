@@ -52,17 +52,22 @@ impl ShipModels {
     }
 }
 
-pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let mut scene =
-        |path: String| preload.track(server.load(GltfAssetLabel::Scene(0).from_asset(path)));
-    let models = ships()
-        .map(|ship| {
-            let model = ShipModel {
-                ship: scene(ship_model_path(ship)),
-                wreck: scene(wreck_model_path(ship)),
-            };
-            (ship, model)
-        })
-        .collect();
-    commands.insert_resource(ShipModels(models));
+impl FromWorld for ShipModels {
+    fn from_world(world: &mut World) -> Self {
+        let server = world.resource::<AssetServer>().clone();
+        let mut preload = world.resource_mut::<Preload>();
+        let mut scene =
+            |path: String| preload.track(server.load(GltfAssetLabel::Scene(0).from_asset(path)));
+        Self(
+            ships()
+                .map(|ship| {
+                    let model = ShipModel {
+                        ship: scene(ship_model_path(ship)),
+                        wreck: scene(wreck_model_path(ship)),
+                    };
+                    (ship, model)
+                })
+                .collect(),
+        )
+    }
 }

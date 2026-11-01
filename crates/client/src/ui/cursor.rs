@@ -100,9 +100,21 @@ fn rasterize(cursor: CursorId, pixels: u32) -> Image {
     )
 }
 
-/// Die Vorschaubilder aller Zeiger in der Reihenfolge von [`CURSORS`], beim Start gerastert.
+/// Die Vorschaubilder aller Zeiger in der Reihenfolge von [`CURSORS`], beim Aufbau des Plugins gerastert.
 #[derive(Resource)]
 pub struct CursorImages(Vec<Handle<Image>>);
+
+impl FromWorld for CursorImages {
+    fn from_world(world: &mut World) -> Self {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        Self(
+            CURSORS
+                .into_iter()
+                .map(|cursor| images.add(rasterize(cursor, PREVIEW_PIXELS)))
+                .collect(),
+        )
+    }
+}
 
 impl CursorImages {
     pub fn get(&self, cursor: CursorId) -> Handle<Image> {
@@ -120,17 +132,8 @@ struct Pointer {
     hotspot: Vec2,
 }
 
-/// Rastert die Vorschaubilder, blendet den Systemzeiger aus und legt den Zeiger an.
-fn setup(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
-) {
-    let previews = CURSORS
-        .into_iter()
-        .map(|cursor| images.add(rasterize(cursor, PREVIEW_PIXELS)))
-        .collect();
-    commands.insert_resource(CursorImages(previews));
+/// Blendet den Systemzeiger aus und legt den Zeiger an.
+fn setup(mut commands: Commands, mut window: Single<&mut CursorOptions, With<PrimaryWindow>>) {
     window.visible = false;
     commands.spawn((
         Name::new("Mauszeiger"),
@@ -195,7 +198,8 @@ pub(super) struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, setup)
+        app.init_resource::<CursorImages>()
+            .add_systems(PreStartup, setup)
             .add_systems(PostUpdate, (render, follow).before(UiSystems::Prepare));
     }
 }

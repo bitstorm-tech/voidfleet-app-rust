@@ -32,7 +32,6 @@ use bevy::{
     ecs::spawn::SpawnableList,
     prelude::*,
     ui_widgets::{Activate, observe},
-    window::PrimaryWindow,
 };
 use voidfleet_core::{admirals::AdmiralId, protocol::DraftPick};
 
@@ -121,12 +120,8 @@ pub(super) fn dialog_button(dialog: Dialog, icons: &UiIcons, locale: &Locale) ->
         DialogButton(dialog),
         button::icon_button(dialog.icon(icons), dialog.title(locale)),
         observe(
-            |activate: On<Activate>,
-             buttons: Query<&DialogButton>,
-             mut open: MessageWriter<OpenDialog>| {
-                if let Ok(&DialogButton(dialog)) = buttons.get(activate.entity) {
-                    open.write(OpenDialog(dialog));
-                }
+            move |_: On<Activate>, mut open: MessageWriter<OpenDialog>| {
+                open.write(OpenDialog(dialog));
             },
         ),
     )
@@ -271,9 +266,8 @@ fn follow_locale(
 
 /// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Admiralswahl und Nachschub müssen zwischen Statuszeile
 /// und Hand passen.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Density {
-    #[default]
     Regular,
     /// Bis 900 Pixel hoch.
     Compact,
@@ -282,6 +276,7 @@ enum Density {
 }
 
 impl Density {
+    /// Die Dichte nach der Höhe des Fensters.
     fn of(window: &Window) -> Self {
         match window.height() {
             height if height <= 820.0 => Self::Tight,
@@ -289,11 +284,6 @@ impl Density {
             _ => Self::Regular,
         }
     }
-}
-
-/// Die Dichte nach der Höhe des Fensters.
-fn density(window: &Query<&Window, With<PrimaryWindow>>) -> Density {
-    window.single().map(Density::of).unwrap_or_default()
 }
 
 /// Ein Overlay über dem Brett zwischen Statuszeile und Hand (`.admiral-overlay`, `.draft-overlay`); als erstes Kind
@@ -369,40 +359,32 @@ fn overlay_hint(fonts: &Fonts, hint: &str, density: Density) -> impl Bundle + us
 // --- Einblenden ---
 
 /// Springt von `from` auf volle Größe auf (`console-boot`, `result-pop`).
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Debug)]
 #[require(UiTransform)]
 struct PopIn {
     from: f32,
-    duration: f32,
     ease: EaseFunction,
-    elapsed: f32,
+    timer: Timer,
 }
 
 impl PopIn {
     fn new(from: f32, duration: f32, ease: EaseFunction) -> Self {
         Self {
             from,
-            duration,
             ease,
-            elapsed: 0.0,
+            timer: Timer::from_seconds(duration, TimerMode::Once),
         }
     }
 }
 
 /// Blendet einen Teilbaum ohne eigene Farbanimationen ein (`result-fade`).
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Debug)]
 #[require(UiOpacity(0.0))]
-struct FadeIn {
-    duration: f32,
-    elapsed: f32,
-}
+struct FadeIn(Timer);
 
 impl FadeIn {
     fn new(duration: f32) -> Self {
-        Self {
-            duration,
-            elapsed: 0.0,
-        }
+        Self(Timer::from_seconds(duration, TimerMode::Once))
     }
 }
 
@@ -413,19 +395,17 @@ fn pop_in(
     mut fades: Query<(Entity, &mut FadeIn, &mut UiOpacity)>,
 ) {
     for (entity, mut pop, mut transform) in &mut pops {
-        pop.elapsed += time.delta_secs();
-        let progress = (pop.elapsed / pop.duration).min(1.0);
+        let progress = pop.timer.tick(time.delta()).fraction();
         let scale = pop.from + (1.0 - pop.from) * pop.ease.sample_clamped(progress);
         transform.scale = Vec2::splat(scale);
-        if progress >= 1.0 {
+        if pop.timer.is_finished() {
             commands.entity(entity).remove::<PopIn>();
         }
     }
     for (entity, mut fade, mut opacity) in &mut fades {
-        fade.elapsed += time.delta_secs();
-        let progress = (fade.elapsed / fade.duration).min(1.0);
+        let progress = fade.0.tick(time.delta()).fraction();
         opacity.0 = EaseFunction::QuadraticOut.sample_clamped(progress);
-        if progress >= 1.0 {
+        if fade.0.is_finished() {
             commands.entity(entity).remove::<FadeIn>();
         }
     }

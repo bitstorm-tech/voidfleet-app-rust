@@ -10,6 +10,7 @@
 use std::path::PathBuf;
 
 use bevy::{
+    diagnostic::FrameCount,
     ecs::system::SystemParam,
     platform::collections::HashSet,
     prelude::*,
@@ -45,7 +46,6 @@ pub(super) struct AutoPlay {
     rounds: u32,
     screenshot: Option<PathBuf>,
     taken: HashSet<String>,
-    frame: u32,
     /// Runde, für die die folgenden Merker gelten.
     round: u32,
     admiral_sent: bool,
@@ -65,7 +65,6 @@ impl AutoPlay {
             rounds,
             screenshot,
             taken: HashSet::default(),
-            frame: 0,
             round: 0,
             admiral_sent: false,
             drafted: false,
@@ -100,7 +99,6 @@ impl AutoPlay {
                 rounds: self.rounds,
                 screenshot: self.screenshot.take(),
                 taken: std::mem::take(&mut self.taken),
-                frame: self.frame,
                 admiral_sent: self.admiral_sent,
                 finished: self.finished,
                 round,
@@ -128,6 +126,7 @@ fn first_highlighted(highlights: &Highlights) -> Option<SlotRef> {
 }
 
 pub(super) fn autoplay(
+    frame: Res<FrameCount>,
     mut commands: Commands,
     mut play: ResMut<AutoPlay>,
     game: Res<Match>,
@@ -138,8 +137,7 @@ pub(super) fn autoplay(
     mut clicks: Clicks,
     mut exit: MessageWriter<AppExit>,
 ) {
-    play.frame += 1;
-    if !play.frame.is_multiple_of(STEP) {
+    if !frame.0.is_multiple_of(STEP) {
         return;
     }
     if let Some(steps) = play.finished {

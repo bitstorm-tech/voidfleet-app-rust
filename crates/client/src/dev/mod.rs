@@ -1,10 +1,11 @@
 //! Rauchtest für Läufe ohne Spieler: Mit `VOIDFLEET_SMOKE_FRAMES=<n>` stellt das Match ein paar Schiffe, Geister und
 //! ein auseinandergerücktes, glühendes Wrack auf das Brett, wählt beim ersten Zustand vom Server Admiral Osei (der
 //! Log zeigt beide Zustände), schreibt `n` Bilder nach dem Start einen Screenshot nach
-//! `VOIDFLEET_SMOKE_SCREENSHOT` (sofern gesetzt; kleine `n` zeigen den Ladebildschirm) und beendet die App.
-//! `VOIDFLEET_SMOKE_TOGGLE=1` fährt zu Beginn des Matches zur anderen Kameraansicht. Mit
-//! `VOIDFLEET_SMOKE_SHOTS=<bild>,<bild>,…` entsteht statt des einen Screenshots je genanntem Bild einer
-//! (`<stamm>-<bild>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`).
+//! `VOIDFLEET_SMOKE_SCREENSHOT` (kleine `n` zeigen den Ladebildschirm) und beendet die App, sobald er auf der Platte
+//! liegt; ohne Screenshot-Pfad endet sie nach `n` Bildern. `VOIDFLEET_SMOKE_TOGGLE=1` fährt zu Beginn des Matches zur
+//! anderen Kameraansicht. Mit `VOIDFLEET_SMOKE_SHOTS=<bild>,<bild>,…` entsteht statt des einen Screenshots je
+//! genanntem Bild einer (`<stamm>-<bild>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`), die App endet nach dem letzten.
+//! Gezählt wird mit [`FrameCount`].
 //!
 //! `VOIDFLEET_SMOKE_PLAY=<runden>` spielt stattdessen eine Partie gegen den Computer über den Controller ([`autoplay`]),
 //! mit Screenshots an jeder Station (`<stamm>-<station>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`).
@@ -25,8 +26,9 @@ mod scenes;
 use std::path::PathBuf;
 
 use bevy::{
+    diagnostic::FrameCount,
     prelude::*,
-    render::view::screenshot::{Screenshot, save_to_disk},
+    render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
 
 use voidfleet_core::{
@@ -39,7 +41,7 @@ use voidfleet_core::{
 use crate::{
     assets::AppState,
     data::ship_models::ShipModels,
-    game::{Match, StateChanged},
+    game::StateChanged,
     net::ToServer,
     scene::{
         camera::{BoardLayout, CameraCommand},
@@ -48,15 +50,12 @@ use crate::{
     },
 };
 
-/// Wie viele Bilder nach dem Screenshot noch laufen, bis er auf der Platte liegt.
-const SCREENSHOT_MARGIN: u32 = 20;
-
 #[derive(Resource)]
 struct Smoke {
+    /// Ohne Screenshots endet der Rauchtest nach so vielen Bildern.
     frames: u32,
-    screenshot: Option<PathBuf>,
-    /// Bilder für eine Screenshot-Serie; leer: ein Screenshot nach `frames` Bildern.
-    shots: Vec<u32>,
+    /// Die Screenshots mit ihrem Bild; nach dem letzten endet der Rauchtest.
+    shots: Vec<(u32, PathBuf)>,
     toggle: bool,
 }
 
@@ -79,14 +78,6 @@ impl Plugin for DevPlugin {
         else {
             return;
         };
-        let shots = std::env::var("VOIDFLEET_SMOKE_SHOTS")
-            .map(|shots| {
-                shots
-                    .split(',')
-                    .filter_map(|shot| shot.trim().parse().ok())
-                    .collect()
-            })
-            .unwrap_or_default();
         let screenshot = std::env::var_os("VOIDFLEET_SMOKE_SCREENSHOT").map(PathBuf::from);
         let play = std::env::var("VOIDFLEET_SMOKE_PLAY")
             .ok()
@@ -95,7 +86,6 @@ impl Plugin for DevPlugin {
             app.insert_resource(autoplay::AutoPlay::new(rounds, screenshot))
                 .insert_resource(Smoke {
                     frames,
-                    screenshot: None,
                     shots: Vec::new(),
                     toggle: false,
                 })
@@ -108,9 +98,27 @@ impl Plugin for DevPlugin {
                 );
             return;
         }
+        let series: Vec<u32> = std::env::var("VOIDFLEET_SMOKE_SHOTS")
+            .map(|shots| {
+                shots
+                    .split(',')
+                    .filter_map(|shot| shot.trim().parse().ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let shots = match screenshot {
+            None => Vec::new(),
+            Some(path) if series.is_empty() => vec![(frames, path)],
+            Some(path) => {
+                let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+                series
+                    .into_iter()
+                    .map(|frame| (frame, path.with_file_name(format!("{stem}-{frame}.png"))))
+                    .collect()
+            }
+        };
         app.insert_resource(Smoke {
             frames,
-            screenshot,
             shots,
             toggle: std::env::var("VOIDFLEET_SMOKE_TOGGLE").is_ok_and(|value| value == "1"),
         })
@@ -118,7 +126,10 @@ impl Plugin for DevPlugin {
         if !staged {
             app.add_systems(OnEnter(AppState::Match), stage_demo)
                 .add_observer(spread_wreck)
-                .add_systems(Update, choose_admiral.run_if(on_message::<StateChanged>));
+                .add_systems(
+                    Update,
+                    choose_admiral.run_if(on_message::<StateChanged>.and_then(run_once)),
+                );
         } else {
             app.add_systems(OnEnter(AppState::Match), toggle_view);
         }
@@ -223,38 +234,36 @@ fn spread_wreck(ready: On<WreckReady>, mut pieces: Query<&mut Transform>) {
     }
 }
 
-/// Wählt einmal einen Admiral, sobald der Server einen Zustand ohne geschickt hat.
-fn choose_admiral(mut sent: Local<bool>, game: Res<Match>, mut outgoing: MessageWriter<ToServer>) {
-    if game.admiral.is_none() && !std::mem::replace(&mut *sent, true) {
-        outgoing.write(ToServer(ClientMessage::ChooseAdmiral {
-            admiral: AdmiralId::Osei,
-        }));
-    }
+/// Wählt beim ersten Zustand vom Server (noch ohne Admiral) Admiral Osei.
+fn choose_admiral(mut outgoing: MessageWriter<ToServer>) {
+    outgoing.write(ToServer(ClientMessage::ChooseAdmiral {
+        admiral: AdmiralId::Osei,
+    }));
 }
 
+/// Schreibt jeden Screenshot in seinem Bild; nach dem letzten endet die App, ohne Screenshots nach `frames` Bildern.
 fn run_smoke(
-    mut frame: Local<u32>,
+    frame: Res<FrameCount>,
     smoke: Res<Smoke>,
     mut commands: Commands,
     mut exit: MessageWriter<AppExit>,
 ) {
-    *frame += 1;
-    if let Some(path) = &smoke.screenshot {
-        let path = if smoke.shots.is_empty() {
-            (*frame == smoke.frames).then(|| path.clone())
-        } else {
-            smoke.shots.contains(&*frame).then(|| {
-                let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-                path.with_file_name(format!("{stem}-{frame}.png", frame = *frame))
-            })
-        };
-        if let Some(path) = path {
-            commands
-                .spawn(Screenshot::primary_window())
-                .observe(save_to_disk(path));
+    let Some(last) = smoke.shots.iter().map(|&(at, _)| at).max() else {
+        if frame.0 >= smoke.frames {
+            exit.write(AppExit::Success);
+        }
+        return;
+    };
+    for (at, path) in smoke.shots.iter().filter(|(at, _)| *at == frame.0) {
+        let mut shot = commands.spawn(Screenshot::primary_window());
+        shot.observe(save_to_disk(path.clone()));
+        if *at == last {
+            shot.observe(exit_when_captured);
         }
     }
-    if *frame >= smoke.frames + SCREENSHOT_MARGIN {
-        exit.write(AppExit::Success);
-    }
+}
+
+/// Beendet die App nach dem Bild, in dem der Screenshot ankommt; `save_to_disk` schreibt ihn im selben Ereignis.
+fn exit_when_captured(_: On<ScreenshotCaptured>, mut exit: MessageWriter<AppExit>) {
+    exit.write(AppExit::Success);
 }

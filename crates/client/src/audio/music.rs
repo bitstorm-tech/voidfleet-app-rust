@@ -74,36 +74,48 @@ impl Plugin for MusicPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Music>()
             .init_resource::<MusicPlayer>()
-            .add_systems(Update, play_music.run_if(resource_exists::<Mixer>));
+            .add_systems(
+                Update,
+                (change_mood.run_if(resource_changed::<Music>), loop_music)
+                    .chain()
+                    .run_if(resource_exists::<Mixer>),
+            );
     }
 }
 
-fn play_music(
+/// Blendet in die gewünschte Stimmung über, wenn sie sich geändert hat und eine andere ist als die laufende.
+fn change_mood(
     music: Res<Music>,
     mut player: ResMut<MusicPlayer>,
     mut mixer: ResMut<Mixer>,
     library: Res<AudioLibrary>,
     tracks: Res<Assets<MusicTrack>>,
 ) {
-    let playing = player
-        .current
-        .as_ref()
-        .map(|playing| (playing.mood, playing.handle.position()));
-    match (music.0, playing) {
-        (wanted, Some((mood, position))) if wanted == Some(mood) => {
-            let (loop_start, loop_end) = mood.core();
-            if position > loop_end - f64::from(LOOP_FADE) {
-                player.crossfade(
-                    &mut mixer,
-                    &library,
-                    &tracks,
-                    Some(mood),
-                    LOOP_FADE,
-                    Some(loop_start),
-                );
-            }
-        }
-        (None, None) => {}
-        (wanted, _) => player.crossfade(&mut mixer, &library, &tracks, wanted, MOOD_FADE, None),
+    if music.0 != player.current.as_ref().map(|playing| playing.mood) {
+        player.crossfade(&mut mixer, &library, &tracks, music.0, MOOD_FADE, None);
+    }
+}
+
+/// Blendet vor dem Ausklang in den Anfang des Kernteils über.
+fn loop_music(
+    mut player: ResMut<MusicPlayer>,
+    mut mixer: ResMut<Mixer>,
+    library: Res<AudioLibrary>,
+    tracks: Res<Assets<MusicTrack>>,
+) {
+    let Some(playing) = &player.current else {
+        return;
+    };
+    let mood = playing.mood;
+    let (loop_start, loop_end) = mood.core();
+    if playing.handle.position() > loop_end - f64::from(LOOP_FADE) {
+        player.crossfade(
+            &mut mixer,
+            &library,
+            &tracks,
+            Some(mood),
+            LOOP_FADE,
+            Some(loop_start),
+        );
     }
 }

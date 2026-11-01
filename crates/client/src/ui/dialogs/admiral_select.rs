@@ -14,7 +14,7 @@ use bevy::{
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 
 use super::{
-    AdmiralChosen, Density, NewMatch, board_overlay, choice_cancelled, density, overlay_backdrop,
+    AdmiralChosen, Density, NewMatch, board_overlay, choice_cancelled, overlay_backdrop,
     overlay_hint, overlay_title,
 };
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
     palette,
     settings::Language,
     ui::{
-        Fonts, UiIcons,
+        Fonts, UiIcons, button,
         card::ART_ASPECT,
         theme::{self, UiOpacity},
     },
@@ -162,7 +162,6 @@ fn admiral_card(
             ..BorderColor::all(color.with_alpha(0.55))
         },
         BoxShadow::default(),
-        UiTransform::default(),
         UiOpacity(1.0),
         observe(choose),
         children![
@@ -319,13 +318,13 @@ fn show(
     fonts: Res<Fonts>,
     icons: Res<UiIcons>,
     portraits: Res<AdmiralPortraits>,
-    window: Query<&Window, With<PrimaryWindow>>,
+    window: Single<&Window, With<PrimaryWindow>>,
     overlays: Query<(Entity, &AdmiralOverlay)>,
 ) {
     let open = game.round > 0 && game.admiral.is_none() && game.result.is_none();
     let wanted = open.then(|| AdmiralOverlay {
         language: locale.language,
-        density: density(&window),
+        density: Density::of(&window),
     });
     if overlays
         .iter()
@@ -388,15 +387,18 @@ fn settle(
 fn lock_cards(
     mut commands: Commands,
     pending: Res<PendingAdmiral>,
-    mut cards: Query<(Entity, &AdmiralCard, &mut UiOpacity)>,
+    mut cards: Query<(
+        Entity,
+        &AdmiralCard,
+        Has<InteractionDisabled>,
+        &mut UiOpacity,
+    )>,
 ) {
-    for (entity, &AdmiralCard(admiral), mut opacity) in &mut cards {
+    for (entity, &AdmiralCard(admiral), disabled, mut opacity) in &mut cards {
         let chosen = pending.0 == Some(admiral);
         let locked = pending.0.is_some();
-        if locked {
-            commands.entity(entity).insert(InteractionDisabled);
-        } else {
-            commands.entity(entity).remove::<InteractionDisabled>();
+        if disabled != locked {
+            button::set_enabled(&mut commands, entity, !locked);
         }
         opacity.set_if_neq(UiOpacity(if locked && !chosen { 0.35 } else { 1.0 }));
     }
@@ -424,7 +426,6 @@ fn animate_cards(
     mut labels: Query<(&mut BackgroundColor, &Children), With<ChooseLabel>>,
     mut texts: Query<&mut TextColor>,
 ) {
-    let follow = 1.0 - (-FOLLOW * time.delta_secs()).exp();
     for (&AdmiralCard(admiral), hovered, disabled, children, mut transform, mut face, mut shadow) in
         &mut cards
     {
@@ -440,7 +441,8 @@ fn animate_cards(
             _ => 0.0,
         };
         let target = if lifted { -6.0 } else { 0.0 };
-        let next = offset.lerp(target, follow);
+        let mut next = offset;
+        next.smooth_nudge(&target, FOLLOW, time.delta_secs());
         let next = if (next - target).abs() < 0.05 {
             target
         } else {

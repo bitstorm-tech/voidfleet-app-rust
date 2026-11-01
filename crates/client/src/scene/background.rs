@@ -33,7 +33,10 @@ impl Plugin for BackgroundPlugin {
             .add_systems(PostStartup, spawn_background)
             .add_systems(
                 Update,
-                (change_background, fit_background.after(CameraSystems)),
+                (
+                    change_background.run_if(on_message::<ChangeBackground>),
+                    fit_background.after(CameraSystems),
+                ),
             );
     }
 }
@@ -62,14 +65,10 @@ fn spawn_background(
 }
 
 fn change_background(
-    mut messages: MessageReader<ChangeBackground>,
     backgrounds: Res<Backgrounds>,
     background: Single<(&mut Background, &MeshMaterial3d<StandardMaterial>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    if messages.read().count() == 0 {
-        return;
-    }
     let (mut background, material) = background.into_inner();
     let count = backgrounds.0.len();
     background.index = (background.index + 1 + rand::rng().random_range(0..count - 1)) % count;

@@ -28,8 +28,8 @@ use super::{AudioLibrary, Mixer, RadioCue, Sample, decibels, pick_variant, tween
 use crate::{scene::animation::AnimationClock, settings::Settings};
 
 /// So lange (Sekunden) darf ein Spruch auf den freien Funk warten, und die Pause zwischen zwei Sprüchen.
-const MAX_WAIT: f64 = 2.0;
-const GAP: f64 = 0.3;
+const MAX_WAIT: f32 = 2.0;
+const GAP: f32 = 0.3;
 /// Vom Drücken der Sprechtaste bis zur Stimme und von ihrem Ende bis zum Loslassen.
 const KEY_UP: f64 = 0.12;
 const TAIL: f64 = 0.18;
@@ -96,13 +96,14 @@ pub(super) fn transmitter() -> TrackBuilder {
 struct OnAir {
     voice: StaticSoundHandle,
     carrier: StaticSoundHandle,
-    /// Ab hier (echte Zeit in Sekunden) ist der Funk wieder frei.
-    free_at: f64,
+    /// Läuft ab, sobald der Funk wieder frei ist: Spruch, Sprechtaste und Pause (echte Zeit).
+    busy: Timer,
 }
 
 struct Waiting {
     say: Say,
-    since: f64,
+    /// Läuft ab, wenn der Spruch nicht mehr zum Geschehen passt (echte Zeit).
+    patience: Timer,
 }
 
 #[derive(Resource, Default)]
@@ -147,7 +148,14 @@ fn run_radio(
     time: Res<Time<Real>>,
 ) {
     let now = time.elapsed_secs_f64();
-    if silence.read().count() > 0 {
+    if let Some(on_air) = &mut radio.on_air {
+        on_air.busy.tick(time.delta());
+    }
+    if let Some(waiting) = &mut radio.waiting {
+        waiting.patience.tick(time.delta());
+    }
+    if !silence.is_empty() {
+        silence.clear();
         radio.waiting = None;
         if let Some(mut on_air) = radio.on_air.take() {
             on_air.voice.stop(tween(0.1));
@@ -181,7 +189,7 @@ fn run_radio(
         {
             radio.waiting = Some(Waiting {
                 say: *say,
-                since: now,
+                patience: Timer::from_seconds(MAX_WAIT, TimerMode::Once),
             });
         }
     }
@@ -189,11 +197,11 @@ fn run_radio(
     if radio
         .on_air
         .as_ref()
-        .is_some_and(|on_air| now >= on_air.free_at)
+        .is_some_and(|on_air| on_air.busy.is_finished())
     {
         radio.on_air = None;
         match radio.waiting.take() {
-            Some(waiting) if audible && now - waiting.since <= MAX_WAIT => {
+            Some(waiting) if audible && !waiting.patience.is_finished() => {
                 radio.transmit(
                     waiting.say,
                     now,
@@ -242,18 +250,18 @@ impl Radio {
                 return;
             }
         };
-        let duration = end + TAIL;
+        let duration = (end + TAIL) as f32;
         self.on_air = Some(OnAir {
             voice,
             carrier,
-            free_at: now + duration + GAP,
+            busy: Timer::from_seconds(duration + GAP, TimerMode::Once),
         });
         self.last_said.insert(say.cue, now);
         mixer.duck_music(true);
         transmissions.write(RadioTransmission(Some(Transmission {
             cue: say.cue,
             variant,
-            duration: duration as f32,
+            duration,
         })));
     }
 }

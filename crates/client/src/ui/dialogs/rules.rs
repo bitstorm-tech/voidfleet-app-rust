@@ -18,13 +18,14 @@ use voidfleet_core::{
 
 use super::{Dialog, dialog_console, footer_close, icon_dialog, rules_figures};
 use crate::{
-    assets::{AppState, Preload},
+    assets::AppState,
     audio::{PlayUiSound, UiSound},
     data::admirals::flagship_admiral,
     i18n::RulesChapter,
     palette,
     ui::{
         card::{ART_ASPECT, CardAssets, command_card, power_card, ship_card},
+        preloaded,
         theme::{self, rgba},
     },
 };
@@ -40,16 +41,20 @@ pub(super) struct RulesImages {
     pub turn_fire: Handle<Image>,
 }
 
-fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let mut image = |name: &str| preload.track(server.load(format!("images/rules/{name}")));
-    commands.insert_resource(RulesImages {
-        deploy: image("deploy.jpg"),
-        maneuver: image("maneuver.jpg"),
-        board: image("board.png"),
-        fire_orders: image("fire_orders.png"),
-        turn_maneuver: image("turn_maneuver.png"),
-        turn_fire: image("turn_fire.png"),
-    });
+impl FromWorld for RulesImages {
+    fn from_world(world: &mut World) -> Self {
+        preloaded(world, |server, preload| {
+            let mut image = |name: &str| preload.track(server.load(format!("images/rules/{name}")));
+            Self {
+                deploy: image("deploy.jpg"),
+                maneuver: image("maneuver.jpg"),
+                board: image("board.png"),
+                fire_orders: image("fire_orders.png"),
+                turn_maneuver: image("turn_maneuver.png"),
+                turn_fire: image("turn_fire.png"),
+            }
+        })
+    }
 }
 
 /// Eine Illustration.
@@ -266,9 +271,9 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<Rule
             fonts,
             locale.rules_title(),
             Node {
-                width: Val::Vw(94.0),
+                width: vw(94),
                 max_width: px(1080),
-                height: Val::Vh(92.0),
+                height: vh(92),
                 max_height: px(900),
                 ..default()
             },
@@ -680,8 +685,8 @@ fn scroll_body(
             continue;
         };
         let target = target.clamp(0.0, max);
-        let follow = 1.0 - (-SCROLL_FOLLOW * time.delta_secs()).exp();
-        let next = position.y.lerp(target, follow);
+        let mut next = position.y;
+        next.smooth_nudge(&target, SCROLL_FOLLOW, time.delta_secs());
         if (next - target).abs() < 0.5 {
             position.y = target;
             rules.target = None;
@@ -691,7 +696,14 @@ fn scroll_body(
     }
 }
 
-/// Markiert das Kapitel, das oben im sichtbaren Bereich steht.
+/// Ein Kapitel ist gewandert oder neu: Es wurde gescrollt, das Fenster hat sich geändert, oder der Dialog entsteht.
+type SectionMoved = (
+    With<ChapterSection>,
+    Or<(Changed<UiGlobalTransform>, Changed<ComputedNode>)>,
+);
+
+/// Markiert das Kapitel, das oben im sichtbaren Bereich steht; läuft nur, wenn ein Kapitel gewandert ist (die Lage im
+/// Regeltext folgt aus der Lage der Kapitel).
 fn mark_active(
     mut commands: Commands,
     body: Single<(&UiGlobalTransform, &ComputedNode), With<RulesBody>>,
@@ -773,11 +785,11 @@ pub(super) struct RulesPlugin;
 
 impl Plugin for RulesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, load).add_systems(
+        app.init_resource::<RulesImages>().add_systems(
             Update,
             (
                 scroll_body,
-                mark_active.run_if(any_with_component::<RulesBody>),
+                mark_active.run_if(any_match_filter::<SectionMoved>),
                 style_links,
                 rules_figures::scale_labels,
             )

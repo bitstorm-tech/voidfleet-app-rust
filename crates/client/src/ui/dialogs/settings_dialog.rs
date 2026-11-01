@@ -259,7 +259,6 @@ fn choice_key(choice: Choice, node: Node) -> impl Bundle {
         key_gradient(false),
         BorderColor::all(Color::BLACK.with_alpha(0.65)),
         BoxShadow::default(),
-        UiTransform::default(),
         observe(press_choice),
     )
 }
@@ -570,7 +569,6 @@ fn thumb(fraction: f32) -> impl Bundle {
         ]),
         BorderColor::all(Color::BLACK.with_alpha(0.75)),
         BoxShadow::default(),
-        UiTransform::default(),
         Pickable::IGNORE,
         Children::spawn(SpawnIter((0..3).map(|_| {
             (
@@ -776,7 +774,8 @@ fn show_level(
     }
 }
 
-/// Die Felder nach dem gewählten Tab und die Überschrift des Mauszeigers.
+/// Die Felder nach dem gewählten Tab und die Überschrift des Mauszeigers; läuft, wenn sich Tab, Einstellungen oder
+/// Sprache ändern oder der Dialog neu entsteht.
 fn show_tab(
     tab: Res<ActiveTab>,
     settings: Res<Settings>,
@@ -824,7 +823,6 @@ fn animate_choices(
     mut lamps: Query<(&mut BackgroundColor, &mut BoxShadow), With<Lamp>>,
     mut labels: Query<&mut TextColor>,
 ) {
-    let follow = 1.0 - (-FOLLOW * time.delta_secs()).exp();
     for (
         &choice,
         hovered,
@@ -846,12 +844,10 @@ fn animate_choices(
         } else {
             REST
         };
-        let next = depth.0.lerp(target, follow);
-        depth.0 = if (next - target).abs() < 0.01 {
-            target
-        } else {
-            next
-        };
+        depth.0.smooth_nudge(&target, FOLLOW, time.delta_secs());
+        if (depth.0 - target).abs() < 0.01 {
+            depth.0 = target;
+        }
         let bright = if hovered && !checked { 1.15 } else { 1.0 };
         let base = if checked { checked_face() } else { FACE };
         face.set_if_neq(BackgroundColor(
@@ -905,13 +901,25 @@ fn animate_choices(
     }
 }
 
+/// Ein Regler, dessen Griff sich anders zeigen muss: neu, überfahren oder verlassen, Ziehen begonnen oder beendet,
+/// gedrückt (das Loslassen meldet [`RemovedComponents`]).
+type ThumbChanged = (
+    With<Slider>,
+    Or<(Changed<Hovered>, Changed<SliderDragState>, Added<Pressed>)>,
+);
+
 /// Der Griff hebt sich beim Überfahren, senkt sich beim Ziehen und leuchtet dabei.
 fn animate_thumbs(
-    sliders: Query<(Entity, &Hovered, &SliderDragState, Has<Pressed>), With<Slider>>,
+    changed: Query<Entity, ThumbChanged>,
+    mut released: RemovedComponents<Pressed>,
+    sliders: Query<(&Hovered, &SliderDragState, Has<Pressed>), With<Slider>>,
     children: Query<&Children>,
     mut thumbs: Query<(&mut UiTransform, &mut BoxShadow), With<SliderThumb>>,
 ) {
-    for (slider, hovered, drag, pressed) in &sliders {
+    for slider in changed.iter().chain(released.read()) {
+        let Ok((hovered, drag, pressed)) = sliders.get(slider) else {
+            continue;
+        };
         let active = drag.dragging || pressed;
         let (lift, depth, blur, glow) = if active {
             (2.0, 1.0, 4.0, Some((0.7, 18.0)))
@@ -951,7 +959,17 @@ impl Plugin for SettingsDialogPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveTab>().add_systems(
             Update,
-            (show_tab, show_level, animate_choices, animate_thumbs)
+            (
+                show_tab.run_if(
+                    resource_changed::<ActiveTab>
+                        .or_eager(resource_changed::<Settings>)
+                        .or_eager(resource_changed::<Locale>)
+                        .or_eager(any_match_filter::<Added<TabPanel>>),
+                ),
+                show_level,
+                animate_choices,
+                animate_thumbs,
+            )
                 .run_if(in_state(AppState::Match)),
         );
     }

@@ -23,10 +23,10 @@ struct SubtitleText;
 #[derive(Component)]
 struct LevelBar(f32);
 
-/// Wie lange der Untertitel noch steht (Sekunden) und wie weit er eingeblendet ist.
+/// Wie lange der Untertitel steht (ab Beginn des Spruchs) und wie weit er eingeblendet ist.
 #[derive(Resource, Default)]
 struct OnAir {
-    remaining: f32,
+    standing: Timer,
     shown: f32,
 }
 
@@ -42,7 +42,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, locale: Res<Locale>) {
                 ..default()
             },
             BackgroundColor(palette::PLAYER),
-            UiTransform::default(),
             Pickable::IGNORE,
         )
     };
@@ -72,7 +71,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, locale: Res<Locale>) {
             BackgroundColor(theme::rgba(28, 32, 40, 0.78)),
             BorderColor::all(palette::PLAYER.with_alpha(0.7)),
             UiOpacity(0.0),
-            UiTransform::default(),
             Visibility::Hidden,
             Pickable::IGNORE,
             children![
@@ -122,9 +120,10 @@ fn receive(
             Some(transmission) => {
                 let lines = locale.radio_lines(transmission.cue);
                 text.0 = lines[transmission.variant.min(lines.len() - 1)].into();
-                on_air.remaining = transmission.duration + LINGER;
+                on_air.standing =
+                    Timer::from_seconds(transmission.duration + LINGER, TimerMode::Once);
             }
-            None => on_air.remaining = 0.0,
+            None => on_air.standing.finish(),
         }
     }
 }
@@ -136,10 +135,12 @@ fn animate(
     subtitle: Single<(&mut UiOpacity, &mut UiTransform, &mut Visibility), With<Subtitle>>,
     mut bars: Query<(&LevelBar, &mut UiTransform), Without<Subtitle>>,
 ) {
-    let delta = time.delta_secs();
-    on_air.remaining = (on_air.remaining - delta).max(0.0);
-    let target = if on_air.remaining > 0.0 { 1.0 } else { 0.0 };
-    let step = delta / FADE;
+    let target = if on_air.standing.tick(time.delta()).is_finished() {
+        0.0
+    } else {
+        1.0
+    };
+    let step = time.delta_secs() / FADE;
     on_air.shown = if target > on_air.shown {
         (on_air.shown + step).min(1.0)
     } else {
@@ -156,7 +157,7 @@ fn animate(
         return;
     }
     opacity.set_if_neq(UiOpacity(shown));
-    let eased = 1.0 - (1.0 - shown).powi(2);
+    let eased = EaseFunction::QuadraticOut.sample_clamped(shown);
     transform.translation = Val2::px(0.0, 8.0 * (1.0 - eased));
     // Pegel: von 30 % auf volle Höhe und zurück, je Balken versetzt; von unten aus.
     for (LevelBar(offset), mut bar) in &mut bars {

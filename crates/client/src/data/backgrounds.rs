@@ -25,10 +25,15 @@ pub fn background_path(name: &str) -> String {
 #[derive(Resource)]
 pub struct Backgrounds(pub Vec<Handle<Image>>);
 
-pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let images = BACKGROUNDS
-        .into_iter()
-        .map(|name| preload.track(server.load(background_path(name))))
-        .collect();
-    commands.insert_resource(Backgrounds(images));
+impl FromWorld for Backgrounds {
+    fn from_world(world: &mut World) -> Self {
+        let server = world.resource::<AssetServer>().clone();
+        let mut preload = world.resource_mut::<Preload>();
+        Self(
+            BACKGROUNDS
+                .into_iter()
+                .map(|name| preload.track(server.load(background_path(name))))
+                .collect(),
+        )
+    }
 }

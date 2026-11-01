@@ -546,6 +546,13 @@ impl Locale {
     }
 }
 
+/// Beim Start: die Sprache aus den Einstellungen.
+impl FromWorld for Locale {
+    fn from_world(world: &mut World) -> Self {
+        Self::detect(world.resource::<Settings>().language)
+    }
+}
+
 impl Deref for Locale {
     type Target = dyn Messages;
 
@@ -579,8 +586,7 @@ pub struct I18nPlugin;
 
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
-        let chosen = app.world().resource::<Settings>().language;
-        app.insert_resource(Locale::detect(chosen))
+        app.init_resource::<Locale>()
             .add_systems(Update, follow_settings.run_if(resource_changed::<Settings>));
     }
 }

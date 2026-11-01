@@ -14,13 +14,14 @@
 //! ```
 //!
 //! Ein Auftrag, der erst auf etwas warten muss (ein Schiff, dessen Modell noch lädt), bekommt seine [`Animation`]
-//! erst, wenn er beginnt. Ein Auftrag nur aus [`Animation`] ist eine Pause.
+//! erst, wenn er beginnt; Aufträge fester Dauer, die sofort beginnen, verlangen sie als Required Component
+//! (`#[require(Animation::new(DAUER))]`). Ein Auftrag nur aus [`Animation`] ist eine Pause.
 //!
 //! Gestreckt wird um die eingestellte Animationsgeschwindigkeit (Port von `scene/tween.ts`): Welcher Regler gilt,
 //! bestimmt [`AnimationClock::scope`] beim Start des Auftrags (die Rundenwiedergabe schaltet für Angriffe um) oder
 //! [`Animation::in_scope`]. Solange [`AnimationClock::skip`] gilt, springen alle Aufträge sofort an ihr Ende.
 //!
-//! Dazu Helfer der Aufträge: Easing-Kurven wie im Original, Bézierkurven und Zufallswerte.
+//! Dazu Zufallswerte für die Aufträge; Easing und Bézierkurven nehmen sie aus Bevy (`EaseFunction`, `CubicSegment`).
 
 use bevy::prelude::*;
 
@@ -173,27 +174,6 @@ fn finish(mut commands: Commands, animations: Query<(Entity, &Animation)>) {
             commands.entity(entity).despawn();
         }
     }
-}
-
-/// `easeInCubic`.
-pub fn ease_in_cubic(t: f32) -> f32 {
-    t * t * t
-}
-
-/// `easeOutCubic`.
-pub fn ease_out_cubic(t: f32) -> f32 {
-    1.0 - (1.0 - t).powi(3)
-}
-
-/// `easeInOutSine`.
-pub fn ease_in_out_sine(t: f32) -> f32 {
-    -((std::f32::consts::PI * t).cos() - 1.0) / 2.0
-}
-
-/// Punkt auf der kubischen Bézierkurve durch `points` bei `t` (0..1).
-pub fn cubic_bezier([p0, p1, p2, p3]: [Vec3; 4], t: f32) -> Vec3 {
-    let u = 1.0 - t;
-    p0 * u.powi(3) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) + p3 * t.powi(3)
 }
 
 /// Zufallszahl zwischen `min` und `max`.

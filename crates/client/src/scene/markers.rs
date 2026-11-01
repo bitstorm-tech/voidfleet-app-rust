@@ -16,7 +16,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use voidfleet_core::admirals::PowerId;
 
 use super::{
-    animation::{Animation, AnimationSystems, ease_out_cubic},
+    animation::{Animation, AnimationSystems},
     fx::{FxAssets, FxMaterial, glowing},
     paint::{Canvas, around, dashed_ring, disc, polygon, rect, ring, unrotate},
     ship::Ship,
@@ -208,6 +208,7 @@ const TEXTURE_SIZE: u32 = 256;
 /// Eine liegende Marke (der Halter).
 #[derive(Component, Clone, Copy, Debug)]
 struct FloorMarker {
+    /// Das Schiff, auf dessen Grundfläche die Marke gestreckt wird.
     ship: Entity,
     spec: MarkerSpec,
     /// Größe beim Auftritt, 1 sobald sie liegt.
@@ -228,7 +229,7 @@ pub(super) struct MarkersPlugin;
 
 impl Plugin for MarkersPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, draw_glyphs)
+        app.init_resource::<GlyphTextures>()
             .add_observer(drop_marker)
             .add_systems(
                 Update,
@@ -242,12 +243,15 @@ impl Plugin for MarkersPlugin {
     }
 }
 
-fn draw_glyphs(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    let textures = Glyph::ALL
-        .into_iter()
-        .map(|glyph| (glyph, images.add(draw(glyph))))
-        .collect();
-    commands.insert_resource(GlyphTextures(textures));
+impl FromWorld for GlyphTextures {
+    fn from_world(world: &mut World) -> Self {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        let textures = Glyph::ALL
+            .into_iter()
+            .map(|glyph| (glyph, images.add(draw(glyph))))
+            .collect();
+        Self(textures)
+    }
 }
 
 /// Radialer Verlauf der Deckkraft zwischen den Radien `from` und `to`, Stufen als (Anteil, Deckkraft).
@@ -397,22 +401,23 @@ fn draw(glyph: Glyph) -> Image {
 fn reconcile(
     mut commands: Commands,
     ships: Query<
-        (Entity, &Ship, Option<&ShipMarkers>, &ShipParts),
+        (Entity, &Ship, &ShipMarkers, &ShipParts),
         Or<(Changed<ShipMarkers>, Added<ShipParts>)>,
     >,
+    children: Query<&Children>,
     markers: Query<(Entity, &FloorMarker)>,
     fx: Res<FxAssets>,
     textures: Res<GlyphTextures>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
     for (ship_entity, ship, specs, parts) in &ships {
-        let mut wanted: Vec<MarkerSpec> = specs.map(|specs| specs.0.clone()).unwrap_or_default();
+        let mut wanted = specs.0.clone();
         if let Some(admiral) = flagship_admiral(ship.id) {
             wanted.push(MarkerSpec::new(MarkerKind::Halo, admiral_color(admiral)));
         }
         let lying: Vec<(Entity, MarkerSpec)> = markers
-            .iter()
-            .filter(|(_, marker)| marker.ship == ship_entity)
+            .iter_many(children.relationship_sources::<Children>(parts.floor))
+            .matched()
             .map(|(entity, marker)| (entity, marker.spec))
             .collect();
         for (entity, spec) in &lying {
@@ -467,12 +472,9 @@ fn drop_marker(
     mut commands: Commands,
 ) {
     let drop = *drops.get(add.entity).expect("Marke");
+    // Ist das Schiff schon fort, fällt die Marke ins Leere; der Auftrag läuft trotzdem ab.
     if let Ok(mut markers) = ships.get_mut(drop.ship) {
         markers.put(drop.spec);
-    } else {
-        commands
-            .entity(drop.ship)
-            .insert(ShipMarkers(vec![drop.spec]));
     }
     commands
         .entity(add.entity)
@@ -480,12 +482,23 @@ fn drop_marker(
 }
 
 /// Erscheinen: Die Marke zieht sich aus großem Abstand auf das Schiff zusammen.
-fn land_markers(drops: Query<(&DropMarker, &Animation)>, mut markers: Query<&mut FloorMarker>) {
+fn land_markers(
+    drops: Query<(&DropMarker, &Animation)>,
+    ships: Query<&ShipParts>,
+    children: Query<&Children>,
+    mut markers: Query<&mut FloorMarker>,
+) {
     for (drop, animation) in &drops {
-        for mut marker in &mut markers {
-            if marker.ship == drop.ship && marker.spec.kind == drop.spec.kind {
-                marker.intro =
-                    INTRO_SCALE - (INTRO_SCALE - 1.0) * ease_out_cubic(animation.progress());
+        let Ok(parts) = ships.get(drop.ship) else {
+            continue;
+        };
+        let landed = EaseFunction::CubicOut.sample_clamped(animation.progress());
+        let intro = INTRO_SCALE - (INTRO_SCALE - 1.0) * landed;
+        for entity in children.relationship_sources::<Children>(parts.floor) {
+            if let Ok(mut marker) = markers.get_mut(entity)
+                && marker.spec.kind == drop.spec.kind
+            {
+                marker.intro = intro;
             }
         }
     }
@@ -513,11 +526,10 @@ fn animate(
             1.0,
             (footprint.y + margin).max(MIN_SIZE),
         );
-        let blink = if marker.spec.planned {
+        // Nur eingeplante Marken blinken; die übrigen behalten die Deckkraft, mit der sie gespawnt wurden.
+        let blink = marker.spec.planned.then(|| {
             PLANNED_MIN + (1.0 - PLANNED_MIN) * (0.5 + 0.5 * (seconds * PLANNED_BLINK * TAU).sin())
-        } else {
-            1.0
-        };
+        });
         for child in children.iter() {
             let Ok((disc, mut transform, material)) = discs.get_mut(child) else {
                 continue;
@@ -527,7 +539,9 @@ fn animate(
             // Babylon dreht linkshändig: Positive Winkel laufen von oben gesehen im Uhrzeigersinn.
             transform.rotation = Quat::from_rotation_y(-seconds * disc.layer.spin);
             transform.scale = Vec3::splat(pulse * marker.intro);
-            if let Some(mut material) = materials.get_mut(&material.0) {
+            if let Some(blink) = blink
+                && let Some(mut material) = materials.get_mut(&material.0)
+            {
                 material.set_alpha(disc.alpha * blink);
             }
         }

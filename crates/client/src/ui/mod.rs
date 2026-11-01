@@ -47,7 +47,7 @@ use bevy::{ecs::system::NonSendMarker, prelude::*, window::PrimaryWindow, winit:
 use voidfleet_core::{admirals::AdmiralId, board::Side};
 
 use crate::{
-    assets::{AppState, Preload},
+    assets::{AppState, LoadingPhase, Preload},
     game::ShipPick,
     i18n::Locale,
 };
@@ -59,6 +59,16 @@ pub struct Fonts {
     pub body: Handle<Font>,
     pub display: Handle<Font>,
     pub display_bold: Handle<Font>,
+}
+
+impl FromWorld for Fonts {
+    fn from_world(world: &mut World) -> Self {
+        preloaded(world, |server, preload| Self {
+            body: preload.track(server.load("fonts/exo2-regular.ttf")),
+            display: preload.track(server.load("fonts/rajdhani-600.ttf")),
+            display_bold: preload.track(server.load("fonts/rajdhani-700.ttf")),
+        })
+    }
 }
 
 impl Fonts {
@@ -92,6 +102,34 @@ pub struct UiIcons {
     pub settings: Handle<Image>,
     pub rules: Handle<Image>,
     pub surrender: Handle<Image>,
+}
+
+impl FromWorld for UiIcons {
+    fn from_world(world: &mut World) -> Self {
+        preloaded(world, |server, preload| {
+            let mut icon = |name: &str| preload.track(server.load(format!("images/ui/{name}.png")));
+            Self {
+                log: icon("log"),
+                fullscreen_enter: icon("fullscreen_enter"),
+                fullscreen_exit: icon("fullscreen_exit"),
+                view_toggle: icon("view_toggle"),
+                crosshair: icon("crosshair"),
+                check: icon("check"),
+                crown: icon("crown"),
+                settings: icon("settings"),
+                rules: icon("rules"),
+                surrender: icon("surrender"),
+            }
+        })
+    }
+}
+
+/// Legt eine Ressource mit Assets an, auf die der Ladebildschirm wartet: `load` lädt über den [`AssetServer`] und
+/// meldet die Handles bei [`Preload`] an.
+fn preloaded<T>(world: &mut World, load: impl FnOnce(&AssetServer, &mut Preload) -> T) -> T {
+    world.resource_scope(|world, mut preload: Mut<Preload>| {
+        load(world.resource::<AssetServer>(), &mut preload)
+    })
 }
 
 /// Was an der Stelle des Aktionsknopfs steht.
@@ -189,11 +227,22 @@ pub struct IconBar;
 #[derive(Resource)]
 struct AppIcon(Handle<Image>);
 
+impl FromWorld for AppIcon {
+    fn from_world(world: &mut World) -> Self {
+        preloaded(world, |server, preload| {
+            Self(preload.track(server.load("app/icon-192.png")))
+        })
+    }
+}
+
 pub struct InterfacePlugin;
 
 impl Plugin for InterfacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HudState>()
+            .init_resource::<Fonts>()
+            .init_resource::<UiIcons>()
+            .init_resource::<AppIcon>()
             .add_message::<HandCardPressed>()
             .add_message::<PowerPressed>()
             .add_message::<MarkPressed>()
@@ -202,7 +251,6 @@ impl Plugin for InterfacePlugin {
             .add_message::<ShowBanner>()
             .add_message::<HideBanner>()
             .add_message::<ShowRoundBanner>()
-            .add_systems(PreStartup, load)
             .add_plugins((
                 loading_screen::LoadingScreenPlugin,
                 theme::ThemePlugin,
@@ -221,32 +269,10 @@ impl Plugin for InterfacePlugin {
                 preview::PreviewPlugin,
             ))
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
-            .add_systems(Update, set_window_icon);
+            .add_systems(OnEnter(LoadingPhase::Rehearsal), set_window_icon);
         #[cfg(target_os = "macos")]
         app.add_systems(Startup, set_dock_icon);
     }
-}
-
-fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    commands.insert_resource(Fonts {
-        body: preload.track(server.load("fonts/exo2-regular.ttf")),
-        display: preload.track(server.load("fonts/rajdhani-600.ttf")),
-        display_bold: preload.track(server.load("fonts/rajdhani-700.ttf")),
-    });
-    let mut icon = |name: &str| preload.track(server.load(format!("images/ui/{name}.png")));
-    commands.insert_resource(UiIcons {
-        log: icon("log"),
-        fullscreen_enter: icon("fullscreen_enter"),
-        fullscreen_exit: icon("fullscreen_exit"),
-        view_toggle: icon("view_toggle"),
-        crosshair: icon("crosshair"),
-        check: icon("check"),
-        crown: icon("crown"),
-        settings: icon("settings"),
-        rules: icon("rules"),
-        surrender: icon("surrender"),
-    });
-    commands.insert_resource(AppIcon(server.load("app/icon-192.png")));
 }
 
 /// Die Icon-Knöpfe oben rechts.
@@ -275,21 +301,14 @@ fn spawn_icon_bar(mut commands: Commands, icons: Res<UiIcons>, locale: Res<Local
     ));
 }
 
-/// Setzt das Icon, sobald es geladen ist (einmal; `winit` erlaubt das nur im Haupt-Thread).
+/// Setzt das Icon, sobald alle Dateien geladen sind (`winit` erlaubt das nur im Haupt-Thread).
 fn set_window_icon(
-    mut done: Local<bool>,
     icon: Res<AppIcon>,
     images: Res<Assets<Image>>,
     window: Single<Entity, With<PrimaryWindow>>,
     _main_thread: NonSendMarker,
 ) {
-    if *done {
-        return;
-    }
-    let Some(image) = images.get(&icon.0) else {
-        return;
-    };
-    *done = true;
+    let image = images.get(&icon.0).expect("App-Icon geladen");
     let size = image.size();
     let Some(rgba) = image
         .clone()

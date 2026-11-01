@@ -21,8 +21,7 @@ use bevy::prelude::*;
 use voidfleet_core::{board::SlotRef, cards::ShipClass};
 
 use super::{
-    animation::AnimationScope,
-    animation::{Animation, AnimationSystems, ease_in_cubic, ease_in_out_sine, ease_out_cubic},
+    animation::{Animation, AnimationScope, AnimationSystems},
     board::{BoardEntities, attach},
     effects::Warp,
     maneuver::Flight,
@@ -72,12 +71,14 @@ pub struct MoveShip {
 
 /// Phasentausch, erste Hälfte: Das Schiff schrumpft zu einem Lichtpunkt.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(Animation::new(PHASE_DURATION))]
 pub struct PhaseOut {
     pub ship: Entity,
 }
 
 /// Phasentausch, zweite Hälfte: Am neuen Slot wächst es wieder auf seine Größe.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(Animation::new(PHASE_DURATION))]
 pub struct PhaseIn {
     pub ship: Entity,
 }
@@ -98,18 +99,21 @@ pub struct Withdraw {
 
 /// Das Trugbild baut sich auf: Es wächst von der Platte nach oben und flackert dabei ins Bild.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(Animation::new(MATERIALIZE_DURATION))]
 pub struct Materialize {
     pub ship: Entity,
 }
 
 /// Das Trugbild löst sich auf: Es sinkt flackernd in sich zusammen und verschwindet dann.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(Animation::new(DEMATERIALIZE_DURATION))]
 pub struct Dematerialize {
     pub ship: Entity,
 }
 
 /// Treffer: Die Hülle blitzt in `strength` (üblich [`HIT_FLASH_ALPHA`]) auf und klingt ab.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(Animation::new(HIT_FLASH_DURATION))]
 pub struct HitFlash {
     pub ship: Entity,
     pub strength: f32,
@@ -171,11 +175,6 @@ pub(super) struct MotionPlugin;
 impl Plugin for MotionPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(start_move)
-            .add_observer(start_simple::<PhaseOut>)
-            .add_observer(start_simple::<PhaseIn>)
-            .add_observer(start_simple::<HitFlash>)
-            .add_observer(start_simple::<Materialize>)
-            .add_observer(start_simple::<Dematerialize>)
             .add_observer(start_charge)
             .add_observer(start_withdraw)
             .add_systems(
@@ -200,37 +199,6 @@ impl Plugin for MotionPlugin {
                 ),
             );
     }
-}
-
-/// Aufträge fester Dauer, die sofort beginnen.
-trait Timed: Component {
-    const DURATION: f32;
-}
-
-impl Timed for PhaseOut {
-    const DURATION: f32 = PHASE_DURATION;
-}
-
-impl Timed for PhaseIn {
-    const DURATION: f32 = PHASE_DURATION;
-}
-
-impl Timed for HitFlash {
-    const DURATION: f32 = HIT_FLASH_DURATION;
-}
-
-impl Timed for Materialize {
-    const DURATION: f32 = MATERIALIZE_DURATION;
-}
-
-impl Timed for Dematerialize {
-    const DURATION: f32 = DEMATERIALIZE_DURATION;
-}
-
-fn start_simple<J: Timed>(add: On<Add<J>>, mut commands: Commands) {
-    commands
-        .entity(add.entity)
-        .insert(Animation::new(J::DURATION));
 }
 
 /// Der Deploy beginnt, sobald das Modell gemessen ist: Balken und Marken verschwinden, das Schiff rückt hinter das Pad,
@@ -291,8 +259,9 @@ fn warp_in(
             continue;
         };
         let progress = animation.progress();
-        transform.translation.z = WARP_GLIDE * (1.0 - ease_out_cubic(progress));
-        let snap = ease_out_cubic((progress / WARP_SNAP).min(1.0));
+        transform.translation.z =
+            WARP_GLIDE * (1.0 - EaseFunction::CubicOut.sample_clamped(progress));
+        let snap = EaseFunction::CubicOut.sample_clamped(progress / WARP_SNAP);
         let length = WARP_STRETCH + (1.0 - WARP_STRETCH) * snap;
         let width = WARP_SQUEEZE + (1.0 - WARP_SQUEEZE) * snap;
         if let Some(model) = model_of(children, &models)
@@ -377,13 +346,15 @@ fn phase(
 ) {
     for (job, animation) in &outs {
         if let Ok(mut transform) = ships.get_mut(job.ship) {
-            let size = (1.0 - ease_in_cubic(animation.progress())).max(0.01);
+            let size = (1.0 - EaseFunction::CubicIn.sample_clamped(animation.progress())).max(0.01);
             transform.scale = Vec3::splat(BOARD_SCALE * size);
         }
     }
     for (job, animation) in &ins {
         if let Ok(mut transform) = ships.get_mut(job.ship) {
-            let size = ease_out_cubic(animation.progress()).max(0.01);
+            let size = EaseFunction::CubicOut
+                .sample_clamped(animation.progress())
+                .max(0.01);
             transform.scale = Vec3::splat(BOARD_SCALE * size);
         }
     }
@@ -427,7 +398,7 @@ fn charge(
             continue;
         };
         let progress = animation.progress();
-        let travelled = ease_in_cubic(progress);
+        let travelled = EaseFunction::CubicIn.sample_clamped(progress);
         let arc = (PI * travelled).sin();
         transform.translation = Vec3::new(
             ram.target.x * travelled,
@@ -435,7 +406,7 @@ fn charge(
             ram.target.z * travelled,
         );
         transform.rotation =
-            Quat::from_rotation_y(ram.yaw * ease_out_cubic((progress * 2.5).min(1.0)));
+            Quat::from_rotation_y(ram.yaw * EaseFunction::CubicOut.sample_clamped(progress * 2.5));
         if let Some(model) = model_of(children, &models)
             && let Ok(mut model) = models.get_mut(model)
         {
@@ -473,7 +444,7 @@ fn withdraw(
 ) {
     for (job, from, animation) in &jobs {
         if let Ok(mut transform) = ships.get_mut(job.ship) {
-            let back = ease_in_out_sine(animation.progress());
+            let back = EaseFunction::SineInOut.sample_clamped(animation.progress());
             transform.translation = from.translation.lerp(Vec3::ZERO, back);
             transform.rotation = from.rotation.slerp(Quat::IDENTITY, back);
         }
@@ -504,7 +475,8 @@ fn materialize(
         if let Some(model) = model_of(children, &models)
             && let Ok(mut model) = models.get_mut(model)
         {
-            model.scale.y = model.scale.x * ease_out_cubic(progress).max(0.01);
+            model.scale.y =
+                model.scale.x * EaseFunction::CubicOut.sample_clamped(progress).max(0.01);
         }
     }
 }
@@ -537,7 +509,11 @@ fn dematerialize(
                     1.0
                 };
             let wide = base * (1.0 + 0.3 * progress);
-            model.scale = Vec3::new(wide, base * (1.0 - ease_in_cubic(progress)).max(0.01), wide);
+            model.scale = Vec3::new(
+                wide,
+                base * (1.0 - EaseFunction::CubicIn.sample_clamped(progress)).max(0.01),
+                wide,
+            );
         }
         if animation.is_done() {
             commands.entity(job.ship).despawn();

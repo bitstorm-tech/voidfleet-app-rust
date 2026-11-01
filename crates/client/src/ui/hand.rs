@@ -197,7 +197,7 @@ fn stack_marks(fonts: &super::Fonts, count: usize) -> (BoxShadow, impl Bundle) {
     (BoxShadow(shadow), badge)
 }
 
-/// Baut eine Reihe neu, sobald sich ihre Karten ändern.
+/// Baut eine Reihe neu, sobald sich ihre Karten ändern; läuft, wenn sich der Spielzustand ändert.
 fn rebuild_rows(
     mut commands: Commands,
     game: Res<Match>,
@@ -227,22 +227,32 @@ fn rebuild_rows(
                     ));
                 }
                 for (ship, indices) in stacks_of(&next.ships) {
-                    let card = commands
-                        .spawn((ship_card(&assets, ship, HAND_ZOOM), ChildOf(row)))
-                        .id();
-                    decorate(&mut commands, card, &assets.fonts, &indices, &drawn);
-                    commands.entity(card).insert(HandStack::Ships(indices));
+                    decorate(
+                        &mut commands.spawn((
+                            ship_card(&assets, ship, HAND_ZOOM),
+                            HandStack::Ships(indices.clone()),
+                            ChildOf(row),
+                        )),
+                        &assets.fonts,
+                        &indices,
+                        &drawn,
+                    );
                 }
             }
             HandRow::Commands if shown.commands != next.commands => {
                 let drawn = drawn_indices(&shown.commands, &next.commands);
                 commands.entity(row).despawn_related::<Children>();
                 for (command, indices) in stacks_of(&next.commands) {
-                    let card = commands
-                        .spawn((command_card(&assets, command, HAND_ZOOM), ChildOf(row)))
-                        .id();
-                    decorate(&mut commands, card, &assets.fonts, &indices, &drawn);
-                    commands.entity(card).insert(HandStack::Commands(indices));
+                    decorate(
+                        &mut commands.spawn((
+                            command_card(&assets, command, HAND_ZOOM),
+                            HandStack::Commands(indices.clone()),
+                            ChildOf(row),
+                        )),
+                        &assets.fonts,
+                        &indices,
+                        &drawn,
+                    );
                 }
             }
             _ => {}
@@ -251,20 +261,14 @@ fn rebuild_rows(
     *shown = next;
 }
 
-/// Stapel-Kanten, Zähler und Einflug einer Karte.
-fn decorate(
-    commands: &mut Commands,
-    card: Entity,
-    fonts: &super::Fonts,
-    indices: &[usize],
-    drawn: &[usize],
-) {
+/// Stapel-Kanten (statt des Scheins der Karte), Zähler und Einflug einer Karte.
+fn decorate(card: &mut EntityCommands, fonts: &super::Fonts, indices: &[usize], drawn: &[usize]) {
     if indices.len() > 1 {
         let (shadow, badge) = stack_marks(fonts, indices.len());
-        commands.entity(card).insert(shadow).with_child(badge);
+        card.insert(shadow).with_child(badge);
     }
     if let Some(delay) = draw_delay(indices, drawn) {
-        commands.entity(card).insert(CardDraw::after(delay));
+        card.insert(CardDraw::after(delay));
     }
 }
 
@@ -374,6 +378,17 @@ fn mark_cards(
 /// Die Spalte der Fähigkeit, getrennt von den Reihen.
 type AdmiralOnly = (With<AdmiralArea>, Without<HandRow>);
 
+/// Was [`fit_rows`] misst, hat sich geändert: die Breite der Leiste, des Aktionsknopfs oder der Fähigkeit, ob die
+/// Fähigkeit steht, oder die Karten einer Reihe.
+type HandResized = Or<(
+    (
+        Changed<ComputedNode>,
+        Or<(With<HandBar>, With<ActionArea>, With<AdmiralArea>)>,
+    ),
+    (Changed<Node>, With<AdmiralArea>),
+    (Changed<Children>, With<HandRow>),
+)>;
+
 /// Die Hände teilen sich die Leiste neben dem Aktionsknopf: Jede bekommt genau die Hälfte, damit der Knopf in der
 /// Mitte bleibt. Reicht der Platz nicht, rücken die Karten der Hand zusammen und überlappen sich.
 fn fit_rows(
@@ -424,7 +439,12 @@ impl Plugin for HandPlugin {
             .add_observer(click_card)
             .add_systems(
                 Update,
-                (rebuild_rows, set_hover_origins, mark_cards, fit_rows)
+                (
+                    rebuild_rows.run_if(resource_changed::<Match>),
+                    set_hover_origins,
+                    mark_cards,
+                    fit_rows.run_if(any_match_filter::<HandResized>),
+                )
                     .chain()
                     .run_if(in_state(AppState::Match)),
             );

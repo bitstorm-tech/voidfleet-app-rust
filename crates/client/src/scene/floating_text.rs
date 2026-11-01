@@ -3,7 +3,12 @@
 //! Oberfläche, der jedes Bild über seinem Weltpunkt steht; er läuft im Takt der Animationsgeschwindigkeit und
 //! verschwindet danach selbst.
 
-use bevy::{picking::Pickable, prelude::*, ui::UiTransform};
+use bevy::{
+    picking::Pickable,
+    prelude::*,
+    transform::TransformSystems,
+    ui::{UiSystems, UiTransform},
+};
 
 use super::{animation::Animation, camera::MainCamera};
 use crate::{palette, ui::Fonts};
@@ -49,7 +54,10 @@ impl Plugin for FloatingTextPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(show).add_systems(
             PostUpdate,
-            float.after(bevy::transform::TransformSystems::Propagate),
+            // Nach den Lagen dieses Bilds und vor dem UI-Layout: Der Text steht im selben Bild dort.
+            float
+                .after(TransformSystems::Propagate)
+                .before(UiSystems::Layout),
         );
     }
 }
@@ -83,14 +91,12 @@ fn show(
     ));
 }
 
-/// Ease-out zwischen zwei Schlüsselbildern.
-fn ease_out(t: f32) -> f32 {
-    1.0 - (1.0 - t) * (1.0 - t)
-}
-
 /// `float-up`: erscheint von unten wachsend, federt kurz und steigt dann verblassend auf.
 fn keyframe(progress: f32) -> (f32, f32, f32) {
-    let segment = |from: f32, to: f32| ease_out(((progress - from) / (to - from)).clamp(0.0, 1.0));
+    // Ease-out zwischen zwei Schlüsselbildern.
+    let segment = |from: f32, to: f32| {
+        EaseFunction::QuadraticOut.sample_clamped((progress - from) / (to - from))
+    };
     let opacity = if progress < 0.15 {
         segment(0.0, 0.15)
     } else {

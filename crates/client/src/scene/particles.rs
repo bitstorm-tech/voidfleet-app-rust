@@ -157,7 +157,7 @@ struct Particle {
 
 /// Ein Schwarm. Die Lage der Entity ist sein Ursprung; die Partikel rechnen in Weltkoordinaten.
 #[derive(Component, Debug)]
-#[require(NoFrustumCulling)]
+#[require(Transform, Visibility, NoFrustumCulling)]
 pub struct Particles {
     burst: Burst,
     scale: f32,

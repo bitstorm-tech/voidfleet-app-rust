@@ -12,7 +12,7 @@
 //!
 //! Der Server bleibt angehalten ([`ServerInbox::hold`]); der Spielzustand ist erfunden.
 
-use bevy::prelude::*;
+use bevy::{diagnostic::FrameCount, prelude::*, time::Stopwatch};
 use voidfleet_core::{
     admirals::AdmiralId,
     board::{LaneType, Side, SlotRef, SlotTarget},
@@ -71,13 +71,11 @@ impl DevScene {
     }
 }
 
-/// Takt der Schleife: Sekunden seit dem Start und wie viele Schritte schon liefen.
+/// Takt der Schleife: Zeit seit dem Start und wie viele Schritte schon liefen.
 #[derive(Resource, Default)]
 struct Loop {
-    elapsed: f32,
+    stopwatch: Stopwatch,
     step: u32,
-    /// Bilder seit dem Start der Szene.
-    frames: u32,
 }
 
 /// Abstand zwischen zwei Schritten der Schleife je Szene.
@@ -249,17 +247,17 @@ fn run(
     scene: Res<DevScene>,
     mut clock: ResMut<Loop>,
     time: Res<Time>,
+    frame: Res<FrameCount>,
     layout: Res<BoardLayout>,
     board: Res<BoardEntities>,
     models: Res<ShipModels>,
     mut game: ResMut<Match>,
     ships: Query<(Entity, &Ship, &OnSlot)>,
 ) {
-    clock.elapsed += time.delta_secs();
-    clock.frames += 1;
+    clock.stopwatch.tick(time.delta());
     // Kurz Luft lassen, bis Brett und Modelle stehen.
     let due = 1.0 + clock.step as f32 * period(*scene);
-    if clock.elapsed < due {
+    if clock.stopwatch.elapsed_secs() < due {
         return;
     }
     let step = clock.step;
@@ -325,10 +323,7 @@ fn run(
             ];
             let slot = slots[step as usize % slots.len()];
             if let (Some(ship), Some(card)) = (ship_on(slot), game.board.card(slot)) {
-                info!(
-                    "Dev-Szene: {slot:?} geht unter (Bild {} der Szene)",
-                    clock.frames
-                );
+                info!("Dev-Szene: {slot:?} geht unter (Bild {})", frame.0);
                 game.board[slot] = None;
                 commands.spawn(DestroyShip { ship }).observe(
                     move |_: On<AnimationFinished>, mut commands: Commands| {

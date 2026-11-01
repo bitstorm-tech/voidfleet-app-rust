@@ -202,13 +202,12 @@ impl Flight {
     }
 
     fn sample(&mut self, segments: &[Segment]) {
-        for segment in segments {
-            let first = if self.points.is_empty() { 0 } else { 1 };
-            for step in first..=SAMPLES_PER_SEGMENT {
-                self.points
-                    .push(bezier(segment, step as f32 / SAMPLES_PER_SEGMENT as f32));
-            }
-        }
+        let path = CubicBezier::new(segments.iter().copied())
+            .to_curve()
+            .expect("Bahn aus mindestens einem Stück");
+        self.points = path
+            .iter_positions(segments.len() * SAMPLES_PER_SEGMENT)
+            .collect();
         let mut travelled = 0.0;
         for i in 0..self.points.len() {
             if i > 0 {
@@ -317,11 +316,6 @@ fn looping(start: Point, radius: f32) -> Vec<Segment> {
             Point::ZERO,
         ],
     ]
-}
-
-fn bezier([p0, p1, p2, p3]: &Segment, t: f32) -> Point {
-    let u = 1.0 - t;
-    *p0 * u.powi(3) + *p1 * (3.0 * u * u * t) + *p2 * (3.0 * u * t * t) + *p3 * t.powi(3)
 }
 
 fn wrap_angle(angle: f32) -> f32 {

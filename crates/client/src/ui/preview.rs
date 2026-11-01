@@ -21,6 +21,7 @@ use bevy::{
     picking::pointer::{Location, PointerAction, PointerId, PointerInput},
     prelude::*,
     render::view::screenshot::{Screenshot, save_to_disk},
+    time::Stopwatch,
     ui_widgets::Activate,
     window::{PrimaryWindow, WindowRef},
 };
@@ -56,8 +57,8 @@ struct Preview {
     shot: Option<String>,
     /// Pfad der Screenshots der Dialoge.
     dialogs: Option<String>,
-    /// Sekunden seit Beginn des Matches.
-    elapsed: f32,
+    /// Zeit seit Beginn des Matches.
+    clock: Stopwatch,
     /// Der nächste Schritt des Ablaufs.
     step: usize,
 }
@@ -180,7 +181,7 @@ fn script(
     let Some(shot) = preview.shot.clone() else {
         return;
     };
-    preview.elapsed += time.delta_secs();
+    preview.clock.tick(time.delta());
     let screenshot = |commands: &mut Commands, index: usize| {
         commands
             .spawn(Screenshot::primary_window())
@@ -190,7 +191,7 @@ fn script(
     let Some(&at) = steps.get(preview.step) else {
         return;
     };
-    if preview.elapsed < at {
+    if preview.clock.elapsed_secs() < at {
         return;
     }
     match preview.step {
@@ -333,9 +334,9 @@ fn dialog_script(
     let Some(path) = preview.dialogs.clone() else {
         return;
     };
-    preview.elapsed += time.delta_secs();
+    preview.clock.tick(time.delta());
     let at = 3.0 + preview.step as f32;
-    if preview.elapsed < at {
+    if preview.clock.elapsed_secs() < at {
         return;
     }
     let Some(&step) = DIALOG_STEPS.get(preview.step) else {
@@ -414,7 +415,7 @@ impl Plugin for PreviewPlugin {
             round,
             shot: std::env::var("VOIDFLEET_UI_PREVIEW_SHOT").ok(),
             dialogs: std::env::var("VOIDFLEET_UI_PREVIEW_DIALOGS").ok(),
-            elapsed: 0.0,
+            clock: Stopwatch::new(),
             step: 0,
         })
         .insert_resource(crate::controller::Scripted)

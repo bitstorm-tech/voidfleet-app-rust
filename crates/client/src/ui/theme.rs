@@ -163,7 +163,7 @@ pub struct Modal;
 /// Deckkraft eines ganzen Teilbaums (CSS `opacity`): multipliziert die Deckkraft aller Farben darunter
 /// (Hintergrund, Verläufe, Rand, Schatten, Text, Bilder). Die Farben, die beim ersten Anwenden dastehen, gelten als
 /// voll deckend; gedacht für Inhalte, deren Farben sich während des Ausblendens nicht ändern (Banner, Untertitel,
-/// gesperrte Karten). Geschachtelte [`UiOpacity`] werden nicht verrechnet.
+/// gesperrte Karten, Ladebildschirm). Geschachtelte [`UiOpacity`] werden nicht verrechnet.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct UiOpacity(pub f32);
 

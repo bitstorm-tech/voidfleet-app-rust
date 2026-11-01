@@ -63,10 +63,10 @@ pub(super) fn plugin(app: &mut App) {
             scenes,
             index: 0,
             round: 1,
-            phase: Phase::Setting(FIRST_DELAY),
+            phase: Phase::Setting(pause(FIRST_DELAY)),
             shots: std::env::var_os("VOIDFLEET_DEV_SHOTS").map(PathBuf::from),
             shot: 0,
-            next_shot: 0.0,
+            next_shot: Timer::from_seconds(SHOT_INTERVAL, TimerMode::Repeating),
         })
         .add_systems(OnEnter(AppState::Match), stage)
         .add_systems(Update, run.run_if(in_state(AppState::Match)));
@@ -84,13 +84,18 @@ struct Scene {
     events: Vec<RoundEvent>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Phase {
-    /// Das Brett steht; die Wiedergabe beginnt nach so vielen Sekunden.
-    Setting(f32),
+    /// Das Brett steht; die Wiedergabe beginnt, wenn die Pause um ist.
+    Setting(Timer),
     Playing,
-    /// Die Wiedergabe ist fertig; die nächste Szene kommt nach so vielen Sekunden.
-    Resting(f32),
+    /// Die Wiedergabe ist fertig; die nächste Szene kommt, wenn die Pause um ist.
+    Resting(Timer),
+}
+
+/// Eine Pause von so vielen Sekunden.
+fn pause(seconds: f32) -> Timer {
+    Timer::from_seconds(seconds, TimerMode::Once)
 }
 
 #[derive(Resource)]
@@ -101,7 +106,8 @@ struct Showcase {
     phase: Phase,
     shots: Option<PathBuf>,
     shot: u32,
-    next_shot: f32,
+    /// Takt der Screenshot-Serie.
+    next_shot: Timer,
 }
 
 impl Showcase {
@@ -148,10 +154,13 @@ fn run(
     ships: Query<(Entity, &Ship, &OnSlot)>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let delta = time.delta_secs();
+    // Weiter, sobald die Pause um bzw. die Wiedergabe fertig ist.
+    let over = match &mut showcase.phase {
+        Phase::Setting(timer) | Phase::Resting(timer) => timer.tick(time.delta()).just_finished(),
+        Phase::Playing => !finished.is_empty(),
+    };
     match showcase.phase {
-        Phase::Setting(left) if left > delta => showcase.phase = Phase::Setting(left - delta),
-        Phase::Setting(_) => {
+        Phase::Setting(_) if over => {
             let scene = showcase.scene();
             info!("Dev-Szene {}: {}", scene.group, scene.name);
             if let Some((slot, kind, admiral)) = scene.marker
@@ -171,15 +180,13 @@ fn run(
             });
             showcase.phase = Phase::Playing;
             showcase.shot = 0;
-            showcase.next_shot = 0.0;
+            showcase.next_shot.reset();
         }
-        Phase::Playing => {
-            if finished.read().last().is_some() {
-                showcase.phase = Phase::Resting(REST);
-            }
+        Phase::Playing if over => {
+            finished.clear();
+            showcase.phase = Phase::Resting(pause(REST));
         }
-        Phase::Resting(left) if left > delta => showcase.phase = Phase::Resting(left - delta),
-        Phase::Resting(_) => {
+        Phase::Resting(_) if over => {
             showcase.index += 1;
             if showcase.index == showcase.scenes.len() {
                 if showcase.shots.is_some() {
@@ -190,27 +197,25 @@ fn run(
             }
             *game = showcase.staged();
             mode.set(BoardMode::Planning);
-            showcase.phase = Phase::Setting(SETUP_DELAY);
+            showcase.phase = Phase::Setting(pause(SETUP_DELAY));
         }
+        _ => {}
     }
-    // Screenshot-Serie, solange abgespielt wird.
+    // Screenshot-Serie, solange abgespielt wird: gleich zu Beginn, dann alle `SHOT_INTERVAL`.
     if showcase.phase == Phase::Playing
         && let Some(dir) = showcase.shots.clone()
+        && (showcase.next_shot.tick(time.delta()).just_finished() || showcase.shot == 0)
     {
-        showcase.next_shot -= delta;
-        if showcase.next_shot <= 0.0 {
-            showcase.next_shot += SHOT_INTERVAL;
-            let path = dir.join(format!(
-                "{:02}-{}-{:02}.png",
-                showcase.index,
-                showcase.scene().group,
-                showcase.shot
-            ));
-            showcase.shot += 1;
-            commands
-                .spawn(Screenshot::primary_window())
-                .observe(save_to_disk(path));
-        }
+        let path = dir.join(format!(
+            "{:02}-{}-{:02}.png",
+            showcase.index,
+            showcase.scene().group,
+            showcase.shot
+        ));
+        showcase.shot += 1;
+        commands
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(path));
     }
 }
 

@@ -230,38 +230,40 @@ pub(super) struct FxPlugin;
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<FxMaterial>::default())
-            .add_systems(PreStartup, create_assets)
+            .init_resource::<FxAssets>()
             .add_systems(PostUpdate, face_camera.before(TransformSystems::Propagate));
     }
 }
 
-fn create_assets(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    let sprite = |alpha_at: fn(f32) -> f32| {
-        let mut canvas = Canvas::new(SPRITE_SIZE);
-        canvas.fill_with(|point| Some(Srgba::WHITE.with_alpha(alpha_at(point.length()))));
-        canvas.into_image()
-    };
-    commands.insert_resource(FxAssets {
-        quad: meshes.add(Rectangle::new(1.0, 1.0)),
-        floor_quad: meshes.add(floor_quad()),
-        sphere: meshes.add(Sphere::new(0.5).mesh().uv(16, 12)),
-        cube: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-        beam: meshes.add(
-            Cylinder::new(0.5, 1.0)
-                .mesh()
-                .resolution(10)
-                .build()
-                .rotated_by(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
-        ),
-        dot: images.add(sprite(|distance| (1.0 - distance).max(0.0).powi(2))),
-        ring: images.add(sprite(|distance| {
+impl FromWorld for FxAssets {
+    fn from_world(world: &mut World) -> Self {
+        let sprite = |alpha_at: fn(f32) -> f32| {
+            let mut canvas = Canvas::new(SPRITE_SIZE);
+            canvas.fill_with(|point| Some(Srgba::WHITE.with_alpha(alpha_at(point.length()))));
+            canvas.into_image()
+        };
+        let mut images = world.resource_mut::<Assets<Image>>();
+        let dot = images.add(sprite(|distance| (1.0 - distance).max(0.0).powi(2)));
+        let ring = images.add(sprite(|distance| {
             (1.0 - (distance - 0.72).abs() / 0.22).max(0.0).powf(1.5)
-        })),
-    });
+        }));
+        let mut meshes = world.resource_mut::<Assets<Mesh>>();
+        Self {
+            quad: meshes.add(Rectangle::new(1.0, 1.0)),
+            floor_quad: meshes.add(floor_quad()),
+            sphere: meshes.add(Sphere::new(0.5).mesh().uv(16, 12)),
+            cube: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+            beam: meshes.add(
+                Cylinder::new(0.5, 1.0)
+                    .mesh()
+                    .resolution(10)
+                    .build()
+                    .rotated_by(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            ),
+            dot,
+            ring,
+        }
+    }
 }
 
 /// Quadrat in der xz-Ebene mit nach oben zeigender Vorderseite.
@@ -288,26 +290,22 @@ fn floor_quad() -> Mesh {
 }
 
 /// Dreht Billboards zur Kamera, bevor die Lagen weitergereicht werden. Die Drehung der Vorfahren kommt aus ihren
-/// Transforms dieses Bilds (die Maßstäbe sind gleichmäßig), damit nichts nachhinkt, wenn ein Schiff in der Kurve dreht.
+/// Transforms dieses Bilds (die Maßstäbe sind gleichmäßig), damit nichts nachhinkt, wenn ein Schiff in der Kurve dreht;
+/// über einem Billboard als Vorfahren geht es nicht weiter.
 fn face_camera(
     camera: Single<&Transform, With<MainCamera>>,
-    ancestors: Query<(&Transform, Option<&ChildOf>), Without<Billboard>>,
-    mut billboards: Query<
-        (&mut Transform, Option<&ChildOf>),
-        (With<Billboard>, Without<MainCamera>),
-    >,
+    parents: Query<&ChildOf>,
+    ancestors: Query<&Transform, Without<Billboard>>,
+    mut billboards: Query<(Entity, &mut Transform), (With<Billboard>, Without<MainCamera>)>,
 ) {
     let rotation = camera.rotation;
-    for (mut transform, child_of) in &mut billboards {
-        let mut parent = Quat::IDENTITY;
-        let mut next = child_of.map(ChildOf::parent);
-        while let Some(entity) = next {
-            let Ok((ancestor, child_of)) = ancestors.get(entity) else {
-                break;
-            };
-            parent = ancestor.rotation * parent;
-            next = child_of.map(ChildOf::parent);
-        }
+    for (entity, mut transform) in &mut billboards {
+        let parent = parents
+            .iter_ancestors(entity)
+            .map_while(|ancestor| ancestors.get(ancestor).ok())
+            .fold(Quat::IDENTITY, |parent, ancestor| {
+                ancestor.rotation * parent
+            });
         transform.rotation = parent.inverse() * rotation;
     }
 }

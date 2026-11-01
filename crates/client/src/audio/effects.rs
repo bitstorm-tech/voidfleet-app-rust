@@ -6,7 +6,7 @@
 //! Einmalige Effekte schickt man als [`PlaySound`]; Schleifen (Triebwerke) hängen als [`LoopingSound`] an einer Entity
 //! mit Lage, folgen ihr im Panorama und blenden aus, sobald die Komponente oder die Entity verschwindet.
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::{platform::collections::HashMap, prelude::*, transform::TransformSystems};
 use kira::{
     Panning, PlaybackRate,
     sound::{PlaybackState, static_sound::StaticSoundHandle},
@@ -176,10 +176,18 @@ impl Plugin for EffectsPlugin {
             .add_message::<PlaySound>()
             .add_message::<StopSounds>()
             .add_observer(stop_loop)
+            // Nach `TransformSystems::Propagate`, damit auch die Schleife einer eben gespawnten Entity dort im Panorama
+            // beginnt, wo sie im Bild steht.
             .add_systems(
-                Update,
-                (play_sounds, start_loops, follow_loops, stop_sounds)
+                PostUpdate,
+                (
+                    play_sounds,
+                    start_loops,
+                    follow_loops,
+                    stop_sounds.run_if(on_message::<StopSounds>),
+                )
                     .chain()
+                    .after(TransformSystems::Propagate)
                     .run_if(resource_exists::<Mixer>),
             );
     }
@@ -290,14 +298,7 @@ fn stop_loop(
     }
 }
 
-fn stop_sounds(
-    mut messages: MessageReader<StopSounds>,
-    mut voices: ResMut<Voices>,
-    mut loops: Query<&mut LoopVoice>,
-) {
-    if messages.read().count() == 0 {
-        return;
-    }
+fn stop_sounds(mut voices: ResMut<Voices>, mut loops: Query<&mut LoopVoice>) {
     for voice in voices.active.values_mut().flatten() {
         voice.stop(tween(STOP_FADE));
     }

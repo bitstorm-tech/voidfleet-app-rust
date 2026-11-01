@@ -118,7 +118,7 @@ fn labeled_figure(
                 },
                 UiTransform::from_translation(Val2::percent(shift, 0.0)),
                 theme::text(fonts.body(label.size), label.text, label.color),
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                TextLayout::no_wrap(),
                 Pickable::IGNORE,
             )
         })

@@ -15,13 +15,14 @@ use bevy::{
 use voidfleet_core::protocol::{DraftOffer, DraftPick};
 
 use super::{
-    Density, DraftChosen, NewMatch, board_overlay, choice_cancelled, density, overlay_backdrop,
+    Density, DraftChosen, NewMatch, board_overlay, choice_cancelled, overlay_backdrop,
     overlay_hint, overlay_title,
 };
 use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
     game::{Match, ServerError},
+    i18n::Locale,
     palette,
     settings::Language,
     ui::{
@@ -125,13 +126,13 @@ fn draft_row(fonts: &Fonts, heading: &str, cards: Vec<impl Bundle>, none: &str) 
 }
 
 /// Baut das Overlay, wenn sich Angebot, Einklappen, Sprache oder Fensterhöhe ändern, und nimmt es weg, sobald gewählt
-/// ist.
+/// ist; läuft nur, wenn sich Spielzustand, Wahl, Sprache oder Fenster geändert haben.
 fn show(
     mut commands: Commands,
     game: Res<Match>,
     mut choice: ResMut<DraftChoice>,
     assets: CardAssets,
-    window: Query<&Window, With<PrimaryWindow>>,
+    window: Single<&Window, With<PrimaryWindow>>,
     overlays: Query<(Entity, &DraftOverlay)>,
 ) {
     let offer = game.draft.clone().filter(|_| game.result.is_none());
@@ -145,7 +146,7 @@ fn show(
         offer,
         peek: choice.peek,
         language: assets.locale.language,
-        density: density(&window),
+        density: Density::of(&window),
     });
     if overlays
         .iter()
@@ -366,7 +367,16 @@ impl Plugin for DraftSelectPlugin {
             .add_observer(toggle_card)
             .add_systems(
                 Update,
-                (settle, show, mark_cards)
+                (
+                    settle,
+                    show.run_if(
+                        resource_changed::<Match>
+                            .or_eager(resource_changed::<DraftChoice>)
+                            .or_eager(resource_changed::<Locale>)
+                            .or_eager(any_match_filter::<(With<PrimaryWindow>, Changed<Window>)>),
+                    ),
+                    mark_cards,
+                )
                     .chain()
                     .run_if(in_state(AppState::Match)),
             );

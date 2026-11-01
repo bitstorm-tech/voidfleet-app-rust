@@ -170,13 +170,14 @@ pub(super) fn admiral_area(fonts: &Fonts, icons: &UiIcons, locale: &Locale) -> i
     )
 }
 
-/// Baut die Fähigkeitskarte, sobald (bzw. wenn ein anderer) Admiral feststeht, und blendet die Spalte ohne ihn aus.
+/// Baut die Fähigkeitskarte, sobald (bzw. wenn ein anderer) Admiral feststeht, und blendet die Spalte ohne ihn aus;
+/// läuft, wenn sich der Spielzustand ändert.
 fn build_card(
     mut commands: Commands,
     game: Res<Match>,
     assets: CardAssets,
     area: Single<(Entity, &mut Node), With<AdmiralArea>>,
-    cards: Query<(Entity, &PowerCardOf)>,
+    current: Option<Single<(Entity, &PowerCardOf)>>,
     mut lock: Single<&mut Key, With<LockButton>>,
     railgun: Single<(&mut BackgroundColor, &mut BorderColor), With<RailgunStatus>>,
 ) {
@@ -189,7 +190,7 @@ fn build_card(
     if node.display != display {
         node.display = display;
     }
-    let current = cards.iter().next();
+    let current = current.map(|card| *card);
     if current.map(|(_, of)| of.0) == game.admiral {
         return;
     }
@@ -249,7 +250,7 @@ fn update_states(
     hud: Res<HudState>,
     locale: Res<Locale>,
     new_card: Query<(), Added<PowerCardOf>>,
-    card: Query<(Entity, &Children), With<PowerCardOf>>,
+    card: Option<Single<(Entity, &Children), With<PowerCardOf>>>,
     mut shades: Query<&mut Visibility, With<BlockedShade>>,
     mut parts: Query<LockParts, LockOrRailgun>,
     keys: Query<(Has<Lit>, Has<Pulsing>, Has<Dimmed>)>,
@@ -270,7 +271,8 @@ fn update_states(
         selecting(Selected::Power),
         possible(!game.power_targets().is_empty()),
     );
-    if let Ok((entity, children)) = card.single() {
+    if let Some(card) = card {
+        let (entity, children) = *card;
         set_marked(&mut commands, entity, power == PowerState::Planned);
         commands.entity(entity).insert(CardState(power));
         for &child in children {
@@ -424,7 +426,11 @@ impl Plugin for PowerCardPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (build_card, update_states, pulse_card)
+            (
+                build_card.run_if(resource_changed::<Match>),
+                update_states,
+                pulse_card,
+            )
                 .chain()
                 .run_if(in_state(AppState::Match)),
         );

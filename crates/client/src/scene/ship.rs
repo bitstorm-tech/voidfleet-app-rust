@@ -26,6 +26,7 @@ use voidfleet_core::{board::Side, cards::ShipId};
 
 use super::{
     coords::facing,
+    markers::ShipMarkers,
     toon::{ToonMaterial, ToonOutline},
 };
 use crate::data::ship_models::ShipModels;
@@ -44,7 +45,8 @@ pub const FLAGSHIP_SCALE: f32 = 1.1;
     Transform::from_scale(Vec3::splat(BOARD_SCALE)),
     Visibility,
     ToonState,
-    ShipMaterials
+    ShipMaterials,
+    ShipMarkers
 )]
 pub struct Ship {
     /// Karte des Schiffs.

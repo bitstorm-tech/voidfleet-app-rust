@@ -149,6 +149,37 @@ pub struct AudioLibrary {
     pub music: HashMap<MusicMood, Handle<MusicTrack>>,
 }
 
+impl FromWorld for AudioLibrary {
+    fn from_world(world: &mut World) -> Self {
+        fn samples(
+            server: &AssetServer,
+            preload: &mut Preload,
+            paths: impl Iterator<Item = String>,
+        ) -> Vec<Handle<Sample>> {
+            paths.map(|path| preload.track(server.load(path))).collect()
+        }
+        let server = world.resource::<AssetServer>().clone();
+        let mut preload = world.resource_mut::<Preload>();
+        let effects = SoundId::ALL
+            .into_iter()
+            .map(|id| (id, samples(&server, &mut preload, id.paths())))
+            .collect();
+        let radio = RadioCue::ALL
+            .iter()
+            .map(|&cue| (cue, samples(&server, &mut preload, cue.paths())))
+            .collect();
+        let music = MusicMood::ALL
+            .into_iter()
+            .map(|mood| (mood, preload.track(server.load(mood.path()))))
+            .collect();
+        Self {
+            effects,
+            radio,
+            music,
+        }
+    }
+}
+
 /// Der Ton des Spiels.
 pub struct SoundPlugin;
 
@@ -158,7 +189,9 @@ impl Plugin for SoundPlugin {
             .init_asset::<MusicTrack>()
             .init_asset_loader::<sample::SampleLoader>()
             .init_asset_loader::<sample::MusicLoader>()
-            .add_systems(Startup, (start_mixer, load_library))
+            // Erst wenn die Loader stehen.
+            .init_resource::<AudioLibrary>()
+            .add_systems(Startup, start_mixer)
             .add_systems(
                 Update,
                 apply_volumes
@@ -185,33 +218,6 @@ fn start_mixer(mut commands: Commands, settings: Res<Settings>) {
 
 fn apply_volumes(mut mixer: ResMut<Mixer>, settings: Res<Settings>) {
     mixer.set_volumes(&settings);
-}
-
-fn load_library(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    fn samples(
-        server: &AssetServer,
-        preload: &mut Preload,
-        paths: impl Iterator<Item = String>,
-    ) -> Vec<Handle<Sample>> {
-        paths.map(|path| preload.track(server.load(path))).collect()
-    }
-    let effects = SoundId::ALL
-        .into_iter()
-        .map(|id| (id, samples(&server, &mut preload, id.paths())))
-        .collect();
-    let radio = RadioCue::ALL
-        .iter()
-        .map(|&cue| (cue, samples(&server, &mut preload, cue.paths())))
-        .collect();
-    let music = MusicMood::ALL
-        .into_iter()
-        .map(|mood| (mood, preload.track(server.load(mood.path()))))
-        .collect();
-    commands.insert_resource(AudioLibrary {
-        effects,
-        radio,
-        music,
-    });
 }
 
 #[cfg(test)]

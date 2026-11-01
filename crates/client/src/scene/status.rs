@@ -12,10 +12,12 @@ use bevy::{camera::primitives::Aabb, prelude::*};
 use voidfleet_core::{cards::ShipId, protocol::ShipStats};
 
 use super::{
+    animation::AnimationSystems,
     board::SHIP_ANCHOR_HEIGHT,
     fx::{Billboard, FxAssets, FxMaterial, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
     ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, ToonState, Wreck},
+    sync::SyncSystems,
 };
 use crate::palette;
 
@@ -136,17 +138,30 @@ pub(super) struct StatusPlugin;
 
 impl Plugin for StatusPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, create_badges)
+        app.init_resource::<Badges>()
             .add_observer(dress_ship)
-            .add_systems(Update, (measure, update_bars, pulse_preview, flicker));
+            .add_systems(
+                Update,
+                (
+                    measure,
+                    // Nach Wiedergabe und Abgleich, die die Werte schreiben: Die Balken zeigen sie im selben Bild.
+                    (update_bars, pulse_preview)
+                        .after(AnimationSystems::Apply)
+                        .after(SyncSystems),
+                    flicker,
+                ),
+            );
     }
 }
 
-fn create_badges(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    commands.insert_resource(Badges {
-        crown: images.add(crown()),
-        skull: images.add(skull()),
-    });
+impl FromWorld for Badges {
+    fn from_world(world: &mut World) -> Self {
+        let mut images = world.resource_mut::<Assets<Image>>();
+        Self {
+            crown: images.add(crown()),
+            skull: images.add(skull()),
+        }
+    }
 }
 
 /// Punkt im Canvas des Originals (0..128 Pixel).

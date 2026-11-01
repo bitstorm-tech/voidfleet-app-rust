@@ -3,7 +3,7 @@
 
 use bevy::{prelude::*, text::LetterSpacing};
 
-use super::Fonts;
+use super::{Fonts, theme::UiOpacity};
 use crate::{
     assets::{AppState, LoadingProgress},
     i18n::Locale,
@@ -15,11 +15,9 @@ const FADE: f32 = 0.6;
 const PULSE: f32 = 2.4;
 const BAR_WIDTH: f32 = 360.0;
 
-/// Das Overlay; `fade` läuft nach dem Laden von 1 auf 0.
+/// Das Overlay; nach dem Laden blendet es [`UiOpacity`] von 1 auf 0 aus.
 #[derive(Component)]
-struct LoadingOverlay {
-    fade: f32,
-}
+struct LoadingOverlay;
 
 #[derive(Component)]
 struct Title;
@@ -39,7 +37,13 @@ impl Plugin for LoadingScreenPlugin {
                 Update,
                 (show_progress, pulse_title).run_if(in_state(AppState::Loading)),
             )
-            .add_systems(Update, fade_out.run_if(in_state(AppState::Match)));
+            .add_systems(OnEnter(AppState::Match), start_fade)
+            .add_systems(
+                Update,
+                fade_out
+                    .run_if(in_state(AppState::Match))
+                    .run_if(any_with_component::<LoadingOverlay>),
+            );
     }
 }
 
@@ -55,7 +59,7 @@ fn label(locale: &Locale, progress: LoadingProgress) -> String {
 fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
     commands.spawn((
         Name::new("Ladebildschirm"),
-        LoadingOverlay { fade: 1.0 },
+        LoadingOverlay,
         Node {
             position_type: PositionType::Absolute,
             width: percent(100),
@@ -135,31 +139,21 @@ fn pulse_title(time: Res<Time>, mut title: Single<&mut TextColor, With<Title>>) 
     title.0.set_alpha(0.825 + 0.175 * phase);
 }
 
+/// Ab hier gilt die Deckkraft des Overlays; erst jetzt angelegt, damit [`UiOpacity`] die Farben dieses Moments (samt
+/// letztem Puls des Titels) als voll deckend nimmt.
+fn start_fade(mut commands: Commands, overlay: Single<Entity, With<LoadingOverlay>>) {
+    commands.entity(*overlay).insert(UiOpacity(1.0));
+}
+
 /// Blendet das Overlay samt Inhalt aus und entfernt es.
 fn fade_out(
     mut commands: Commands,
     time: Res<Time>,
-    overlay: Single<(Entity, &mut LoadingOverlay)>,
-    children: Query<&Children>,
-    mut backgrounds: Query<&mut BackgroundColor>,
-    mut texts: Query<&mut TextColor>,
+    overlay: Single<(Entity, &mut UiOpacity), With<LoadingOverlay>>,
 ) {
-    let (entity, mut state) = overlay.into_inner();
-    let previous = state.fade;
-    state.fade = (state.fade - time.delta_secs() / FADE).max(0.0);
-    if state.fade == 0.0 {
+    let (entity, mut opacity) = overlay.into_inner();
+    opacity.0 = (opacity.0 - time.delta_secs() / FADE).max(0.0);
+    if opacity.0 == 0.0 {
         commands.entity(entity).despawn();
-        return;
-    }
-    let factor = state.fade / previous;
-    for part in std::iter::once(entity).chain(children.iter_descendants(entity)) {
-        if let Ok(mut background) = backgrounds.get_mut(part) {
-            let alpha = background.0.alpha() * factor;
-            background.0.set_alpha(alpha);
-        }
-        if let Ok(mut text) = texts.get_mut(part) {
-            let alpha = text.0.alpha() * factor;
-            text.0.set_alpha(alpha);
-        }
     }
 }

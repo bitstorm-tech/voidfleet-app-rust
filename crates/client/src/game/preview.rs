@@ -4,8 +4,7 @@
 //! Admiralsfähigkeit, Markierung der Pendulum und Feuerbefehlen; nur der Zufallsschuss der Plasma Frigate bleibt
 //! außen vor. Die eigenen Schüsse und was sie anrichten, stimmen also genau; was der Gegner vorhat, zeigt sie nicht.
 
-use std::collections::{HashMap, HashSet};
-
+use bevy::platform::collections::{HashMap, HashSet};
 use voidfleet_core::{
     board::{LaneType, Side, SlotRef, SlotTarget},
     cards::ShipId,

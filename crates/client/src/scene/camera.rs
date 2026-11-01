@@ -18,7 +18,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::{
     camera::Hdr,
-    input::mouse::{MouseScrollUnit, MouseWheel},
+    input::mouse::{AccumulatedMouseScroll, MouseScrollUnit},
     picking::{hover::HoverMap, mesh_picking::MeshPickingCamera, pointer::PointerId},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
@@ -82,10 +82,10 @@ const ORBIT_RAMP: f32 = 0.15;
 /// Kamerawackeln: Abklingrate pro Sekunde und die Frequenzen (rad/s) der überlagerten Schwingungen.
 const SHAKE_DECAY: f32 = 4.5;
 const SHAKE_FREQUENCIES: (f32, f32, f32) = (83.0, 109.0, 23.0);
-/// Kamera-Parallaxe: Reichweite in Welteinheiten und Nachlauf.
+/// Kamera-Parallaxe: Reichweite in Welteinheiten und Nachlauf (Abklingrate pro Sekunde).
 const MAX_SCROLL_OFFSET: Vec2 = Vec2::new(0.75, 0.4);
 const FOLLOW_SPEED: f32 = 4.0;
-/// Zoom: Nachlauf des geglätteten Versatzes und die tiefste Kamerahöhe.
+/// Zoom: Nachlauf des geglätteten Versatzes (Abklingrate pro Sekunde) und die tiefste Kamerahöhe.
 const ZOOM_FOLLOW_SPEED: f32 = 8.0;
 const ZOOM_MIN_HEIGHT: f32 = 2.6;
 /// Höhenfaktor pro Pixel Mausrad (exponentiell, damit Trackpads und Rasterräder gleich wirken), Pixel je Zeile, und
@@ -220,6 +220,7 @@ impl CameraRig {
         Vec3::new(self.yaw.cos(), 0.0, self.yaw.sin())
     }
 
+    /// Stand und Zoom aus den Einstellungen samt der Aufteilung des Bretts dazu.
     fn from_settings(settings: &Settings) -> (Self, BoardLayout) {
         let zoom = Vec3::from_array(settings.camera.zoom);
         let mut rig = Self {
@@ -414,7 +415,7 @@ impl CameraRig {
     fn update_parallax(&mut self, seconds: f32, pointer: Vec2) {
         let closeness = (self.rest.y + self.zoom_offset.y) / self.rest.y;
         let target = Vec2::new(-pointer.x, pointer.y) * MAX_SCROLL_OFFSET * 2.0 * closeness;
-        self.scroll += (target - self.scroll) * (seconds * FOLLOW_SPEED).min(1.0);
+        self.scroll.smooth_nudge(&target, FOLLOW_SPEED, seconds);
     }
 
     /// Lage der Kamera samt Zoom, Parallaxe und Wackeln.
@@ -424,6 +425,20 @@ impl CameraRig {
         let (forward, up) = self.axes();
         Transform::from_translation(self.rest + self.zoom_offset + sideways + lift)
             .looking_to(forward, up)
+    }
+}
+
+/// Die Kamera beginnt beim gespeicherten Stand und Zoom.
+impl FromWorld for CameraRig {
+    fn from_world(world: &mut World) -> Self {
+        Self::from_settings(world.resource::<Settings>()).0
+    }
+}
+
+/// Die Aufteilung beim gespeicherten Stand der Kamera.
+impl FromWorld for BoardLayout {
+    fn from_world(world: &mut World) -> Self {
+        CameraRig::from_settings(world.resource::<Settings>()).1
     }
 }
 
@@ -476,9 +491,8 @@ pub(super) struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        let (rig, layout) = CameraRig::from_settings(app.world().resource::<Settings>());
-        app.insert_resource(rig)
-            .insert_resource(layout)
+        app.init_resource::<CameraRig>()
+            .init_resource::<BoardLayout>()
             .init_resource::<CameraInput>()
             .add_message::<CameraCommand>()
             .add_systems(Startup, spawn_camera)
@@ -530,7 +544,7 @@ fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
 /// Mausrad, Verschieben und Drehen mit der Maus, solange der Zeiger nicht über der Oberfläche liegt.
 fn read_mouse(
     buttons: Res<ButtonInput<MouseButton>>,
-    mut wheel: MessageReader<MouseWheel>,
+    scroll: Res<AccumulatedMouseScroll>,
     window: Single<&Window, With<PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
     hover_map: Res<HoverMap>,
@@ -545,13 +559,10 @@ fn read_mouse(
         .get(&PointerId::Mouse)
         .is_some_and(|hits| hits.keys().any(|entity| nodes.contains(*entity)));
 
-    let pixels: f32 = wheel
-        .read()
-        .map(|scroll| match scroll.unit {
-            MouseScrollUnit::Line => -scroll.y * LINE_PIXELS,
-            MouseScrollUnit::Pixel => -scroll.y,
-        })
-        .sum();
+    let pixels = match scroll.unit {
+        MouseScrollUnit::Line => -scroll.delta.y * LINE_PIXELS,
+        MouseScrollUnit::Pixel => -scroll.delta.y,
+    };
     if pixels != 0.0 && !over_ui {
         let focus = cursor.and_then(|cursor| board_point(camera, camera_transform, cursor));
         rig.zoom((pixels * ZOOM_SPEED).exp(), focus);
@@ -654,8 +665,9 @@ fn update_rig(
     });
     rig.update_parallax(seconds, pointer);
     rig.update_shake(seconds / time_scale);
-    let follow = (seconds * ZOOM_FOLLOW_SPEED).min(1.0);
-    rig.zoom_offset = rig.zoom_offset.lerp(rig.zoom_target, follow);
+    let zoom_target = rig.zoom_target;
+    rig.zoom_offset
+        .smooth_nudge(&zoom_target, ZOOM_FOLLOW_SPEED, seconds);
 
     *transform = rig.transform();
     if let Projection::Perspective(perspective) = projection.as_mut() {

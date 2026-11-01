@@ -39,6 +39,7 @@ use bevy::{
     asset::AssetPlugin,
     gltf::{GltfPlugin, convert_coordinates::GltfConvertCoordinates},
     log::{DEFAULT_FILTER, LogPlugin},
+    pbr::PbrPlugin,
     prelude::*,
     window::WindowPlugin,
 };
@@ -100,6 +101,11 @@ impl Plugin for ClientPlugin {
                         rotate_scene_entity: true,
                         rotate_meshes: false,
                     },
+                    ..default()
+                })
+                // Die Modelle bekommen ihre Materialien von `scene::toon` statt als `StandardMaterial`.
+                .set(PbrPlugin {
+                    gltf_enable_standard_materials: false,
                     ..default()
                 }),
         )

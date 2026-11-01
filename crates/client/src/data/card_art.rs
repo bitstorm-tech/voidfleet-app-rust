@@ -57,9 +57,14 @@ impl CardArt {
     }
 }
 
-pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let art = cards()
-        .map(|card| (card, preload.track(server.load(card_art_path(card)))))
-        .collect();
-    commands.insert_resource(CardArt(art));
+impl FromWorld for CardArt {
+    fn from_world(world: &mut World) -> Self {
+        let server = world.resource::<AssetServer>().clone();
+        let mut preload = world.resource_mut::<Preload>();
+        Self(
+            cards()
+                .map(|card| (card, preload.track(server.load(card_art_path(card)))))
+                .collect(),
+        )
+    }
 }

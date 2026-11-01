@@ -8,6 +8,7 @@
 //! Schiff am Ende mit. Das Schiff verliert dabei seinen Slot ([`OnSlot`]).
 
 use bevy::{
+    ecs::entity::EntityHashSet,
     picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
     prelude::*,
 };
@@ -296,7 +297,7 @@ fn begin(
 
     // Hüllenpunkte per Strahl von außen, weil die Modelle aus überlappenden Teilen bestehen; genommen wird der erste
     // Treffer auf dem Schiff.
-    let hull: Vec<Entity> = ship_children
+    let hull: EntityHashSet = ship_children
         .iter()
         .filter(|child| models.contains(*child))
         .flat_map(|model| children.iter_descendants(model))

@@ -96,20 +96,16 @@ impl FileKey for CommandId {
     }
 }
 
-/// Lädt die Bild- und Modell-Kataloge (die Audio-Kataloge lädt [`crate::audio`] mit eigenen Asset-Typen).
+/// Lädt die Bild- und Modell-Kataloge (die Audio-Kataloge lädt [`crate::audio`] mit eigenen Asset-Typen); jeder
+/// entsteht als `FromWorld` aus `AssetServer` und [`crate::assets::Preload`].
 pub(crate) struct DataPlugin;
 
 impl Plugin for DataPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Startup,
-            (
-                admirals::load,
-                backgrounds::load,
-                card_art::load,
-                ship_models::load,
-            ),
-        );
+        app.init_resource::<admirals::AdmiralPortraits>()
+            .init_resource::<backgrounds::Backgrounds>()
+            .init_resource::<card_art::CardArt>()
+            .init_resource::<ship_models::ShipModels>();
     }
 }
 

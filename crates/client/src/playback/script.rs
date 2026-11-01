@@ -235,7 +235,7 @@ impl Cue {
 pub(super) struct Stage<'w, 's> {
     commands: Commands<'w, 's>,
     ships: Query<'w, 's, (Entity, &'static Ship, &'static OnSlot)>,
-    statuses: Query<'w, 's, (&'static mut ShipStatus, Option<&'static mut ShipMarkers>)>,
+    statuses: Query<'w, 's, (&'static mut ShipStatus, &'static mut ShipMarkers)>,
     board: Res<'w, BoardEntities>,
     models: Res<'w, ShipModels>,
     playback: ResMut<'w, Playback>,
@@ -399,7 +399,7 @@ impl Stage<'_, '_> {
             }
             ShipAction::Mark(spec) => self.await_job(entity, DropMarker { ship, spec }),
             ShipAction::Unmark(kind) => {
-                if let Ok((_, Some(mut markers))) = self.statuses.get_mut(ship) {
+                if let Ok((_, mut markers)) = self.statuses.get_mut(ship) {
                     markers.remove(kind);
                 }
             }
