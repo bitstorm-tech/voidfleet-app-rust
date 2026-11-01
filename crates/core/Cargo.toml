@@ -1,0 +1,17 @@
+[package]
+name = "voidfleet-core"
+description = "Regelwerk von Voidfleet: Karten, Brett, Admirale, Protokoll und die Auflösung einer Runde"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
