@@ -19,6 +19,8 @@ struct ToonMaterial {
     rim_style: vec4<f32>,
     // x: gestuft beleuchtet (1) oder genau seine Farbe (0), y: Glanzpunkt, z: Helligkeit, w: Deckkraft
     surface: vec4<f32>,
+    // rgb: Farbe der Überlagerung (Treffer-Blitz, Warp, Verdunkeln), a: ihr Anteil
+    overlay: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> material: ToonMaterial;
@@ -82,5 +84,6 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
             color += material.heat.rgb * textureSample(heat_texture, heat_sampler, in.uv).r;
         }
     }
+    color = mix(color, material.overlay.rgb, material.overlay.a);
     return vec4<f32>(color, material.surface.w);
 }

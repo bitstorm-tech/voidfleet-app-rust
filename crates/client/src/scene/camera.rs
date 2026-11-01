@@ -8,11 +8,18 @@
 //! Dazu Maus-Parallaxe, Kamerawackeln ([`CameraCommand::Shake`]) und Glühen über Bloom: Was heller als 1 leuchtet
 //! (Lichter der Schiffe, Effekte), glüht; alles andere bleibt scharf. Ohne Tone-Mapping, wie im Original.
 //! Stand und Zoom merkt sich die Kamera in den Einstellungen, sobald sie ruht.
+//!
+//! Eingabe wie im Original ([`CameraInput`]): Mausrad zoomt auf den Brettpunkt unter dem Zeiger, ↑ ↓ stetig auf die
+//! Mitte des Brettbands, ← → drehen stufenlos, V fährt zur anderen Ansicht, die mittlere Maustaste dreht (das Brett folgt
+//! dem Zeiger wie gegriffen), herangezoomt verschiebt Ziehen mit der linken Taste das Brett. Über der Oberfläche
+//! reagiert die Kamera nicht auf die Maus.
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::{
     camera::Hdr,
+    input::mouse::{MouseScrollUnit, MouseWheel},
+    picking::{hover::HoverMap, mesh_picking::MeshPickingCamera, pointer::PointerId},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
     render::view::Tonemapping,
@@ -81,6 +88,18 @@ const FOLLOW_SPEED: f32 = 4.0;
 /// Zoom: Nachlauf des geglätteten Versatzes und die tiefste Kamerahöhe.
 const ZOOM_FOLLOW_SPEED: f32 = 8.0;
 const ZOOM_MIN_HEIGHT: f32 = 2.6;
+/// Höhenfaktor pro Pixel Mausrad (exponentiell, damit Trackpads und Rasterräder gleich wirken), Pixel je Zeile, und
+/// pro Sekunde mit ↑ ↓.
+const ZOOM_SPEED: f32 = 0.0018;
+const LINE_PIXELS: f32 = 16.0;
+const ZOOM_KEY_SPEED: f32 = 1.4;
+/// Brettbereich, auf den gezoomt und die Kamera ausgerichtet werden kann (Welt-x und Abstand in z von der Brettmitte).
+const ZOOM_FOCUS_X: f32 = 7.5;
+const ZOOM_FOCUS_Z: f32 = 7.5;
+/// Ab dieser Zeigerbewegung (logische Pixel) wird aus einem Klick ein Verschieben der Kamera.
+const PAN_THRESHOLD: f32 = 5.0;
+/// Mit gedrückter mittlerer Maustaste dreht so viel Fensterbreite die Kamera von einer Ansicht zur anderen.
+const ORBIT_DRAG_WIDTH: f32 = 0.5;
 /// Sichtweite der Kamera; der Hintergrund liegt knapp davor.
 pub const CAMERA_NEAR: f32 = 0.1;
 pub const CAMERA_FAR: f32 = 80.0;
@@ -96,6 +115,8 @@ pub enum CameraCommand {
     ToggleView,
     /// Dreht stufenlos zwischen den Ansichten, solange die Richtung nicht 0 ist: 1 nach hinten oben, −1 zur Seite.
     Orbit(f32),
+    /// Zoomt stetig auf die Mitte des Brettbands zu bzw. zurück, solange die Richtung nicht 0 ist: 1 hinein, −1 heraus.
+    Zoom(f32),
     /// Stößt die Kamera an: Sie zittert mit so vielen Welteinheiten und beruhigt sich wieder.
     Shake(f32),
 }
@@ -158,13 +179,16 @@ pub struct CameraRig {
     blend_speed: f32,
     /// Ziel einer Kamerafahrt (Knopf, Taste V).
     goal: Option<f32>,
-    /// Richtung einer stufenlosen Drehung.
+    /// Richtung einer stufenlosen Drehung und des stetigen Zooms.
     orbit: f32,
+    zoom_direction: f32,
     /// Ruhelage und Ausrichtung beim jetzigen Stand.
     rest: Vec3,
     yaw: f32,
     pitch: f32,
     fov: f32,
+    /// Bildhöhe (von oben) der Mitte des Bands, das die Pads in der Ruhelage füllen; dorthin zoomen ↑ ↓.
+    band_middle: f32,
     /// Versatz aus der Ruhelage durch Zoom und Verschieben: Ziel und geglätteter Ist-Wert.
     zoom_target: Vec3,
     zoom_offset: Vec3,
@@ -203,10 +227,12 @@ impl CameraRig {
             blend_speed: 0.0,
             goal: None,
             orbit: 0.0,
+            zoom_direction: 0.0,
             rest: Vec3::ZERO,
             yaw: 0.0,
             pitch: 0.0,
             fov: SIDE_VIEW.fov,
+            band_middle: 0.5,
             zoom_target: zoom,
             zoom_offset: zoom,
             scroll: Vec2::ZERO,
@@ -230,6 +256,7 @@ impl CameraRig {
             mix(SIDE_VIEW.frame.0, TOP_VIEW.frame.0),
             mix(SIDE_VIEW.frame.1, TOP_VIEW.frame.1),
         );
+        self.band_middle = (band.0 + band.1) / 2.0;
         self.rest = self.frame_board(layout.half_extent(), band);
         layout
     }
@@ -287,6 +314,62 @@ impl CameraRig {
             let focus = previous_rest + *offset / dive;
             *offset = (focus - rest) * dive.min(deepest);
         }
+        if self.zoom_target.y < 0.0 {
+            self.clamp_zoom_target();
+        }
+    }
+
+    /// Ändert die Kamerahöhe um `factor`: kleiner zoomt auf den Brettpunkt `focus` zu (der unter dem Zeiger stehen
+    /// bleibt), größer zurück in Richtung Ruhelage.
+    fn zoom(&mut self, factor: f32, focus: Option<Vec3>) {
+        let rest = self.rest;
+        let height = rest.y + self.zoom_target.y;
+        if factor < 1.0 {
+            let Some(focus) = focus.map(clamp_focus) else {
+                return;
+            };
+            let next_height = (height * factor).max(ZOOM_MIN_HEIGHT);
+            // Auf der Geraden Kamera → Fokus bleibt der Punkt unter dem Zeiger stehen.
+            let camera = rest + self.zoom_target;
+            let next = focus.lerp(camera, (next_height - focus.y) / (camera.y - focus.y));
+            self.zoom_target = next - rest;
+            self.clamp_zoom_target();
+        } else if height < rest.y {
+            // Herauszoomen schrumpft den Versatz, bis die Kamera wieder in der Ruhelage steht.
+            let next_height = (height * factor).min(rest.y);
+            self.zoom_target *= (rest.y - next_height) / (rest.y - height);
+        }
+    }
+
+    /// Verschiebt herangezoomt das Brett: Der Brettpunkt `from` wandert nach `to`, ohne Nachlauf.
+    fn pan(&mut self, from: Vec3, to: Vec3) {
+        let before = self.zoom_target;
+        self.zoom_target.x += from.x - to.x;
+        self.zoom_target.z += from.z - to.z;
+        self.clamp_zoom_target();
+        self.zoom_offset += self.zoom_target - before;
+    }
+
+    /// Hält den Blickpunkt der Kamera (Bildmitte auf dem Brett) im Brettbereich.
+    fn clamp_zoom_target(&mut self) {
+        let camera = self.rest + self.zoom_target;
+        let look_ahead = camera.y / self.pitch.tan();
+        let focus = Vec3::new(
+            camera.x + self.yaw.sin() * look_ahead,
+            0.0,
+            camera.z - self.yaw.cos() * look_ahead,
+        );
+        let clamped = clamp_focus(focus);
+        self.zoom_target.x += clamped.x - focus.x;
+        self.zoom_target.z += clamped.z - focus.z;
+    }
+
+    /// Dreht mit der Maus: Das Brett folgt dem Zeiger, nach rechts also Richtung hinten oben; der Winkel folgt der Maus
+    /// gleichmäßig, ohne das Bremsen von `SineInOut` an den Ansichten.
+    fn drag_orbit(&mut self, dx: f32, width: f32) -> Option<BoardLayout> {
+        let eased = EaseFunction::SineInOut.sample_clamped(self.blend);
+        let progress = (eased + dx / (width * ORBIT_DRAG_WIDTH)).clamp(0.0, 1.0);
+        self.set_blend((1.0 - 2.0 * progress).acos() / PI)
     }
 
     /// Dreht die Ansicht, solange eine Richtung gilt, sonst bis zum Ziel der Kamerafahrt; das Tempo läuft kurz an und
@@ -344,6 +427,48 @@ impl CameraRig {
     }
 }
 
+/// Begrenzt einen Brettpunkt auf den Bereich, auf den gezoomt werden kann.
+fn clamp_focus(point: Vec3) -> Vec3 {
+    Vec3::new(
+        point.x.clamp(-ZOOM_FOCUS_X, ZOOM_FOCUS_X),
+        point.y,
+        point
+            .z
+            .clamp(BOARD_CENTER.z - ZOOM_FOCUS_Z, BOARD_CENTER.z + ZOOM_FOCUS_Z),
+    )
+}
+
+/// Schnittpunkt des Strahls durch einen Bildpunkt (logische Pixel) mit der Brettebene.
+pub fn board_point(camera: &Camera, transform: &GlobalTransform, cursor: Vec2) -> Option<Vec3> {
+    let ray = camera.viewport_to_world(transform, cursor).ok()?;
+    let direction = ray.direction.as_vec3();
+    (direction.y < 0.0).then(|| ray.origin + direction * (-ray.origin.y / direction.y))
+}
+
+/// Gedrückte Maustasten über dem Brett: links klickt oder verschiebt, die mittlere dreht.
+#[derive(Resource, Debug, Default)]
+pub struct CameraInput {
+    /// Linke Taste: Startpunkt, letzter Punkt und ob schon verschoben wird.
+    drag: Option<(Vec2, Vec2, bool)>,
+    /// Ob die letzte Geste mit gedrückter linker Taste die Kamera verschoben hat statt zu klicken.
+    panned: bool,
+    /// Mittlere Taste: letzte Zeiger-x, solange damit gedreht wird.
+    orbit_x: Option<f32>,
+    /// Gedrückte Pfeiltasten.
+    keys: (f32, f32),
+}
+
+impl CameraInput {
+    /// Die letzte Geste hat verschoben: Ein Klick zählt dann nicht.
+    pub fn panned(&self) -> bool {
+        self.panned
+    }
+
+    fn is_dragging(&self) -> bool {
+        self.drag.is_some_and(|(_, _, panning)| panning) || self.orbit_x.is_some()
+    }
+}
+
 /// Weltpunkt → waagerechte Lage im Bild von −1 (linker Rand) bis 1 (rechter Rand), etwa für das Stereopanorama.
 pub fn screen_side(camera: &Camera, transform: &GlobalTransform, world: Vec3) -> Option<f32> {
     camera.world_to_ndc(transform, world).map(|ndc| ndc.x)
@@ -356,11 +481,17 @@ impl Plugin for CameraPlugin {
         let (rig, layout) = CameraRig::from_settings(app.world().resource::<Settings>());
         app.insert_resource(rig)
             .insert_resource(layout)
+            .init_resource::<CameraInput>()
             .add_message::<CameraCommand>()
             .add_systems(Startup, spawn_camera)
             .add_systems(
                 Update,
-                (handle_commands, update_rig, remember_camera)
+                (
+                    (read_keys, read_mouse),
+                    handle_commands,
+                    update_rig,
+                    remember_camera,
+                )
                     .chain()
                     .in_set(CameraSystems),
             );
@@ -398,8 +529,115 @@ fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
             ..Bloom::NATURAL
         },
         Msaa::Sample4,
+        MeshPickingCamera,
         rig.transform(),
     ));
+}
+
+/// Pfeiltasten drehen und zoomen, solange sie gedrückt sind; V fährt zur anderen Ansicht.
+fn read_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut input: ResMut<CameraInput>,
+    mut commands: MessageWriter<CameraCommand>,
+) {
+    if keys.just_pressed(KeyCode::KeyV) {
+        commands.write(CameraCommand::ToggleView);
+    }
+    let axis = |positive, negative| {
+        f32::from(u8::from(keys.pressed(positive))) - f32::from(u8::from(keys.pressed(negative)))
+    };
+    let next = (
+        axis(KeyCode::ArrowLeft, KeyCode::ArrowRight),
+        axis(KeyCode::ArrowUp, KeyCode::ArrowDown),
+    );
+    if next.0 != input.keys.0 {
+        commands.write(CameraCommand::Orbit(next.0));
+    }
+    if next.1 != input.keys.1 {
+        commands.write(CameraCommand::Zoom(next.1));
+    }
+    input.keys = next;
+}
+
+/// Mausrad, Verschieben und Drehen mit der Maus, solange der Zeiger nicht über der Oberfläche liegt.
+#[allow(clippy::too_many_arguments)]
+fn read_mouse(
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut wheel: MessageReader<MouseWheel>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
+    hover_map: Res<HoverMap>,
+    nodes: Query<(), With<Node>>,
+    mut input: ResMut<CameraInput>,
+    mut rig: ResMut<CameraRig>,
+    mut layout: ResMut<BoardLayout>,
+) {
+    let (camera, camera_transform) = *camera;
+    let cursor = window.cursor_position();
+    let over_ui = hover_map
+        .get(&PointerId::Mouse)
+        .is_some_and(|hits| hits.keys().any(|entity| nodes.contains(*entity)));
+
+    let pixels: f32 = wheel
+        .read()
+        .map(|scroll| match scroll.unit {
+            MouseScrollUnit::Line => -scroll.y * LINE_PIXELS,
+            MouseScrollUnit::Pixel => -scroll.y,
+        })
+        .sum();
+    if pixels != 0.0 && !over_ui {
+        let focus = cursor.and_then(|cursor| board_point(camera, camera_transform, cursor));
+        rig.zoom((pixels * ZOOM_SPEED).exp(), focus);
+    }
+
+    if let Some(cursor) = cursor
+        && !over_ui
+    {
+        if buttons.just_pressed(MouseButton::Left) {
+            input.drag = Some((cursor, cursor, false));
+            input.panned = false;
+        }
+        if buttons.just_pressed(MouseButton::Middle) {
+            input.orbit_x = Some(cursor.x);
+            rig.goal = None;
+            rig.blend_speed = 0.0;
+        }
+    }
+    if buttons.just_released(MouseButton::Left) {
+        input.drag = None;
+    }
+    if buttons.just_released(MouseButton::Middle) {
+        input.orbit_x = None;
+    }
+    let Some(cursor) = cursor else {
+        return;
+    };
+    if let Some(last) = input.orbit_x {
+        if let Some(next) = rig.drag_orbit(cursor.x - last, window.width()) {
+            *layout = next;
+        }
+        input.orbit_x = Some(cursor.x);
+        return;
+    }
+    // Verschieben gibt es nur herangezoomt; in der Ruhelage ist das ganze Brett zu sehen.
+    let Some((start, last, panning)) = input.drag else {
+        return;
+    };
+    if rig.zoom_target.y >= 0.0 {
+        return;
+    }
+    if !panning && cursor.distance(start) < PAN_THRESHOLD {
+        return;
+    }
+    input.drag = Some((start, cursor, true));
+    input.panned = true;
+    // Der Brettpunkt unter dem Zeiger wandert mit, als würde man das Brett greifen.
+    if let (Some(from), Some(to)) = (
+        board_point(camera, camera_transform, last),
+        board_point(camera, camera_transform, cursor),
+    ) {
+        rig.pan(from, to);
+    }
 }
 
 fn handle_commands(mut commands: MessageReader<CameraCommand>, mut rig: ResMut<CameraRig>) {
@@ -418,6 +656,7 @@ fn handle_commands(mut commands: MessageReader<CameraCommand>, mut rig: ResMut<C
                     rig.goal = None;
                 }
             }
+            CameraCommand::Zoom(direction) => rig.zoom_direction = direction,
             CameraCommand::Shake(strength) => rig.shake_strength = rig.shake_strength.max(strength),
         }
     }
@@ -429,12 +668,19 @@ fn update_rig(
     window: Single<&Window, With<PrimaryWindow>>,
     mut rig: ResMut<CameraRig>,
     mut layout: ResMut<BoardLayout>,
-    camera: Single<(&mut Transform, &mut Projection), With<MainCamera>>,
+    camera: Single<(&Camera, &GlobalTransform, &mut Transform, &mut Projection), With<MainCamera>>,
 ) {
     let seconds = time.delta_secs();
     let time_scale = settings.time_scale(AnimationScope::General);
     if let Some(next) = rig.update_view(seconds, time_scale) {
         *layout = next;
+    }
+    let (camera, camera_transform, mut transform, mut projection) = camera.into_inner();
+    if rig.zoom_direction != 0.0 {
+        let factor = (-rig.zoom_direction * ZOOM_KEY_SPEED * seconds).exp();
+        let middle = Vec2::new(window.width() / 2.0, window.height() * rig.band_middle);
+        let focus = board_point(camera, camera_transform, middle);
+        rig.zoom(factor, focus);
     }
     let pointer = window.cursor_position().map_or(Vec2::ZERO, |cursor| {
         (cursor / window.size()).clamp(Vec2::ZERO, Vec2::ONE) - 0.5
@@ -444,16 +690,16 @@ fn update_rig(
     let follow = (seconds * ZOOM_FOLLOW_SPEED).min(1.0);
     rig.zoom_offset = rig.zoom_offset.lerp(rig.zoom_target, follow);
 
-    let (mut transform, mut projection) = camera.into_inner();
     *transform = rig.transform();
     if let Projection::Perspective(perspective) = projection.as_mut() {
         perspective.fov = rig.fov;
     }
 }
 
-/// Speichert Stand und Zoom fürs nächste Match, sobald sich die Kamera geändert hat und wieder ruht.
-fn remember_camera(rig: Res<CameraRig>, mut settings: ResMut<Settings>) {
-    if rig.is_turning() || rig.orbit != 0.0 {
+/// Speichert Stand und Zoom fürs nächste Match, sobald sich die Kamera geändert hat und wieder ruht: nicht während einer
+/// Fahrt oder Drehung, solange ↑ oder ↓ gedrückt ist und solange das Brett verschoben oder mit der Maus gedreht wird.
+fn remember_camera(rig: Res<CameraRig>, input: Res<CameraInput>, mut settings: ResMut<Settings>) {
+    if rig.is_turning() || rig.orbit != 0.0 || rig.zoom_direction != 0.0 || input.is_dragging() {
         return;
     }
     let camera = crate::settings::CameraSettings {
@@ -485,6 +731,23 @@ mod tests {
         assert!(top.rest.x < 0.0 && top.rest.y > 0.0 && (top.rest.z - BOARD_CENTER.z).abs() < 1e-4);
         let to_center = (BOARD_CENTER - top.rest).normalize();
         assert!(top.transform().forward().dot(to_center) > 0.95);
+    }
+
+    /// Hineinzoomen senkt die Kamera auf den Brettpunkt zu, Herauszoomen bringt sie zurück in die Ruhelage; verschoben
+    /// wird nur innerhalb des Brettbereichs.
+    #[test]
+    fn zoom_and_pan_stay_on_board() {
+        let (mut rig, _) = CameraRig::from_settings(&Settings::default());
+        rig.zoom_target = Vec3::ZERO;
+        rig.zoom(0.5, Some(BOARD_CENTER + Vec3::X * 2.0));
+        assert!(rig.zoom_target.y < 0.0);
+        assert!(rig.rest.y + rig.zoom_target.y >= ZOOM_MIN_HEIGHT - 1e-4);
+        rig.pan(Vec3::ZERO, Vec3::new(-100.0, 0.0, 0.0));
+        let camera = rig.rest + rig.zoom_target;
+        let look_ahead = camera.y / rig.pitch.tan();
+        assert!(camera.x + rig.yaw.sin() * look_ahead <= ZOOM_FOCUS_X + 1e-3);
+        rig.zoom(100.0, None);
+        assert!(rig.zoom_target.length() < 1e-4);
     }
 
     #[test]

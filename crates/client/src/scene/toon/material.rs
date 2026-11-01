@@ -84,6 +84,10 @@ pub struct ToonMaterial {
     pub heat: Option<LinearRgba>,
     /// Helligkeit der Lichter (1 an, 0 erloschen).
     pub lights: f32,
+    /// Überlagerung in einer Farbe (rgb linear, a Anteil): Treffer-Blitz, Glühen beim Warp, Verdunkeln der Trümmer.
+    pub overlay: Vec4,
+    /// Faktor auf die Deckkraft (Flackern des Trugbilds).
+    pub opacity: f32,
     /// Das Blitzlicht der Explosionen: Lage (xyz) und Stärke (w), siehe [`super::ToonFlash`].
     pub flash: Vec4,
     /// Glutmuster der Bruchflächen (nur `wreck`).
@@ -100,6 +104,8 @@ impl ToonMaterial {
             facing: 1.0,
             heat: None,
             lights: 1.0,
+            overlay: Vec4::ZERO,
+            opacity: 1.0,
             flash: Vec4::ZERO,
             heat_texture,
         }
@@ -126,6 +132,8 @@ pub struct ToonUniform {
     rim_style: Vec4,
     /// x gestuft beleuchtet (1) oder genau seine Farbe (0), y Glanzpunkt, z Helligkeit, w Deckkraft.
     surface: Vec4,
+    /// rgb Farbe der Überlagerung, a ihr Anteil.
+    overlay: Vec4,
 }
 
 fn linear(color: Color) -> Vec4 {
@@ -201,7 +209,13 @@ impl From<&ToonMaterial> for ToonUniform {
             flash: material.flash,
             key: (KEY * Vec3::new(material.facing, 1.0, 1.0)).extend(0.0),
             rim_style: Vec3::from_array(rim).extend(0.0),
-            surface: Vec4::new(if lit { 1.0 } else { 0.0 }, glint, power, opacity),
+            surface: Vec4::new(
+                if lit { 1.0 } else { 0.0 },
+                glint,
+                power,
+                opacity * material.opacity,
+            ),
+            overlay: material.overlay,
         }
     }
 }

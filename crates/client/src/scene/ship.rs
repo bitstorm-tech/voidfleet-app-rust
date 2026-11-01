@@ -16,6 +16,7 @@
 //! ```
 
 use bevy::{
+    picking::Pickable,
     platform::collections::HashMap,
     prelude::*,
     world_serialization::{WorldAsset, WorldAssetRoot, WorldInstanceReady},
@@ -62,6 +63,10 @@ pub struct ToonState {
     pub heat: Option<LinearRgba>,
     /// Helligkeit der Lichter: 1 an, 0 erloschen.
     pub lights: f32,
+    /// Überlagerung in einer Farbe (rgb linear, a Anteil): Treffer-Blitz, Glühen beim Warp, Verdunkeln der Trümmer.
+    pub overlay: Vec4,
+    /// Faktor auf die Deckkraft (Flackern des Trugbilds).
+    pub opacity: f32,
 }
 
 impl Default for ToonState {
@@ -70,6 +75,8 @@ impl Default for ToonState {
             facing: 1.0,
             heat: None,
             lights: 1.0,
+            overlay: Vec4::ZERO,
+            opacity: 1.0,
         }
     }
 }
@@ -87,6 +94,8 @@ impl ToonState {
         material.facing = self.facing;
         material.heat = self.heat;
         material.lights = self.lights;
+        material.overlay = self.overlay;
+        material.opacity = self.opacity;
     }
 }
 
@@ -101,6 +110,11 @@ pub struct ShipModel;
 /// Markiert einen [`ShipModel`], der die Bruchstücke trägt.
 #[derive(Component, Debug)]
 pub struct Wreck;
+
+/// Die Szene unter einem [`ShipModel`] steht und hat ihre Materialien; ab dem nächsten Bild sind Lage und Grenzen
+/// ihrer Teile gerechnet.
+#[derive(Component, Debug)]
+pub struct ModelReady;
 
 /// Tauscht das Modell eines Schiffs gegen seine Bruchstücke.
 #[derive(EntityEvent, Clone, Copy, Debug)]
@@ -204,6 +218,7 @@ fn prepare_instance(
         return;
     };
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
+    commands.entity(ready.entity).insert(ModelReady);
     for part in children.iter_descendants(ready.entity) {
         if ship.ghost && outlines.contains(part) {
             commands.entity(part).insert(Visibility::Hidden);
@@ -211,6 +226,10 @@ fn prepare_instance(
         let Ok(template) = parts.get(part) else {
             continue;
         };
+        // Schiffe und Geister lassen sich anklicken (`crate::scene::picking`), Trümmer nicht.
+        if !is_wreck {
+            commands.entity(part).insert(Pickable::default());
+        }
         let copy = copies.entry(template.id()).or_insert_with(|| {
             let mut material = materials
                 .get(template.id())
