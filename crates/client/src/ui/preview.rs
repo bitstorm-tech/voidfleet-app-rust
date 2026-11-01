@@ -7,8 +7,13 @@
 //! `<pfad>-1.png` (Hand), `-2.png` (Banner, Bordfunk, Log), `-3.png` (Rundenbanner), `-4.png` (Karte unter dem
 //! Zeiger) und beendet die App.
 //!
+//! Mit `VOIDFLEET_UI_PREVIEW_DIALOGS=<pfad>` geht sie stattdessen die Dialoge durch und schreibt `<pfad>-<name>.png`:
+//! Admiralswahl, Nachschub, die drei Tabs der Einstellungen, die Kapitel der Regeln mit Illustrationen, die Rückfrage
+//! zum Aufgeben, das Ergebnis und sein Abzeichen. Die Einstellungen bleiben dabei unberührt.
+//!
 //! ```sh
 //! VOIDFLEET_UI_PREVIEW=8 VOIDFLEET_UI_PREVIEW_SHOT=$TMPDIR/ui cargo run -p voidfleet-client
+//! VOIDFLEET_UI_PREVIEW=3 VOIDFLEET_UI_PREVIEW_DIALOGS=$TMPDIR/dialog cargo run -p voidfleet-client
 //! ```
 
 use bevy::{
@@ -23,26 +28,34 @@ use voidfleet_core::{
     admirals::AdmiralId,
     board::{LaneType, Side, SlotRef, SlotTarget},
     cards::{CommandId, ShipId},
-    protocol::{OpponentView, RoundEvent, ShipRef, ShipStats},
+    protocol::{DraftOffer, MatchResult, OpponentView, RoundEvent, ShipRef, ShipStats},
 };
 
 use super::{
     AppendLog, HudAction, HudState, Selected, ShowBanner, ShowRoundBanner,
+    button::Key,
     card::{CardFace, CardView},
+    dialogs::{
+        Dialog, OpenDialog, result_screen::BoardButton, rules::ChapterLink,
+        settings_dialog::ActiveTab,
+    },
     hud::LogButton,
     round_log::describe_event,
+    theme::Modal,
 };
 use crate::{
     assets::AppState,
     audio::{RadioCue, RadioTransmission, Transmission},
     game::{Match, ServerInbox, ShipPick},
-    i18n::Locale,
+    i18n::{Locale, RulesChapter, SettingsTab},
 };
 
 #[derive(Resource)]
 struct Preview {
     round: u32,
     shot: Option<String>,
+    /// Pfad der Screenshots der Dialoge.
+    dialogs: Option<String>,
     /// Sekunden seit Beginn des Matches.
     elapsed: f32,
     /// Der nächste Schritt des Ablaufs.
@@ -253,6 +266,142 @@ fn open_log(mut commands: Commands, button: Single<Entity, With<LogButton>>) {
     commands.trigger(Activate { entity: *button });
 }
 
+/// Ein Schritt durch die Dialoge.
+#[derive(Clone, Copy, Debug)]
+enum DialogStep {
+    /// Der eigene Admiral fehlt noch: die Admiralswahl.
+    Admiral,
+    /// Ein Nachschub mit Schrottverwertung.
+    Draft,
+    Open(Dialog),
+    Tab(SettingsTab),
+    Chapter(RulesChapter),
+    /// Gewonnen gegen Vance, offene Dialoge zu.
+    Result,
+    /// „Brett ansehen“: nur noch das Abzeichen.
+    Badge,
+    Shot(&'static str),
+}
+
+const DIALOG_STEPS: [DialogStep; 32] = [
+    DialogStep::Admiral,
+    DialogStep::Shot("admiral"),
+    DialogStep::Draft,
+    DialogStep::Shot("draft"),
+    DialogStep::Open(Dialog::Settings),
+    DialogStep::Shot("settings-game"),
+    DialogStep::Tab(SettingsTab::Video),
+    DialogStep::Shot("settings-video"),
+    DialogStep::Tab(SettingsTab::Sound),
+    DialogStep::Shot("settings-sound"),
+    DialogStep::Open(Dialog::Rules),
+    DialogStep::Shot("rules-goal"),
+    DialogStep::Chapter(RulesChapter::Turn),
+    DialogStep::Shot("rules-turn"),
+    DialogStep::Chapter(RulesChapter::Roster),
+    DialogStep::Shot("rules-roster"),
+    DialogStep::Chapter(RulesChapter::Board),
+    DialogStep::Shot("rules-board"),
+    DialogStep::Chapter(RulesChapter::Resolution),
+    DialogStep::Shot("rules-resolution"),
+    DialogStep::Chapter(RulesChapter::Combat),
+    DialogStep::Shot("rules-combat"),
+    DialogStep::Chapter(RulesChapter::Ships),
+    DialogStep::Shot("rules-ships"),
+    DialogStep::Chapter(RulesChapter::Commands),
+    DialogStep::Shot("rules-commands"),
+    DialogStep::Open(Dialog::Surrender),
+    DialogStep::Shot("surrender"),
+    DialogStep::Result,
+    DialogStep::Shot("result"),
+    DialogStep::Badge,
+    DialogStep::Shot("badge"),
+];
+
+/// Geht die Dialoge durch, je Schritt eine Sekunde, und beendet danach die App.
+#[allow(clippy::too_many_arguments)]
+fn dialog_script(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut preview: ResMut<Preview>,
+    mut game: ResMut<Match>,
+    mut open: MessageWriter<OpenDialog>,
+    mut tab: ResMut<ActiveTab>,
+    links: Query<(Entity, &ChapterLink)>,
+    modals: Query<Entity, With<Modal>>,
+    board_button: Query<Entity, (With<BoardButton>, With<Key>)>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let Some(path) = preview.dialogs.clone() else {
+        return;
+    };
+    preview.elapsed += time.delta_secs();
+    let at = 3.0 + preview.step as f32;
+    if preview.elapsed < at {
+        return;
+    }
+    let Some(&step) = DIALOG_STEPS.get(preview.step) else {
+        exit.write(AppExit::Success);
+        return;
+    };
+    preview.step += 1;
+    match step {
+        DialogStep::Admiral => {
+            game.admiral = None;
+            game.round = 1;
+            if let Some(opponent) = &mut game.opponent {
+                opponent.admiral = None;
+            }
+        }
+        DialogStep::Draft => {
+            game.admiral = Some(AdmiralId::Kerr);
+            game.round = 3;
+            game.draft = Some(DraftOffer {
+                ships: vec![
+                    ShipId::PlasmaFrigate,
+                    ShipId::ScrapRaider,
+                    ShipId::HorizonCruiser,
+                ],
+                commands: vec![
+                    CommandId::ScrapSalvage,
+                    CommandId::Torpedo,
+                    CommandId::ShieldGrid,
+                ],
+            });
+        }
+        DialogStep::Open(dialog) => {
+            game.draft = None;
+            open.write(OpenDialog(dialog));
+        }
+        DialogStep::Tab(next) => tab.0 = next,
+        DialogStep::Chapter(chapter) => {
+            if let Some((link, _)) = links.iter().find(|(_, link)| link.0 == chapter) {
+                commands.trigger(Activate { entity: link });
+            }
+        }
+        DialogStep::Result => {
+            for modal in &modals {
+                commands.entity(modal).despawn();
+            }
+            if let Some(opponent) = &mut game.opponent {
+                opponent.admiral = Some(AdmiralId::Vance);
+            }
+            game.round = 9;
+            game.result = Some(MatchResult::Won);
+        }
+        DialogStep::Badge => {
+            for button in &board_button {
+                commands.trigger(Activate { entity: button });
+            }
+        }
+        DialogStep::Shot(name) => {
+            commands
+                .spawn(Screenshot::primary_window())
+                .observe(save_to_disk(format!("{path}-{name}.png")));
+        }
+    }
+}
+
 pub(super) struct PreviewPlugin;
 
 impl Plugin for PreviewPlugin {
@@ -266,11 +415,15 @@ impl Plugin for PreviewPlugin {
         app.insert_resource(Preview {
             round,
             shot: std::env::var("VOIDFLEET_UI_PREVIEW_SHOT").ok(),
+            dialogs: std::env::var("VOIDFLEET_UI_PREVIEW_DIALOGS").ok(),
             elapsed: 0.0,
             step: 0,
         })
         .add_systems(Startup, setup)
         .add_systems(OnEnter(AppState::Match), fill)
-        .add_systems(Update, script.run_if(in_state(AppState::Match)));
+        .add_systems(
+            Update,
+            (script, dialog_script).run_if(in_state(AppState::Match)),
+        );
     }
 }

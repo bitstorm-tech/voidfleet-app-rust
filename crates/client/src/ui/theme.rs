@@ -3,7 +3,7 @@
 //! ([`console`], [`console_header`], [`console_inset`]), die Deckkraft ganzer Teilbäume ([`UiOpacity`]) und die
 //! Markierung offener Dialoge ([`Modal`]).
 
-use bevy::{prelude::*, text::LetterSpacing};
+use bevy::{ecs::spawn::SpawnableList, prelude::*, text::LetterSpacing};
 
 use crate::palette;
 
@@ -337,18 +337,47 @@ fn screw_at(
     )
 }
 
-/// Das Steuerpult (`.dialog`): Metallgehäuse mit Rahmen aus Ringen, Schrauben unten in den Ecken und
-/// Lüftungsschlitzen unten links. Inhalt als Kinder dahinter, als erstes [`console_header`]. Abgeschrägte Ecken
-/// (`corner-shape: bevel`) kennt Bevy nicht; die Ecken sind leicht gerundet.
-pub fn console() -> impl Bundle {
+/// Lüftungsschlitze unten links im Pult, auf Höhe der Knöpfe.
+fn vents() -> impl Bundle {
     (
         Node {
-            min_width: px(360),
+            position_type: PositionType::Absolute,
+            left: px(32),
+            bottom: px(30),
+            column_gap: px(4),
+            ..default()
+        },
+        Pickable::IGNORE,
+        Children::spawn(SpawnIter((0..10).map(|_| {
+            (
+                Node {
+                    width: px(3),
+                    height: px(12),
+                    border_radius: BorderRadius::all(px(1)),
+                    ..default()
+                },
+                BackgroundColor(rgb(3, 4, 6)),
+            )
+        }))),
+    )
+}
+
+/// Das Steuerpult (`.dialog`): Metallgehäuse mit Rahmen aus Ringen, Schrauben unten in den Ecken und, mit `vents`,
+/// Lüftungsschlitzen unten links. `node` legt die Größe fest (Breite, Höhe, Grenzen), `content` ist der Inhalt, als
+/// erstes [`console_header`]. Abgeschrägte Ecken (`corner-shape: bevel`) kennt Bevy nicht; die Ecken sind leicht
+/// gerundet.
+pub fn console<C: SpawnableList<ChildOf> + Send + Sync + 'static>(
+    node: Node,
+    vents: bool,
+    content: C,
+) -> impl Bundle {
+    (
+        Node {
             flex_direction: FlexDirection::Column,
             padding: UiRect::new(px(28), px(28), px(22), px(26)),
             border: UiRect::all(px(1)),
             border_radius: BorderRadius::all(px(6)),
-            ..default()
+            ..node
         },
         BackgroundGradient::from(LinearGradient::degrees(
             165.0,
@@ -366,32 +395,12 @@ pub fn console() -> impl Bundle {
             ring(rgba(255, 255, 255, 0.08), 6.0),
             ring(rgb(14, 17, 23), 5.0),
         ]),
-        children![
-            screw_at(Some(9.0), None, None, Some(9.0)),
-            screw_at(None, Some(9.0), None, Some(9.0)),
-            // Lüftungsschlitze unten links, auf Höhe der Knöpfe.
-            (
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: px(32),
-                    bottom: px(30),
-                    column_gap: px(4),
-                    ..default()
-                },
-                Pickable::IGNORE,
-                Children::spawn(SpawnIter((0..10).map(|_| {
-                    (
-                        Node {
-                            width: px(3),
-                            height: px(12),
-                            border_radius: BorderRadius::all(px(1)),
-                            ..default()
-                        },
-                        BackgroundColor(rgb(3, 4, 6)),
-                    )
-                }))),
-            ),
-        ],
+        Children::spawn((
+            Spawn(screw_at(Some(9.0), None, None, Some(9.0))),
+            Spawn(screw_at(None, Some(9.0), None, Some(9.0))),
+            SpawnIter(vents.then(self::vents).into_iter()),
+            content,
+        )),
     )
 }
 
@@ -480,8 +489,9 @@ pub fn console_header(font: TextFont, title: &str) -> impl Bundle + use<> {
     )
 }
 
-/// Ein eingelassenes Feld im Pult (`.console-panel`), das Regler und Listen trägt.
-pub fn console_inset() -> impl Bundle {
+/// Ein eingelassenes Feld im Pult (`.console-panel`), das Regler und Listen trägt; `node` legt etwa die Lage im
+/// Raster fest.
+pub fn console_inset(node: Node) -> impl Bundle {
     (
         Node {
             width: percent(100),
@@ -489,7 +499,7 @@ pub fn console_inset() -> impl Bundle {
             padding: UiRect::new(px(16), px(16), px(16), px(8)),
             border: UiRect::all(px(1)),
             border_radius: BorderRadius::all(px(4)),
-            ..default()
+            ..node
         },
         BackgroundColor(rgba(0, 0, 0, 0.28)),
         BorderColor {

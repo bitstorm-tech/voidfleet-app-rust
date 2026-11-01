@@ -15,6 +15,8 @@
 //! - [`round_log`] — Rundenereignisse als Log-Zeilen.
 //! - [`radio_subtitle`] — Untertitel des Bordfunks.
 //! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
+//! - [`dialogs`] — Admiralswahl, Nachschub, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln,
+//!   Aufgeben); Schnittstelle dort.
 //! - [`cursor`] — der gewählte Mauszeiger als Fenster-Cursor.
 //! - [`preview`] — Dev-Ansicht mit Beispiel-Hand (`VOIDFLEET_UI_PREVIEW`).
 //!
@@ -27,6 +29,7 @@
 pub mod button;
 pub mod card;
 pub mod cursor;
+pub mod dialogs;
 pub mod fullscreen;
 pub mod hand;
 pub mod hud;
@@ -86,6 +89,9 @@ pub struct UiIcons {
     pub crosshair: Handle<Image>,
     pub check: Handle<Image>,
     pub crown: Handle<Image>,
+    pub settings: Handle<Image>,
+    pub rules: Handle<Image>,
+    pub surrender: Handle<Image>,
 }
 
 /// Was an der Stelle des Aktionsknopfs steht.
@@ -173,8 +179,8 @@ pub struct HideBanner;
 #[derive(Message, Clone, Copy, Debug)]
 pub struct ShowRoundBanner(pub u32);
 
-/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht; Dialoge hängen ihre Knöpfe
-/// als weitere Kinder an.
+/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht, Einstellungen, Regeln,
+/// Aufgeben.
 #[derive(Component, Debug)]
 pub struct IconBar;
 
@@ -210,6 +216,7 @@ impl Plugin for InterfacePlugin {
                 view_toggle::ViewTogglePlugin,
                 fullscreen::FullscreenPlugin,
                 cursor::CursorPlugin,
+                dialogs::DialogsPlugin,
                 preview::PreviewPlugin,
             ))
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
@@ -232,6 +239,9 @@ fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Pr
         crosshair: icon("crosshair"),
         check: icon("check"),
         crown: icon("crown"),
+        settings: icon("settings"),
+        rules: icon("rules"),
+        surrender: icon("surrender"),
     });
     commands.insert_resource(AppIcon(server.load("app/icon-192.png")));
 }
@@ -255,6 +265,9 @@ fn spawn_icon_bar(mut commands: Commands, icons: Res<UiIcons>, locale: Res<Local
             hud::log_button(&icons, &locale),
             fullscreen::fullscreen_button(&icons, &locale),
             view_toggle::view_button(&icons, &locale),
+            dialogs::dialog_button(dialogs::Dialog::Settings, &icons, &locale),
+            dialogs::dialog_button(dialogs::Dialog::Rules, &icons, &locale),
+            dialogs::dialog_button(dialogs::Dialog::Surrender, &icons, &locale),
         ],
     ));
 }

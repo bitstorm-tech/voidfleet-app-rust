@@ -3,11 +3,15 @@
 //! - die Mauszeiger `assets/cursors/cursor_<id>.svg` (sofern noch vorhanden) in ihrer eigenen Größe (32 × 32) zu
 //!   `cursor_<id>.png` daneben; die SVGs sind danach entbehrlich und gelöscht,
 //! - die Icons unten (Lucide-Stil, Strich in Weiß, damit die Oberfläche sie einfärbt) zu `assets/images/ui/<name>.png`
-//!   in [`ICON_SIZE`] Pixeln.
+//!   in [`ICON_SIZE`] Pixeln,
+//! - die Illustrationen des Regel-Dialogs ([`figures`]) ohne Beschriftung zu `assets/images/rules/<name>.png` in
+//!   doppelter Größe; die Beschriftung setzt der Client in seiner Sprache darüber (`ui/dialogs/rules_figures.rs`).
 //!
 //! ```sh
 //! cargo run --release --manifest-path tools/rasterize/Cargo.toml
 //! ```
+
+mod figures;
 
 use std::{fs, path::Path};
 
@@ -18,7 +22,8 @@ use resvg::{tiny_skia, usvg};
 const ICON_SIZE: u32 = 48;
 
 /// Strich-Icons im Raster 24 × 24 (Lucide); `fill` steht für gefüllte Icons.
-const STROKE: &str = r#"fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round""#;
+const STROKE: &str =
+    r#"fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round""#;
 
 const ICONS: &[(&str, &str)] = &[
     // Log aufklappen.
@@ -44,6 +49,21 @@ const ICONS: &[(&str, &str)] = &[
     ),
     // Haken der Checkliste und des Gegner-Felds.
     ("check", r#"<path d="M20 6 9 17l-5-5" />"#),
+    // Einstellungen (Lucide „settings“).
+    (
+        "settings",
+        r#"<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />"#,
+    ),
+    // Spielregeln (Lucide „help-circle“).
+    (
+        "rules",
+        r#"<circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />"#,
+    ),
+    // Aufgeben (Lucide „flag“).
+    (
+        "surrender",
+        r#"<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />"#,
+    ),
 ];
 
 /// Gefüllte Icons.
@@ -60,13 +80,20 @@ fn main() {
     rasterize_cursors(&root.join("cursors"));
     let icons = root.join("images/ui");
     fs::create_dir_all(&icons).expect("Ordner der Icons");
-    let stroked = ICONS.iter().map(|(name, body)| (name, format!("<g {STROKE}>{body}</g>")));
+    let stroked = ICONS
+        .iter()
+        .map(|(name, body)| (name, format!("<g {STROKE}>{body}</g>")));
     let filled = FILLED_ICONS
         .iter()
         .map(|(name, body)| (name, format!(r#"<g fill="white">{body}</g>"#)));
     for (name, body) in stroked.chain(filled) {
-        let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">{body}</svg>"#);
+        let svg =
+            format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">{body}</svg>"#);
         render(&svg, ICON_SIZE, &icons.join(format!("{name}.png")));
+    }
+    let rules = root.join("images/rules");
+    for (name, svg) in figures::all() {
+        render(&svg, 0, &rules.join(format!("{name}.png")));
     }
 }
 
