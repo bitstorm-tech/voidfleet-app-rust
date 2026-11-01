@@ -1,0 +1,12 @@
+[package]
+name = "voidfleet-rasterize"
+description = "Rastert die Mauszeiger und die Icons der Oberfläche einmalig zu PNG (assets/cursors, assets/images/ui)"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Eigenständig, nicht Teil des Workspaces: Es läuft nur, wenn ein Icon dazukommt, und zieht resvg nicht ins Spiel.
+[workspace]
+
+[dependencies]
+resvg = "0.45"

@@ -1,0 +1,771 @@
+//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Overdrive ab Runde 8 und Status, der Aktionsknopf (Zug
+//! beenden, Überspringen, Computergegner, Mitspieler einladen — je nach [`HudState::action`]) mit der Checkliste des
+//! Zugs darunter (aus [`Match::turn_progress`]), das Log hinter dem Icon-Knopf oben rechts, das Banner für Befehle und
+//! Fähigkeiten und die Ankündigung einer neuen Runde.
+
+use bevy::{
+    input::mouse::MouseScrollUnit,
+    picking::events::PointerScroll,
+    prelude::*,
+    text::{LineHeight, Strikethrough},
+    ui::InteractionDisabled,
+    ui_widgets::{Activate, observe},
+};
+use voidfleet_core::board::{Side, overdrive_bonus};
+
+use super::{
+    ActionPressed, AppendLog, Fonts, HideBanner, HudAction, HudState, ShowBanner, ShowRoundBanner,
+    UiIcons,
+    button::{self, Key, Lit},
+    theme::{self, UiOpacity},
+    tooltip::Tooltip,
+};
+use crate::{
+    assets::AppState,
+    audio::{PlayUiSound, UiSound},
+    data::admirals::AdmiralPortraits,
+    game::{Match, TurnPartState, TurnProgress},
+    i18n::Locale,
+    palette,
+    scene::tween::AnimationScope,
+    settings::Settings,
+};
+
+#[derive(Component)]
+struct RoundLabel;
+
+#[derive(Component)]
+struct OverdriveLabel;
+
+#[derive(Component)]
+struct StatusLabel;
+
+/// Aktionsknopf und Checkliste in der Mitte der Hand; die Hand richtet sich nach seiner Breite.
+#[derive(Component)]
+pub(super) struct ActionArea;
+
+#[derive(Component)]
+struct ActionButton;
+
+#[derive(Component)]
+struct Checklist;
+
+/// Der Icon-Knopf des Logs.
+#[derive(Component)]
+pub(super) struct LogButton;
+
+#[derive(Component)]
+struct LogPanel;
+
+#[derive(Component)]
+struct LogText;
+
+/// Das Banner für Befehle und Fähigkeiten und die Ankündigung einer neuen Runde; `elapsed` läuft bis `duration`.
+#[derive(Component, Default)]
+struct Banner {
+    elapsed: f32,
+    duration: f32,
+}
+
+#[derive(Component)]
+struct RevealBanner;
+
+#[derive(Component)]
+struct RoundBanner;
+
+/// Dauer der Banner ohne Streckung (Sekunden).
+const REVEAL_TIME: f32 = 1.7;
+const ROUND_TIME: f32 = 1.9;
+
+fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
+    commands.spawn((
+        Name::new("Kopfzeile"),
+        Node {
+            position_type: PositionType::Absolute,
+            top: px(24),
+            left: px(32),
+            right: px(248),
+            align_items: AlignItems::FlexStart,
+            column_gap: px(24),
+            ..default()
+        },
+        Pickable::IGNORE,
+        children![
+            (
+                RoundLabel,
+                theme::caps(fonts.display_bold(30.0), "", theme::TRACKING, theme::ACCENT),
+                Pickable::IGNORE,
+            ),
+            (
+                OverdriveLabel,
+                Node {
+                    display: Display::None,
+                    padding: UiRect::axes(px(10), px(4)),
+                    border: UiRect::all(px(1)),
+                    border_radius: BorderRadius::all(px(4)),
+                    ..default()
+                },
+                BorderColor::all(palette::BUFF.with_alpha(0.6)),
+                Tooltip::default(),
+                children![(
+                    theme::caps(fonts.display_bold(16.0), "", theme::TRACKING, palette::BUFF),
+                    Pickable::IGNORE,
+                )],
+            ),
+            (
+                StatusLabel,
+                Node {
+                    padding: UiRect::top(px(3)),
+                    flex_shrink: 1.0,
+                    ..default()
+                },
+                theme::text(fonts.body(19.0), "", palette::TEXT_DIM),
+                Pickable::IGNORE,
+            ),
+        ],
+    ));
+    commands.spawn((
+        Name::new("Log"),
+        LogPanel,
+        Node {
+            display: Display::None,
+            position_type: PositionType::Absolute,
+            top: px(44),
+            right: px(8),
+            width: px(420),
+            height: px(420),
+            padding: UiRect::all(px(6)),
+            overflow: Overflow::scroll_y(),
+            border_radius: BorderRadius::all(px(3)),
+            ..default()
+        },
+        BackgroundColor(theme::PANEL),
+        ScrollPosition::default(),
+        GlobalZIndex(5),
+        observe(scroll_log),
+        children![(
+            LogText,
+            theme::text(fonts.body(14.0), "", palette::TEXT_DIM),
+            LineHeight::RelativeToFont(1.45),
+            Pickable::IGNORE,
+        )],
+    ));
+    // Banner: in voller Breite, damit sie mittig stehen; der Inhalt entsteht mit jeder Ankündigung neu.
+    let centered = |top: Val| Node {
+        position_type: PositionType::Absolute,
+        top,
+        left: Val::ZERO,
+        right: Val::ZERO,
+        justify_content: JustifyContent::Center,
+        ..default()
+    };
+    commands.spawn((
+        Name::new("Banner"),
+        centered(px(120)),
+        Pickable::IGNORE,
+        children![(
+            RevealBanner,
+            Banner::default(),
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: px(14),
+                min_width: px(280),
+                padding: UiRect::axes(px(28), px(10)),
+                border: UiRect::top(px(3)),
+                border_radius: BorderRadius::all(px(3)),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(theme::PANEL),
+            BorderColor::all(theme::ACCENT),
+            UiTransform::default(),
+            UiOpacity(0.0),
+            Visibility::Hidden,
+            Pickable::IGNORE,
+        )],
+    ));
+    commands.spawn((
+        Name::new("Rundenbanner"),
+        centered(percent(38)),
+        Pickable::IGNORE,
+        children![(
+            RoundBanner,
+            Banner::default(),
+            Node {
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                row_gap: px(4),
+                padding: UiRect::axes(px(72), px(14)),
+                border: UiRect::vertical(px(1)),
+                ..default()
+            },
+            theme::horizontal_gradient(&[
+                (Color::NONE, 0.0),
+                (theme::PANEL, 25.0),
+                (theme::PANEL, 75.0),
+                (Color::NONE, 100.0),
+            ]),
+            BorderColor::all(palette::PLAYER.with_alpha(0.45)),
+            UiTransform::default(),
+            UiOpacity(0.0),
+            Visibility::Hidden,
+            Pickable::IGNORE,
+        )],
+    ));
+}
+
+/// Aktionsknopf und Checkliste; steht in der Mitte der Hand ([`super::hand`]).
+pub(super) fn action_area(fonts: &Fonts) -> impl Bundle {
+    (
+        ActionArea,
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            align_self: AlignSelf::Center,
+            row_gap: px(10),
+            margin: UiRect::horizontal(px(20)),
+            ..default()
+        },
+        Pickable::IGNORE,
+        children![
+            (
+                ActionButton,
+                button::text_button(
+                    fonts.display_bold(24.0),
+                    "",
+                    Key::PRIMARY,
+                    Node {
+                        width: px(240),
+                        height: px(64),
+                        ..default()
+                    },
+                ),
+                observe(press_action),
+            ),
+            (
+                Checklist,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(3),
+                    ..default()
+                },
+                Visibility::Hidden,
+                Pickable::IGNORE,
+            ),
+        ],
+    )
+}
+
+/// Der Icon-Knopf des Logs in der Leiste oben rechts.
+pub(super) fn log_button(icons: &UiIcons, locale: &Locale) -> impl Bundle {
+    (
+        LogButton,
+        button::icon_button(icons.log.clone(), locale.hud_show_log()),
+        observe(toggle_log),
+    )
+}
+
+fn press_action(_: On<Activate>, hud: Res<HudState>, mut pressed: MessageWriter<ActionPressed>) {
+    pressed.write(ActionPressed(hud.action));
+}
+
+/// Klappt das Log auf und zu.
+fn toggle_log(
+    _: On<Activate>,
+    mut commands: Commands,
+    locale: Res<Locale>,
+    button: Single<(Entity, Has<Lit>, &mut Tooltip), With<LogButton>>,
+    mut panel: Single<&mut Node, With<LogPanel>>,
+) {
+    let (entity, expanded, mut tooltip) = button.into_inner();
+    let expanded = !expanded;
+    if expanded {
+        commands.entity(entity).insert(Lit);
+    } else {
+        commands.entity(entity).remove::<Lit>();
+    }
+    panel.display = if expanded {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    tooltip.0 = if expanded {
+        locale.hud_hide_log()
+    } else {
+        locale.hud_show_log()
+    }
+    .into();
+}
+
+/// Das Mausrad scrollt das Log.
+fn scroll_log(
+    scroll: On<PointerScroll>,
+    mut panel: Single<(&mut ScrollPosition, &ComputedNode), With<LogPanel>>,
+) {
+    let line = match scroll.unit {
+        MouseScrollUnit::Line => 20.0,
+        MouseScrollUnit::Pixel => 1.0,
+    };
+    let (position, node) = &mut *panel;
+    let scale = node.inverse_scale_factor();
+    let max = ((node.content_size().y - node.size().y) * scale).max(0.0);
+    position.y = (position.y - scroll.y * line).clamp(0.0, max);
+}
+
+/// Hängt Zeilen ans Log und scrollt ans Ende.
+fn append_log(
+    mut messages: MessageReader<AppendLog>,
+    mut text: Single<&mut Text, With<LogText>>,
+    mut panel: Single<(&mut ScrollPosition, &ComputedNode), With<LogPanel>>,
+) {
+    let mut appended = false;
+    for AppendLog(lines) in messages.read() {
+        for line in lines {
+            if !text.0.is_empty() {
+                text.0.push('\n');
+            }
+            text.0.push_str(line);
+        }
+        appended = true;
+    }
+    if appended {
+        // Bis ans Ende; das Layout begrenzt auf den Inhalt.
+        let (position, node) = &mut *panel;
+        position.y = node.content_size().y * node.inverse_scale_factor() + 10_000.0;
+    }
+}
+
+/// Runde, Overdrive und Status.
+fn update_top_bar(
+    game: Res<Match>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    mut round: Single<&mut Text, (With<RoundLabel>, Without<StatusLabel>)>,
+    mut status: Single<&mut Text, (With<StatusLabel>, Without<RoundLabel>)>,
+    overdrive: Single<(&mut Node, &mut Tooltip, &Children), With<OverdriveLabel>>,
+    mut texts: Query<&mut Text, (Without<RoundLabel>, Without<StatusLabel>)>,
+) {
+    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
+        return;
+    }
+    round.0 = locale.hud_round(game.round).to_uppercase();
+    if status.0 != hud.status {
+        status.0.clone_from(&hud.status);
+    }
+    let bonus = overdrive_bonus(game.round);
+    let (mut node, mut tooltip, children) = overdrive.into_inner();
+    node.display = if bonus == 0 {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    tooltip.0 = locale.hud_overdrive_hint(bonus);
+    for &child in children {
+        if let Ok(mut text) = texts.get_mut(child) {
+            text.0 = locale.hud_overdrive(bonus).to_uppercase();
+        }
+    }
+}
+
+/// Beschriftung und Sperre des Aktionsknopfs.
+fn update_action(
+    mut commands: Commands,
+    game: Res<Match>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    button: Single<(Entity, &Children, Has<InteractionDisabled>), With<ActionButton>>,
+    mut labels: Query<&mut Text>,
+) {
+    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
+        return;
+    }
+    let (entity, children, disabled) = *button;
+    let label = match hud.action {
+        HudAction::EndTurn if game.submitted => locale.hud_waiting(),
+        HudAction::EndTurn => locale.hud_end_turn(),
+        HudAction::Skip => locale.hud_skip(),
+        HudAction::PlayComputer => locale.hud_play_computer(),
+        HudAction::InvitePlayer => locale.hud_invite_player(),
+    }
+    .to_uppercase();
+    for &child in children {
+        if let Ok(mut text) = labels.get_mut(child)
+            && text.0 != label
+        {
+            text.0.clone_from(&label);
+        }
+    }
+    if disabled == hud.action_enabled {
+        button::set_enabled(&mut commands, entity, hud.action_enabled);
+    }
+}
+
+/// Eine Zeile der Checkliste: Kästchen (erledigt mit Haken) und Text; nicht möglich ist sie blass und durchgestrichen.
+fn spawn_checklist_item(
+    commands: &mut Commands,
+    list: Entity,
+    fonts: &Fonts,
+    check: &Handle<Image>,
+    text: &str,
+    state: TurnPartState,
+) {
+    let color = match state {
+        TurnPartState::Done => theme::ACCENT,
+        TurnPartState::Open => palette::TEXT_DIM,
+        TurnPartState::Blocked => palette::TEXT_DIM.with_alpha(0.37),
+    };
+    let tick = (state == TurnPartState::Done).then(|| {
+        (
+            Node {
+                width: px(10),
+                height: px(10),
+                ..default()
+            },
+            ImageNode::new(check.clone()).with_color(color),
+            Pickable::IGNORE,
+        )
+    });
+    let row = commands
+        .spawn((
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: px(8),
+                ..default()
+            },
+            Pickable::IGNORE,
+            ChildOf(list),
+            children![(
+                Node {
+                    width: px(12),
+                    height: px(12),
+                    border: UiRect::all(px(1.5)),
+                    border_radius: BorderRadius::all(px(3)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BorderColor::all(color),
+                Pickable::IGNORE,
+                Children::spawn(SpawnIter(tick.into_iter())),
+            )],
+        ))
+        .id();
+    let label = commands
+        .spawn((
+            theme::text(fonts.display(18.0), text, color),
+            LineHeight::RelativeToFont(1.1),
+            Pickable::IGNORE,
+            ChildOf(row),
+        ))
+        .id();
+    if state == TurnPartState::Blocked {
+        commands.entity(label).insert(Strikethrough);
+    }
+}
+
+/// Die Zeilen der Checkliste: in Runde 1 zuerst das Flaggschiff, nach Grundmanöver und Fähigkeit die Feuerbefehle,
+/// für Admiral Kerr zuletzt die Zielerfassung.
+fn checklist_lines(
+    locale: &Locale,
+    progress: &TurnProgress,
+    planned: usize,
+    max: usize,
+) -> Vec<(String, TurnPartState)> {
+    let maneuver = if progress.power.is_none() {
+        locale.hud_checklist_maneuver()
+    } else {
+        locale.hud_checklist_maneuver_only()
+    };
+    [
+        (
+            locale.hud_checklist_flagship().to_owned(),
+            progress.flagship,
+        ),
+        (
+            locale.hud_checklist_ships(planned, max),
+            Some(progress.ships),
+        ),
+        (
+            locale.hud_checklist_command().to_owned(),
+            Some(progress.command),
+        ),
+        (maneuver.to_owned(), Some(progress.maneuver)),
+        (locale.hud_checklist_power().to_owned(), progress.power),
+        (
+            locale.hud_checklist_fire(progress.fire_orders.assigned, progress.fire_orders.shooters),
+            Some(progress.fire),
+        ),
+        (locale.hud_checklist_mark().to_owned(), progress.mark),
+    ]
+    .into_iter()
+    .filter_map(|(text, state)| state.map(|state| (text, state)))
+    .collect()
+}
+
+/// Füllt die Checkliste; außerhalb des Planens bleibt sie unsichtbar stehen, damit der Knopf darüber nicht springt.
+#[allow(clippy::too_many_arguments)]
+fn update_checklist(
+    mut commands: Commands,
+    mut shown: Local<Vec<(String, TurnPartState)>>,
+    game: Res<Match>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    fonts: Res<Fonts>,
+    icons: Res<UiIcons>,
+    checklist: Single<(Entity, &mut Visibility), With<Checklist>>,
+) {
+    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
+        return;
+    }
+    let (entity, mut visibility) = checklist.into_inner();
+    visibility.set_if_neq(if hud.planning {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    });
+    if !hud.planning {
+        return;
+    }
+    let lines = checklist_lines(
+        &locale,
+        &game.turn_progress(),
+        game.plan().ships.len(),
+        game.deploy_limit(),
+    );
+    if *shown == lines {
+        return;
+    }
+    commands.entity(entity).despawn_related::<Children>();
+    for (text, state) in &lines {
+        spawn_checklist_item(&mut commands, entity, &fonts, &icons.check, text, *state);
+    }
+    *shown = lines;
+}
+
+/// Kündigt einen Befehl oder eine Fähigkeit an.
+fn show_banner(
+    mut commands: Commands,
+    mut messages: MessageReader<ShowBanner>,
+    fonts: Res<Fonts>,
+    portraits: Res<AdmiralPortraits>,
+    banner: Single<(Entity, &mut Banner, &mut BorderColor, &mut Visibility), With<RevealBanner>>,
+    settings: Res<Settings>,
+) {
+    let Some(message) = messages.read().last() else {
+        return;
+    };
+    let (entity, mut state, mut border, mut visibility) = banner.into_inner();
+    let color = match message.side {
+        Side::Player => theme::ACCENT,
+        Side::Enemy => palette::ENEMY,
+    };
+    border.set_all(color);
+    *state = Banner {
+        elapsed: 0.0,
+        duration: REVEAL_TIME * settings.time_scale(AnimationScope::General),
+    };
+    *visibility = Visibility::Inherited;
+    commands.entity(entity).despawn_related::<Children>();
+    if let Some(admiral) = message.admiral {
+        let ring = palette::admiral_color(admiral);
+        commands.spawn((
+            Node {
+                width: px(48),
+                height: px(48),
+                border_radius: BorderRadius::MAX,
+                ..default()
+            },
+            ImageNode::new(portraits.get(admiral)),
+            BoxShadow(vec![
+                theme::glow(ring.with_alpha(0.6), 14.0),
+                theme::ring(ring, 2.0),
+            ]),
+            Pickable::IGNORE,
+            ChildOf(entity),
+        ));
+    }
+    let subtitle = message.subtitle.clone().map(|subtitle| {
+        (
+            theme::text(fonts.body(16.0), subtitle, palette::TEXT_DIM),
+            Pickable::IGNORE,
+        )
+    });
+    commands.spawn((
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            row_gap: px(2),
+            ..default()
+        },
+        Pickable::IGNORE,
+        ChildOf(entity),
+        Children::spawn((
+            Spawn((
+                theme::caps(fonts.display(30.0), &message.title, theme::TRACKING, color),
+                Pickable::IGNORE,
+            )),
+            SpawnIter(subtitle.into_iter()),
+        )),
+    ));
+}
+
+fn hide_banner(
+    mut messages: MessageReader<HideBanner>,
+    mut banner: Single<&mut Banner, With<RevealBanner>>,
+) {
+    if messages.read().last().is_some() {
+        banner.elapsed = banner.duration;
+    }
+}
+
+/// Kündigt eine neue Runde an, samt steigendem Overdrive.
+fn show_round_banner(
+    mut commands: Commands,
+    mut messages: MessageReader<ShowRoundBanner>,
+    fonts: Res<Fonts>,
+    locale: Res<Locale>,
+    banner: Single<(Entity, &mut Banner, &mut Visibility), With<RoundBanner>>,
+    settings: Res<Settings>,
+    mut sounds: MessageWriter<PlayUiSound>,
+) {
+    let Some(&ShowRoundBanner(round)) = messages.read().last() else {
+        return;
+    };
+    let (entity, mut state, mut visibility) = banner.into_inner();
+    *state = Banner {
+        elapsed: 0.0,
+        duration: ROUND_TIME * settings.time_scale(AnimationScope::General),
+    };
+    *visibility = Visibility::Inherited;
+    let bonus = overdrive_bonus(round);
+    let rising = (bonus > overdrive_bonus(round.saturating_sub(1))).then(|| {
+        (
+            theme::text(
+                fonts.display(18.0),
+                locale.hud_overdrive_hint(bonus),
+                palette::BUFF,
+            ),
+            Pickable::IGNORE,
+        )
+    });
+    commands.entity(entity).despawn_related::<Children>();
+    commands.entity(entity).insert(Children::spawn((
+        Spawn((
+            theme::caps(
+                fonts.display(16.0),
+                locale.hud_new_round(),
+                0.3,
+                palette::TEXT_DIM,
+            ),
+            Pickable::IGNORE,
+        )),
+        Spawn((
+            theme::caps(
+                fonts.display_bold(60.0),
+                &locale.hud_round(round),
+                0.04,
+                theme::ACCENT,
+            ),
+            Pickable::IGNORE,
+        )),
+        SpawnIter(rising.into_iter()),
+    )));
+    sounds.write(PlayUiSound(UiSound::Round));
+}
+
+/// Blendet die Banner ein, hält sie und blendet sie wieder aus (Keyframes `banner` und `round-banner`).
+fn animate_banners(
+    time: Res<Time>,
+    mut banners: Query<(
+        &mut Banner,
+        &mut UiOpacity,
+        &mut UiTransform,
+        &mut Visibility,
+        Has<RoundBanner>,
+    )>,
+) {
+    for (mut banner, mut opacity, mut transform, mut visibility, round) in &mut banners {
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        banner.elapsed += time.delta_secs();
+        let t = (banner.elapsed / banner.duration.max(f32::EPSILON)).min(1.0);
+        let (fade_in, hold) = if round { (0.15, 0.75) } else { (0.12, 0.8) };
+        let rise = (t / fade_in).min(1.0);
+        let eased = 1.0 - (1.0 - rise).powi(2);
+        let alpha = if t < fade_in {
+            eased
+        } else if t < hold {
+            1.0
+        } else {
+            1.0 - (t - hold) / (1.0 - hold)
+        };
+        opacity.set_if_neq(UiOpacity(alpha));
+        *transform = if round {
+            UiTransform::from_scale(Vec2::splat(1.15 - 0.15 * eased))
+        } else {
+            UiTransform::from_translation(Val2::px(0.0, -10.0 * (1.0 - eased)))
+        };
+        if t >= 1.0 {
+            *visibility = Visibility::Hidden;
+        }
+    }
+}
+
+pub(super) struct HudPlugin;
+
+impl Plugin for HudPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(AppState::Match), spawn)
+            .add_systems(
+                Update,
+                (
+                    update_top_bar,
+                    update_action,
+                    update_checklist,
+                    append_log,
+                    show_banner,
+                    hide_banner,
+                    show_round_banner,
+                    animate_banners,
+                )
+                    .chain()
+                    .run_if(in_state(AppState::Match)),
+            );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{game::FireOrderCount, settings::Language};
+
+    #[test]
+    fn checklist_skips_parts_of_other_rounds() {
+        let locale = Locale::new(Language::De);
+        let progress = TurnProgress {
+            flagship: None,
+            ships: TurnPartState::Done,
+            command: TurnPartState::Open,
+            maneuver: TurnPartState::Blocked,
+            power: None,
+            mark: None,
+            fire: TurnPartState::Open,
+            fire_orders: FireOrderCount {
+                assigned: 1,
+                shooters: 3,
+            },
+        };
+        let lines = checklist_lines(&locale, &progress, 1, 1);
+        let texts: Vec<&str> = lines.iter().map(|(text, _)| text.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "Schiff legen",
+                "Befehl spielen",
+                "Grundmanöver oder Fähigkeit",
+                "Ziele zuweisen (1/3)"
+            ]
+        );
+    }
+}
