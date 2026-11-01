@@ -279,13 +279,12 @@ impl Plugin for ParticlesPlugin {
     }
 }
 
-/// Gibt einem neuen Schwarm Mesh und Material.
+/// Gibt einem neuen Schwarm sein Material; das Mesh bekommt er mit den ersten Partikeln ([`update`]).
 fn prepare(
     add: On<Add<Particles>>,
     mut commands: Commands,
     particles: Query<&Particles>,
     assets: Res<FxAssets>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
     let opaque = particles
@@ -295,20 +294,16 @@ fn prepare(
     if opaque {
         material.blend = FxBlend::Alpha;
     }
-    commands.entity(add.entity).insert((
-        Mesh3d(meshes.add(Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        ))),
-        MeshMaterial3d(materials.add(material)),
-    ));
+    commands
+        .entity(add.entity)
+        .insert(MeshMaterial3d(materials.add(material)));
 }
 
-/// Lässt die Partikel altern, fliegen und neue ausströmen, und schreibt das Mesh neu.
-#[allow(clippy::too_many_arguments)]
+/// Lässt die Partikel altern, fliegen und neue ausströmen, und schreibt das Mesh neu. Ohne Partikel (der Emitter hat
+/// noch nichts ausgestoßen) trägt der Schwarm kein Mesh: Bevy lehnt Meshes ohne Vertices ab.
 fn update(
     mut commands: Commands,
-    mut swarms: Query<(Entity, &mut Particles, &Transform, &Mesh3d)>,
+    mut swarms: Query<(Entity, &mut Particles, &Transform, Option<&Mesh3d>)>,
     targets: Query<&GlobalTransform>,
     camera: Single<&Transform, With<MainCamera>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -369,10 +364,13 @@ fn update(
             continue;
         }
 
-        let Some(mut mesh) = meshes.get_mut(&mesh.0) else {
-            continue;
-        };
         let count = swarm.particles.len();
+        if count == 0 {
+            if mesh.is_some() {
+                commands.entity(entity).remove::<Mesh3d>();
+            }
+            continue;
+        }
         let mut positions = Vec::with_capacity(count * 4);
         let mut colors = Vec::with_capacity(count * 4);
         let mut uvs = Vec::with_capacity(count * 4);
@@ -395,10 +393,19 @@ fn update(
             indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
         }
         let normals = vec![(-view).to_array(); positions.len()];
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-        mesh.insert_indices(Indices::U32(indices));
+        let quads = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+        .with_inserted_indices(Indices::U32(indices));
+        if let Some(mut mesh) = mesh.and_then(|mesh| meshes.get_mut(&mesh.0)) {
+            *mesh = quads;
+        } else {
+            commands.entity(entity).insert(Mesh3d(meshes.add(quads)));
+        }
     }
 }
