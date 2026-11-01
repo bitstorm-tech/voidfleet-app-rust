@@ -14,10 +14,10 @@ use bevy::{
 };
 
 use super::{
+    animation::{AnimationClock, AnimationScope},
     animation::{random_between, random_in_cone},
     camera::MainCamera,
     fx::{FxAssets, FxBlend, FxMaterial, GLOW},
-    tween::{AnimationClock, AnimationScope},
 };
 use crate::settings::Settings;
 

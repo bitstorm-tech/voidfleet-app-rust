@@ -1,6 +1,7 @@
 //! Ansicht (Port von `ui/viewToggle.ts`): Der Icon-Knopf oben rechts und die Taste V fahren mit einer kurzen
 //! Kamerafahrt zur anderen Ansicht ([`CameraCommand::ToggleView`]); solange ← oder → gedrückt ist, dreht sich die
-//! Kamera stufenlos dazwischen ([`CameraCommand::Orbit`]), außer bei offenem Dialog ([`Modal`]).
+//! Kamera stufenlos dazwischen ([`CameraCommand::Orbit`]), ↑ und ↓ zoomen ([`CameraCommand::Zoom`]), außer bei offenem
+//! Dialog ([`Modal`]). Die Tastatur der Kamera liegt allein hier; die Maus liest die Kamera selbst.
 
 use bevy::{
     prelude::*,
@@ -34,12 +35,12 @@ pub(super) fn plain(keys: &ButtonInput<KeyCode>) -> bool {
     ])
 }
 
-/// V wechselt die Ansicht; ← dreht nach hinten oben, → zurück zur Seite, Gegenrichtungen heben sich auf. Verliert das
-/// Fenster den Fokus, lässt Bevy alle Tasten los, und die Drehung endet.
+/// V wechselt die Ansicht; ← dreht nach hinten oben, → zurück zur Seite, ↑ zoomt hinein, ↓ heraus, Gegenrichtungen
+/// heben sich auf. Verliert das Fenster den Fokus, lässt Bevy alle Tasten los, und Drehung und Zoom enden.
 fn steer(
     keys: Res<ButtonInput<KeyCode>>,
     modals: Query<(), With<Modal>>,
-    mut held: Local<f32>,
+    mut held: Local<(f32, f32)>,
     mut camera: MessageWriter<CameraCommand>,
 ) {
     let plain = plain(&keys);
@@ -48,12 +49,21 @@ fn steer(
     }
     // In offenen Dialogen gehören die Pfeiltasten den Reglern und dem Scrollen.
     let free = plain && modals.is_empty();
-    let axis = |key: KeyCode| f32::from(u8::from(free && keys.pressed(key)));
-    let direction = axis(KeyCode::ArrowLeft) - axis(KeyCode::ArrowRight);
-    if direction != *held {
-        *held = direction;
-        camera.write(CameraCommand::Orbit(direction));
+    let axis = |positive: KeyCode, negative: KeyCode| {
+        let pressed = |key: KeyCode| f32::from(u8::from(free && keys.pressed(key)));
+        pressed(positive) - pressed(negative)
+    };
+    let next = (
+        axis(KeyCode::ArrowLeft, KeyCode::ArrowRight),
+        axis(KeyCode::ArrowUp, KeyCode::ArrowDown),
+    );
+    if next.0 != held.0 {
+        camera.write(CameraCommand::Orbit(next.0));
     }
+    if next.1 != held.1 {
+        camera.write(CameraCommand::Zoom(next.1));
+    }
+    *held = next;
 }
 
 pub(super) struct ViewTogglePlugin;

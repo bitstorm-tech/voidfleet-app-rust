@@ -585,14 +585,7 @@ impl Plugin for I18nPlugin {
 }
 
 /// Eine andere Sprache in den Einstellungen gilt sofort.
-fn follow_settings(
-    settings: Res<Settings>,
-    mut locale: ResMut<Locale>,
-    mut chosen: Local<Option<Option<Language>>>,
-) {
-    if chosen.replace(settings.language) == Some(settings.language) {
-        return;
-    }
+fn follow_settings(settings: Res<Settings>, mut locale: ResMut<Locale>) {
     let next = Locale::detect(settings.language);
     if next.language != locale.language {
         *locale = next;

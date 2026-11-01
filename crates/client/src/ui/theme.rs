@@ -27,9 +27,8 @@ pub fn alpha(color: Color, alpha: f32) -> Color {
     color.with_alpha(alpha)
 }
 
-/// Fläche der Felder und Banner (`--panel`), beim Überfahren (`--panel-hover`).
+/// Fläche der Felder und Banner (`--panel`).
 pub const PANEL: Color = rgba(28, 32, 40, 0.95);
-pub const PANEL_HOVER: Color = rgba(44, 50, 62, 0.95);
 /// Die dunkelste Kante: Ränder der Pulte und Fugen.
 pub const INK: Color = rgb(4, 6, 9);
 /// Grund unter Karten-Stapeln und Zählern.

@@ -85,14 +85,6 @@ pub enum CardHover {
     Raise,
 }
 
-impl CardHover {
-    /// Die Hand: von unten Mitte auf das Anderthalbfache.
-    pub const HAND: Self = Self::Zoom {
-        scale: 1.5,
-        origin: Vec2::new(0.0, 1.0),
-    };
-}
-
 /// Eine neu gezogene Karte fliegt nach `delay` Sekunden von unten ein und leuchtet danach kurz nach.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct CardDraw {

@@ -61,7 +61,10 @@ pub(super) fn stage(
                     ..ToonState::facing(side)
                 },
                 ShipStatus {
-                    preview: Some((index % 3 > 0).then_some(ShipStats { hp: 1, shield: 0 })),
+                    preview: Some(ShipStats {
+                        hp: i32::from(index % 3 > 0),
+                        shield: 0,
+                    }),
                     doomed: true,
                     holding_fire: index % 2 == 0,
                     ..ShipStatus::new(ship)

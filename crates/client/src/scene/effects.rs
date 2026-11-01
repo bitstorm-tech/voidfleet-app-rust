@@ -16,7 +16,9 @@ use std::f32::consts::PI;
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::{
-    animation::{Animation, AnimationSystems, ease_in_cubic, ease_out_cubic},
+    animation::{
+        Animation, AnimationScope, AnimationSystems, cubic_bezier, ease_in_cubic, ease_out_cubic,
+    },
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
     particles::{Burst, Emitter, Particles, SPHERE, ember, shot, smoke, soot},
     toon::ToonFlash,
@@ -916,11 +918,6 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     ));
 }
 
-fn cubic_bezier([p0, p1, p2, p3]: [Vec3; 4], t: f32) -> Vec3 {
-    let u = 1.0 - t;
-    p0 * u.powi(3) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) + p3 * t.powi(3)
-}
-
 fn fly_missiles(mut missiles: Query<(&MissilePath, &Animation, &mut Transform)>) {
     for (path, animation, mut transform) in &mut missiles {
         let progress = animation.progress();
@@ -986,8 +983,7 @@ fn hold_tethers(
             Some(animation) => 1.0 - animation.progress(),
             None => (fade.fade
                 + time.delta_secs()
-                    / (TETHER_FADE_IN
-                        * settings.time_scale(super::tween::AnimationScope::General)))
+                    / (TETHER_FADE_IN * settings.time_scale(AnimationScope::General)))
             .min(1.0),
         };
         let Ok(target) = targets.get(tether.target) else {

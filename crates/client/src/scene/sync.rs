@@ -33,7 +33,7 @@ use super::{
 use crate::{
     assets::AppState,
     data::{admirals::power_admiral, ship_models::ShipModels},
-    game::{Match, ShotOutcome, preview_round},
+    game::{Match, RoundPreview, ShotOutcome, preview_round},
     palette::{self, admiral_color},
 };
 
@@ -83,16 +83,6 @@ impl Plugin for SyncPlugin {
                     .run_if(in_state(BoardMode::Planning)),
             );
     }
-}
-
-/// Was beim Planen geplant werden kann (ohne Verbindungsabbruch, den kennt der Controller).
-fn can_plan(game: &Match) -> bool {
-    planning(game) && !game.submitted && game.draft.is_none()
-}
-
-/// Ob eine Runde geplant wird: Dann gibt es eine Zielvorschau.
-fn planning(game: &Match) -> bool {
-    game.round > 0 && game.admirals_chosen() && game.result.is_none()
 }
 
 /// Stellt je Slot das Schiff aus dem Brett hin, mit seinen Werten.
@@ -192,14 +182,18 @@ pub fn sync_plan(
     mut columns: ResMut<ColumnMarks>,
 ) {
     let shown = focus.hypothetical.as_ref().unwrap_or(&game);
-    let preview = planning(&game).then(|| preview_round(shown, shown.plan()));
-    let shooter = if can_plan(&game) { focus.shooter } else { None };
-    let losses: Vec<SlotRef> = preview
-        .as_ref()
-        .map_or_else(Vec::new, |preview| preview.losses.clone());
+    let preview = game
+        .round_running()
+        .then(|| preview_round(shown, shown.plan()));
+    let shooter = if game.turn_open() {
+        focus.shooter
+    } else {
+        None
+    };
+    let losses: &[SlotRef] = preview.as_ref().map_or(&[], |preview| &preview.losses);
 
     // Geister: bleiben stehen, wenn sie schon richtig stehen.
-    let wanted = if planning(&game) {
+    let wanted = if game.round_running() {
         ghost_targets(
             shown,
             preview.as_ref().map_or(&[][..], |preview| &preview.drones),
@@ -251,58 +245,7 @@ pub fn sync_plan(
         .map(|(entity, _, on, ..)| (on.0, entity))
         .collect();
 
-    // Marken: Zielerfassung auf dem Brett (beide Seiten), die eigene Fähigkeit (auf dem Schiff, das nach den Bewegungen
-    // dort steht), die eingeplante Zielerfassung, Visier und Bereitschaft der Feuerbefehle.
-    let mut markers: HashMap<Entity, Vec<MarkerSpec>> = HashMap::default();
-    let mut add = |entity: Option<Entity>, spec: MarkerSpec| {
-        if let Some(entity) = entity {
-            markers.entry(entity).or_default().push(spec);
-        }
-    };
-    let kerr = admiral_color(AdmiralId::Kerr);
-    for slot in all_slots() {
-        if game.board.state(slot).is_some_and(|state| state.marked) {
-            add(
-                real_at.get(&slot).copied(),
-                MarkerSpec::new(MarkerKind::Lock, kerr),
-            );
-        }
-    }
-    let command_move = shown.planned_command_move();
-    if planning(&game)
-        && let Some(power) = shown.power()
-        && let Some(kind) = MarkerKind::of_power(power)
-        && let Some(target) = shown.planned_power_target()
-    {
-        let holder = match command_move {
-            Some(planned) if planned.from == target => ghost_at.get(&planned.to),
-            _ => ghost_at.get(&target).or(real_at.get(&target)),
-        };
-        add(
-            holder.copied(),
-            MarkerSpec::new(kind, admiral_color(power_admiral(power))),
-        );
-    }
-    if let Some(mark) = shown.plan().mark.filter(|_| planning(&game)) {
-        add(
-            real_at.get(&mark.on(Side::Enemy)).copied(),
-            MarkerSpec {
-                planned: true,
-                ..MarkerSpec::new(MarkerKind::Lock, kerr)
-            },
-        );
-    }
-    if can_plan(&game) {
-        for slot in shown.shooters() {
-            let at = slot.on(Side::Player);
-            let holder = real_at.get(&at).or(ghost_at.get(&at)).copied();
-            if Some(slot) == shooter {
-                add(holder, MarkerSpec::new(MarkerKind::Aim, palette::SELECT));
-            } else if !shown.is_armed(slot) {
-                add(holder, MarkerSpec::new(MarkerKind::Ready, palette::PLAYER));
-            }
-        }
-    }
+    let mut markers = plan_markers(&game, shown, shooter, &real_at, &ghost_at);
 
     // Zielvorschau und gedämpfte Balken des manövrierenden Schiffs (nicht beim Phasentausch).
     let maneuvering = shown
@@ -328,7 +271,8 @@ pub fn sync_plan(
             ShipStatus {
                 preview: preview
                     .as_ref()
-                    .and_then(|preview| preview.outcomes.get(&on.0).copied()),
+                    .and_then(|preview| preview.outcomes.get(&on.0))
+                    .map(|after| after.unwrap_or_default()),
                 doomed: losses.contains(&on.0) && !ghost_at.contains_key(&on.0),
                 holding_fire: maneuvering == Some(on.0),
                 ..*status
@@ -344,52 +288,7 @@ pub fn sync_plan(
         }
     }
 
-    // Pfeile, Fadenkreuze und Bögen.
-    let mut next = PlanOverlays::default();
-    if planning(&game) {
-        let maneuver = shown.planned_maneuver();
-        let swap = maneuver.filter(|planned| game.board.is_occupied(planned.to));
-        for planned in [command_move, maneuver].into_iter().flatten() {
-            next.arrows.push(MoveArrow {
-                from: planned.from,
-                to: planned.to,
-                lifted: game.board.is_occupied(planned.to),
-            });
-        }
-        if let Some(swap) = swap {
-            next.arrows.push(MoveArrow {
-                from: swap.to,
-                to: swap.from,
-                lifted: true,
-            });
-        }
-        if let (Some(card), Some(target)) = (shown.planned_command(), shown.planned_enemy_target())
-        {
-            if card.targets_enemy_column() {
-                next.reticles = LaneType::ALL
-                    .map(|lane| SlotRef::new(Side::Enemy, lane, target.slot_index))
-                    .to_vec();
-            } else {
-                next.reticles = vec![target.on(Side::Enemy)];
-            }
-        }
-        if let Some(preview) = &preview {
-            next.lines = preview
-                .shots
-                .iter()
-                .map(|shot| TargetLine {
-                    from: shot.attacker,
-                    to: shot.target,
-                    side: shot.attacker.side,
-                    fizzle: matches!(shot.outcome, ShotOutcome::Miss(_)),
-                    tracking: shot.tracking,
-                    selected: shooter.is_some()
-                        && shot.shooter.map(|slot| slot.target()) == shooter,
-                })
-                .collect();
-        }
-    }
-    overlays.set_if_neq(next);
+    overlays.set_if_neq(plan_overlays(&game, shown, preview.as_ref(), shooter));
 
     // Die Pfeile vor den Spalten, solange ein eigenes Schiff zielt; gefüllt der seines Spaltenfeuers.
     columns.set_if_neq(ColumnMarks {
@@ -403,7 +302,122 @@ pub fn sync_plan(
     });
 }
 
-/// Die Wiedergabe übernimmt: Geister, Pfeile, Bögen, Vorschau und die Marken der Feuerbefehle gehen.
+/// Marken je Schiff oder Geist: die Zielerfassung auf dem Brett (beide Seiten), die eigene Fähigkeit (auf dem Schiff,
+/// das nach den Bewegungen dort steht), die eingeplante Zielerfassung, Visier und Bereitschaft der Feuerbefehle.
+fn plan_markers(
+    game: &Match,
+    shown: &Match,
+    shooter: Option<SlotTarget>,
+    real_at: &HashMap<SlotRef, Entity>,
+    ghost_at: &HashMap<SlotRef, Entity>,
+) -> HashMap<Entity, Vec<MarkerSpec>> {
+    let mut markers: HashMap<Entity, Vec<MarkerSpec>> = HashMap::default();
+    let mut add = |entity: Option<&Entity>, spec: MarkerSpec| {
+        if let Some(&entity) = entity {
+            markers.entry(entity).or_default().push(spec);
+        }
+    };
+    let kerr = admiral_color(AdmiralId::Kerr);
+    for slot in all_slots() {
+        if game.board.state(slot).is_some_and(|state| state.marked) {
+            add(real_at.get(&slot), MarkerSpec::new(MarkerKind::Lock, kerr));
+        }
+    }
+    if game.round_running() {
+        if let Some(power) = shown.power()
+            && let Some(kind) = MarkerKind::of_power(power)
+            && let Some(target) = shown.planned_power_target()
+        {
+            let holder = match shown.planned_command_move() {
+                Some(planned) if planned.from == target => ghost_at.get(&planned.to),
+                _ => ghost_at.get(&target).or(real_at.get(&target)),
+            };
+            add(
+                holder,
+                MarkerSpec::new(kind, admiral_color(power_admiral(power))),
+            );
+        }
+        if let Some(mark) = shown.plan().mark {
+            add(
+                real_at.get(&mark.on(Side::Enemy)),
+                MarkerSpec {
+                    planned: true,
+                    ..MarkerSpec::new(MarkerKind::Lock, kerr)
+                },
+            );
+        }
+    }
+    if game.turn_open() {
+        for slot in shown.shooters() {
+            let at = slot.on(Side::Player);
+            let holder = real_at.get(&at).or(ghost_at.get(&at));
+            if Some(slot) == shooter {
+                add(holder, MarkerSpec::new(MarkerKind::Aim, palette::SELECT));
+            } else if !shown.is_armed(slot) {
+                add(holder, MarkerSpec::new(MarkerKind::Ready, palette::PLAYER));
+            }
+        }
+    }
+    markers
+}
+
+/// Bewegungspfeile, Fadenkreuze auf Zielen der Gegnerseite und die Bögen der Zielvorschau.
+fn plan_overlays(
+    game: &Match,
+    shown: &Match,
+    preview: Option<&RoundPreview>,
+    shooter: Option<SlotTarget>,
+) -> PlanOverlays {
+    let mut next = PlanOverlays::default();
+    if !game.round_running() {
+        return next;
+    }
+    let maneuver = shown.planned_maneuver();
+    for planned in [shown.planned_command_move(), maneuver]
+        .into_iter()
+        .flatten()
+    {
+        next.arrows.push(MoveArrow {
+            from: planned.from,
+            to: planned.to,
+            lifted: game.board.is_occupied(planned.to),
+        });
+    }
+    // Phasentausch: der Rückweg des Tauschpartners.
+    if let Some(swap) = maneuver.filter(|planned| game.board.is_occupied(planned.to)) {
+        next.arrows.push(MoveArrow {
+            from: swap.to,
+            to: swap.from,
+            lifted: true,
+        });
+    }
+    if let (Some(card), Some(target)) = (shown.planned_command(), shown.planned_enemy_target()) {
+        next.reticles = if card.targets_enemy_column() {
+            LaneType::ALL
+                .map(|lane| SlotRef::new(Side::Enemy, lane, target.slot_index))
+                .to_vec()
+        } else {
+            vec![target.on(Side::Enemy)]
+        };
+    }
+    if let Some(preview) = preview {
+        next.lines = preview
+            .shots
+            .iter()
+            .map(|shot| TargetLine {
+                from: shot.attacker,
+                to: shot.target,
+                side: shot.attacker.side,
+                fizzle: matches!(shot.outcome, ShotOutcome::Miss(_)),
+                tracking: shot.tracking,
+                selected: shooter.is_some() && shot.shooter.map(|slot| slot.target()) == shooter,
+            })
+            .collect();
+    }
+    next
+}
+
+/// Die Wiedergabe übernimmt:Geister, Pfeile, Bögen, Vorschau und die Marken der Feuerbefehle gehen.
 fn clear_plan(
     mut commands: Commands,
     mut ships: Query<(Entity, &Ship, &mut ShipStatus, Option<&mut ShipMarkers>)>,

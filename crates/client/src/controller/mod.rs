@@ -183,13 +183,7 @@ impl Plugin for ControllerPlugin {
 /// Ob gerade geplant werden darf: verbunden, keine Wiedergabe, beide Admirale gewählt, der Zug dieser Runde offen, der
 /// Nachschub gewählt und das Match nicht entschieden.
 fn can_plan(game: &Match, connection: ConnectionStatus, mode: BoardMode) -> bool {
-    connection == ConnectionStatus::Connected
-        && mode == BoardMode::Planning
-        && game.round > 0
-        && game.admirals_chosen()
-        && !game.submitted
-        && game.draft.is_none()
-        && game.result.is_none()
+    connection == ConnectionStatus::Connected && mode == BoardMode::Planning && game.turn_open()
 }
 
 /// Was ein Klick zum Planen braucht.

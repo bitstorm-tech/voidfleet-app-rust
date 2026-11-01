@@ -21,13 +21,13 @@ use bevy::prelude::*;
 use voidfleet_core::{board::SlotRef, cards::ShipClass};
 
 use super::{
+    animation::AnimationScope,
     animation::{Animation, AnimationSystems, ease_in_cubic, ease_in_out_sine, ease_out_cubic},
     board::{BoardEntities, attach},
     effects::Warp,
     maneuver::Flight,
     ship::{BOARD_SCALE, Ship, ShipModel, ToonState},
     status::{Hologram, ShipBounds, ShipParts, ShipStatus},
-    tween::AnimationScope,
 };
 use crate::audio::{LoopingSound, SoundId};
 

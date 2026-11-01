@@ -166,6 +166,18 @@ impl Match {
                 .is_some_and(|opponent| opponent.admiral.is_some())
     }
 
+    /// Eine Runde läuft: beide Admirale gewählt, das Match nicht entschieden. Dann gibt es Zug und Zielvorschau, auch
+    /// nach dem Abgeben.
+    pub fn round_running(&self) -> bool {
+        self.round > 0 && self.admirals_chosen() && self.result.is_none()
+    }
+
+    /// Der Zug dieser Runde ist offen: nicht abgegeben und der Nachschub gewählt (ohne Verbindung und Wiedergabe, die
+    /// kennt der Controller).
+    pub fn turn_open(&self) -> bool {
+        self.round_running() && !self.submitted && self.draft.is_none()
+    }
+
     /// In Runde 1 kommt das Flaggschiff aufs Brett; abgeben geht erst, wenn es eingeplant ist.
     pub fn needs_flagship(&self) -> bool {
         self.round == 1 && self.flagship().is_some()
@@ -785,14 +797,6 @@ impl Match {
             .chain(self.ship_hand.iter().copied())
             .filter(|card| card.atk() > 0 && !card.is_token())
             .count()
-    }
-
-    /// Die eigenen Scrap Raider auf dem Brett, für die Schrottverwertung.
-    pub fn raiders(&self) -> Vec<SlotRef> {
-        self.board
-            .ships(Side::Player)
-            .filter(|&at| self.board.ship(at).card == ShipId::ScrapRaider)
-            .collect()
     }
 
     /// Die Runde ist aufgelöst, der Plan verbraucht. Das meldet erst die Auflösung selbst: Wer als Zweiter abgibt,

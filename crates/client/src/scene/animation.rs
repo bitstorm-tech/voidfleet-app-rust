@@ -15,11 +15,49 @@
 //!
 //! Ein Auftrag, der erst auf etwas warten muss (ein Schiff, dessen Modell noch lädt), bekommt seine [`Animation`]
 //! erst, wenn er beginnt. Ein Auftrag nur aus [`Animation`] ist eine Pause.
+//!
+//! Gestreckt wird um die eingestellte Animationsgeschwindigkeit (Port von `scene/tween.ts`): Welcher Regler gilt,
+//! bestimmt [`AnimationClock::scope`] beim Start des Auftrags (die Rundenwiedergabe schaltet für Angriffe um) oder
+//! [`Animation::in_scope`]. Solange [`AnimationClock::skip`] gilt, springen alle Aufträge sofort an ihr Ende.
+//!
+//! Dazu Helfer der Aufträge: Easing-Kurven wie im Original, Bézierkurven und Zufallswerte.
 
 use bevy::prelude::*;
 
-use super::tween::{AnimationClock, AnimationScope};
 use crate::settings::Settings;
+
+/// Welcher Regler der Animationsgeschwindigkeit gilt.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AnimationScope {
+    /// Schüsse im Kampf.
+    Attack,
+    /// Flüge der Schiffe: Deploy-Einflug und Lane-Wechsel.
+    Movement,
+    /// Alle übrigen Animationen.
+    #[default]
+    General,
+}
+
+/// Gemeinsamer Takt aller Animationen.
+#[derive(Resource, Default, Debug)]
+pub struct AnimationClock {
+    /// Regler, den neue Aufträge ohne eigene Angabe nehmen.
+    pub scope: AnimationScope,
+    /// Animationen überspringen: Laufende Aufträge springen an ihr Ende, neue enden sofort; Sounds und Funk schweigen.
+    pub skip: bool,
+}
+
+impl Settings {
+    /// Streckungsfaktor der Dauern für einen Regler.
+    pub fn time_scale(&self, scope: AnimationScope) -> f32 {
+        match scope {
+            AnimationScope::Attack => self.attack_speed,
+            AnimationScope::Movement => self.movement_speed,
+            AnimationScope::General => self.animation_speed,
+        }
+        .time_scale()
+    }
+}
 
 /// Die Uhr eines Auftrags.
 #[derive(Component, Clone, Copy, Debug)]
@@ -95,17 +133,18 @@ pub(super) struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.configure_sets(
-            Update,
-            (
-                AnimationSystems::Advance,
-                AnimationSystems::Apply,
-                AnimationSystems::Finish,
+        app.init_resource::<AnimationClock>()
+            .configure_sets(
+                Update,
+                (
+                    AnimationSystems::Advance,
+                    AnimationSystems::Apply,
+                    AnimationSystems::Finish,
+                )
+                    .chain(),
             )
-                .chain(),
-        )
-        .add_systems(Update, advance.in_set(AnimationSystems::Advance))
-        .add_systems(Update, finish.in_set(AnimationSystems::Finish));
+            .add_systems(Update, advance.in_set(AnimationSystems::Advance))
+            .add_systems(Update, finish.in_set(AnimationSystems::Finish));
     }
 }
 
@@ -151,6 +190,12 @@ pub fn ease_in_out_sine(t: f32) -> f32 {
     -((std::f32::consts::PI * t).cos() - 1.0) / 2.0
 }
 
+/// Punkt auf der kubischen Bézierkurve durch `points` bei `t` (0..1).
+pub fn cubic_bezier([p0, p1, p2, p3]: [Vec3; 4], t: f32) -> Vec3 {
+    let u = 1.0 - t;
+    p0 * u.powi(3) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) + p3 * t.powi(3)
+}
+
 /// Zufallszahl zwischen `min` und `max`.
 pub fn random_between((min, max): (f32, f32)) -> f32 {
     min + rand::random::<f32>() * (max - min)
@@ -183,7 +228,6 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AnimationPlugin))
             .insert_resource(Settings::default())
-            .init_resource::<AnimationClock>()
             .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
                 100,
             )))

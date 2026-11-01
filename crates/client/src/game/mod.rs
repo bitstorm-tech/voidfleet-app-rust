@@ -61,10 +61,6 @@ impl ServerInbox {
     pub fn release(&mut self) {
         self.held = false;
     }
-
-    pub fn is_held(&self) -> bool {
-        self.held
-    }
 }
 
 /// Reihenfolge im Bild: Nach [`ReceiveSet`] übernimmt das Plugin die nächste Nachricht; wer auf seine Messages

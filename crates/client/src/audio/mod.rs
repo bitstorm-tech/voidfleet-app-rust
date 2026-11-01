@@ -9,7 +9,7 @@
 //! - [`radio`] — Bordfunk mit Warteschlange, Prioritäten und Funkstrecke ([`Say`], [`SilenceRadio`],
 //!   [`RadioTransmission`]).
 //!
-//! Solange Animationen übersprungen werden ([`crate::scene::tween::AnimationClock::skip`]), schweigen Effekte und Funk.
+//! Solange Animationen übersprungen werden ([`crate::scene::animation::AnimationClock::skip`]), schweigen Effekte und Funk.
 //! Ohne Audiogerät läuft das Spiel stumm weiter: Dann fehlt die Ressource [`Mixer`], und die Systeme ruhen.
 
 pub mod effects;

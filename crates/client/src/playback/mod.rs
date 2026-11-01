@@ -6,7 +6,8 @@
 //! Vertrag mit dem Controller: Er hält beim [`crate::game::RoundResolved`] die Warteschlange des Servers an, schaltet
 //! auf [`crate::scene::sync::BoardMode::Playback`] und sendet [`PlayRound`]. Die Wiedergabe meldet am Ende
 //! [`PlaybackFinished`]; dann stehen alle überlebenden Schiffe auf ihren neuen Slots ([`OnSlot`]), damit der Abgleich
-//! sie stehen lässt, und der Controller gibt die Warteschlange frei und schaltet zurück auf die Planung, sobald der neue Zustand da ist.
+//! sie stehen lässt, und der Controller gibt die Warteschlange frei und schaltet zurück auf die Planung, sobald der
+//! neue Zustand da ist.
 //! [`SkipPlayback`] bricht ab: Animationen springen ans Ende, Sounds, Funk, Banner und Schwebetexte verstummen, die
 //! restlichen Schritte landen nur noch im Log.
 //!
@@ -35,11 +36,11 @@ use crate::{
     i18n::Locale,
     scene::{
         animation::AnimationSystems,
+        animation::{AnimationClock, AnimationScope},
         board::OnSlot,
         camera::BoardLayout,
         floating_text::FloatingText,
         ship::{BOARD_SCALE, Ship},
-        tween::{AnimationClock, AnimationScope},
     },
     ui::{AppendLog, HideBanner, round_log::describe_event},
 };

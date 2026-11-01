@@ -32,6 +32,7 @@ use crate::{
     i18n::Messages,
     palette::{self, admiral_color},
     scene::{
+        animation::AnimationScope,
         board::anchor_position,
         camera::BoardLayout,
         effects::{
@@ -42,7 +43,6 @@ use crate::{
         fx::mix,
         markers::{MarkerKind, MarkerSpec},
         motion::HIT_FLASH_ALPHA,
-        tween::AnimationScope,
     },
     ui::{
         ShowBanner,

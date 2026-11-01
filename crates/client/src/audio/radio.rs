@@ -25,7 +25,7 @@ use kira::{
 use rand::Rng;
 
 use super::{AudioLibrary, Mixer, RadioCue, Sample, decibels, pick_variant, tween};
-use crate::{scene::tween::AnimationClock, settings::Settings};
+use crate::{scene::animation::AnimationClock, settings::Settings};
 
 /// So lange (Sekunden) darf ein Spruch auf den freien Funk warten, und die Pause zwischen zwei Sprüchen.
 const MAX_WAIT: f64 = 2.0;

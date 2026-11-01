@@ -57,7 +57,7 @@ pub enum Language {
     De,
 }
 
-/// Wählbare Mauszeiger (`assets/cursors/cursor_<id>.svg`).
+/// Wählbare Mauszeiger (`assets/cursors/cursor_<id>.png`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CursorId {

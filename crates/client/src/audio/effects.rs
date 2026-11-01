@@ -15,8 +15,8 @@ use rand::Rng;
 
 use super::{AudioLibrary, Mixer, Sample, SoundId, decibels, pick_variant, tween};
 use crate::scene::{
+    animation::AnimationClock,
     camera::{MainCamera, screen_side},
-    tween::AnimationClock,
 };
 
 /// Ab diesem Anteil der halben Bildbreite liegt ein Sound ganz außen im Stereobild; ganz hart schwenkt nichts.

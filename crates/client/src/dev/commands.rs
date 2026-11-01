@@ -27,6 +27,7 @@ use voidfleet_core::{
 use crate::{
     assets::AppState,
     controller::Scripted,
+    data::FileKey,
     game::{Match, ServerInbox},
     palette::admiral_color,
     playback::{PlayRound, PlaybackFinished},
@@ -74,7 +75,7 @@ pub(super) fn plugin(app: &mut App) {
 /// Eine Szene: die Schiffe auf dem Brett und die Ereignisse, die darauf abgespielt werden.
 struct Scene {
     /// Der Befehl der Szene als Id (`torpedo`), sonst `combat` oder `round`.
-    group: String,
+    group: &'static str,
     name: &'static str,
     /// Schiffe mit ihren HP.
     ships: Vec<(SlotRef, ShipId, i32)>,
@@ -335,12 +336,8 @@ fn fleet(extra: &[ShipRef], hp: &[(ShipRef, i32)]) -> Vec<(SlotRef, ShipId, i32)
 }
 
 fn scene(card: CommandId, name: &'static str, events: Vec<RoundEvent>) -> Scene {
-    let group = serde_json::to_value(card)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .expect("Id des Befehls");
     Scene {
-        group,
+        group: card.file_key(),
         name,
         ships: fleet(&[], &[]),
         marker: None,
@@ -349,13 +346,13 @@ fn scene(card: CommandId, name: &'static str, events: Vec<RoundEvent>) -> Scene 
 }
 
 fn special(
-    group: &str,
+    group: &'static str,
     name: &'static str,
     ships: Vec<(SlotRef, ShipId, i32)>,
     events: Vec<RoundEvent>,
 ) -> Scene {
     Scene {
-        group: group.into(),
+        group,
         name,
         ships,
         marker: None,

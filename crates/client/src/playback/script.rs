@@ -19,6 +19,7 @@ use crate::{
     data::ship_models::ShipModels,
     scene::{
         animation::Animation,
+        animation::{AnimationClock, AnimationScope},
         board::{BoardEntities, OnSlot, place},
         camera::CameraCommand,
         destruction::DestroyShip,
@@ -34,7 +35,6 @@ use crate::{
         },
         ship::{BOARD_SCALE, Ship, spawn_ship},
         status::ShipStatus,
-        tween::{AnimationClock, AnimationScope},
     },
     ui::{AppendLog, ShowBanner},
 };

@@ -9,10 +9,10 @@
 //! (Lichter der Schiffe, Effekte), glüht; alles andere bleibt scharf. Ohne Tone-Mapping, wie im Original.
 //! Stand und Zoom merkt sich die Kamera in den Einstellungen, sobald sie ruht.
 //!
-//! Eingabe wie im Original ([`CameraInput`]): Mausrad zoomt auf den Brettpunkt unter dem Zeiger, ↑ ↓ stetig auf die
-//! Mitte des Brettbands, ← → drehen stufenlos, V fährt zur anderen Ansicht, die mittlere Maustaste dreht (das Brett folgt
-//! dem Zeiger wie gegriffen), herangezoomt verschiebt Ziehen mit der linken Taste das Brett. Über der Oberfläche
-//! reagiert die Kamera nicht auf die Maus.
+//! Maus wie im Original ([`CameraInput`]): Mausrad zoomt auf den Brettpunkt unter dem Zeiger, die mittlere Maustaste
+//! dreht (das Brett folgt dem Zeiger wie gegriffen), herangezoomt verschiebt Ziehen mit der linken Taste das Brett.
+//! Über der Oberfläche reagiert die Kamera nicht auf die Maus. Die Tasten (V, ← →, ↑ ↓) übersetzt
+//! [`crate::ui::view_toggle`] in [`CameraCommand`]s, damit offene Dialoge sie behalten.
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -27,8 +27,8 @@ use bevy::{
 };
 
 use super::{
+    animation::AnimationScope,
     coords::{BOARD_CENTER, PAD_DEPTH, PAD_WIDTH, slot_z},
-    tween::AnimationScope,
 };
 use voidfleet_core::board::{LaneType, Side};
 
@@ -454,8 +454,6 @@ pub struct CameraInput {
     panned: bool,
     /// Mittlere Taste: letzte Zeiger-x, solange damit gedreht wird.
     orbit_x: Option<f32>,
-    /// Gedrückte Pfeiltasten.
-    keys: (f32, f32),
 }
 
 impl CameraInput {
@@ -486,12 +484,7 @@ impl Plugin for CameraPlugin {
             .add_systems(Startup, spawn_camera)
             .add_systems(
                 Update,
-                (
-                    (read_keys, read_mouse),
-                    handle_commands,
-                    update_rig,
-                    remember_camera,
-                )
+                (read_mouse, handle_commands, update_rig, remember_camera)
                     .chain()
                     .in_set(CameraSystems),
             );
@@ -532,31 +525,6 @@ fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
         MeshPickingCamera,
         rig.transform(),
     ));
-}
-
-/// Pfeiltasten drehen und zoomen, solange sie gedrückt sind; V fährt zur anderen Ansicht.
-fn read_keys(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut input: ResMut<CameraInput>,
-    mut commands: MessageWriter<CameraCommand>,
-) {
-    if keys.just_pressed(KeyCode::KeyV) {
-        commands.write(CameraCommand::ToggleView);
-    }
-    let axis = |positive, negative| {
-        f32::from(u8::from(keys.pressed(positive))) - f32::from(u8::from(keys.pressed(negative)))
-    };
-    let next = (
-        axis(KeyCode::ArrowLeft, KeyCode::ArrowRight),
-        axis(KeyCode::ArrowUp, KeyCode::ArrowDown),
-    );
-    if next.0 != input.keys.0 {
-        commands.write(CameraCommand::Orbit(next.0));
-    }
-    if next.1 != input.keys.1 {
-        commands.write(CameraCommand::Zoom(next.1));
-    }
-    input.keys = next;
 }
 
 /// Mausrad, Verschieben und Drehen mit der Maus, solange der Zeiger nicht über der Oberfläche liegt.

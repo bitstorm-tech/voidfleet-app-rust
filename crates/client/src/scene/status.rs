@@ -47,8 +47,8 @@ const HOLOGRAM_JITTER: f32 = 0.09;
 pub struct ShipStatus {
     pub hp: i32,
     pub shield: i32,
-    /// Zielvorschau: HP und Schild nach der Runde, `Some(None)`, wenn das Schiff fällt; `None` ohne Vorschau.
-    pub preview: Option<Option<ShipStats>>,
+    /// Zielvorschau: HP und Schild nach der Runde (beides 0, wenn das Schiff fällt); `None` ohne Vorschau.
+    pub preview: Option<ShipStats>,
     /// Totenkopf: Laut Zielvorschau fällt das Schiff in dieser Runde.
     pub doomed: bool,
     /// Gedämpfte Balken: Das Schiff feuert wegen seines Manövers nicht.
@@ -489,14 +489,10 @@ fn update_bars(
 ) {
     for (ship, status, ship_parts) in &ships {
         let card = ship.id.card();
-        let after = match status.preview {
-            None => ShipStats {
-                hp: status.hp,
-                shield: status.shield,
-            },
-            Some(Some(after)) => after,
-            Some(None) => ShipStats { hp: 0, shield: 0 },
-        };
+        let after = status.preview.unwrap_or(ShipStats {
+            hp: status.hp,
+            shield: status.shield,
+        });
         let mut section = |entity: Entity, from: f32, to: f32| {
             if let Ok((mut transform, mut visibility)) = parts.get_mut(entity) {
                 set_section(&mut transform, &mut visibility, from, to);

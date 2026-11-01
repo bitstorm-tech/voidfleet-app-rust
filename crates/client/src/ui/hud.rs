@@ -27,7 +27,7 @@ use crate::{
     game::{Match, TurnPartState, TurnProgress},
     i18n::Locale,
     palette,
-    scene::tween::AnimationScope,
+    scene::animation::AnimationScope,
     settings::Settings,
 };
 

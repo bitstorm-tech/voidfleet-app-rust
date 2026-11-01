@@ -21,6 +21,7 @@ use bevy::{
 use voidfleet_core::board::{Side, SlotRef};
 
 use super::{
+    animation::cubic_bezier,
     board::{BoardEntities, GHOST_LIFT},
     camera::BoardLayout,
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
@@ -166,23 +167,22 @@ fn tube(points: &[Vec3], radius: f32, sides: usize) -> Mesh {
     .with_inserted_indices(Indices::U32(indices))
 }
 
-fn cubic_bezier(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, segments: usize) -> Vec<Vec3> {
+/// `segments + 1` Punkte entlang der kubischen Bézierkurve durch `points`.
+fn bezier_points(points: [Vec3; 4], segments: usize) -> Vec<Vec3> {
     (0..=segments)
-        .map(|step| {
-            let t = step as f32 / segments as f32;
-            let u = 1.0 - t;
-            p0 * u.powi(3) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) + p3 * t.powi(3)
-        })
+        .map(|step| cubic_bezier(points, step as f32 / segments as f32))
         .collect()
 }
 
 /// Steil nach oben und leicht zum Ziel, am Ende senkrecht auf das Ziel herab.
 fn arc(start: Vec3, head_base: Vec3, top: f32, segments: usize) -> Vec<Vec3> {
-    cubic_bezier(
-        start,
-        start + Vec3::Y * (top - start.y) + (head_base - start) * 0.25,
-        head_base + Vec3::Y * (top - head_base.y),
-        head_base,
+    bezier_points(
+        [
+            start,
+            start + Vec3::Y * (top - start.y) + (head_base - start) * 0.25,
+            head_base + Vec3::Y * (top - head_base.y),
+            head_base,
+        ],
         segments,
     )
 }

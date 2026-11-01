@@ -110,11 +110,6 @@ impl ToonMaterial {
             heat_texture,
         }
     }
-
-    /// Bekommt Konturen: alles außer Hologrammen und Geistern.
-    pub fn outlined(&self) -> bool {
-        !self.ghost && !self.spec.is_hologram()
-    }
 }
 
 /// Was der Shader je Material liest (`ToonMaterial` in `toon.wesl`).
