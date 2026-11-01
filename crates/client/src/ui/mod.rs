@@ -184,7 +184,8 @@ pub struct ShowRoundBanner(pub u32);
 #[derive(Component, Debug)]
 pub struct IconBar;
 
-/// Icon der App (`assets/app/`), für das Fenster unter Windows und Linux; unter macOS kommt das Icon aus dem Bundle.
+/// Icon der App (`assets/app/`), für das Fenster unter Windows und Linux; unter macOS setzt [`set_dock_icon`] das Icon
+/// im Dock.
 #[derive(Resource)]
 struct AppIcon(Handle<Image>);
 
@@ -221,6 +222,8 @@ impl Plugin for InterfacePlugin {
             ))
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
             .add_systems(Update, set_window_icon);
+        #[cfg(target_os = "macos")]
+        app.add_systems(Startup, set_dock_icon);
     }
 }
 
@@ -305,4 +308,34 @@ fn set_window_icon(
         }),
         Err(error) => warn!("App-Icon ungültig: {error}"),
     }
+}
+
+/// Zeigt das Icon der App im Dock. Ohne Bundle (`cargo run`) hätte das Dock sonst das generische Programm-Icon, und das
+/// Fenster-Icon von `winit` wirkt unter macOS nicht. Das Bild steckt im Binary, damit es vor den Assets bereitsteht.
+#[cfg(target_os = "macos")]
+fn set_dock_icon(_main_thread: NonSendMarker) {
+    use objc2::{AllocAnyThread, MainThreadMarker, MainThreadOnly};
+    use objc2_app_kit::{NSApplication, NSImage, NSImageScaling, NSImageView};
+    use objc2_foundation::{NSData, NSPoint, NSRect};
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let png = NSData::with_bytes(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/app/icon-512.png"
+    )));
+    let Some(image) = NSImage::initWithData(NSImage::alloc(), &png) else {
+        warn!("Dock-Icon nicht lesbar");
+        return;
+    };
+    let tile = NSApplication::sharedApplication(mtm).dockTile();
+    let view = NSImageView::initWithFrame(
+        NSImageView::alloc(mtm),
+        NSRect::new(NSPoint::new(0.0, 0.0), tile.size()),
+    );
+    view.setImage(Some(&image));
+    view.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
+    tile.setContentView(Some(&view));
+    tile.display();
 }
