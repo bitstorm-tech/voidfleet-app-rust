@@ -6,14 +6,20 @@
 //! `VOIDFLEET_SMOKE_SHOTS=<bild>,<bild>,…` entsteht statt des einen Screenshots je genanntem Bild einer
 //! (`<stamm>-<bild>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`).
 //!
-//! `VOIDFLEET_DEV_SCENE` startet statt des Matches eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne beide
-//! Variablen tut das Plugin nichts.
+//! `VOIDFLEET_SMOKE_PLAY=<runden>` spielt stattdessen eine Partie gegen den Computer über den Controller ([`autoplay`]),
+//! mit Screenshots an jeder Station (`<stamm>-<station>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`).
+//!
+//! `VOIDFLEET_DEV_SCENE` startet statt des Matches eine Vorschau-Szene ([`scenes`], die Rundenwiedergabe mit
+//! `commands`: [`commands`]), auch ohne Rauchtest. Ohne beide Variablen tut das Plugin nichts.
 //!
 //! ```sh
 //! VOIDFLEET_SMOKE_FRAMES=240 VOIDFLEET_SMOKE_SCREENSHOT=/tmp/voidfleet.png cargo run -p voidfleet-client
+//! VOIDFLEET_SMOKE_FRAMES=6000 VOIDFLEET_SMOKE_PLAY=3 VOIDFLEET_SMOKE_SCREENSHOT=/tmp/play.png cargo run -p voidfleet-client
 //! VOIDFLEET_DEV_SCENE=hit cargo run -p voidfleet-client
 //! ```
 
+mod autoplay;
+mod commands;
 mod scenes;
 
 use std::path::PathBuf;
@@ -58,10 +64,15 @@ pub struct DevPlugin;
 
 impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
-        let scene = scenes::DevScene::from_env();
-        if let Some(scene) = scene {
+        let staged = if commands::requested() {
+            commands::plugin(app);
+            true
+        } else if let Some(scene) = scenes::DevScene::from_env() {
             scenes::plugin(app, scene);
-        }
+            true
+        } else {
+            false
+        };
         let Some(frames) = std::env::var("VOIDFLEET_SMOKE_FRAMES")
             .ok()
             .and_then(|value| value.parse().ok())
@@ -76,14 +87,35 @@ impl Plugin for DevPlugin {
                     .collect()
             })
             .unwrap_or_default();
+        let screenshot = std::env::var_os("VOIDFLEET_SMOKE_SCREENSHOT").map(PathBuf::from);
+        let play = std::env::var("VOIDFLEET_SMOKE_PLAY")
+            .ok()
+            .and_then(|rounds| rounds.parse().ok());
+        if let Some(rounds) = play {
+            app.insert_resource(autoplay::AutoPlay::new(rounds, screenshot))
+                .insert_resource(Smoke {
+                    frames,
+                    screenshot: None,
+                    shots: Vec::new(),
+                    toggle: false,
+                })
+                .add_systems(
+                    Update,
+                    (
+                        run_smoke,
+                        autoplay::autoplay.run_if(in_state(AppState::Match)),
+                    ),
+                );
+            return;
+        }
         app.insert_resource(Smoke {
             frames,
-            screenshot: std::env::var_os("VOIDFLEET_SMOKE_SCREENSHOT").map(PathBuf::from),
+            screenshot,
             shots,
             toggle: std::env::var("VOIDFLEET_SMOKE_TOGGLE").is_ok_and(|value| value == "1"),
         })
         .add_systems(Update, run_smoke);
-        if scene.is_none() {
+        if !staged {
             app.add_systems(OnEnter(AppState::Match), stage_demo)
                 .add_observer(spread_wreck)
                 .add_systems(Update, choose_admiral.run_if(on_message::<StateChanged>));

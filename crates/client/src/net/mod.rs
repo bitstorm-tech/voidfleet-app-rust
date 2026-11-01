@@ -48,6 +48,15 @@ pub struct Server {
     connection: Connection,
 }
 
+impl Server {
+    /// Legt auf demselben Server ein neues Match gegen den Computer an; die alte Verbindung schließt.
+    pub fn start_new_match(&mut self) {
+        self.endpoint = Endpoint::new(self.endpoint.server.clone(), None, true);
+        info!("Neues Match {}", self.endpoint.match_id);
+        self.connection = Connection::open(self.endpoint.url());
+    }
+}
+
 /// Reihenfolge im Bild: Erst kommt an, was der Server geschickt hat, dann arbeiten die Systeme damit.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ReceiveSet;

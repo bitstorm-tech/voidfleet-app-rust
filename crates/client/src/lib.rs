@@ -12,18 +12,20 @@
 //! - [`i18n`] — Texte in Englisch und Deutsch ([`i18n::Locale`]).
 //! - [`net`] — Kommandozeile, eingebetteter Server und WebSocket-Verbindung.
 //! - [`game`] — Spielzustand, Zugplanung und Zielvorschau; übernimmt die Nachrichten des Servers.
+//! - [`controller`] — verbindet Server, Zustand, Szene und Oberfläche: Auswahl, Klicks, Hervorhebung, HUD, Bordfunk.
+//! - [`playback`] — Rundenwiedergabe: spielt die aufgedeckten Ereignisse einer Runde auf dem Brett ab.
 //! - [`dev`] — Rauchtest für Läufe ohne Spieler (`VOIDFLEET_SMOKE_FRAMES`).
-//!
-//! Später kommt `playback` (Rundenwiedergabe) dazu.
 
 pub mod assets;
 pub mod audio;
+pub mod controller;
 pub mod data;
 pub mod dev;
 pub mod game;
 pub mod i18n;
 pub mod net;
 pub mod palette;
+pub mod playback;
 pub mod scene;
 pub mod settings;
 pub mod ui;
@@ -84,6 +86,8 @@ impl Plugin for ClientPlugin {
             scene::ScenePlugin,
             audio::SoundPlugin,
             ui::InterfacePlugin,
+            playback::PlaybackPlugin,
+            controller::ControllerPlugin,
             dev::DevPlugin,
         ));
     }

@@ -419,6 +419,7 @@ impl Plugin for PreviewPlugin {
             elapsed: 0.0,
             step: 0,
         })
+        .insert_resource(crate::controller::Scripted)
         .add_systems(Startup, setup)
         .add_systems(OnEnter(AppState::Match), fill)
         .add_systems(

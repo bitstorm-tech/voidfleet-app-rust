@@ -94,6 +94,7 @@ fn period(scene: DevScene) -> f32 {
 
 pub(super) fn plugin(app: &mut App, scene: DevScene) {
     app.insert_resource(scene)
+        .insert_resource(crate::controller::Scripted)
         .init_resource::<Loop>()
         .add_systems(OnEnter(AppState::Match), stage)
         // Vor dem Abgleich, damit er neue und umgehängte Schiffe schon auf ihren Slots sieht.
