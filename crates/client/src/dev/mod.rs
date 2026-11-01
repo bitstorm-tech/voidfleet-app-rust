@@ -223,9 +223,9 @@ fn spread_wreck(ready: On<WreckReady>, mut pieces: Query<&mut Transform>) {
     }
 }
 
-/// Wählt einen Admiral, solange noch keiner gewählt ist.
-fn choose_admiral(game: Res<Match>, mut outgoing: MessageWriter<ToServer>) {
-    if game.admiral.is_none() {
+/// Wählt einmal einen Admiral, sobald der Server einen Zustand ohne geschickt hat.
+fn choose_admiral(mut sent: Local<bool>, game: Res<Match>, mut outgoing: MessageWriter<ToServer>) {
+    if game.admiral.is_none() && !std::mem::replace(&mut *sent, true) {
         outgoing.write(ToServer(ClientMessage::ChooseAdmiral {
             admiral: AdmiralId::Osei,
         }));
