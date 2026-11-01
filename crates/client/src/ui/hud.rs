@@ -503,7 +503,6 @@ fn checklist_lines(
 }
 
 /// Füllt die Checkliste; außerhalb des Planens bleibt sie unsichtbar stehen, damit der Knopf darüber nicht springt.
-#[allow(clippy::too_many_arguments)]
 fn update_checklist(
     mut commands: Commands,
     mut shown: Local<Vec<(String, TurnPartState)>>,

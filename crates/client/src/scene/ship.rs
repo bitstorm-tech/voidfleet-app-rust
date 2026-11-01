@@ -199,7 +199,6 @@ fn break_apart(
 }
 
 /// Gibt einer frisch gespawnten Szene (Modell oder Wrack) die eigenen Materialien ihres Schiffs und meldet Wracks.
-#[allow(clippy::too_many_arguments)]
 fn prepare_instance(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,

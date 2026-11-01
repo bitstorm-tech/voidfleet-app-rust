@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn every_cursor_has_an_image() {
-        let root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets"));
+        let root = Path::new(crate::REPO_ASSETS);
         for cursor in CURSORS {
             assert!(root.join(cursor_path(cursor)).is_file(), "{cursor:?}");
         }

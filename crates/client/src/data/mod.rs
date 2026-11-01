@@ -138,9 +138,7 @@ mod tests {
     }
 
     fn exists(path: &str) -> bool {
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets"))
-            .join(path)
-            .is_file()
+        Path::new(crate::REPO_ASSETS).join(path).is_file()
     }
 
     /// Jede Datei, die ein Katalog nennt, liegt unter `assets/`.

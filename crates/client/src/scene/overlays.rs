@@ -196,7 +196,6 @@ fn head(width: f32, length: f32) -> Mesh {
         .rotated_by(Quat::from_rotation_x(std::f32::consts::PI))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn redraw(
     mut commands: Commands,
     overlays: Res<PlanOverlays>,

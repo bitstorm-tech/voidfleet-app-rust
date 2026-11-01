@@ -560,7 +560,6 @@ fn read_keys(
 }
 
 /// Mausrad, Verschieben und Drehen mit der Maus, solange der Zeiger nicht über der Oberfläche liegt.
-#[allow(clippy::too_many_arguments)]
 fn read_mouse(
     buttons: Res<ButtonInput<MouseButton>>,
     mut wheel: MessageReader<MouseWheel>,

@@ -254,7 +254,6 @@ fn action_node() -> Node {
 
 /// Öffnet das Overlay, sobald ein Ergebnis feststeht (mit Fanfare), und nimmt es weg, wenn ein neues Match beginnt.
 /// Eine andere Sprache baut es neu auf.
-#[allow(clippy::too_many_arguments)]
 fn follow_match(
     mut commands: Commands,
     game: Res<Match>,

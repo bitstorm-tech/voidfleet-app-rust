@@ -166,7 +166,6 @@ fn sample_events() -> Vec<RoundEvent> {
 
 /// Der Ablauf mit Screenshots: Hand, dann Banner samt Bordfunk und Log, dann das Rundenbanner, dann eine Karte unter
 /// dem Zeiger.
-#[allow(clippy::too_many_arguments)]
 fn script(
     mut commands: Commands,
     time: Res<Time>,
@@ -319,7 +318,6 @@ const DIALOG_STEPS: [DialogStep; 32] = [
 ];
 
 /// Geht die Dialoge durch, je Schritt eine Sekunde, und beendet danach die App.
-#[allow(clippy::too_many_arguments)]
 fn dialog_script(
     mut commands: Commands,
     time: Res<Time>,

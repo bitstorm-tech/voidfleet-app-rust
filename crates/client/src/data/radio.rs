@@ -99,8 +99,8 @@ mod tests {
     /// Jede Aufnahme des Katalogs liegt in `assets/audio/radio/`, und keine Datei dort fehlt im Katalog.
     #[test]
     fn catalog_matches_files() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/audio/radio");
-        let mut files: Vec<String> = std::fs::read_dir(dir)
+        let dir = std::path::Path::new(crate::REPO_ASSETS).join("audio/radio");
+        let mut files: Vec<String> = std::fs::read_dir(&dir)
             .expect("Ordner des Bordfunks")
             .map(|entry| {
                 format!(

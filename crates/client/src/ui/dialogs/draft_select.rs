@@ -126,7 +126,6 @@ fn draft_row(fonts: &Fonts, heading: &str, cards: Vec<impl Bundle>, none: &str) 
 
 /// Baut das Overlay, wenn sich Angebot, Einklappen, Sprache oder Fensterhöhe ändern, und nimmt es weg, sobald gewählt
 /// ist.
-#[allow(clippy::too_many_arguments)]
 fn show(
     mut commands: Commands,
     game: Res<Match>,

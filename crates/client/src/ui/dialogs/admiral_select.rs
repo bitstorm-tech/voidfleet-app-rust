@@ -312,7 +312,6 @@ fn choose(
 }
 
 /// Zeigt die Wahl, solange der eigene Admiral fehlt; baut sie bei anderer Sprache oder Fensterhöhe neu.
-#[allow(clippy::too_many_arguments)]
 fn show(
     mut commands: Commands,
     game: Res<Match>,

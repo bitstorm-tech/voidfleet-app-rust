@@ -136,7 +136,6 @@ fn stage(mut inbox: ResMut<ServerInbox>, showcase: Res<Showcase>, mut game: ResM
     *game = showcase.staged();
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run(
     mut commands: Commands,
     mut showcase: ResMut<Showcase>,

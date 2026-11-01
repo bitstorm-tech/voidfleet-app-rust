@@ -971,7 +971,6 @@ fn release_tether(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn hold_tethers(
     mut tethers: Query<(&Tether, &BeamParts, &mut TetherFade, Option<&Animation>)>,
     targets: Query<&GlobalTransform, Without<BeamParts>>,

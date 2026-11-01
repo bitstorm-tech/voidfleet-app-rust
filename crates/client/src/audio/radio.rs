@@ -134,7 +134,6 @@ fn repeat_after(cue: RadioCue) -> f64 {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run_radio(
     mut says: MessageReader<Say>,
     mut silence: MessageReader<SilenceRadio>,

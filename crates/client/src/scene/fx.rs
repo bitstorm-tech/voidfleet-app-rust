@@ -289,7 +289,6 @@ fn floor_quad() -> Mesh {
 
 /// Dreht Billboards zur Kamera, bevor die Lagen weitergereicht werden. Die Drehung der Vorfahren kommt aus ihren
 /// Transforms dieses Bilds (die Maßstäbe sind gleichmäßig), damit nichts nachhinkt, wenn ein Schiff in der Kurve dreht.
-#[allow(clippy::type_complexity)]
 fn face_camera(
     camera: Single<&Transform, With<MainCamera>>,
     ancestors: Query<(&Transform, Option<&ChildOf>), Without<Billboard>>,

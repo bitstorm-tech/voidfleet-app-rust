@@ -250,7 +250,6 @@ fn mark_texture(filled: bool) -> Image {
     canvas.into_image()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn spawn_board(
     mut commands: Commands,
     layout: Res<BoardLayout>,

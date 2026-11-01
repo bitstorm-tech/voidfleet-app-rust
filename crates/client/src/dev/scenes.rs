@@ -244,7 +244,6 @@ fn stage(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run(
     mut commands: Commands,
     scene: Res<DevScene>,

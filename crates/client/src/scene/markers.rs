@@ -394,7 +394,6 @@ fn draw(glyph: Glyph) -> Image {
 }
 
 /// Legt genau die Marken, die das Schiff tragen soll; liegende gleiche bleiben.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn reconcile(
     mut commands: Commands,
     ships: Query<

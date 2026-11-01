@@ -184,7 +184,6 @@ impl Synth {
     }
 
     /// Ein Ton, der in `duration` Sekunden von `from` nach `to` Hz gleitet und dabei verklingt.
-    #[allow(clippy::too_many_arguments)]
     fn tone_with_attack(
         &mut self,
         start: f32,

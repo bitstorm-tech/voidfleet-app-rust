@@ -272,7 +272,6 @@ type TickOnly = (
 type BlockOnly = (Without<OpponentPanel>, Without<ReadyTick>);
 
 /// Folgt dem Spielzustand: ohne Gegner ausgeblendet; seinen Admiral nennt der Server erst, wenn beide gewählt haben.
-#[allow(clippy::too_many_arguments)]
 fn update(
     mut commands: Commands,
     game: Res<Match>,

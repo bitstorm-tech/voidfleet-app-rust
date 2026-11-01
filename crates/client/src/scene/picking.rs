@@ -122,7 +122,6 @@ fn track_hover(
     hover.set_if_neq(next);
 }
 
-#[allow(clippy::too_many_arguments)]
 fn report_clicks(
     mut clicks: MessageReader<PointerClick>,
     input: Res<CameraInput>,

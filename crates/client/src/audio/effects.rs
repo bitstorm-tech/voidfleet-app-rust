@@ -196,7 +196,6 @@ fn pan_at(camera: &MainCameraView, at: Option<Vec3>) -> f32 {
     side.map_or(0.0, |side| MAX_PAN * (side / PAN_EDGE).clamp(-1.0, 1.0))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn play_sounds(
     mut messages: MessageReader<PlaySound>,
     mut mixer: ResMut<Mixer>,
@@ -227,7 +226,6 @@ fn play_sounds(
 }
 
 /// Startet die Schleifen neuer [`LoopingSound`]s (auch nach Änderung der Komponente).
-#[allow(clippy::too_many_arguments)]
 fn start_loops(
     mut commands: Commands,
     mut added: Query<

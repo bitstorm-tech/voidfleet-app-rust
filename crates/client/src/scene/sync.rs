@@ -175,7 +175,6 @@ fn ghost_targets(shown: &Match, drones: &[SlotRef]) -> Vec<(SlotRef, ShipId)> {
 }
 
 /// Stellt Geister, Pfeile, Fadenkreuze, Marken und die Zielvorschau des gezeigten Zugs.
-#[allow(clippy::too_many_arguments)]
 pub fn sync_plan(
     mut commands: Commands,
     game: Res<Match>,

@@ -268,7 +268,6 @@ fn mesh_extent(mesh: &Mesh) -> Option<f32> {
 }
 
 /// Todeskampf beginnt: Balken weg, die Hülle ächzt (umso lauter, je länger er dauert), Risse werden ausgewählt.
-#[allow(clippy::too_many_arguments)]
 fn begin(
     add: On<Add<DestroyShip>>,
     jobs: Query<&DestroyShip>,
@@ -348,7 +347,6 @@ fn begin(
 }
 
 /// Das Schiff zittert immer stärker, sackt ab und krängt, Risse brechen auf; dann die Detonation.
-#[allow(clippy::type_complexity)]
 fn agonize(
     mut commands: Commands,
     mut jobs: Query<(Entity, &DestroyShip, &mut Agony, &Animation)>,
@@ -420,7 +418,6 @@ fn agonize(
 
 /// Die Bruchstücke stehen: Flugbahnen radial vom Explosionsherd, kleine Stücke schneller, jedes mit eigenem Taumeln;
 /// die größten brennen.
-#[allow(clippy::too_many_arguments)]
 fn scatter_wreck(
     ready: On<WreckReady>,
     mut commands: Commands,
@@ -523,7 +520,6 @@ fn scatter_wreck(
 }
 
 /// Trümmer fliegen und taumeln, Bruchkanten kühlen ab, Lichter erlöschen flackernd, zuletzt verblasst alles.
-#[allow(clippy::type_complexity)]
 fn fly_pieces(
     mut commands: Commands,
     mut scatters: Query<(&mut Scatter, &Animation)>,

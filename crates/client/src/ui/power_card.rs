@@ -243,7 +243,6 @@ type LockOrRailgun = Or<(With<LockButton>, With<RailgunStatus>)>;
 type LockParts<'a> = (Entity, &'a mut Node, Has<LockButton>, &'a mut BorderColor);
 
 /// Zustände der Karte, der Zielerfassung und der Railgun, sobald sich Spielzustand oder Auswahl ändern.
-#[allow(clippy::too_many_arguments)]
 fn update_states(
     mut commands: Commands,
     game: Res<Match>,

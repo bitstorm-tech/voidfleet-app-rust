@@ -235,7 +235,6 @@ fn start_simple<J: Timed>(add: On<Add<J>>, mut commands: Commands) {
 
 /// Der Deploy beginnt, sobald das Modell gemessen ist: Balken und Marken verschwinden, das Schiff rückt hinter das Pad,
 /// das Portal öffnet sich.
-#[allow(clippy::type_complexity)]
 fn begin_arrivals(
     mut commands: Commands,
     jobs: Query<(Entity, &Arrive), Without<Animation>>,
@@ -282,7 +281,6 @@ fn begin_arrivals(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn warp_in(
     jobs: Query<(&Arrive, &ModelBase, &Animation)>,
     mut ships: Query<(&Children, &mut Transform, &mut ToonState), Without<ShipModel>>,
@@ -352,7 +350,6 @@ fn begin_flights(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn fly(
     jobs: Query<(&MoveShip, &FlightPath, &Animation)>,
     mut ships: Query<(&Children, &mut Transform), Without<ShipModel>>,
@@ -420,7 +417,6 @@ fn start_charge(
         .insert(LoopingSound::new(engine(ship.id.card().class)));
 }
 
-#[allow(clippy::type_complexity)]
 fn charge(
     jobs: Query<(&Charge, &RamTarget, &Animation)>,
     mut ships: Query<(&Children, &mut Transform), Without<ShipModel>>,
@@ -484,7 +480,6 @@ fn withdraw(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn materialize(
     jobs: Query<(&Materialize, &Animation)>,
     mut ships: Query<(&Children, &mut Hologram, &mut ShipStatus)>,
@@ -514,7 +509,6 @@ fn materialize(
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn dematerialize(
     mut commands: Commands,
     jobs: Query<(&Dematerialize, &Animation)>,
@@ -561,7 +555,6 @@ fn flash_hull(jobs: Query<(&HitFlash, &Animation)>, mut ships: Query<&mut ToonSt
 }
 
 /// Am Ende eines Flugs steht das Schiff genau im Slot, Modell und Boden wie vorher; das Triebwerk verklingt.
-#[allow(clippy::type_complexity)]
 fn land(
     mut commands: Commands,
     arrivals: Query<(&Arrive, &ModelBase, &Animation)>,

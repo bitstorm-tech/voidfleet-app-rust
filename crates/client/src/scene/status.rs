@@ -408,7 +408,6 @@ fn dress_ship(
 }
 
 /// Misst das Modell, sobald seine Teile Lage und Grenzen haben, und hebt die Balken knapp darüber.
-#[allow(clippy::type_complexity)]
 fn measure(
     mut commands: Commands,
     models: Query<(Entity, &ChildOf), (With<ShipModel>, With<ModelReady>, Without<Wreck>)>,
@@ -482,7 +481,6 @@ fn set_section(transform: &mut Transform, visibility: &mut Visibility, from: f32
 }
 
 /// Füllung bis zu dem, was nach der Vorschau bleibt (ohne Vorschau: alles), dahinter der Verlust bis zum jetzigen Stand.
-#[allow(clippy::type_complexity)]
 fn update_bars(
     ships: Query<(&Ship, &ShipStatus, &ShipParts), Changed<ShipStatus>>,
     mut parts: Query<(&mut Transform, &mut Visibility)>,
