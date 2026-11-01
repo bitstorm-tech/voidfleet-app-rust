@@ -306,6 +306,24 @@ impl Player {
     }
 }
 
+/// Für die Tests des Computergegners: Brett, Runde und Hände direkt setzen.
+#[cfg(test)]
+impl Match {
+    pub(crate) fn board_mut(&mut self) -> &mut Board {
+        &mut self.board
+    }
+
+    pub(crate) fn set_round(&mut self, round: u32) {
+        self.round = round;
+    }
+
+    pub(crate) fn set_hands(&mut self, seat: Seat, ships: &[ShipId], commands: &[CommandId]) {
+        let player = self.player_mut(seat);
+        player.ship_hand = ships.to_vec();
+        player.command_hand = commands.to_vec();
+    }
+}
+
 /// Das Schiff in einem Slot; `None` auch für einen Slot außerhalb des Bretts (Züge kommen ungeprüft vom Client).
 fn occupant(board: &Board, at: SlotRef) -> Option<ShipId> {
     (at.slot_index < SLOT_COUNT)

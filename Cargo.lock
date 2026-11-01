@@ -6096,11 +6096,16 @@ name = "voidfleet-client"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "crossbeam-channel",
  "directories",
  "kira",
  "rand 0.9.5",
  "serde",
  "serde_json",
+ "sys-locale",
+ "tungstenite 0.28.0",
+ "voidfleet-core",
+ "voidfleet-server",
  "winit",
 ]
 

@@ -10,6 +10,10 @@ publish.workspace = true
 name = "voidfleet-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "simulate"
+path = "src/bin/simulate.rs"
+
 [dependencies]
 voidfleet-core.workspace = true
 serde.workspace = true

@@ -198,7 +198,14 @@ async fn connect(socket: WebSocket, rooms: Rooms, match_id: String, token: Strin
     while let Some(Ok(message)) = stream.next().await {
         match message {
             Message::Text(text) => match serde_json::from_str::<ClientMessage>(&text) {
-                Ok(message) => lock(&room).handle(seat, message),
+                // Gibt ein Spieler gegen den Computergegner ab, plant der Bot seinen Zug gleich mit; das rechnet und
+                // läuft deshalb nicht auf einem Async-Worker.
+                Ok(message) => {
+                    let room = Arc::clone(&room);
+                    tokio::task::spawn_blocking(move || lock(&room).handle(seat, message))
+                        .await
+                        .expect("die Nachricht wird ohne Panik ausgeführt");
+                }
                 Err(error) => {
                     eprintln!("Unlesbare Nachricht von Sitz {seat:?} in {match_id}: {error}")
                 }

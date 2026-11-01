@@ -372,7 +372,6 @@ fn der_computergegner_nimmt_den_freien_platz_waehlt_sofort_seinen_admiral_und_zi
 }
 
 #[test]
-#[ignore = "braucht Bot"]
 fn der_computergegner_legt_in_runde_1_sein_flaggschiff_und_zwei_schiffe() {
     let (_, events) = opening_against_bot();
     let cards: Vec<S> = deployed(&events, Enemy)
