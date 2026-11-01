@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::{AdmiralId, PowerId};
-use crate::board::{BoardSnapshot, Side, Sides, SlotRef, SlotTarget};
+use crate::board::{BoardSnapshot, LaneType, Side, Sides, SlotRef, SlotTarget};
 use crate::cards::{CommandId, ShipId};
 
 /// Ein Schiff von der Hand, das auf einen eigenen Slot gelegt wird.
@@ -83,7 +83,7 @@ pub enum FireTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ShipRef {
     pub side: Side,
-    pub lane: crate::board::LaneType,
+    pub lane: LaneType,
     pub slot_index: usize,
     pub card_id: ShipId,
 }
@@ -539,197 +539,69 @@ impl Mirror for Miss {
 }
 
 impl Mirror for RoundEvent {
-    fn mirrored(self) -> Self {
+    fn mirrored(mut self) -> Self {
         use RoundEvent as E;
-        match self {
-            E::Deploy {
-                side,
-                card_id,
-                target,
-            } => E::Deploy {
-                side: side.opposite(),
-                card_id,
-                target,
-            },
-            E::Pass { side } => E::Pass {
-                side: side.opposite(),
-            },
-            E::Power {
-                side,
-                power,
-                target,
-            } => E::Power {
-                side: side.opposite(),
-                power,
-                target: target.mirrored(),
-            },
-            E::Decoy { ship } => E::Decoy {
-                ship: ship.mirrored(),
-            },
-            E::Mark { side, ship } => E::Mark {
-                side: side.opposite(),
-                ship: ship.mirrored(),
-            },
-            E::Maneuver { side, ship, to } => E::Maneuver {
-                side: side.opposite(),
-                ship: ship.mirrored(),
-                to,
-            },
-            E::Swap { side, a, b } => E::Swap {
-                side: side.opposite(),
-                a: a.mirrored(),
-                b: b.mirrored(),
-            },
-            E::Command {
-                side,
-                card_id,
-                target,
-            } => E::Command {
-                side: side.opposite(),
-                card_id,
-                target: target.mirrored(),
-            },
-            E::Effect {
-                side,
-                card_id,
-                ship,
-                effect,
-                after,
-            } => E::Effect {
-                side: side.opposite(),
-                card_id,
-                ship: ship.mirrored(),
-                effect: effect.mirrored(),
-                after,
-            },
-            E::Draw {
-                side,
-                card_id,
-                ships,
-                commands,
-            } => E::Draw {
-                side: side.opposite(),
-                card_id,
-                ships,
-                commands,
-            },
-            E::NoEffect { side, card_id } => E::NoEffect {
-                side: side.opposite(),
-                card_id,
-            },
-            E::Countered {
-                side,
-                card_id,
-                countered,
-            } => E::Countered {
-                side: side.opposite(),
-                card_id,
-                countered,
-            },
-            E::Rule { side, card_id } => E::Rule {
-                side: side.opposite(),
-                card_id,
-            },
-            E::Miss {
-                side,
-                card_id,
-                target,
-            } => E::Miss {
-                side: side.opposite(),
-                card_id,
-                target: target.mirrored(),
-            },
-            E::Ability {
-                source,
-                ship,
-                effect,
-                after,
-            } => E::Ability {
-                source: source.mirrored(),
-                ship: ship.mirrored(),
-                effect,
-                after,
-            },
-            E::Spawn { source, ship } => E::Spawn {
-                source: source.mirrored(),
-                ship: ship.mirrored(),
-            },
-            E::Railgun {
-                source,
-                target,
-                amount,
-                after,
-                blocked,
-            } => E::Railgun {
-                source: source.mirrored(),
-                target: target.mirrored(),
-                amount,
-                after,
-                blocked,
-            },
-            E::Silenced { ship } => E::Silenced {
-                ship: ship.mirrored(),
-            },
-            E::Attack {
-                attacker,
-                target,
-                amount,
-                after,
-                focus,
-                swarm,
-                head_start,
-                through,
-                taunt,
-            } => E::Attack {
-                attacker: attacker.mirrored(),
-                target: target.mirrored(),
-                amount,
-                after,
-                focus,
-                swarm,
-                head_start,
-                through,
-                taunt,
-            },
-            E::Fizzle {
-                attacker,
-                head_start,
-                miss,
-            } => E::Fizzle {
-                attacker: attacker.mirrored(),
-                head_start,
-                miss: miss.mirrored(),
-            },
-            E::Counterfire {
-                source,
-                ship,
-                amount,
-                after,
-            } => E::Counterfire {
-                source: source.mirrored(),
-                ship: ship.mirrored(),
-                amount,
-                after,
-            },
-            E::SelfDamage {
-                ship,
-                amount,
-                after,
-            } => E::SelfDamage {
-                ship: ship.mirrored(),
-                amount,
-                after,
-            },
-            E::Destroyed { ship } => E::Destroyed {
-                ship: ship.mirrored(),
-            },
-            E::Return { ship, after } => E::Return {
-                ship: ship.mirrored(),
-                after,
-            },
-            E::Vanish { ship } => E::Vanish {
-                ship: ship.mirrored(),
-            },
+        fn flip<T: Mirror + Copy>(value: &mut T) {
+            *value = value.mirrored();
         }
+        match &mut self {
+            E::Deploy { side, .. }
+            | E::Pass { side }
+            | E::Draw { side, .. }
+            | E::NoEffect { side, .. }
+            | E::Countered { side, .. }
+            | E::Rule { side, .. } => flip(side),
+            E::Power { side, target, .. } | E::Miss { side, target, .. } => {
+                flip(side);
+                flip(target);
+            }
+            E::Command { side, target, .. } => {
+                flip(side);
+                flip(target);
+            }
+            E::Mark { side, ship } | E::Maneuver { side, ship, .. } => {
+                flip(side);
+                flip(ship);
+            }
+            E::Swap { side, a, b } => {
+                flip(side);
+                flip(a);
+                flip(b);
+            }
+            E::Effect {
+                side, ship, effect, ..
+            } => {
+                flip(side);
+                flip(ship);
+                flip(effect);
+            }
+            E::Decoy { ship }
+            | E::Silenced { ship }
+            | E::SelfDamage { ship, .. }
+            | E::Destroyed { ship }
+            | E::Return { ship, .. }
+            | E::Vanish { ship } => flip(ship),
+            E::Ability { source, ship, .. }
+            | E::Spawn { source, ship }
+            | E::Counterfire { source, ship, .. }
+            | E::Railgun {
+                source,
+                target: ship,
+                ..
+            }
+            | E::Attack {
+                attacker: source,
+                target: ship,
+                ..
+            } => {
+                flip(source);
+                flip(ship);
+            }
+            E::Fizzle { attacker, miss, .. } => {
+                flip(attacker);
+                flip(miss);
+            }
+        }
+        self
     }
 }

@@ -1,7 +1,8 @@
 //! Die Auflösung einer Runde: Deploy samt Fähigkeiten, Manöver, Effects, Combat, Cleanup. Portiert aus
 //! `game_mechanics.gd`. Der Server löst damit die aufgedeckten Züge auf, der Client rechnet mit denselben Regeln die
-//! Zielvorschau beim Planen. Jede Phase arbeitet auf dem Brett aus Sicht von Seat 0 und hängt ihre Ereignisse an
-//! `events` an. Dazu kommen die Fähigkeiten der Flaggschiffe und Admirale ([`crate::admirals`]).
+//! Zielvorschau beim Planen. Jede Phase arbeitet auf dem gemeinsamen Brett (der erste Sitz spielt auf
+//! [`Side::Player`]) und hängt ihre Ereignisse an `events` an. Dazu kommen die Fähigkeiten der Flaggschiffe und
+//! Admirale ([`crate::admirals`]).
 
 use std::cmp::Reverse;
 use std::iter;
@@ -155,26 +156,7 @@ pub fn resolve_turns(
         })
         .map(|turn| turn.side)
         .collect();
-    let mut deployed = Vec::new();
-    for turn in turns {
-        let arrivals: Vec<_> = turn.flagship.iter().chain(&turn.ships).collect();
-        for arrival in &arrivals {
-            let at = arrival.target.on(turn.side);
-            board
-                .place(at, arrival.card)
-                .expect("geprüfter Zug: der Slot ist frei")
-                .arrived = true;
-            deployed.push(at);
-            events.push(RoundEvent::Deploy {
-                side: turn.side,
-                card_id: arrival.card,
-                target: arrival.target,
-            });
-        }
-        if arrivals.is_empty() {
-            events.push(RoundEvent::Pass { side: turn.side });
-        }
-    }
+    let deployed = resolve_deploys(board, turns, &mut events);
     // Die Feuerbefehle greifen, sobald alle Schiffe stehen, und folgen dem Schützen bei jeder Bewegung, Schiffsfeuer
     // auch seinem Ziel; die Spalte bleibt.
     for turn in turns {
@@ -254,19 +236,7 @@ pub fn resolve_turns(
     // markiert hat, in der nächsten.
     let moved: Vec<Side> = Side::ALL
         .into_iter()
-        .filter(|&side| {
-            board
-                .ships(side)
-                .map(|at| board.ship(at))
-                .chain(
-                    board
-                        .jumping
-                        .iter()
-                        .filter(|jump| jump.slot.side == side)
-                        .map(|jump| &jump.ship),
-                )
-                .any(|ship| ship.card == ShipId::Pendulum && ship.moved)
-        })
+        .filter(|&side| pendulum_moved(board, side))
         .collect();
     let firing: Vec<Side> = railguns
         .iter()
@@ -297,13 +267,34 @@ pub fn resolve_turns(
 
 /// Ein Flaggschiff ist in dieser Runde gefallen: steht zerstört auf dem Brett oder hat es schon verlassen.
 fn flagship_fallen(board: &Board, events: &[RoundEvent]) -> bool {
+    flagship_destroyed(board)
+        || events.iter().any(
+            |event| matches!(event, RoundEvent::Destroyed { ship } if ship.card_id.is_flagship()),
+        )
+}
+
+/// Ein Flaggschiff steht zerstört auf dem Brett.
+fn flagship_destroyed(board: &Board) -> bool {
     Side::ALL.into_iter().any(|side| {
         board
             .flagship(side)
             .is_some_and(|at| board.is_destroyed(at))
-    }) || events
-        .iter()
-        .any(|event| matches!(event, RoundEvent::Destroyed { ship } if ship.card_id.is_flagship()))
+    })
+}
+
+/// Ob sich die Pendulum der Seite in dieser Runde bewegt hat, auch per Kurzsprung.
+fn pendulum_moved(board: &Board, side: Side) -> bool {
+    board
+        .ships(side)
+        .map(|at| board.ship(at))
+        .chain(
+            board
+                .jumping
+                .iter()
+                .filter(|jump| jump.slot.side == side)
+                .map(|jump| &jump.ship),
+        )
+        .any(|ship| ship.card == ShipId::Pendulum && ship.moved)
 }
 
 /// Das Spiel ist mit dem gefallenen Flaggschiff zu Ende, der Rest der Runde entfällt: Die Zerstörten verlassen das
@@ -421,6 +412,36 @@ fn after_maneuver(maneuver: Option<Maneuver>, target: SlotTarget, swapped: bool)
 }
 
 // --- Deploy ---
+
+/// Deploy: Jede Seite legt ihre Schiffe, in Runde 1 zuerst das Flaggschiff; wer nichts legt, passt. Gibt die gelegten
+/// Slots in Deploy-Reihenfolge zurück.
+fn resolve_deploys(
+    board: &mut Board,
+    turns: &[Turn],
+    events: &mut Vec<RoundEvent>,
+) -> Vec<SlotRef> {
+    let mut deployed = Vec::new();
+    for turn in turns {
+        let arrivals: Vec<_> = turn.flagship.iter().chain(&turn.ships).collect();
+        for arrival in &arrivals {
+            let at = arrival.target.on(turn.side);
+            board
+                .place(at, arrival.card)
+                .expect("geprüfter Zug: der Slot ist frei")
+                .arrived = true;
+            deployed.push(at);
+            events.push(RoundEvent::Deploy {
+                side: turn.side,
+                card_id: arrival.card,
+                target: arrival.target,
+            });
+        }
+        if arrivals.is_empty() {
+            events.push(RoundEvent::Pass { side: turn.side });
+        }
+    }
+    deployed
+}
 
 /// Die Admiralsfähigkeit, gleich nach den Deploys: Das Trugbild erscheint in seinem Strike-Slot; die übrigen liegen
 /// in dieser Runde auf dem gewählten Schiff ([`Ship::powers`]) und folgen ihm, wenn es sich bewegt.
@@ -1195,11 +1216,7 @@ pub fn resolve_combat(board: &mut Board, events: &mut Vec<RoundEvent>, railguns:
             .collect()
     });
     events.extend(fire(board, &later, &mut counterfire));
-    if Side::ALL.into_iter().any(|side| {
-        board
-            .flagship(side)
-            .is_some_and(|at| board.is_destroyed(at))
-    }) {
+    if flagship_destroyed(board) {
         return;
     }
     for Counterfire { attacker, source } in counterfire {

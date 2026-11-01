@@ -56,36 +56,27 @@ pub enum PowerTarget {
     FreeOwnStrikeSlot,
 }
 
-/// Ein Admiral mit Flaggschiff und Fähigkeit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Admiral {
-    pub id: AdmiralId,
-    pub flagship: ShipId,
-    pub power: PowerId,
-}
-
 impl AdmiralId {
-    pub const fn admiral(self) -> Admiral {
-        let (flagship, power) = match self {
-            Self::Osei => (ShipId::Bastion, PowerId::Counterfire),
-            Self::Vance => (ShipId::Vanguard, PowerId::FocusFire),
-            Self::Halvorsen => (ShipId::Hive, PowerId::SwarmStrike),
-            Self::Moreau => (ShipId::Mirage, PowerId::Decoy),
-            Self::Kerr => (ShipId::Pendulum, PowerId::HeadStart),
-        };
-        Admiral {
-            id: self,
-            flagship,
-            power,
+    /// Das Flaggschiff, das der Admiral mitbringt.
+    pub const fn flagship(self) -> ShipId {
+        match self {
+            Self::Osei => ShipId::Bastion,
+            Self::Vance => ShipId::Vanguard,
+            Self::Halvorsen => ShipId::Hive,
+            Self::Moreau => ShipId::Mirage,
+            Self::Kerr => ShipId::Pendulum,
         }
     }
 
-    pub const fn flagship(self) -> ShipId {
-        self.admiral().flagship
-    }
-
+    /// Die Admiralsfähigkeit.
     pub const fn power(self) -> PowerId {
-        self.admiral().power
+        match self {
+            Self::Osei => PowerId::Counterfire,
+            Self::Vance => PowerId::FocusFire,
+            Self::Halvorsen => PowerId::SwarmStrike,
+            Self::Moreau => PowerId::Decoy,
+            Self::Kerr => PowerId::HeadStart,
+        }
     }
 }
 

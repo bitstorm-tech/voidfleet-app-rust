@@ -228,6 +228,28 @@ struct Usage {
     effects: BTreeMap<&'static str, i64>,
 }
 
+/// Kennzahlen der Befehle aus der Erweiterung: Kurzsprünge (davon des Flaggschiffs), Rammstöße (Ziel bzw. Rammer
+/// zerstört), Gegenmaßnahmen (Befehl verpufft bzw. gezogen), von Funkstille entfernte Marken und Trugbilder, vom
+/// Traktorstrahl freigelegte Flaggschiffe (danach beschossen), Wärmesucher mit 5 Schaden, Treffer der Minenfelder,
+/// Drohnen der Drohnenstaffeln, Freie Hand mit Manöver und Fähigkeit.
+#[derive(Debug, Default)]
+struct Expansion {
+    jumps: u64,
+    flagship_jumps: u64,
+    rams: u64,
+    rammed_destroyed: u64,
+    rammers_destroyed: u64,
+    countered: u64,
+    counter_draws: u64,
+    jammed: u64,
+    tractor_exposed: u64,
+    tractor_exposed_hit: u64,
+    heat_seeker_moved: u64,
+    mine_hits: u64,
+    squadron_drones: u64,
+    carte_blanche_both: u64,
+}
+
 #[derive(Debug, Default)]
 struct Stats {
     games: Vec<Game>,
@@ -247,8 +269,7 @@ struct Stats {
     commands_without_effect: u64,
     empty_command_hand: [u64; 2],
     cards: HashMap<CommandId, CardStats>,
-    /// Kennzahlen der neuen Karten aus der Erweiterung.
-    expansion: BTreeMap<&'static str, u64>,
+    expansion: Expansion,
     errors: HashMap<ErrorCode, u64>,
     usage: [Usage; 5],
 }
@@ -266,6 +287,10 @@ merge_fields! {
     Duel { lengths, orders, shots, fizzled, maneuvers }
     CardStats { played, held, idle, countered }
     Usage { games, rounds, powers, maneuvers, effects }
+    Expansion {
+        jumps, flagship_jumps, rams, rammed_destroyed, rammers_destroyed, countered, counter_draws, jammed,
+        tractor_exposed, tractor_exposed_hit, heat_seeker_moved, mine_hits, squadron_drones, carte_blanche_both,
+    }
     Stats {
         games, first_kills, flagship_falls, kills, rounds_without_kill, combat_damage, command_damage, shots, orders,
         outcomes, maneuvers, duel, commands, commands_without_effect, empty_command_hand, cards, expansion, errors,
@@ -295,10 +320,6 @@ fn admiral_index(admiral: AdmiralId) -> usize {
 }
 
 impl Stats {
-    fn count(&mut self, key: &'static str, amount: u64) {
-        *self.expansion.entry(key).or_default() += amount;
-    }
-
     fn card(&mut self, id: CommandId) -> &mut CardStats {
         self.cards.entry(id).or_default()
     }
@@ -372,49 +393,40 @@ fn new_card_effect(
     else {
         return;
     };
+    let expansion = &mut stats.expansion;
     match effect {
         CommandEffect::Jump => {
-            stats.count("Kurzsprung", 1);
-            if ship.card_id.is_flagship() {
-                stats.count("Kurzsprung: Flaggschiff", 1);
-            }
+            expansion.jumps += 1;
+            expansion.flagship_jumps += u64::from(ship.card_id.is_flagship());
         }
         CommandEffect::Ram { target_after, .. } => {
-            stats.count("Rammkurs", 1);
-            if target_after.hp <= 0 {
-                stats.count("Rammkurs: Ziel zerstört", 1);
-            }
-            if after.hp <= 0 {
-                stats.count("Rammkurs: Rammer zerstört", 1);
-            }
+            expansion.rams += 1;
+            expansion.rammed_destroyed += u64::from(target_after.hp <= 0);
+            expansion.rammers_destroyed += u64::from(after.hp <= 0);
         }
-        CommandEffect::Jam { .. } => stats.count("Funkstille: Marke bzw. Trugbild entfernt", 1),
+        CommandEffect::Jam { .. } => expansion.jammed += 1,
         _ => {}
     }
-    if card_id == CommandId::HeatSeeker && effect == (CommandEffect::Damage { amount: 5 }) {
-        stats.count("Wärmesucher: 5 Schaden (bewegtes Ziel)", 1);
-    }
-    if card_id == CommandId::Minefield {
-        stats.count("Minenfeld: Treffer", 1);
-    }
-    if card_id == CommandId::DroneSquadron {
-        stats.count("Drohnenstaffel: Drohnen", 1);
-    }
-    if card_id == CommandId::TractorBeam
-        && matches!(effect, CommandEffect::Move { .. })
-        && ship.lane == LaneType::Strike
-    {
-        let behind = ship.slot().in_lane(LaneType::Command);
-        if let Some(&flagship) = flagships.iter().find(|&&flagship| flagship == behind) {
-            stats.count("Traktorstrahl: Flaggschiff freigelegt", 1);
-            let hit = events.iter().any(|other| {
-                matches!(other, RoundEvent::Attack { target, .. }
-                    if target.side == flagship.side && target.card_id.is_flagship())
-            });
-            if hit {
-                stats.count("Traktorstrahl: freigelegtes Flaggschiff beschossen", 1);
+    match card_id {
+        CommandId::HeatSeeker => {
+            expansion.heat_seeker_moved += u64::from(effect == CommandEffect::Damage { amount: 5 });
+        }
+        CommandId::Minefield => expansion.mine_hits += 1,
+        CommandId::DroneSquadron => expansion.squadron_drones += 1,
+        CommandId::TractorBeam
+            if matches!(effect, CommandEffect::Move { .. }) && ship.lane == LaneType::Strike =>
+        {
+            let behind = ship.slot().in_lane(LaneType::Command);
+            if let Some(&flagship) = flagships.iter().find(|&&flagship| flagship == behind) {
+                expansion.tractor_exposed += 1;
+                let hit = events.iter().any(|other| {
+                    matches!(other, RoundEvent::Attack { target, .. }
+                        if target.side == flagship.side && target.card_id.is_flagship())
+                });
+                expansion.tractor_exposed_hit += u64::from(hit);
             }
         }
+        _ => {}
     }
 }
 
@@ -754,28 +766,7 @@ fn play(stats: &mut Stats, admirals: [AdmiralId; 2], seed: u64) {
         tracker.finish(stats, &events);
         if dueling {
             duel_rounds += 1;
-            for (_, _, plan) in &turns {
-                for order in &plan.fire {
-                    stats.duel.orders.count(match order.target {
-                        FireTarget::Ship(_) => Mode::Ship,
-                        FireTarget::Column(_) => Mode::Column,
-                    });
-                }
-            }
-            let shots = |event: &&RoundEvent| {
-                matches!(event, RoundEvent::Attack { .. } | RoundEvent::Fizzle { .. })
-            };
-            stats.duel.shots += events.iter().filter(shots).count() as u64;
-            stats.duel.fizzled += events
-                .iter()
-                .filter(|event| matches!(event, RoundEvent::Fizzle { .. }))
-                .count() as u64;
-            stats.duel.maneuvers += events
-                .iter()
-                .filter(|event| {
-                    matches!(event, RoundEvent::Maneuver { .. } | RoundEvent::Swap { .. })
-                })
-                .count() as u64;
+            count_duel(stats, &turns, &events);
         }
         let destroyed = events
             .iter()
@@ -792,90 +783,13 @@ fn play(stats: &mut Stats, admirals: [AdmiralId; 2], seed: u64) {
                 stats.usage[admiral_index(admiral_of(side))].rounds += 1;
             }
         }
-        for event in &events {
-            match *event {
-                RoundEvent::Attack {
-                    amount,
-                    through,
-                    taunt,
-                    ..
-                } => {
-                    stats.shots.all += 1;
-                    stats.shots.through += u64::from(through);
-                    stats.shots.taunted += u64::from(taunt);
-                    stats.combat_damage += i64::from(amount);
-                }
-                RoundEvent::Fizzle { .. } => {
-                    stats.shots.all += 1;
-                    stats.shots.fizzled += 1;
-                }
-                RoundEvent::Maneuver { side, .. } => {
-                    evasion(stats, event, &events);
-                    stats.usage[admiral_index(admiral_of(side))].maneuvers += 1;
-                }
-                RoundEvent::Swap { side, .. } => {
-                    stats.usage[admiral_index(admiral_of(side))].maneuvers += 1;
-                }
-                RoundEvent::Destroyed { ship } if ship.card_id.is_flagship() => {
-                    flagship_fall = flagship_fall.or(Some(round));
-                }
-                RoundEvent::Effect { effect, .. } => {
-                    if let CommandEffect::Damage { amount } = effect {
-                        stats.command_damage += i64::from(amount);
-                    }
-                    new_card_effect(stats, event, &flagships, &events);
-                }
-                RoundEvent::Command { card_id, .. } => {
-                    stats.commands += 1;
-                    stats.card(card_id).played += 1;
-                }
-                RoundEvent::NoEffect { card_id, .. } | RoundEvent::Miss { card_id, .. } => {
-                    stats.commands_without_effect += 1;
-                    stats.card(card_id).idle += 1;
-                }
-                RoundEvent::Countered { countered, .. } => {
-                    stats.card(countered).countered += 1;
-                    stats.count("Gegenmaßnahmen: verpufft", 1);
-                }
-                RoundEvent::Draw {
-                    card_id: CommandId::Countermeasures,
-                    ..
-                } => stats.count("Gegenmaßnahmen: gezogen", 1),
-                RoundEvent::Power { side, .. } => {
-                    stats.usage[admiral_index(admiral_of(side))].powers += 1;
-                }
-                _ => {}
-            }
-            if let Some((side, key, amount)) = ability_effect(event) {
-                stats.effect(admiral_of(side), key, amount);
-            }
+        let flagship_fell = events.iter().any(
+            |event| matches!(event, RoundEvent::Destroyed { ship } if ship.card_id.is_flagship()),
+        );
+        if flagship_fell {
+            flagship_fall = flagship_fall.or(Some(round));
         }
-        for side in Side::ALL {
-            let own = |event: &RoundEvent| event_side(event) == Some(side);
-            let carte_blanche = events.iter().any(|event| {
-                own(event)
-                    && matches!(
-                        event,
-                        RoundEvent::Rule {
-                            card_id: CommandId::CarteBlanche,
-                            ..
-                        }
-                    )
-            });
-            if carte_blanche {
-                let maneuvered = events.iter().any(|event| {
-                    own(event)
-                        && matches!(event, RoundEvent::Maneuver { .. } | RoundEvent::Swap { .. })
-                });
-                let powered = events
-                    .iter()
-                    .any(|event| own(event) && matches!(event, RoundEvent::Power { .. }));
-                stats.count(
-                    "Freie Hand: mit Manöver und Fähigkeit",
-                    u64::from(maneuvered && powered),
-                );
-            }
-        }
+        count_events(stats, &events, admirals, &flagships);
     }
     if duel_rounds > 0 {
         stats.duel.lengths.push(duel_rounds);
@@ -894,6 +808,118 @@ fn play(stats: &mut Stats, admirals: [AdmiralId; 2], seed: u64) {
         winner,
         rounds: game.round().min(ROUND_LIMIT),
     });
+}
+
+/// Zählt eine Runde im Flaggschiff-Duell: Feuerbefehle je Modus, Schüsse, verpuffte Schüsse und Grundmanöver.
+fn count_duel(stats: &mut Stats, turns: &[(Side, AdmiralId, TurnPlan)], events: &[RoundEvent]) {
+    for (_, _, plan) in turns {
+        for order in &plan.fire {
+            stats.duel.orders.count(match order.target {
+                FireTarget::Ship(_) => Mode::Ship,
+                FireTarget::Column(_) => Mode::Column,
+            });
+        }
+    }
+    let shots = |event: &&RoundEvent| {
+        matches!(event, RoundEvent::Attack { .. } | RoundEvent::Fizzle { .. })
+    };
+    stats.duel.shots += events.iter().filter(shots).count() as u64;
+    stats.duel.fizzled += events
+        .iter()
+        .filter(|event| matches!(event, RoundEvent::Fizzle { .. }))
+        .count() as u64;
+    stats.duel.maneuvers += events
+        .iter()
+        .filter(|event| matches!(event, RoundEvent::Maneuver { .. } | RoundEvent::Swap { .. }))
+        .count() as u64;
+}
+
+/// Zählt die Ereignisse einer Runde: Schüsse, Schaden, Grundmanöver, Befehle, Fähigkeiten und die Kennzahlen der
+/// Erweiterung. `flagships` stehen vor der Runde.
+fn count_events(
+    stats: &mut Stats,
+    events: &[RoundEvent],
+    admirals: [AdmiralId; 2],
+    flagships: &[SlotRef],
+) {
+    let admiral_of = |side: Side| admirals[Seat::of(side).index()];
+    for event in events {
+        match *event {
+            RoundEvent::Attack {
+                amount,
+                through,
+                taunt,
+                ..
+            } => {
+                stats.shots.all += 1;
+                stats.shots.through += u64::from(through);
+                stats.shots.taunted += u64::from(taunt);
+                stats.combat_damage += i64::from(amount);
+            }
+            RoundEvent::Fizzle { .. } => {
+                stats.shots.all += 1;
+                stats.shots.fizzled += 1;
+            }
+            RoundEvent::Maneuver { side, .. } => {
+                evasion(stats, event, events);
+                stats.usage[admiral_index(admiral_of(side))].maneuvers += 1;
+            }
+            RoundEvent::Swap { side, .. } => {
+                stats.usage[admiral_index(admiral_of(side))].maneuvers += 1;
+            }
+            RoundEvent::Effect { effect, .. } => {
+                if let CommandEffect::Damage { amount } = effect {
+                    stats.command_damage += i64::from(amount);
+                }
+                new_card_effect(stats, event, flagships, events);
+            }
+            RoundEvent::Command { card_id, .. } => {
+                stats.commands += 1;
+                stats.card(card_id).played += 1;
+            }
+            RoundEvent::NoEffect { card_id, .. } | RoundEvent::Miss { card_id, .. } => {
+                stats.commands_without_effect += 1;
+                stats.card(card_id).idle += 1;
+            }
+            RoundEvent::Countered { countered, .. } => {
+                stats.card(countered).countered += 1;
+                stats.expansion.countered += 1;
+            }
+            RoundEvent::Draw {
+                card_id: CommandId::Countermeasures,
+                ..
+            } => stats.expansion.counter_draws += 1,
+            RoundEvent::Power { side, .. } => {
+                stats.usage[admiral_index(admiral_of(side))].powers += 1;
+            }
+            _ => {}
+        }
+        if let Some((side, key, amount)) = ability_effect(event) {
+            stats.effect(admiral_of(side), key, amount);
+        }
+    }
+    for side in Side::ALL {
+        let own = |event: &RoundEvent| event_side(event) == Some(side);
+        let carte_blanche = events.iter().any(|event| {
+            own(event)
+                && matches!(
+                    event,
+                    RoundEvent::Rule {
+                        card_id: CommandId::CarteBlanche,
+                        ..
+                    }
+                )
+        });
+        if carte_blanche {
+            let maneuvered = events.iter().any(|event| {
+                own(event) && matches!(event, RoundEvent::Maneuver { .. } | RoundEvent::Swap { .. })
+            });
+            let powered = events
+                .iter()
+                .any(|event| own(event) && matches!(event, RoundEvent::Power { .. }));
+            stats.expansion.carte_blanche_both += u64::from(maneuvered && powered);
+        }
+    }
 }
 
 /// Die Seite, die ein Ereignis mit eigenem `side`-Feld nennt.
@@ -1196,56 +1222,53 @@ fn report(stats: &Stats, games_per_pairing: usize) {
         );
     }
     println!("Neue Karten (Anzahl über alle Partien):");
-    let count = |key: &str| stats.expansion.get(key).copied().unwrap_or(0);
+    let expansion = &stats.expansion;
     let played = |id: CommandId| stats.cards.get(&id).map_or(0, |card| card.played);
     println!(
         "  Kurzsprünge {}, davon Flaggschiff {}",
-        count("Kurzsprung"),
-        count("Kurzsprung: Flaggschiff")
+        expansion.jumps, expansion.flagship_jumps
     );
     println!(
         "  Rammstöße {}, Ziel zerstört {}, Rammer zerstört {}",
-        count("Rammkurs"),
-        count("Rammkurs: Ziel zerstört"),
-        count("Rammkurs: Rammer zerstört")
+        expansion.rams, expansion.rammed_destroyed, expansion.rammers_destroyed
     );
     println!(
         "  Gegenmaßnahmen {}: Befehl verpufft {}, gezogen {}",
         played(CommandId::Countermeasures),
-        count("Gegenmaßnahmen: verpufft"),
-        count("Gegenmaßnahmen: gezogen")
+        expansion.countered,
+        expansion.counter_draws
     );
     println!(
         "  Funkstille {}: entfernte Marken bzw. Trugbilder {}",
         played(CommandId::RadioSilence),
-        count("Funkstille: Marke bzw. Trugbild entfernt")
+        expansion.jammed
     );
     println!(
         "  Traktorstrahl {}: Flaggschiff freigelegt {}, danach beschossen {}",
         played(CommandId::TractorBeam),
-        count("Traktorstrahl: Flaggschiff freigelegt"),
-        count("Traktorstrahl: freigelegtes Flaggschiff beschossen")
+        expansion.tractor_exposed,
+        expansion.tractor_exposed_hit
     );
     println!(
         "  Wärmesucher {}: mit 5 Schaden {}",
         played(CommandId::HeatSeeker),
-        count("Wärmesucher: 5 Schaden (bewegtes Ziel)")
+        expansion.heat_seeker_moved
     );
-    let per_card = |key: &str, id: CommandId| count(key) as f64 / played(id).max(1) as f64;
+    let per_card = |count: u64, id: CommandId| count as f64 / played(id).max(1) as f64;
     println!(
         "  Minenfeld {}: Treffer je Karte {:.2}",
         played(CommandId::Minefield),
-        per_card("Minenfeld: Treffer", CommandId::Minefield)
+        per_card(expansion.mine_hits, CommandId::Minefield)
     );
     println!(
         "  Drohnenstaffel {}: Drohnen je Karte {:.2}",
         played(CommandId::DroneSquadron),
-        per_card("Drohnenstaffel: Drohnen", CommandId::DroneSquadron)
+        per_card(expansion.squadron_drones, CommandId::DroneSquadron)
     );
     println!(
         "  Freie Hand {}: mit Manöver und Fähigkeit {}",
         played(CommandId::CarteBlanche),
-        count("Freie Hand: mit Manöver und Fähigkeit")
+        expansion.carte_blanche_both
     );
     if stats.errors.is_empty() {
         println!("Zugprüfung: keine Fehler");

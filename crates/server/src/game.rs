@@ -109,13 +109,6 @@ pub struct BotView {
     pub opponent: OpponentView,
 }
 
-/// Der Nachschub nach der letzten Runde, bis der Spieler gewählt hat; die Karten fehlen solange im Deck.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Draft {
-    ships: Vec<ShipId>,
-    commands: Vec<CommandId>,
-}
-
 #[derive(Debug, Clone)]
 struct Player {
     /// Der Computergegner hat kein Token; er wird nie über einen Socket angesprochen.
@@ -130,7 +123,8 @@ struct Player {
     /// Vor Runde 1 gewählt ([`Match::choose_admiral`]), beim Computergegner sofort.
     admiral: Option<AdmiralId>,
     plan: Option<TurnPlan>,
-    draft: Option<Draft>,
+    /// Der Nachschub nach der letzten Runde, bis der Spieler gewählt hat; die Karten fehlen solange im Deck.
+    draft: Option<DraftOffer>,
 }
 
 fn is_support(card: ShipId) -> bool {
@@ -196,12 +190,12 @@ impl Player {
             (false, false) => self.command_deck.draw_many(DRAFT_SIZE),
         };
         self.draft =
-            (!ships.is_empty() || !commands.is_empty()).then_some(Draft { ships, commands });
+            (!ships.is_empty() || !commands.is_empty()).then_some(DraftOffer { ships, commands });
     }
 
     /// Nimmt die gewählten Karten des Nachschubs auf die Hand; die übrigen gehen gemischt zurück ins Deck.
     fn take_draft(&mut self, pick: DraftPick, rng: &mut dyn RngCore) {
-        let Draft {
+        let DraftOffer {
             mut ships,
             mut commands,
         } = self.draft.take().expect("es gibt einen Nachschub");
@@ -211,13 +205,6 @@ impl Player {
             .extend(pick.command.map(|index| commands.remove(index)));
         self.ship_deck.put_back(ships, rng);
         self.command_deck.put_back(commands, rng);
-    }
-
-    fn draft_offer(&self) -> Option<DraftOffer> {
-        self.draft.as_ref().map(|draft| DraftOffer {
-            ships: draft.ships.clone(),
-            commands: draft.commands.clone(),
-        })
     }
 
     /// Zieht für einen Befehl (Plündern, Gegenmaßnahmen); zählt, was auf der Hand gelandet ist. Eine Karte, die
@@ -340,8 +327,8 @@ pub struct Match {
     round: u32,
     /// `None`, solange gespielt wird.
     winner: Option<Outcome>,
-    /// Wer aufgegeben hat; `None`, wenn das Match auf dem Brett entschieden wurde oder noch läuft.
-    surrendered_by: Option<Side>,
+    /// Das Match endete durch Aufgabe; wer aufgegeben hat, folgt aus `winner`.
+    surrendered: bool,
     /// Mischt die Decks und entscheidet über das Ziel der Plasma Frigate und die Wahl des Computergegners.
     rng: Box<dyn RngCore + Send>,
 }
@@ -359,13 +346,9 @@ impl Match {
             players: Vec::new(),
             round: 1,
             winner: None,
-            surrendered_by: None,
+            surrendered: false,
             rng: Box::new(rng),
         }
-    }
-
-    pub fn id(&self) -> &str {
-        &self.id
     }
 
     pub fn board(&self) -> &Board {
@@ -531,7 +514,7 @@ impl Match {
         if self.winner.is_some() {
             return Err(ErrorCode::MatchOver);
         }
-        self.surrendered_by = Some(seat.side());
+        self.surrendered = true;
         self.winner = Some(Outcome::Won(seat.side().opposite()));
         for player in &mut self.players {
             player.plan = None;
@@ -753,7 +736,7 @@ impl Match {
                 let salvage = self.salvaged(seat.side(), &events);
                 let player = self.player_mut(seat);
                 player.offer_draft(salvage);
-                if let Some(offer) = player.draft_offer().filter(|_| player.is_bot()) {
+                if let Some(offer) = player.draft.clone().filter(|_| player.is_bot()) {
                     let pick = bot::plan_bot_draft(&self.bot_view(seat), &offer);
                     self.draft(seat, pick)
                         .expect("der Computergegner wählt gültig");
@@ -808,13 +791,13 @@ impl Match {
             ship_deck_size: player.ship_deck.len(),
             command_deck_size: player.command_deck.len(),
             submitted_plan: player.plan.clone(),
-            draft: player.draft_offer(),
+            draft: player.draft.clone(),
             opponent: self
                 .players
                 .get(seat.other().index())
                 .map(|opponent| opponent.public_view(self.started())),
             result: self.result_for(seat),
-            surrendered: self.surrendered_by.is_some(),
+            surrendered: self.surrendered,
         }
     }
 

@@ -15,6 +15,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -218,10 +219,7 @@ async fn connect(socket: WebSocket, rooms: Rooms, match_id: String, token: Strin
 }
 
 /// Schreibt die Nachrichten der Verbindung auf den Socket, bis sie geschlossen wird oder niemand mehr sendet.
-async fn write(
-    mut sink: futures_util::stream::SplitSink<WebSocket, Message>,
-    mut inbox: UnboundedReceiver<Message>,
-) {
+async fn write(mut sink: SplitSink<WebSocket, Message>, mut inbox: UnboundedReceiver<Message>) {
     while let Some(message) = inbox.recv().await {
         let closing = matches!(message, Message::Close(_));
         if sink.send(message).await.is_err() || closing {

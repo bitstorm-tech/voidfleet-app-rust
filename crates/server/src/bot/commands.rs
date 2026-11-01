@@ -2,7 +2,9 @@
 
 use rand::{Rng, RngCore};
 use voidfleet_core::admirals::{ABILITY_VALUES, AdmiralId};
-use voidfleet_core::board::{LaneType, MAX_SHIPS_PER_SIDE, PlannedMove, SlotRef, max_deploys};
+use voidfleet_core::board::{
+    LaneType, MAX_SHIPS_PER_SIDE, PlannedMove, SlotRef, lane_slots, max_deploys,
+};
 use voidfleet_core::cards::{COMMANDS, CommandId, CommandType, ShipId};
 use voidfleet_core::powers::power_targets;
 use voidfleet_core::resolution::PowerUse;
@@ -403,7 +405,7 @@ impl Situation<'_> {
                         0.0
                     }
                 };
-                let columns = voidfleet_core::board::lane_slots(enemy, LaneType::Strike);
+                let columns = lane_slots(enemy, LaneType::Strike);
                 let (target, score) =
                     highest(columns.map(|at| (at, value(at))), |&(_, score)| score)?;
                 Some(Choice::on(target, score))
