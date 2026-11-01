@@ -1,6 +1,7 @@
 //! Einstellungen (Port von `ui/settingsDialog.ts`): Zahnrad in der Icon-Leiste, ein Pult mit einer Tastenreihe oben,
 //! die eines von drei eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
-//! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern und der Sprache;
+//! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern samt Regler für seine
+//! Größe und der Sprache;
 //! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild); „Sound“ mit den Reglern für Musik, Effekte und
 //! Bordfunk. Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den Einstellungen, auch wenn
 //! sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der Dialog beim Wechsel
@@ -25,7 +26,7 @@ use crate::{
     settings::{AnimationSpeed, CursorId, Language, Settings, WindowMode},
     ui::{
         Fonts,
-        cursor::{CURSORS, CursorImages},
+        cursor::{self, CURSORS, CursorImages},
         theme::{self, rgb, rgba},
         tooltip::Tooltip,
     },
@@ -135,22 +136,24 @@ struct Lamp;
 #[derive(Component)]
 struct CursorLegend;
 
-/// Die drei Lautstärken.
+/// Was ein Regler einstellt: die drei Lautstärken und die Größe des Mauszeigers.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-enum Volume {
+enum Level {
     Music,
     Effects,
     Voice,
+    CursorSize,
 }
 
-impl Volume {
-    const ALL: [Self; 3] = [Self::Music, Self::Effects, Self::Voice];
+impl Level {
+    const VOLUMES: [Self; 3] = [Self::Music, Self::Effects, Self::Voice];
 
     fn get(self, settings: &Settings) -> f32 {
         match self {
             Self::Music => settings.music_volume,
             Self::Effects => settings.effects_volume,
             Self::Voice => settings.voice_volume,
+            Self::CursorSize => settings.cursor_size,
         }
     }
 
@@ -159,6 +162,7 @@ impl Volume {
             Self::Music => &mut settings.music_volume,
             Self::Effects => &mut settings.effects_volume,
             Self::Voice => &mut settings.voice_volume,
+            Self::CursorSize => &mut settings.cursor_size,
         }
     }
 
@@ -167,13 +171,43 @@ impl Volume {
             Self::Music => locale.settings_music_volume(),
             Self::Effects => locale.settings_effects_volume(),
             Self::Voice => locale.settings_voice_volume(),
+            Self::CursorSize => locale.settings_cursor_size(),
+        }
+    }
+
+    /// Kleinster und größter Wert und die Schrittweite, auf der der Regler einrastet: Lautstärken in 5 %, die
+    /// Zeigergröße in logischen Pixeln.
+    const fn range(self) -> (f32, f32, f32) {
+        match self {
+            Self::Music | Self::Effects | Self::Voice => (0.0, 1.0, 0.05),
+            Self::CursorSize => (cursor::MIN_SIZE, cursor::MAX_SIZE, cursor::SIZE_STEP),
+        }
+    }
+
+    /// Der Wert auf den nächsten Schritt gerastet.
+    fn snap(self, value: f32) -> f32 {
+        let (min, max, step) = self.range();
+        (min + ((value - min) / step).round() * step).clamp(min, max)
+    }
+
+    /// Stand des Griffs zwischen 0 (links) und 1 (rechts).
+    fn fraction(self, value: f32) -> f32 {
+        let (min, max, _) = self.range();
+        ((value - min) / (max - min)).clamp(0.0, 1.0)
+    }
+
+    /// Die Anzeige neben der Überschrift: Prozent bzw. Pixel.
+    fn readout(self, value: f32) -> String {
+        match self {
+            Self::Music | Self::Effects | Self::Voice => format!("{}", (value * 100.0).round()),
+            Self::CursorSize => format!("{}", value.round()),
         }
     }
 }
 
-/// Die leuchtende Füllung eines Lautstärkereglers bis zum Griff.
+/// Die leuchtende Füllung eines Reglers bis zum Griff.
 #[derive(Component)]
-struct VolumeFill;
+struct LevelFill;
 
 /// Die Flanke einer Taste der Auswahl in Pixeln (`--depth`): Ruhe 3, Hover 4, gedrückt oder gewählt 1.
 #[derive(Component, Clone, Copy, Debug)]
@@ -372,8 +406,10 @@ fn cursor_legend(locale: &Locale, cursor: CursorId) -> String {
     format!("{}: {}", locale.settings_cursor(), locale.cursor(cursor)).to_uppercase()
 }
 
-/// Ein Lautstärkeregler: Schiene mit Leuchtsegmenten bis zum Griff, daneben die Anzeige in Prozent.
-fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> impl Bundle {
+/// Ein Regler: Schiene mit Leuchtsegmenten bis zum Griff, darüber die Überschrift und die Anzeige des Werts.
+fn level_slider(fonts: &Fonts, locale: &Locale, level: Level, value: f32) -> impl Bundle {
+    let (min, max, step) = level.range();
+    let fraction = level.fraction(value);
     (
         Node {
             display: Display::Grid,
@@ -388,7 +424,7 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
             (
                 theme::caps(
                     fonts.display_bold(15.0),
-                    volume.label(locale),
+                    level.label(locale),
                     theme::TRACKING,
                     palette::TEXT_DIM
                 ),
@@ -404,10 +440,10 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
                 },
                 BackgroundColor(theme::INK),
                 children![(
-                    volume,
+                    level,
                     theme::text(
                         fonts.display_bold(15.0),
-                        percent_label(value),
+                        level.readout(value),
                         palette::SELECT
                     ),
                     TextShadow {
@@ -418,21 +454,21 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
                 )],
             ),
             (
-                volume,
+                level,
                 Slider {
                     track_click: TrackClick::Snap,
                     ..default()
                 },
                 SliderValue(value),
-                SliderRange::new(0.0, 1.0),
-                SliderStep(0.05),
+                SliderRange::new(min, max),
+                SliderStep(step),
                 Hovered::default(),
                 Node {
                     grid_column: GridPlacement::span(2),
                     height: px(24),
                     ..default()
                 },
-                observe(change_volume),
+                observe(change_level),
                 children![
                     // Schiene.
                     (
@@ -453,13 +489,13 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
                         Pickable::IGNORE,
                         children![
                             (
-                                VolumeFill,
+                                LevelFill,
                                 Node {
                                     position_type: PositionType::Absolute,
                                     left: Val::ZERO,
                                     top: Val::ZERO,
                                     bottom: Val::ZERO,
-                                    width: percent(value * 100.0),
+                                    width: percent(fraction * 100.0),
                                     ..default()
                                 },
                                 theme::horizontal_gradient(&[
@@ -501,7 +537,7 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
                             ..default()
                         },
                         Pickable::IGNORE,
-                        children![thumb(value)],
+                        children![thumb(fraction)],
                     ),
                 ],
             ),
@@ -510,12 +546,12 @@ fn volume_slider(fonts: &Fonts, locale: &Locale, volume: Volume, value: f32) -> 
 }
 
 /// Der Griff wie ein Schieber am Mischpult: gewölbt, mit Riffelung.
-fn thumb(value: f32) -> impl Bundle {
+fn thumb(fraction: f32) -> impl Bundle {
     (
         SliderThumb,
         Node {
             position_type: PositionType::Absolute,
-            left: percent(value * 100.0),
+            left: percent(fraction * 100.0),
             top: Val::ZERO,
             width: px(20),
             height: px(22),
@@ -548,10 +584,6 @@ fn thumb(value: f32) -> impl Bundle {
             )
         }))),
     )
-}
-
-fn percent_label(value: f32) -> String {
-    format!("{}", (value * 100.0).round())
 }
 
 pub(super) fn spawn(
@@ -597,9 +629,9 @@ pub(super) fn spawn(
         .into_iter()
         .map(|mode| (Choice::WindowMode(mode), locale.window_mode(mode)))
         .collect();
-    let volumes: Vec<_> = Volume::ALL
+    let volumes: Vec<_> = Level::VOLUMES
         .into_iter()
-        .map(|volume| volume_slider(fonts, locale, volume, volume.get(&settings)))
+        .map(|level| level_slider(fonts, locale, level, level.get(&settings)))
         .collect();
     let tabs = SettingsTab::ALL
         .into_iter()
@@ -648,6 +680,12 @@ pub(super) fn spawn(
                                             &cursors,
                                             settings.cursor
                                         )),
+                                        Spawn(level_slider(
+                                            fonts,
+                                            locale,
+                                            Level::CursorSize,
+                                            settings.cursor_size
+                                        )),
                                         Spawn(choice(
                                             fonts,
                                             locale.settings_language(),
@@ -691,21 +729,21 @@ fn press_choice(
     }
 }
 
-/// Der Regler schreibt die Lautstärke (in Schritten von 5 %) und rastet dort ein.
-fn change_volume(
+/// Der Regler schreibt seinen Wert und rastet auf dem nächsten Schritt ein.
+fn change_level(
     change: On<ValueChange<f32>>,
     mut commands: Commands,
-    volumes: Query<&Volume>,
+    levels: Query<&Level>,
     mut settings: ResMut<Settings>,
     mut sounds: MessageWriter<PlayUiSound>,
 ) {
-    let Ok(&volume) = volumes.get(change.source) else {
+    let Ok(&level) = levels.get(change.source) else {
         return;
     };
-    let value = (change.value * 20.0).round() / 20.0;
+    let value = level.snap(change.value);
     commands.entity(change.source).insert(SliderValue(value));
-    if volume.get(&settings) != value {
-        *volume.get_mut(&mut settings) = value;
+    if level.get(&settings) != value {
+        *level.get_mut(&mut settings) = value;
     }
     if change.is_final {
         sounds.write(PlayUiSound(UiSound::Click));
@@ -713,25 +751,26 @@ fn change_volume(
 }
 
 /// Füllung, Griff und Anzeige folgen dem Wert des Reglers.
-fn show_volume(
-    sliders: Query<(Entity, &Volume, &SliderValue), Changed<SliderValue>>,
+fn show_level(
+    sliders: Query<(Entity, &Level, &SliderValue), Changed<SliderValue>>,
     children: Query<&Children>,
     mut thumbs: Query<&mut Node, With<SliderThumb>>,
-    mut fills: Query<&mut Node, (With<VolumeFill>, Without<SliderThumb>)>,
-    mut readouts: Query<(&Volume, &mut Text)>,
+    mut fills: Query<&mut Node, (With<LevelFill>, Without<SliderThumb>)>,
+    mut readouts: Query<(&Level, &mut Text)>,
 ) {
-    for (slider, &volume, &SliderValue(value)) in &sliders {
+    for (slider, &level, &SliderValue(value)) in &sliders {
+        let fraction = level.fraction(value);
         for entity in children.iter_descendants(slider) {
             if let Ok(mut thumb) = thumbs.get_mut(entity) {
-                thumb.left = percent(value * 100.0);
+                thumb.left = percent(fraction * 100.0);
             }
             if let Ok(mut fill) = fills.get_mut(entity) {
-                fill.width = percent(value * 100.0);
+                fill.width = percent(fraction * 100.0);
             }
         }
         for (&readout, mut text) in &mut readouts {
-            if readout == volume {
-                text.0 = percent_label(value);
+            if readout == level {
+                text.0 = level.readout(value);
             }
         }
     }
@@ -912,7 +951,7 @@ impl Plugin for SettingsDialogPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveTab>().add_systems(
             Update,
-            (show_tab, show_volume, animate_choices, animate_thumbs)
+            (show_tab, show_level, animate_choices, animate_thumbs)
                 .run_if(in_state(AppState::Match)),
         );
     }

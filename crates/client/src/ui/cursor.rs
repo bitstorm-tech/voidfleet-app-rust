@@ -1,16 +1,23 @@
-//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von zehn Zeigern im Toon-Stil mit dunkler Kontur
-//! (`cursors/cursor_<id>.png`, 32 × 32, gerastert von `tools/rasterize`), gewählt in den Einstellungen; ein Wechsel
-//! gilt sofort. Er gilt überall im Fenster, auch über Knöpfen und dem Brett.
+//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von zehn Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
+//! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster.
+//!
+//! Der Systemzeiger ist ausgeblendet, stattdessen folgt ein UI-Knoten über allem der Maus. Denn ein eigener
+//! Systemzeiger (`CursorIcon::Custom`) wäre ein festes Bild: unter macOS zählt winit dessen Pixel als Punkte (auf
+//! Retina doppelt hochgezogen, unscharf), anderswo als physische Pixel (bei hoher Skalierung winzig). Hier rastert
+//! `resvg` das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) genau auf Größe ×
+//! Skalierungsfaktor, neu bei jedem Wechsel von Zeiger, Größe oder Bildschirm. Der Preis: Der Zeiger kommt mit dem
+//! Spielbild und hinkt dem Systemzeiger um ein bis zwei Bilder hinterher.
 
 use bevy::{
+    asset::RenderAssetUsages,
     prelude::*,
-    window::{CursorIcon, CustomCursor, CustomCursorImage, PrimaryWindow},
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+    ui::UiSystems,
+    window::{CursorOptions, PrimaryWindow},
 };
+use resvg::{tiny_skia, usvg};
 
-use crate::{
-    assets::Preload,
-    settings::{CursorId, Settings},
-};
+use crate::settings::{CursorId, Settings};
 
 /// Alle wählbaren Zeiger in der Reihenfolge der Auswahl.
 pub const CURSORS: [CursorId; 10] = [
@@ -26,36 +33,74 @@ pub const CURSORS: [CursorId; 10] = [
     CursorId::Crosshair,
 ];
 
-/// Dateiname eines Zeigers.
-pub const fn cursor_key(cursor: CursorId) -> &'static str {
+/// Wählbare Größe in logischen Pixeln (Punkten): kleinste, größte, Schritt des Reglers.
+pub const MIN_SIZE: f32 = 16.0;
+pub const MAX_SIZE: f32 = 64.0;
+pub const SIZE_STEP: f32 = 4.0;
+
+/// Kantenlänge der SVGs (`viewBox`).
+const ART_SIZE: f32 = 32.0;
+
+/// Kantenlänge der Vorschaubilder im Einstellungsdialog in Pixeln, scharf auch auf Retina-Bildschirmen.
+const PREVIEW_PIXELS: u32 = 128;
+
+fn svg(cursor: CursorId) -> &'static str {
     match cursor {
-        CursorId::Arrow => "arrow",
-        CursorId::Fighter => "fighter",
-        CursorId::Delta => "delta",
-        CursorId::Flagship => "flagship",
-        CursorId::Needle => "needle",
-        CursorId::Shard => "shard",
-        CursorId::Formation => "formation",
-        CursorId::Holo => "holo",
-        CursorId::Thruster => "thruster",
-        CursorId::Crosshair => "crosshair",
+        CursorId::Arrow => include_str!("../../../../assets/cursors/cursor_arrow.svg"),
+        CursorId::Fighter => include_str!("../../../../assets/cursors/cursor_fighter.svg"),
+        CursorId::Delta => include_str!("../../../../assets/cursors/cursor_delta.svg"),
+        CursorId::Flagship => include_str!("../../../../assets/cursors/cursor_flagship.svg"),
+        CursorId::Needle => include_str!("../../../../assets/cursors/cursor_needle.svg"),
+        CursorId::Shard => include_str!("../../../../assets/cursors/cursor_shard.svg"),
+        CursorId::Formation => include_str!("../../../../assets/cursors/cursor_formation.svg"),
+        CursorId::Holo => include_str!("../../../../assets/cursors/cursor_holo.svg"),
+        CursorId::Thruster => include_str!("../../../../assets/cursors/cursor_thruster.svg"),
+        CursorId::Crosshair => include_str!("../../../../assets/cursors/cursor_crosshair.svg"),
     }
 }
 
-/// Asset-Pfad des Bildes; der Einstellungsdialog zeigt es als Vorschau.
-pub fn cursor_path(cursor: CursorId) -> String {
-    format!("cursors/cursor_{}.png", cursor_key(cursor))
-}
-
-/// Der Punkt, der zeigt, in Pixeln des Bildes: die Spitze, beim Fadenkreuz die Mitte.
-const fn hotspot(cursor: CursorId) -> (u16, u16) {
+/// Der Punkt, der zeigt, in Koordinaten des SVGs: die Spitze, beim Fadenkreuz die Mitte.
+const fn hotspot(cursor: CursorId) -> Vec2 {
     match cursor {
-        CursorId::Crosshair => (16, 16),
-        _ => (2, 2),
+        CursorId::Crosshair => Vec2::splat(16.0),
+        _ => Vec2::splat(2.0),
     }
 }
 
-/// Die Bilder aller Zeiger in der Reihenfolge von [`CURSORS`], beim Start geladen.
+/// Rastert einen Zeiger auf `pixels` × `pixels`.
+fn rasterize(cursor: CursorId, pixels: u32) -> Image {
+    let tree = usvg::Tree::from_str(svg(cursor), &usvg::Options::default())
+        .expect("eingebettetes SVG ist gültig");
+    let mut pixmap = tiny_skia::Pixmap::new(pixels, pixels).expect("Fläche");
+    let scale = pixels as f32 / ART_SIZE;
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    // tiny-skia rechnet mit vormultipliziertem Alpha, Bevy erwartet es gerade.
+    let data = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|pixel| {
+            let color = pixel.demultiply();
+            [color.red(), color.green(), color.blue(), color.alpha()]
+        })
+        .collect();
+    Image::new(
+        Extent3d {
+            width: pixels,
+            height: pixels,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
+/// Die Vorschaubilder aller Zeiger in der Reihenfolge von [`CURSORS`], beim Start gerastert.
 #[derive(Resource)]
 pub struct CursorImages(Vec<Handle<Image>>);
 
@@ -69,54 +114,105 @@ impl CursorImages {
     }
 }
 
-fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let images = CURSORS
-        .into_iter()
-        .map(|cursor| preload.track(server.load(cursor_path(cursor))))
-        .collect();
-    commands.insert_resource(CursorImages(images));
+/// Der Knoten, der der Maus folgt, mit dem Abstand der Spitze von seiner oberen linken Ecke in logischen Pixeln.
+#[derive(Component, Default)]
+struct Pointer {
+    hotspot: Vec2,
 }
 
-/// Setzt den gewählten Zeiger als Fenster-Cursor, beim Start und nach jedem Wechsel.
-fn apply(
+/// Rastert die Vorschaubilder, blendet den Systemzeiger aus und legt den Zeiger an.
+fn setup(
     mut commands: Commands,
-    settings: Res<Settings>,
-    images: Res<CursorImages>,
-    window: Single<Entity, With<PrimaryWindow>>,
-    mut applied: Local<Option<CursorId>>,
+    mut images: ResMut<Assets<Image>>,
+    mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if *applied == Some(settings.cursor) {
+    let previews = CURSORS
+        .into_iter()
+        .map(|cursor| images.add(rasterize(cursor, PREVIEW_PIXELS)))
+        .collect();
+    commands.insert_resource(CursorImages(previews));
+    window.visible = false;
+    commands.spawn((
+        Name::new("Mauszeiger"),
+        Pointer::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        ImageNode::default(),
+        GlobalZIndex(i32::MAX),
+        Pickable::IGNORE,
+        Visibility::Hidden,
+    ));
+}
+
+/// Rastert den Zeiger neu, wenn sich Wahl, Größe oder Skalierungsfaktor ändern; so deckt sich jedes Pixel des Bildes
+/// mit einem des Bildschirms.
+fn render(
+    settings: Res<Settings>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    mut images: ResMut<Assets<Image>>,
+    pointer: Single<(&mut Pointer, &mut Node, &mut ImageNode)>,
+    mut rendered: Local<Option<(CursorId, u32)>>,
+) {
+    let scale = window.scale_factor();
+    let pixels = (settings.cursor_size.clamp(MIN_SIZE, MAX_SIZE) * scale).round() as u32;
+    let wanted = (settings.cursor, pixels);
+    if *rendered == Some(wanted) {
         return;
     }
-    *applied = Some(settings.cursor);
-    commands
-        .entity(*window)
-        .insert(CursorIcon::Custom(CustomCursor::Image(CustomCursorImage {
-            handle: images.get(settings.cursor),
-            hotspot: hotspot(settings.cursor),
-            ..default()
-        })));
+    *rendered = Some(wanted);
+    let (mut pointer, mut node, mut image) = pointer.into_inner();
+    let size = pixels as f32 / scale;
+    pointer.hotspot = hotspot(settings.cursor) * size / ART_SIZE;
+    node.width = px(size);
+    node.height = px(size);
+    // Das alte Bild gibt Bevy frei, sobald niemand mehr seinen Handle hält.
+    image.image = images.add(rasterize(settings.cursor, pixels));
+}
+
+/// Setzt den Zeiger an die Maus; außerhalb des Fensters ist er verborgen. Unter macOS zeigt das System seinen Zeiger
+/// über einem Fenster ohne Fokus wieder, dann verbirgt sich unserer.
+fn follow(
+    window: Single<&Window, With<PrimaryWindow>>,
+    pointer: Single<(&Pointer, &mut Node, &mut Visibility)>,
+) {
+    let (pointer, mut node, mut visibility) = pointer.into_inner();
+    let shown = cfg!(not(target_os = "macos")) || window.focused;
+    let Some(at) = window.cursor_position().filter(|_| shown) else {
+        visibility.set_if_neq(Visibility::Hidden);
+        return;
+    };
+    visibility.set_if_neq(Visibility::Inherited);
+    let corner = at - pointer.hotspot;
+    if node.left != px(corner.x) || node.top != px(corner.y) {
+        node.left = px(corner.x);
+        node.top = px(corner.y);
+    }
 }
 
 pub(super) struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, load).add_systems(Update, apply);
+        app.add_systems(PreStartup, setup)
+            .add_systems(PostUpdate, (render, follow).before(UiSystems::Prepare));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::*;
 
+    /// Jeder Zeiger lässt sich rastern und zeichnet seine Spitze an den Hotspot.
     #[test]
-    fn every_cursor_has_an_image() {
-        let root = Path::new(crate::REPO_ASSETS);
+    fn every_cursor_rasterizes() {
         for cursor in CURSORS {
-            assert!(root.join(cursor_path(cursor)).is_file(), "{cursor:?}");
+            let image = rasterize(cursor, 64);
+            let data = image.data.as_ref().expect("Pixel");
+            let tip = hotspot(cursor) * 2.0;
+            let alpha = data[(tip.y as usize * 64 + tip.x as usize) * 4 + 3];
+            assert!(alpha > 0, "{cursor:?}: Hotspot ist durchsichtig");
         }
     }
 }

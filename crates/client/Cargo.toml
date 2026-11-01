@@ -17,6 +17,8 @@ bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "
 kira = { version = "0.12.6", default-features = false, features = ["cpal", "mp3"] }
 # Nur für das Fenster-Icon (`winit::window::Icon`); dieselbe Version wie in `bevy_winit`.
 winit = { version = "0.30", default-features = false }
+# Rastert die Mauszeiger (SVG) zur Laufzeit in der Größe des Bildschirms; ohne Text und eingebettete Bilder.
+resvg = { version = "0.49", default-features = false }
 directories = "6"
 voidfleet-core.workspace = true
 voidfleet-server.workspace = true

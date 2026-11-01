@@ -1,7 +1,5 @@
 //! Rastert Vektorgrafiken der Oberfläche zu PNG, weil Bevy kein SVG zeichnet:
 //!
-//! - die Mauszeiger `assets/cursors/cursor_<id>.svg` (sofern noch vorhanden) in ihrer eigenen Größe (32 × 32) zu
-//!   `cursor_<id>.png` daneben; die SVGs sind danach entbehrlich und gelöscht,
 //! - die Icons unten (Lucide-Stil, Strich in Weiß, damit die Oberfläche sie einfärbt) zu `assets/images/ui/<name>.png`
 //!   in [`ICON_SIZE`] Pixeln,
 //! - die Illustrationen des Regel-Dialogs ([`figures`]) ohne Beschriftung zu `assets/images/rules/<name>.png` in
@@ -77,7 +75,6 @@ const FILLED_ICONS: &[(&str, &str)] = &[
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
-    rasterize_cursors(&root.join("cursors"));
     let icons = root.join("images/ui");
     fs::create_dir_all(&icons).expect("Ordner der Icons");
     let stroked = ICONS
@@ -94,18 +91,6 @@ fn main() {
     let rules = root.join("images/rules");
     for (name, svg) in figures::all() {
         render(&svg, 0, &rules.join(format!("{name}.png")));
-    }
-}
-
-/// Jede `cursor_<id>.svg` wird zu `cursor_<id>.png` in ihrer eigenen Größe.
-fn rasterize_cursors(dir: &Path) {
-    for entry in fs::read_dir(dir).expect("Ordner der Mauszeiger") {
-        let path = entry.expect("Eintrag").path();
-        if path.extension().is_none_or(|extension| extension != "svg") {
-            continue;
-        }
-        let svg = fs::read_to_string(&path).expect("SVG lesbar");
-        render(&svg, 0, &path.with_extension("png"));
     }
 }
 

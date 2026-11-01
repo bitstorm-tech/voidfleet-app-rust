@@ -1,6 +1,6 @@
 [package]
 name = "voidfleet-rasterize"
-description = "Rastert die Mauszeiger und die Icons der Oberfläche einmalig zu PNG (assets/cursors, assets/images/ui)"
+description = "Rastert die Icons und Regel-Illustrationen der Oberfläche einmalig zu PNG (assets/images/ui, assets/images/rules)"
 version = "0.1.0"
 edition = "2024"
 publish = false

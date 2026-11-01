@@ -238,6 +238,9 @@ impl Messages for De {
     fn settings_cursor(&self) -> &'static str {
         "Mauszeiger"
     }
+    fn settings_cursor_size(&self) -> &'static str {
+        "Zeigergröße"
+    }
     fn cursor(&self, cursor: CursorId) -> &'static str {
         match cursor {
             CursorId::Arrow => "Toon-Pfeil",

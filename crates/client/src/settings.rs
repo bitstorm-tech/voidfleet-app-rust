@@ -57,7 +57,7 @@ pub enum Language {
     De,
 }
 
-/// Wählbare Mauszeiger (`assets/cursors/cursor_<id>.png`).
+/// Wählbare Mauszeiger (`assets/cursors/cursor_<id>.svg`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CursorId {
@@ -109,6 +109,8 @@ pub struct Settings {
     pub animation_speed: AnimationSpeed,
     pub camera: CameraSettings,
     pub cursor: CursorId,
+    /// Kantenlänge des Mauszeigers in logischen Pixeln (Punkten), siehe [`crate::ui::cursor`].
+    pub cursor_size: f32,
     pub window_mode: WindowMode,
     pub language: Option<Language>,
 }
@@ -124,6 +126,7 @@ impl Default for Settings {
             animation_speed: AnimationSpeed::Normal,
             camera: CameraSettings::default(),
             cursor: CursorId::Arrow,
+            cursor_size: 32.0,
             window_mode: WindowMode::Maximized,
             language: None,
         }

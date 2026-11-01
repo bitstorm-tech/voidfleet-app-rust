@@ -239,6 +239,9 @@ impl Messages for En {
     fn settings_cursor(&self) -> &'static str {
         "Mouse pointer"
     }
+    fn settings_cursor_size(&self) -> &'static str {
+        "Pointer size"
+    }
     fn cursor(&self, cursor: CursorId) -> &'static str {
         match cursor {
             CursorId::Arrow => "Toon arrow",

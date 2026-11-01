@@ -256,6 +256,7 @@ pub trait Messages: Sync {
     fn settings_install_button(&self) -> &'static str;
     fn speed(&self, speed: AnimationSpeed) -> &'static str;
     fn settings_cursor(&self) -> &'static str;
+    fn settings_cursor_size(&self) -> &'static str;
     fn cursor(&self, cursor: CursorId) -> &'static str;
 
     // --- rules ---
