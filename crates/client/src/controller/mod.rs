@@ -11,7 +11,8 @@
 //! 1. [`ControllerSystems::Server`] — ein neuer Zustand setzt die Auswahl zurück, stellt die Musik, kündigt eine neue
 //!    Runde an und lässt den Bordfunk melden (Gefechtsbeginn, Overdrive, letztes Kriegsschiff, Gegner hat abgegeben,
 //!    kurz nach der Fanfare der Ausgang). Eine aufgelöste Runde hält die Warteschlange an und übergibt die Szene der
-//!    Wiedergabe ([`BoardMode::Playback`], [`PlayRound`]); ist sie fertig ([`PlaybackFinished`]), geht es weiter.
+//!    Wiedergabe ([`BoardMode::Playback`], [`PlayRound`]); ist sie fertig ([`PlaybackFinished`]), gibt er die
+//!    Warteschlange frei und schaltet auf [`BoardMode::Planning`], sobald der neue Zustand da ist.
 //!    Fehler des Servers landen im Log.
 //! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand, Fähigkeit, Zielerfassung, Slots,
 //!    Spaltenpfeile, Klick daneben (zweimal schnell: Vollbild), Rechtsklick, Escape (vor den Dialogen), Leertaste und
@@ -106,6 +107,10 @@ impl Reported {
     }
 }
 
+/// Die Wiedergabe ist fertig, die Warteschlange frei; die Szene wartet auf den neuen Zustand.
+#[derive(Resource, Debug, Default)]
+struct AwaitingState;
+
 /// Der Funkspruch zum Ausgang, sobald die Fanfare eingesetzt hat.
 #[derive(Resource, Debug)]
 struct ResultReport {
@@ -137,6 +142,11 @@ impl Plugin for ControllerPlugin {
                         follow_state.run_if(on_message::<StateChanged>),
                         start_playback.run_if(on_message::<RoundResolved>),
                         finish_playback.run_if(on_message::<PlaybackFinished>),
+                        resume_planning
+                            .run_if(resource_exists::<AwaitingState>)
+                            .run_if(
+                                on_message::<StateChanged>.or_eager(on_message::<ConnectionLost>),
+                            ),
                         lose_connection.run_if(on_message::<ConnectionLost>),
                         log_errors.run_if(on_message::<ServerError>),
                         report_result.run_if(resource_exists::<ResultReport>),
@@ -213,7 +223,6 @@ impl Desk<'_> {
 
 /// Ein neuer Zustand: Auswahl und Hinweise gehen, die Musik folgt der Phase, eine neue Runde wird angekündigt, und der
 /// Bordfunk meldet, was sich zwischen den Runden getan hat.
-#[allow(clippy::too_many_arguments)]
 fn follow_state(
     mut commands: Commands,
     game: Res<Match>,
@@ -308,14 +317,21 @@ fn start_playback(
     }
 }
 
-/// Die Wiedergabe ist fertig: Der neue Zustand darf kommen, die Szene gehört wieder der Planung.
+/// Die Wiedergabe ist fertig: Der neue Zustand darf kommen. Die Szene gehört erst der Planung, wenn er da ist
+/// ([`resume_planning`]); sonst gliche sie sich noch dem Brett von vor der Runde an.
 fn finish_playback(
+    mut commands: Commands,
     mut finished: MessageReader<PlaybackFinished>,
     mut inbox: ResMut<ServerInbox>,
-    mut mode: ResMut<NextState<BoardMode>>,
 ) {
     finished.clear();
     inbox.release();
+    commands.init_resource::<AwaitingState>();
+}
+
+/// Der Zustand nach der Wiedergabe ist da (oder die Verbindung weg, dann kommt keiner mehr): zurück zur Planung.
+fn resume_planning(mut commands: Commands, mut mode: ResMut<NextState<BoardMode>>) {
+    commands.remove_resource::<AwaitingState>();
     mode.set(BoardMode::Planning);
 }
 
@@ -435,7 +451,6 @@ fn skip_on_space(
 }
 
 /// Der Aktionsknopf: Zug beenden, Wiedergabe überspringen, Computergegner holen oder seinen Platz freimachen.
-#[allow(clippy::too_many_arguments)]
 fn press_action(
     mut pressed: MessageReader<ActionPressed>,
     game: Res<Match>,
@@ -567,7 +582,6 @@ fn update_focus(
 }
 
 /// Statuszeile, Aktionsknopf, ob geplant wird und was gewählt ist.
-#[allow(clippy::too_many_arguments)]
 fn update_hud(
     game: Res<Match>,
     selection: Res<Selection>,
