@@ -365,9 +365,10 @@ fn cursor_grid(
                 ),
                 Tooltip(locale.cursor(cursor).into()),
                 children![(
+                    // Feste Größe: Sonst nähme die Kachel die Pixelgröße des Bildes als Mindestbreite.
                     Node {
-                        height: percent(100),
-                        aspect_ratio: Some(1.0),
+                        width: px(cursor::PREVIEW_SIZE),
+                        height: px(cursor::PREVIEW_SIZE),
                         ..default()
                     },
                     ImageNode::new(images.get(cursor)),

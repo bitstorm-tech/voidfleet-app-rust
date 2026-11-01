@@ -41,8 +41,9 @@ pub const SIZE_STEP: f32 = 4.0;
 /// Kantenlänge der SVGs (`viewBox`).
 const ART_SIZE: f32 = 32.0;
 
-/// Kantenlänge der Vorschaubilder im Einstellungsdialog in Pixeln, scharf auch auf Retina-Bildschirmen.
-const PREVIEW_PIXELS: u32 = 128;
+/// Kantenlänge der Vorschaubilder im Einstellungsdialog in logischen Pixeln; gerastert doppelt so groß, scharf auch
+/// auf Retina-Bildschirmen.
+pub const PREVIEW_SIZE: f32 = 32.0;
 
 fn svg(cursor: CursorId) -> &'static str {
     match cursor {
@@ -110,7 +111,7 @@ impl FromWorld for CursorImages {
         Self(
             CURSORS
                 .into_iter()
-                .map(|cursor| images.add(rasterize(cursor, PREVIEW_PIXELS)))
+                .map(|cursor| images.add(rasterize(cursor, (PREVIEW_SIZE * 2.0) as u32)))
                 .collect(),
         )
     }
