@@ -1,0 +1,56 @@
+{
+  "generator": "GPT Astra (gpt-6-astra, built-in image generation); prompt = base + scene",
+  "base": "Use case: stylized-concept.\nAsset type: finished background image for Voidfleet, a science-fiction tactical spaceship card game. Colorful cel-shaded spaceships and a tactical board are rendered on top of this image and must remain the visual focus; the background is a calm, distant backdrop, never a competing subject.\nCreate ONE full-bleed landscape image, 2048 x 1152 pixels, 16:9. Environment artwork only.\nStyle: polished clean toon science-fiction environment, large simple graphic shapes, crisp but soft silhouettes, restrained 3-tone cel shading, subtle luminous atmospheric depth, elegant mature animated-film art direction. Deep ink navy #171d2b and blue-black base. Not photorealism, not noisy painterly texture, not a flat vector star pattern.\nDistance: everything in the scene is FAR away, as seen from a ship drifting in open space. No foreground, no near-field objects, no large forms cropped by the image edges, nothing that looks within reach. The largest environmental form spans at most about one fifth of the image width and sits well inside the frame or deep in the background. Scale comes from fine detail on distant forms and from atmospheric haze, not from big close objects. The image edges are as calm and dark as the center, so the image can be cropped by 6% on every side and shifted slightly for parallax without any near object appearing.\nCalm: low contrast, low visual density, few elements, large quiet areas of dark navy. Values stay mostly dark; the brightest accents are small, distant and muted. No broad glow, no white highlights, no bright nebula washes, no lens flare, no busy debris fields, no dense star clusters. Restrained saturation, stars sparse and tiny. The central and lower areas stay darkest and most open. The whole image reads as a soft backdrop that a bright spaceship stands out against.\nConstraints: no spaceships, characters, UI, cards, grids, labels, lettering, logos, watermark or decorative border. No collage, only one complete background.\nScene/backdrop: ",
+  "variants": [
+    {
+      "id": "01-nebelschlucht",
+      "title": "Nebelschlucht",
+      "scene": "A vast canyon of interstellar nebula clouds seen from very far away: soft near-black indigo dust banks drift along the upper distance, broad muted teal gas formations recede behind them in depth, a faint tiny blue star cluster lies far beyond. Everything remote and hazy with gentle cel-shaded contours; the center is open deep space."
+    },
+    {
+      "id": "02-ringplanet",
+      "title": "Ringplanet",
+      "scene": "A slate-blue gas giant far away in the upper right, small, with a thin faint icy atmospheric rim; its ring system seen almost edge-on as a slender hazy band crossing the far background. A tiny remote moon. Restrained blue and pale amber ring highlights, all very distant; the center stays open."
+    },
+    {
+      "id": "03-asteroidenguertel",
+      "title": "Asteroidengürtel",
+      "scene": "A sparse asteroid belt in the far distance: a thin loose curved band of small dark rocks sweeps through the upper background and fades into dust haze; no rock larger than a coin, none near the camera or the image edges. Faint cool-blue nebular haze and remote stars behind it. Muted bronze and navy facets."
+    },
+    {
+      "id": "04-zerbrochener-mond",
+      "title": "Zerbrochener Mond",
+      "scene": "A small fractured blue-grey moon far away in the upper left, a missing wedge exposing a faint warm fissure; a thin stream of tiny fragments trails from it into the distance. Far beyond, an enormous, extremely faint planet arc dissolves into navy haze. Understated burnt-orange inner glow, cobalt atmosphere."
+    },
+    {
+      "id": "05-orbitalruinen",
+      "title": "Orbitalruinen",
+      "scene": "The remains of an ancient orbital ring seen from very far away: a thin broken arc and a few small drifting segments high in the distance, faint cyan seam lights, a tiny blue planet in the far background. Small, hazy, remote; no structure near the camera, no architecture at the image edges, no debris nearby."
+    },
+    {
+      "id": "06-eisnebel",
+      "title": "Eisnebel",
+      "scene": "A frozen comet-cloud frontier seen from far: soft layered turquoise cold gas veils arc through the upper distance and fade into indigo, a few tiny crystalline fragments glint far away, a barely lit distant ice moon. Faceted ice only in the far distance with thin cyan reflections; no ice near the camera."
+    },
+    {
+      "id": "07-sternenwerft",
+      "title": "Sternenwerft",
+      "scene": "A derelict orbital shipyard far in the distance: slender dark gantry silhouettes and a small dock structure sit high in the far background with a few tiny warm amber maintenance lamps and muted teal edge light, a faint layered blue nebula behind. Everything small and remote; nothing near the camera or at the edges; no spaceships."
+    },
+    {
+      "id": "08-ereignishorizont",
+      "title": "Ereignishorizont",
+      "scene": "A distant black hole, small, in the upper-right third, with a fine muted copper-gold accretion disk seen obliquely and a narrow curved light arc, its glow tightly contained. Faint dark purple dust ribbons drift toward it far away. No foreground rocks; the rest is calm dark navy space."
+    },
+    {
+      "id": "09-doppelsonnen",
+      "title": "Doppelsonnen",
+      "scene": "Twilight in a binary star system: two tiny remote suns near the upper-right horizon, one muted amber and one icy blue, their light softened by distance; a faint thin dust ring far in the background and delicate blue atmospheric bands. No planetary limb, no rocks; vast calm distance and sparse pinprick stars."
+    },
+    {
+      "id": "10-ionensturm",
+      "title": "Ionensturm",
+      "scene": "The far edge of an interstellar ion storm: soft deep-violet cloud banks in the upper distance, their interiors lit by a few thin restrained magenta filaments, softer cobalt clouds behind, a remote tiny star field. All clouds far away and low in contrast; the lower and central space is open dark navy."
+    }
+  ]
+}

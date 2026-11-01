@@ -1,0 +1,26 @@
+[package]
+name = "voidfleet-client"
+description = "Desktop-Client von Voidfleet (Bevy)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "voidfleet"
+path = "src/main.rs"
+
+[dependencies]
+# „3d“ und „ui“ bringen Fenster, Renderer, glTF, PBR-Grundlagen, Bloom, Text, UI und Picking; „jpeg“ die Karten- und
+# Porträtbilder (PNG ist dabei). Kein Bevy-Audio: Den Ton macht Kira (Filter, Verzerrung, Kompressor, Panorama, Tonhöhe).
+bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "jpeg"] }
+kira = { version = "0.12.6", default-features = false, features = ["cpal", "mp3"] }
+# Nur für das Fenster-Icon (`winit::window::Icon`); dieselbe Version wie in `bevy_winit`.
+winit = { version = "0.30", default-features = false }
+directories = "6"
+serde.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+
+[lints]
+workspace = true
