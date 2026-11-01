@@ -20,9 +20,11 @@ use bevy::{
 };
 
 use super::{
-    coords::{BOARD_CENTER, LaneType, PAD_DEPTH, PAD_WIDTH, Side, slot_z},
+    coords::{BOARD_CENTER, PAD_DEPTH, PAD_WIDTH, slot_z},
     tween::AnimationScope,
 };
+use voidfleet_core::board::{LaneType, Side};
+
 use crate::settings::Settings;
 
 /// Eine Kameraansicht samt Aufteilung des Bretts. `yaw` dreht die Kamera um die Hochachse, `pitch` neigt sie nach

@@ -1,47 +1,34 @@
 //! Die Admirale im Client: ihre Porträts (`images/admirals/<id>.jpg`) für Auswahlkarten, Fähigkeitskarte, Banner und
-//! Gegner-Feld. Regeln und Zahlen stehen im Regelwerk, die Akzentfarben in [`crate::palette`].
+//! Gegner-Feld, und welcher Admiral zu einem Flaggschiff bzw. einer Fähigkeit gehört. Regeln und Zahlen stehen im
+//! Regelwerk, die Akzentfarben in [`crate::palette`].
 
 use bevy::{platform::collections::HashMap, prelude::*};
+use voidfleet_core::{
+    admirals::{ADMIRAL_IDS, AdmiralId, PowerId},
+    cards::ShipId,
+};
 
+use super::FileKey;
 use crate::assets::Preload;
-
-/// Die fünf Admirale.
-///
-/// TODO(core): gegen `voidfleet_core::admirals::AdmiralId` tauschen, sobald das Regelwerk portiert ist; dann
-/// wandern auch `flagship_admiral` und `power_admiral` aus `data/admirals.ts` hierher.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AdmiralId {
-    Osei,
-    Vance,
-    Halvorsen,
-    Moreau,
-    Kerr,
-}
-
-impl AdmiralId {
-    pub const ALL: [Self; 5] = [
-        Self::Osei,
-        Self::Vance,
-        Self::Halvorsen,
-        Self::Moreau,
-        Self::Kerr,
-    ];
-
-    /// Schlüssel wie im Regelwerk und in den Dateinamen.
-    pub const fn key(self) -> &'static str {
-        match self {
-            Self::Osei => "osei",
-            Self::Vance => "vance",
-            Self::Halvorsen => "halvorsen",
-            Self::Moreau => "moreau",
-            Self::Kerr => "kerr",
-        }
-    }
-}
 
 /// Asset-Pfad des Porträts.
 pub fn portrait_path(admiral: AdmiralId) -> String {
-    format!("images/admirals/{}.jpg", admiral.key())
+    format!("images/admirals/{}.jpg", admiral.file_key())
+}
+
+/// Der Admiral, dem das Flaggschiff gehört; `None` für alle anderen Schiffe.
+pub fn flagship_admiral(ship: ShipId) -> Option<AdmiralId> {
+    ADMIRAL_IDS
+        .into_iter()
+        .find(|admiral| admiral.flagship() == ship)
+}
+
+/// Der Admiral mit dieser Fähigkeit.
+pub fn power_admiral(power: PowerId) -> AdmiralId {
+    ADMIRAL_IDS
+        .into_iter()
+        .find(|admiral| admiral.power() == power)
+        .expect("jede Fähigkeit gehört einem Admiral")
 }
 
 /// Die Porträts aller Admirale, beim Start geladen.
@@ -55,7 +42,7 @@ impl AdmiralPortraits {
 }
 
 pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
-    let portraits = AdmiralId::ALL
+    let portraits = ADMIRAL_IDS
         .into_iter()
         .map(|admiral| (admiral, preload.track(server.load(portrait_path(admiral)))))
         .collect();

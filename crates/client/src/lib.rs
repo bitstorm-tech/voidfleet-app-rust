@@ -9,14 +9,20 @@
 //! - [`scene`] — Kamera mit ihren zwei Ansichten, Hintergrund, Tweens, Toon-Rendering, Schiffe und Wracks.
 //! - [`audio`] — Mixer, Effekte, Musik, synthetisierte UI-Klänge und Bordfunk über Kira.
 //! - [`ui`] — Schriften, Fenster-Icon und Ladebildschirm.
+//! - [`i18n`] — Texte in Englisch und Deutsch ([`i18n::Locale`]).
+//! - [`net`] — Kommandozeile, eingebetteter Server und WebSocket-Verbindung.
+//! - [`game`] — Spielzustand, Zugplanung und Zielvorschau; übernimmt die Nachrichten des Servers.
 //! - [`dev`] — Rauchtest für Läufe ohne Spieler (`VOIDFLEET_SMOKE_FRAMES`).
 //!
-//! Später kommen `game` (Spielzustand), `net` (Server) und `playback` (Rundenwiedergabe) dazu.
+//! Später kommt `playback` (Rundenwiedergabe) dazu.
 
 pub mod assets;
 pub mod audio;
 pub mod data;
 pub mod dev;
+pub mod game;
+pub mod i18n;
+pub mod net;
 pub mod palette;
 pub mod scene;
 pub mod settings;
@@ -71,6 +77,9 @@ impl Plugin for ClientPlugin {
         .insert_resource(ClearColor(palette::BACKGROUND))
         .add_plugins((
             settings::SettingsPlugin,
+            i18n::I18nPlugin,
+            net::NetPlugin,
+            game::GamePlugin,
             assets::AssetsPlugin,
             scene::ScenePlugin,
             audio::SoundPlugin,

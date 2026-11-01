@@ -4,7 +4,10 @@
 
 use bevy::prelude::*;
 
-use crate::data::admirals::AdmiralId;
+use voidfleet_core::{
+    admirals::AdmiralId,
+    cards::{CommandType, ShipClass},
+};
 
 /// Farbe aus einer Hex-Angabe wie `0xE8A33A`.
 const fn hex(rgb: u32) -> Color {
@@ -52,30 +55,6 @@ pub const fn admiral_color(admiral: AdmiralId) -> Color {
         AdmiralId::Moreau => hex(0x33D1C6),
         AdmiralId::Kerr => hex(0x5B8DFF),
     }
-}
-
-/// Schiffsklasse einer Karte.
-///
-/// TODO(core): gegen `voidfleet_core::cards::ShipClass` tauschen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ShipClass {
-    Fighter,
-    Cruiser,
-    Battleship,
-    Support,
-}
-
-/// Typ einer Befehlskarte.
-///
-/// TODO(core): gegen `voidfleet_core::cards::CommandType` tauschen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CommandType {
-    Attack,
-    Buff,
-    Debuff,
-    Tactic,
-    Reposition,
-    Special,
 }
 
 /// Kartenfarbe einer Schiffsklasse.

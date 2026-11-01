@@ -52,7 +52,7 @@ pub enum WindowMode {
 /// Sprache der Oberfläche; ohne Wahl gilt die Systemsprache.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum Locale {
+pub enum Language {
     En,
     De,
 }
@@ -110,7 +110,7 @@ pub struct Settings {
     pub camera: CameraSettings,
     pub cursor: CursorId,
     pub window_mode: WindowMode,
-    pub language: Option<Locale>,
+    pub language: Option<Language>,
 }
 
 impl Default for Settings {
@@ -215,7 +215,7 @@ mod tests {
     fn json_round_trip() {
         let settings = Settings {
             attack_speed: AnimationSpeed::VeryFast,
-            language: Some(Locale::De),
+            language: Some(Language::De),
             ..default()
         };
         let json = serde_json::to_string(&settings).unwrap();

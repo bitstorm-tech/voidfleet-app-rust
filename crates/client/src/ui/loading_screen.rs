@@ -6,8 +6,8 @@ use bevy::{prelude::*, text::LetterSpacing};
 use super::Fonts;
 use crate::{
     assets::{AppState, LoadingProgress},
+    i18n::Locale,
     palette,
-    settings::{Locale, Settings},
 };
 
 /// Ausblenden am Ende in Sekunden; der Titel pulsiert in diesem Takt.
@@ -43,14 +43,12 @@ impl Plugin for LoadingScreenPlugin {
     }
 }
 
-/// Text unter dem Balken (aus `i18n`; die Übersetzungen kommen später zentral).
-fn label(locale: Option<Locale>, progress: LoadingProgress) -> String {
-    let percent = (progress.fraction * 100.0).round();
-    match (locale.unwrap_or(Locale::En), progress.failed) {
-        (Locale::De, false) => format!("Lade Assets … {percent} %"),
-        (Locale::De, true) => "Laden fehlgeschlagen — starte das Spiel neu.".into(),
-        (Locale::En, false) => format!("Loading assets … {percent} %"),
-        (Locale::En, true) => "Loading failed — restart the game.".into(),
+/// Text unter dem Balken.
+fn label(locale: &Locale, progress: LoadingProgress) -> String {
+    if progress.failed {
+        locale.loading_failed().into()
+    } else {
+        locale.loading_assets((progress.fraction * 100.0).round() as u32)
     }
 }
 
@@ -114,16 +112,16 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
 
 fn show_progress(
     progress: Res<LoadingProgress>,
-    settings: Res<Settings>,
+    locale: Res<Locale>,
     mut fill: Single<&mut Node, With<BarFill>>,
     label_text: Single<(&mut Text, &mut TextColor), With<Label>>,
 ) {
-    if !progress.is_changed() {
+    if !progress.is_changed() && !locale.is_changed() {
         return;
     }
     fill.width = px(BAR_WIDTH * progress.fraction);
     let (mut text, mut color) = label_text.into_inner();
-    text.0 = label(settings.language, *progress);
+    text.0 = label(&locale, *progress);
     color.0 = if progress.failed {
         palette::DAMAGE
     } else {

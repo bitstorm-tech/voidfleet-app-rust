@@ -18,6 +18,7 @@
 //!   gespiegelt.
 
 use bevy::prelude::*;
+use voidfleet_core::board::Side;
 
 /// Weltlage der Brettmitte (z).
 pub const BOARD_Z: f32 = -2.5;
@@ -40,32 +41,12 @@ pub fn slot_z(index: usize, step: f32) -> f32 {
     (index as f32 - (SLOTS as f32 - 1.0) / 2.0) * step
 }
 
-/// Seite des Bretts.
-///
-/// TODO(core): gegen `voidfleet_core::board::Side` tauschen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Side {
-    Player,
-    Enemy,
-}
-
-impl Side {
-    /// +1 für die eigene Seite (Nase nach +x), −1 für den Gegner.
-    pub const fn facing(self) -> f32 {
-        match self {
-            Self::Player => 1.0,
-            Self::Enemy => -1.0,
-        }
+/// +1 für die eigene Seite (Nase nach +x), −1 für den Gegner.
+pub const fn facing(side: Side) -> f32 {
+    match side {
+        Side::Player => 1.0,
+        Side::Enemy => -1.0,
     }
-}
-
-/// Lane einer Seite.
-///
-/// TODO(core): gegen `voidfleet_core::board::LaneType` tauschen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LaneType {
-    Strike,
-    Command,
 }
 
 #[cfg(test)]

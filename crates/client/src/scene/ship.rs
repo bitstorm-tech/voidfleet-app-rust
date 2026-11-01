@@ -8,7 +8,7 @@
 //! sie mit [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
 //!
 //! ```ignore
-//! let ship = spawn_ship(&mut commands, &models, "plasma_frigate", false);
+//! let ship = spawn_ship(&mut commands, &models, ShipId::PlasmaFrigate, false);
 //! commands.entity(ship).insert((
 //!     Transform::from_translation(pad).looking_to(Vec3::X, Vec3::Y).with_scale(Vec3::splat(BOARD_SCALE)),
 //!     ToonState::facing(Side::Player),
@@ -21,11 +21,13 @@ use bevy::{
     world_serialization::{WorldAsset, WorldAssetRoot, WorldInstanceReady},
 };
 
+use voidfleet_core::{board::Side, cards::ShipId};
+
 use super::{
-    coords::Side,
+    coords::facing,
     toon::{ToonMaterial, ToonOutline},
 };
-use crate::data::ship_models::{ShipModels, is_flagship};
+use crate::data::ship_models::ShipModels;
 
 /// Schiffe sind für den Hangar modelliert und auf dem Brett zu groß: Maßstab der Wurzel …
 pub const BOARD_SCALE: f32 = 0.6;
@@ -44,8 +46,8 @@ pub const FLAGSHIP_SCALE: f32 = 1.1;
     ShipMaterials
 )]
 pub struct Ship {
-    /// Karten-Id des Schiffs (TODO(core): Typ aus `voidfleet_core`).
-    pub id: String,
+    /// Karte des Schiffs.
+    pub id: ShipId,
     /// Geist eines eingeplanten Schiffs: bläuliches Hologramm ohne Konturen.
     pub ghost: bool,
 }
@@ -76,7 +78,7 @@ impl ToonState {
     /// Zustand eines Schiffs auf dieser Seite.
     pub fn facing(side: Side) -> Self {
         Self {
-            facing: side.facing(),
+            facing: facing(side),
             ..default()
         }
     }
@@ -117,16 +119,16 @@ pub struct WreckReady {
 }
 
 /// Maßstab des Modells unter der Wurzel.
-fn model_scale(ship: &str) -> f32 {
+fn model_scale(ship: ShipId) -> f32 {
     MODEL_SCALE
-        * if is_flagship(ship) {
+        * if ship.is_flagship() {
             FLAGSHIP_SCALE
         } else {
             1.0
         }
 }
 
-fn model(scene: Handle<WorldAsset>, ship: &str) -> impl Bundle {
+fn model(scene: Handle<WorldAsset>, ship: ShipId) -> impl Bundle {
     (
         Name::new("Modell"),
         ShipModel,
@@ -136,14 +138,16 @@ fn model(scene: Handle<WorldAsset>, ship: &str) -> impl Bundle {
 }
 
 /// Spawnt ein Schiff samt Modell; Lage, Seite ([`ToonState::facing`]) und Eltern setzt der Aufrufer.
-pub fn spawn_ship(commands: &mut Commands, models: &ShipModels, ship: &str, ghost: bool) -> Entity {
+pub fn spawn_ship(
+    commands: &mut Commands,
+    models: &ShipModels,
+    ship: ShipId,
+    ghost: bool,
+) -> Entity {
     commands
         .spawn((
-            Name::new(format!("Schiff {ship}")),
-            Ship {
-                id: ship.to_owned(),
-                ghost,
-            },
+            Name::new(format!("Schiff {ship:?}")),
+            Ship { id: ship, ghost },
         ))
         .with_child(model(models.get(ship).ship.clone(), ship))
         .id()
@@ -175,7 +179,7 @@ fn break_apart(
     // Die Materialien des Modells gehen mit ihm; das Wrack bekommt eigene.
     own.0.clear();
     commands.entity(event.entity).with_child((
-        model(ship_models.get(&ship.id).wreck.clone(), &ship.id),
+        model(ship_models.get(ship.id).wreck.clone(), ship.id),
         Wreck,
     ));
 }

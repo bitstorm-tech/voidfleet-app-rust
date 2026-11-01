@@ -10,47 +10,24 @@ use bevy::{
     world_serialization::WorldAsset,
 };
 
+use voidfleet_core::cards::{FLAGSHIPS, SHIPS, ShipId, TOKENS};
+
+use super::FileKey;
 use crate::assets::Preload;
 
-/// Alle Schiffe mit Modell.
-///
-/// TODO(core): aus den Kartendefinitionen von `voidfleet_core` ableiten.
-pub const SHIPS: [&str; 15] = [
-    "drone",
-    "horizon_cruiser",
-    "iron_dreadnought",
-    "plasma_frigate",
-    "repair_drone",
-    "scrap_raider",
-    "signal_booster",
-    "titan_carrier",
-    "void_interceptor",
-    "decoy",
-    "bastion",
-    "vanguard",
-    "hive",
-    "mirage",
-    "pendulum",
-];
-
-/// Die Flaggschiffe der fünf Admirale; sie stehen etwas größer auf dem Brett.
-///
-/// TODO(core): `voidfleet_core` sagt, ob eine Karte ein Flaggschiff ist.
-pub fn is_flagship(ship: &str) -> bool {
-    matches!(
-        ship,
-        "bastion" | "vanguard" | "hive" | "mirage" | "pendulum"
-    )
+/// Alle Schiffe mit Modell: Deck-Schiffe, Tokens und Flaggschiffe.
+pub fn ships() -> impl Iterator<Item = ShipId> {
+    SHIPS.into_iter().chain(TOKENS).chain(FLAGSHIPS)
 }
 
 /// Asset-Pfad des Modells.
-pub fn ship_model_path(ship: &str) -> String {
-    format!("models/ships/{ship}.glb")
+pub fn ship_model_path(ship: ShipId) -> String {
+    format!("models/ships/{}.glb", ship.file_key())
 }
 
 /// Asset-Pfad der Bruchstücke.
-pub fn wreck_model_path(ship: &str) -> String {
-    format!("models/ships/{ship}_wreck.glb")
+pub fn wreck_model_path(ship: ShipId) -> String {
+    format!("models/ships/{}_wreck.glb", ship.file_key())
 }
 
 /// Szene eines Schiffs und seines Wracks.
@@ -62,15 +39,15 @@ pub struct ShipModel {
 
 /// Modelle und Wracks aller Schiffe, beim Start geladen.
 #[derive(Resource)]
-pub struct ShipModels(HashMap<&'static str, ShipModel>);
+pub struct ShipModels(HashMap<ShipId, ShipModel>);
 
 impl ShipModels {
-    /// Modell und Wrack eines Schiffs (TODO(core): Karten-Id statt `&str`).
-    pub fn get(&self, ship: &str) -> &ShipModel {
-        &self.0[ship]
+    /// Modell und Wrack eines Schiffs.
+    pub fn get(&self, ship: ShipId) -> &ShipModel {
+        &self.0[&ship]
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&'static str, &ShipModel)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ShipId, &ShipModel)> {
         self.0.iter().map(|(id, model)| (*id, model))
     }
 }
@@ -78,8 +55,7 @@ impl ShipModels {
 pub(super) fn load(mut commands: Commands, server: Res<AssetServer>, mut preload: ResMut<Preload>) {
     let mut scene =
         |path: String| preload.track(server.load(GltfAssetLabel::Scene(0).from_asset(path)));
-    let models = SHIPS
-        .into_iter()
+    let models = ships()
         .map(|ship| {
             let model = ShipModel {
                 ship: scene(ship_model_path(ship)),
