@@ -2,7 +2,8 @@
 //!
 //! Fundament, das auch die Dialoge tragen:
 //! - [`theme`] — Farben der Flächen, Schrift-Helfer, Steuerpult der Dialoge, [`theme::UiOpacity`], [`theme::Modal`].
-//! - [`button`] — Tasten mit Tiefe ([`button::button`], [`button::text_button`], [`button::icon_button`]).
+//! - [`button`] — HUD-Schaltflächen mit Eckklammern ([`button::button`], [`button::text_button`],
+//!   [`button::icon_button`]).
 //! - [`tooltip`] — [`tooltip::Tooltip`] statt des `title`-Attributs.
 //! - [`card`] — Schiffs-, Befehls- und Fähigkeitskarten ([`card::ship_card`], [`card::command_card`],
 //!   [`card::power_card`]).

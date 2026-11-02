@@ -232,7 +232,6 @@ fn spawn_result(
                 (
                     Node {
                         border: UiRect::all(px(1)),
-                        border_radius: BorderRadius::all(px(5)),
                         ..theme::overlay()
                     },
                     BorderColor::all(color.with_alpha(0.7)),

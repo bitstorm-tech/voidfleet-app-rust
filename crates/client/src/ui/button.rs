@@ -1,10 +1,12 @@
-//! Knöpfe als Tasten eines Steuerpults (Port von `#ui button` in `styles.css`): gewölbte Oberseite, sichtbare Flanke
-//! unten und Schlagschatten. Hover hebt die Taste an und lässt sie leuchten, Drücken senkt sie fast bis aufs Pult,
-//! gesperrt ([`InteractionDisabled`]) ist sie blass. Varianten setzen nur Farben und Ruhehöhe ([`Key`]).
+//! Knöpfe als Schaltflächen eines Raumschiff-HUDs: kantige Fläche aus getöntem Glas mit feinem Rahmen, Licht, das
+//! von der Unterkante aufsteigt, und vier leuchtende Eckklammern. Hover lässt die Fläche aufleuchten und die Klammern
+//! auseinanderfahren, Drücken zieht sie zusammen und blitzt auf, gesperrt ([`InteractionDisabled`]) ist die Taste
+//! blass. Varianten setzen nur Farben ([`Key`]).
 //!
 //! Gebaut wird mit [`button`], [`text_button`] oder [`icon_button`]; die Taste ist ein `bevy_ui_widgets`-[`Button`]
 //! und meldet einen Klick (auch Enter/Leertaste bei Fokus) als [`Activate`] an ihre Entity — wer sie baut, hängt einen
-//! Observer an (`.observe(|_: On<Activate>| …)`). Den Klick-Klang spielt jede Taste selbst.
+//! Observer an (`.observe(|_: On<Activate>| …)`). Den Klick-Klang spielt jede Taste selbst, die Eckklammern hängt sie
+//! sich selbst an.
 
 use bevy::{
     picking::hover::Hovered,
@@ -14,7 +16,7 @@ use bevy::{
 };
 
 use super::{
-    theme::{self, rgb},
+    theme::{self, rgb, rgba},
     tooltip::Tooltip,
 };
 use crate::{
@@ -22,59 +24,43 @@ use crate::{
     palette,
 };
 
-/// Farben und Ruhehöhe einer Taste (`--face`, `--edge`, `--glow`, `--rest`).
+/// Farben einer Taste.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Key {
-    /// Oberseite.
+    /// Fläche (getöntes Glas, leicht durchscheinend).
     pub face: Color,
-    /// Flanke unten.
-    pub edge: Color,
-    /// Leuchten beim Überfahren.
+    /// Leuchtfarbe von Rahmen, Eckklammern und Schein.
     pub glow: Color,
-    /// Höhe der Flanke in Ruhe (logische Pixel).
-    pub rest: f32,
 }
 
 impl Key {
     /// Gewöhnliche Taste.
     pub const NORMAL: Self = Self {
-        face: rgb(52, 60, 76),
-        edge: rgb(20, 24, 32),
+        face: rgba(18, 28, 42, 0.86),
         glow: palette::PLAYER,
-        rest: 4.0,
     };
 
-    /// Hauptaktion („Zug beenden“, „Übernehmen“, „Neues Match“): leuchtet in der eigenen Farbe.
+    /// Hauptaktion („Zug beenden“, „Übernehmen“, „Neues Match“): leuchtet in der Auswahlfarbe.
     pub const PRIMARY: Self = Self {
-        face: rgb(34, 96, 150),
-        edge: rgb(12, 40, 66),
+        face: rgba(12, 56, 88, 0.9),
         glow: palette::SELECT,
-        rest: 4.0,
     };
 
     /// Gefahr („Aufgeben“): warnt rot.
     pub const DANGER: Self = Self {
-        face: rgb(132, 40, 34),
-        edge: rgb(58, 16, 14),
+        face: rgba(76, 20, 18, 0.9),
         glow: palette::LOST,
-        rest: 4.0,
     };
 
-    /// Flache Icon-Taste oben rechts.
-    pub const ICON: Self = Self {
-        rest: 3.0,
-        ..Self::NORMAL
-    };
+    /// Icon-Taste oben rechts.
+    pub const ICON: Self = Self::NORMAL;
 
     /// Taste im Ton einer Akzentfarbe, etwa die Zielerfassung in der Farbe des Admirals.
     pub fn tinted(accent: Color) -> Self {
-        let accent = accent.to_srgba();
-        let mix = |base: Srgba, share: f32| Color::from(base.mix(&accent, share));
+        let face = rgb(14, 18, 26).to_srgba().mix(&accent.to_srgba(), 0.22);
         Self {
-            face: mix(rgb(30, 34, 44).to_srgba(), 0.3),
-            edge: mix(rgb(10, 12, 16).to_srgba(), 0.25),
-            glow: accent.into(),
-            rest: 3.0,
+            face: Color::from(face).with_alpha(0.9),
+            glow: accent,
         }
     }
 }
@@ -96,13 +82,28 @@ pub struct Pulsing;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct KeyIcon;
 
-/// Der laufende Zustand der Tastenbewegung; folgt dem Ziel aus Hover, Druck und Sperre.
+/// Eine Eckklammer der Taste; `Vec2` zeigt von der Mitte nach außen (x: −1 links, +1 rechts; y: −1 oben, +1 unten).
+#[derive(Component, Clone, Copy, Debug)]
+struct KeyCorner(Vec2);
+
+/// Der laufende Zustand der Taste; folgt dem Ziel aus Hover, Druck und Sperre.
 #[derive(Component, Clone, Copy, Debug)]
 struct KeyMotion {
-    depth: f32,
+    /// Wie weit die Eckklammern nach außen gefahren sind (logische Pixel, negativ: nach innen).
+    spread: f32,
+    /// Unschärfe des Scheins um die Taste.
     halo: f32,
+    /// Helligkeit der Fläche.
     bright: f32,
+    /// Leuchten von Klammern und Licht (0 Ruhe, 1 aktiv).
+    heat: f32,
+    /// Noch nie gezeichnet (oder neue Farben): einmal anwenden, auch wenn sich nichts bewegt.
+    fresh: bool,
 }
+
+/// Kantenlänge und Stärke der Eckklammern (logische Pixel).
+const CORNER: f32 = 7.0;
+const CORNER_WIDTH: f32 = 2.0;
 
 /// Eine Taste: `node` legt Größe und Innenabstand fest, Rand und Ecken setzt die Taste selbst.
 pub fn button(key: Key, node: Node) -> impl Bundle {
@@ -111,28 +112,79 @@ pub fn button(key: Key, node: Node) -> impl Bundle {
         Hovered::default(),
         key,
         KeyMotion {
-            depth: key.rest,
+            spread: 0.0,
             halo: 0.0,
             bright: 1.0,
+            heat: 0.0,
+            fresh: true,
         },
         Node {
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(5)),
+            border_radius: BorderRadius::ZERO,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..node
         },
         BackgroundColor(key.face),
-        // Wölbung: oben Licht, unten Schatten, über der Farbe der Oberseite.
-        theme::vertical_gradient(&[
-            (Color::WHITE.with_alpha(0.17), 0.0),
-            (Color::WHITE.with_alpha(0.04), 46.0),
-            (Color::BLACK.with_alpha(0.04), 54.0),
-            (Color::BLACK.with_alpha(0.24), 100.0),
-        ]),
-        BorderColor::all(Color::BLACK.with_alpha(0.65)),
+        glass(key.glow, 0.0, 1.0),
+        BorderColor::all(key.glow.with_alpha(0.32)),
         BoxShadow::default(),
     )
+}
+
+/// Das Licht auf dem Glas: ein heller Streif oben, ein Schimmer der Leuchtfarbe, der von unten aufsteigt (stärker mit
+/// `heat`).
+fn glass(glow: Color, heat: f32, opacity: f32) -> BackgroundGradient {
+    theme::vertical_gradient(&[
+        (Color::WHITE.with_alpha(0.12 * opacity), 0.0),
+        (Color::WHITE.with_alpha(0.03 * opacity), 8.0),
+        (Color::WHITE.with_alpha(0.0), 50.0),
+        (glow.with_alpha((0.1 + 0.18 * heat) * opacity), 100.0),
+    ])
+}
+
+/// Eine Eckklammer: zwei Kanten eines kleinen Quadrats, bündig auf der Ecke des Rahmens.
+fn corner(direction: Vec2, color: Color) -> impl Bundle {
+    let at = |outward: bool| if outward { px(-1.0) } else { Val::Auto };
+    let edge = |on: bool| if on { px(CORNER_WIDTH) } else { Val::ZERO };
+    let (left, top) = (direction.x < 0.0, direction.y < 0.0);
+    (
+        KeyCorner(direction),
+        Node {
+            position_type: PositionType::Absolute,
+            width: px(CORNER),
+            height: px(CORNER),
+            left: at(left),
+            right: at(!left),
+            top: at(top),
+            bottom: at(!top),
+            border: UiRect {
+                left: edge(left),
+                right: edge(!left),
+                top: edge(top),
+                bottom: edge(!top),
+            },
+            ..default()
+        },
+        BorderColor::all(color),
+        UiTransform::default(),
+        Pickable::IGNORE,
+    )
+}
+
+/// Hängt jeder neuen Taste ihre vier Eckklammern an.
+fn add_corners(add: On<Add<Key>>, keys: Query<&Key>, mut commands: Commands) {
+    let Ok(key) = keys.get(add.entity) else {
+        return;
+    };
+    for direction in [
+        Vec2::new(-1.0, -1.0),
+        Vec2::new(1.0, -1.0),
+        Vec2::new(-1.0, 1.0),
+        Vec2::new(1.0, 1.0),
+    ] {
+        commands.spawn((corner(direction, key.glow), ChildOf(add.entity)));
+    }
 }
 
 /// Eine Taste mit Beschriftung in der Display-Schrift (groß geschrieben und gesperrt).
@@ -203,7 +255,7 @@ pub fn set_enabled(commands: &mut Commands, key: Entity, enabled: bool) {
     }
 }
 
-/// Wie schnell die Taste ihrem Ziel folgt (1/s): etwa 0,08 s wie die CSS-Transition, gedrückt schneller.
+/// Wie schnell die Taste ihrem Ziel folgt (1/s): etwa 0,08 s, gedrückt schneller.
 const FOLLOW: f32 = 40.0;
 const FOLLOW_PRESSED: f32 = 100.0;
 /// Halbe Periode des Pulsierens (Sekunden).
@@ -211,7 +263,7 @@ const PULSE: f32 = 1.1;
 
 type KeyState<'a> = (
     Entity,
-    &'a Key,
+    Ref<'a, Key>,
     &'a Hovered,
     Has<Pressed>,
     Has<InteractionDisabled>,
@@ -220,15 +272,16 @@ type KeyState<'a> = (
     Has<Pulsing>,
     &'a mut KeyMotion,
     &'a mut BackgroundColor,
+    &'a mut BackgroundGradient,
     &'a mut BoxShadow,
-    &'a mut UiTransform,
 );
 
-/// Hebt, senkt und beleuchtet die Tasten nach Hover, Druck und Sperre.
+/// Lässt die Tasten nach Hover, Druck und Sperre aufleuchten und ihre Eckklammern fahren.
 fn animate_keys(
     time: Res<Time>,
     mut keys: Query<KeyState>,
     children: Query<&Children>,
+    mut corners: Query<(&KeyCorner, &mut BorderColor, &mut UiTransform)>,
     mut labels: Query<&mut TextColor>,
     mut icons: Query<&mut ImageNode, With<KeyIcon>>,
 ) {
@@ -245,27 +298,31 @@ fn animate_keys(
         pulsing,
         mut motion,
         mut face,
+        mut gradient,
         mut shadow,
-        mut transform,
     ) in &mut keys
     {
         let hovered = hovered.get() && !disabled;
         let pressed = pressed && !disabled;
-        let (depth, halo, bright) = if disabled {
-            (key.rest, 0.0, 0.8)
+        let (spread, halo, bright, heat) = if disabled {
+            (0.0, 0.0, 0.8, 0.0)
         } else if pressed {
-            (1.0, 8.0, 0.94)
+            (-1.0, 10.0, 1.45, 1.0)
         } else if hovered || lit {
-            (key.rest + 1.0, 16.0, 1.14)
+            (2.5, 14.0, 1.3, 1.0)
         } else {
-            (key.rest, 0.0, 1.0)
+            (0.0, 0.0, 1.0, 0.0)
         };
         let halo = if pulsing && !pressed { pulse } else { halo };
         let rate = if pressed { FOLLOW_PRESSED } else { FOLLOW };
-        let mut next = *motion;
-        next.depth.smooth_nudge(&depth, rate, delta);
+        let mut next = KeyMotion {
+            fresh: false,
+            ..*motion
+        };
+        next.spread.smooth_nudge(&spread, rate, delta);
         next.halo.smooth_nudge(&halo, rate, delta);
         next.bright.smooth_nudge(&bright, rate, delta);
+        next.heat.smooth_nudge(&heat, rate, delta);
         let opacity = if disabled {
             0.5
         } else if dimmed {
@@ -273,29 +330,40 @@ fn animate_keys(
         } else {
             1.0
         };
-        let settled = (next.depth - motion.depth).abs() < 0.001
+        let alpha = key.face.alpha() * opacity;
+        let settled = !motion.fresh
+            && !key.is_changed()
+            && (next.spread - motion.spread).abs() < 0.001
             && (next.halo - motion.halo).abs() < 0.001
             && (next.bright - motion.bright).abs() < 0.0005
-            && (face.0.alpha() - opacity).abs() < 0.001
-            && !shadow.is_empty();
+            && (next.heat - motion.heat).abs() < 0.0005
+            && (face.0.alpha() - alpha).abs() < 0.001;
         if settled {
             continue;
         }
         *motion = next;
         let lit_face = key.face.to_srgba() * motion.bright;
-        face.0 = Color::from(lit_face).with_alpha(opacity);
-        transform.translation = Val2::px(0.0, key.rest - motion.depth);
-        // CSS nennt den obersten Schatten zuerst, Bevy zeichnet von hinten nach vorn.
+        face.0 = Color::from(lit_face).with_alpha(alpha);
+        *gradient = glass(key.glow, motion.heat, opacity);
+        // Bevy zeichnet die Schatten von hinten nach vorn.
         shadow.0 = vec![
-            theme::glow(key.glow.with_alpha(0.45 * opacity), motion.halo),
-            theme::drop(
-                Color::BLACK.with_alpha(0.55 * opacity),
-                0.0,
-                motion.depth + 3.0,
-                9.0,
-            ),
-            theme::drop(key.edge.with_alpha(opacity), 0.0, motion.depth, 0.0),
+            theme::glow(key.glow.with_alpha(0.5 * opacity), motion.halo),
+            theme::drop(Color::BLACK.with_alpha(0.5 * opacity), 0.0, 2.0, 6.0),
         ];
+        let bracket = key.glow.with_alpha((0.55 + 0.45 * motion.heat) * opacity);
+        let mut found = false;
+        if let Ok(list) = children.get(entity) {
+            for child in list.iter() {
+                if let Ok((corner, mut border, mut transform)) = corners.get_mut(child) {
+                    found = true;
+                    border.set_all(bracket);
+                    let offset = corner.0 * motion.spread;
+                    transform.translation = Val2::px(offset.x, offset.y);
+                }
+            }
+        }
+        // Die Klammern entstehen erst mit den Befehlen nach dem Bau: bis dahin noch einmal anwenden.
+        motion.fresh = !found;
         for child in children.iter_descendants(entity) {
             if let Ok(mut label) = labels.get_mut(child) {
                 label.0.set_alpha(opacity);
@@ -328,6 +396,7 @@ pub(super) struct ButtonPlugin;
 impl Plugin for ButtonPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(click_sound)
+            .add_observer(add_corners)
             .add_systems(Update, animate_keys);
     }
 }
