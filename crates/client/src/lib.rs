@@ -41,10 +41,11 @@ use bevy::{
     log::{DEFAULT_FILTER, LogPlugin},
     pbr::PbrPlugin,
     prelude::*,
+    render::pipelined_rendering::PipelinedRenderingPlugin,
     window::WindowPlugin,
 };
 
-use std::path::PathBuf;
+use std::{num::NonZero, path::PathBuf};
 
 pub use assets::{AppState, LoadingPhase};
 
@@ -79,10 +80,16 @@ impl Plugin for ClientPlugin {
                     primary_window: Some(Window {
                         title: "Voidfleet".into(),
                         name: Some("voidfleet".into()),
+                        // Höchstens ein Bild in der Warteschlange der GPU statt zwei: Der selbst gezeichnete
+                        // Mauszeiger (`ui::cursor`) hinkt der Maus so ein Bild weniger hinterher.
+                        desired_maximum_frame_latency: NonZero::new(1),
                         ..default()
                     }),
                     ..default()
                 })
+                // Aus demselben Grund ohne Pipelined Rendering, das ein Bild erst im nächsten Frame rendert; das
+                // Spiel braucht den Durchsatz nicht.
+                .disable::<PipelinedRenderingPlugin>()
                 // Die MP3s tragen ID3-Kopfdaten, über die Symphonia bei jeder Datei warnt; beim Streamen
                 // der Musik meldet es außerdem harmlos das Bit-Reservoir des ersten Frames.
                 .set(LogPlugin {

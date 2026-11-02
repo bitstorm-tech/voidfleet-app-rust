@@ -6,7 +6,8 @@
 //! Retina doppelt hochgezogen, unscharf), anderswo als physische Pixel (bei hoher Skalierung winzig). Hier rastert
 //! `resvg` das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) genau auf Größe ×
 //! Skalierungsfaktor, neu bei jedem Wechsel von Zeiger, Größe oder Bildschirm. Der Preis: Der Zeiger kommt mit dem
-//! Spielbild und hinkt dem Systemzeiger um ein bis zwei Bilder hinterher.
+//! Spielbild und hinkt dem Systemzeiger etwas hinterher; damit es nur ein Bild ist, läuft das Spiel ohne Pipelined
+//! Rendering und mit höchstens einem Bild in der Warteschlange der GPU (`ClientPlugin`).
 
 use bevy::{
     asset::RenderAssetUsages,
