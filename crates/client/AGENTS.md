@@ -36,7 +36,8 @@ Je Bereich ein Plugin, zusammengefasst in `ClientPlugin` (`lib.rs`, dort auch Fe
 
 ## Werkzeuge
 
-- `tools/rasterize` (eigenes Cargo-Projekt außerhalb des Workspaces, `cargo run --release --manifest-path tools/rasterize/Cargo.toml`): rastert die Icons nach `assets/images/ui/` und die Figuren des Regel-Dialogs ohne Beschriftung nach `assets/images/rules/`, weil Bevy kein SVG zeichnet (die Mauszeiger rastert der Client selbst). Schiffsmodelle, Kartenbilder und Audio entstehen weiter mit den Werkzeugen des TS-Repos (`tools/ships/`, `generateCardArt.ts`, `generateAudio.ts`, siehe dort `client/AGENTS.md`) und werden nach `assets/` kopiert.
+- `tools/rasterize` (eigenes Cargo-Projekt außerhalb des Workspaces, `cargo run --release --manifest-path tools/rasterize/Cargo.toml`): rastert die Icons nach `assets/images/ui/` und die Figuren des Regel-Dialogs ohne Beschriftung nach `assets/images/rules/`, weil Bevy kein SVG zeichnet (die Mauszeiger rastert der Client selbst). Kartenbilder und Audio entstehen weiter mit den Werkzeugen des TS-Repos (`generateCardArt.ts`, `generateAudio.ts`, siehe dort `client/AGENTS.md`) und werden nach `assets/` kopiert.
+- `tools/ships/` (Python für Blender, außerhalb des Workspaces): baut die Schiffsmodelle direkt nach `assets/models/ships/` (`just ships`, `just ship-preview`, siehe die Wurzel-`AGENTS.md`). Die Werte in `look.py` und `palette.py` müssen zu `scene/toon/look.rs`, `assets/shaders/toon.wesl` und `palette.rs` passen; wer den Look auf einer Seite ändert, ändert die andere mit.
 
 ## Status
 

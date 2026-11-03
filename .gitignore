@@ -1,1 +1,4 @@
 /target
+__pycache__/
+# Vorschau-Renders der Schiffe (tools/ships/preview.py)
+/tools/ships/renders/

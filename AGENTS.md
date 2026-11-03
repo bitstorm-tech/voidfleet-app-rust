@@ -15,6 +15,7 @@ Rust-Port des TypeScript-Originals (Babylon.js-Client, Bun-Server, Electron-App)
 - `crates/core` (`voidfleet-core`) — das Regelwerk ohne Ein- und Ausgabe: Karten, Brett, Admirale und Fähigkeiten, das Protokoll zwischen Client und Server und die Auflösung einer Runde. Siehe `crates/core/AGENTS.md`.
 - `crates/server` (`voidfleet-server`) — der Spielserver (axum, WebSocket): Matches, Zugprüfung, Nachschub, der Computergegner und das Simulationswerkzeug `simulate`. Läuft eigenständig oder im Client eingebettet. Siehe `crates/server/AGENTS.md`.
 - `crates/client` (`voidfleet-client`, Binary `voidfleet`) — der Desktop-Client in Bevy: Netz, Spielzustand, Controller, 3D-Szene, Rundenwiedergabe, Oberfläche, Ton, Texte (Deutsch/Englisch), Dev-Werkzeuge. Siehe `crates/client/AGENTS.md`.
+- `tools/ships` — baut die 3D-Modelle der Schiffe und ihre Wracks per Python-Skript in Blender nach `assets/models/ships/` (`just ships [ids…]`, Vorschau-Renders mit `just ship-preview`; `BLENDER` ist der Pfad zu Blender, auf dem Linux-Server `~/.local/opt/blender-5.2.3-linux-x64/run.sh`). Aufbau, Material-Vertrag und Stilregeln in den Modulkommentaren von `build.py`, `vf.py`, `look.py`, `preview.py` und in `STYLE.md`.
 - `tools/rasterize` — eigenständiges Werkzeug außerhalb des Workspaces: rastert Icons und Regel-Illustrationen einmalig zu PNG (`cargo run --release --manifest-path tools/rasterize/Cargo.toml`).
 
 ## Befehle

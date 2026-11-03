@@ -73,3 +73,11 @@ smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":
 # Mauszeiger, Icons und Regel-Illustrationen zu PNG rastern
 rasterize:
     cargo run --release --manifest-path tools/rasterize/Cargo.toml
+
+# Schiffsmodelle in Blender bauen (alle oder die angegebenen Ids) nach assets/models/ships/; BLENDER = Pfad zu Blender
+ships *ids:
+    "${BLENDER:-blender}" -b --factory-startup -P tools/ships/build.py -- {{ ids }}
+
+# Vorschau-Renders der Schiffe nach tools/ships/renders/ (z. B. `just ship-preview vanguard --views board,hero`)
+ship-preview *args:
+    "${BLENDER:-blender}" -b --factory-startup -P tools/ships/preview.py -- {{ args }}
