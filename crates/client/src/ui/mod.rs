@@ -18,7 +18,7 @@
 //! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
 //! - [`dialogs`] — Admiralswahl, Nachschub, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln,
 //!   Aufgeben); Schnittstelle dort.
-//! - [`cursor`] — der gewählte Mauszeiger in der gewählten Größe, selbst gezeichnet.
+//! - [`cursor`] — der gewählte Mauszeiger in der gewählten Größe als Systemzeiger.
 //! - [`preview`] — Dev-Ansicht mit Beispiel-Hand (`VOIDFLEET_UI_PREVIEW`).
 //!
 //! Schnittstelle zum Controller: Die Widgets lesen [`Match`](crate::game::Match), [`Locale`] und [`HudState`]

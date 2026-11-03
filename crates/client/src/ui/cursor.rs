@@ -1,21 +1,27 @@
 //! Der Mauszeiger (Port von `ui/cursor.ts`): einer von zehn Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
 //! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster.
 //!
-//! Der Systemzeiger ist ausgeblendet, stattdessen folgt ein UI-Knoten über allem der Maus. Denn ein eigener
-//! Systemzeiger (`CursorIcon::Custom`) wäre ein festes Bild: unter macOS zählt winit dessen Pixel als Punkte (auf
-//! Retina doppelt hochgezogen, unscharf), anderswo als physische Pixel (bei hoher Skalierung winzig). Hier rastert
-//! `resvg` das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) genau auf Größe ×
-//! Skalierungsfaktor, neu bei jedem Wechsel von Zeiger, Größe oder Bildschirm. Der Preis: Der Zeiger kommt mit dem
-//! Spielbild und hinkt dem Systemzeiger etwas hinterher; damit es nur ein Bild ist, läuft das Spiel ohne Pipelined
-//! Rendering und mit höchstens einem Bild in der Warteschlange der GPU (`ClientPlugin`).
+//! Es ist der Systemzeiger mit eigenem Bild, den das Betriebssystem unabhängig vom Spielbild zeichnet, also ohne
+//! Verzögerung. `resvg` rastert das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) so,
+//! dass jedes Pixel einem des Bildschirms entspricht. Unter Windows und Linux geht das Bild als `CursorIcon::Custom`
+//! an winit, das es in physischen Pixeln nimmt: Größe × Skalierungsfaktor, neu bei jedem Wechsel des Faktors. Unter
+//! macOS nähme winit es in Punkten (auf Retina unscharf), darum setzt [`macos`] den Zeiger dort direkt über AppKit,
+//! mit einem Bild je Auflösung.
 
+#[cfg(target_os = "macos")]
+mod macos;
+
+#[cfg(not(target_os = "macos"))]
+use bevy::window::{
+    CursorIcon, CustomCursor, CustomCursorImage, PrimaryWindow, WindowScaleFactorChanged,
+};
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
-    ui::UiSystems,
-    window::{CursorOptions, PrimaryWindow},
 };
+#[cfg(target_os = "macos")]
+use bevy::{ecs::system::NonSendMarker, window::WindowFocused};
 use resvg::{tiny_skia, usvg};
 
 use crate::settings::{CursorId, Settings};
@@ -69,8 +75,13 @@ const fn hotspot(cursor: CursorId) -> Vec2 {
     }
 }
 
+/// Die gewählte Größe in Punkten, im erlaubten Bereich.
+fn chosen_size(settings: &Settings) -> f32 {
+    settings.cursor_size.clamp(MIN_SIZE, MAX_SIZE)
+}
+
 /// Rastert einen Zeiger auf `pixels` × `pixels`.
-fn rasterize(cursor: CursorId, pixels: u32) -> Image {
+fn pixmap(cursor: CursorId, pixels: u32) -> tiny_skia::Pixmap {
     let tree = usvg::Tree::from_str(svg(cursor), &usvg::Options::default())
         .expect("eingebettetes SVG ist gültig");
     let mut pixmap = tiny_skia::Pixmap::new(pixels, pixels).expect("Fläche");
@@ -80,8 +91,13 @@ fn rasterize(cursor: CursorId, pixels: u32) -> Image {
         tiny_skia::Transform::from_scale(scale, scale),
         &mut pixmap.as_mut(),
     );
+    pixmap
+}
+
+/// Rastert einen Zeiger auf `pixels` × `pixels` als Bild für Bevy.
+fn rasterize(cursor: CursorId, pixels: u32) -> Image {
     // tiny-skia rechnet mit vormultipliziertem Alpha, Bevy erwartet es gerade.
-    let data = pixmap
+    let data = pixmap(cursor, pixels)
         .pixels()
         .iter()
         .flat_map(|pixel| {
@@ -98,7 +114,8 @@ fn rasterize(cursor: CursorId, pixels: u32) -> Image {
         TextureDimension::D2,
         data,
         TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::RENDER_WORLD,
+        // Die Hauptwelt behält die Pixel: Aus ihnen baut `bevy_winit` den Systemzeiger.
+        RenderAssetUsages::default(),
     )
 }
 
@@ -128,81 +145,76 @@ impl CursorImages {
     }
 }
 
-/// Der Knoten, der der Maus folgt, mit dem Abstand der Spitze von seiner oberen linken Ecke in logischen Pixeln.
-#[derive(Component, Default)]
-struct Pointer {
-    hotspot: Vec2,
-}
-
-/// Blendet den Systemzeiger aus und legt den Zeiger an.
-fn setup(mut commands: Commands, mut window: Single<&mut CursorOptions, With<PrimaryWindow>>) {
-    window.visible = false;
-    commands.spawn((
-        Name::new("Mauszeiger"),
-        Pointer::default(),
-        Node {
-            position_type: PositionType::Absolute,
-            ..default()
-        },
-        ImageNode::default(),
-        GlobalZIndex(i32::MAX),
-        Pickable::IGNORE,
-        Visibility::Hidden,
-    ));
-}
-
-/// Rastert den Zeiger neu, wenn sich Wahl, Größe oder Skalierungsfaktor ändern; so deckt sich jedes Pixel des Bildes
-/// mit einem des Bildschirms.
-fn render(
+/// Setzt den gewählten Zeiger als Systemzeiger: beim Start und wenn sich Wahl, Größe oder Skalierungsfaktor ändern.
+#[cfg(not(target_os = "macos"))]
+fn apply(
+    mut commands: Commands,
     settings: Res<Settings>,
-    window: Single<&Window, With<PrimaryWindow>>,
+    window: Single<(Entity, &Window), With<PrimaryWindow>>,
     mut images: ResMut<Assets<Image>>,
-    pointer: Single<(&mut Pointer, &mut Node, &mut ImageNode)>,
-    mut rendered: Local<Option<(CursorId, u32)>>,
+    mut applied: Local<Option<(CursorId, u32)>>,
 ) {
-    let scale = window.scale_factor();
-    let pixels = (settings.cursor_size.clamp(MIN_SIZE, MAX_SIZE) * scale).round() as u32;
+    let (entity, window) = window.into_inner();
+    let pixels = (chosen_size(&settings) * window.scale_factor()).round() as u32;
     let wanted = (settings.cursor, pixels);
-    if *rendered == Some(wanted) {
+    if *applied == Some(wanted) {
         return;
     }
-    *rendered = Some(wanted);
-    let (mut pointer, mut node, mut image) = pointer.into_inner();
-    let size = pixels as f32 / scale;
-    pointer.hotspot = hotspot(settings.cursor) * size / ART_SIZE;
-    node.width = px(size);
-    node.height = px(size);
-    // Das alte Bild gibt Bevy frei, sobald niemand mehr seinen Handle hält.
-    image.image = images.add(rasterize(settings.cursor, pixels));
+    *applied = Some(wanted);
+    let spot = (hotspot(settings.cursor) * pixels as f32 / ART_SIZE).round();
+    commands
+        .entity(entity)
+        .insert(CursorIcon::Custom(CustomCursor::Image(CustomCursorImage {
+            handle: images.add(rasterize(settings.cursor, pixels)),
+            hotspot: (spot.x as u16, spot.y as u16),
+            ..default()
+        })));
 }
 
-/// Setzt den Zeiger an die Maus; außerhalb des Fensters ist er verborgen. Unter macOS zeigt das System seinen Zeiger
-/// über einem Fenster ohne Fokus wieder, dann verbirgt sich unserer.
-fn follow(
-    window: Single<&Window, With<PrimaryWindow>>,
-    pointer: Single<(&Pointer, &mut Node, &mut Visibility)>,
+/// Setzt den gewählten Zeiger als Systemzeiger: beim Start und wenn sich Wahl oder Größe ändern. Je ein Bild in
+/// einfacher und doppelter Auflösung, AppKit wählt je Bildschirm das passende.
+#[cfg(target_os = "macos")]
+fn apply(
+    _main_thread: NonSendMarker,
+    settings: Res<Settings>,
+    mut applied: Local<Option<(CursorId, f32)>>,
 ) {
-    let (pointer, mut node, mut visibility) = pointer.into_inner();
-    let shown = cfg!(not(target_os = "macos")) || window.focused;
-    let Some(at) = window.cursor_position().filter(|_| shown) else {
-        visibility.set_if_neq(Visibility::Hidden);
+    let points = chosen_size(&settings);
+    let wanted = (settings.cursor, points);
+    if *applied == Some(wanted) {
         return;
-    };
-    visibility.set_if_neq(Visibility::Inherited);
-    let corner = at - pointer.hotspot;
-    if node.left != px(corner.x) || node.top != px(corner.y) {
-        node.left = px(corner.x);
-        node.top = px(corner.y);
     }
+    *applied = Some(wanted);
+    let pngs = [1, 2].map(|scale| {
+        pixmap(settings.cursor, points.round() as u32 * scale)
+            .encode_png()
+            .expect("PNG aus dem Zeigerbild")
+    });
+    macos::install(pngs, points, hotspot(settings.cursor) * points / ART_SIZE);
 }
 
 pub(super) struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CursorImages>()
-            .add_systems(PreStartup, setup)
-            .add_systems(PostUpdate, (render, follow).before(UiSystems::Prepare));
+        app.init_resource::<CursorImages>();
+        #[cfg(not(target_os = "macos"))]
+        app.add_systems(
+            Update,
+            apply.run_if(
+                resource_changed::<Settings>.or_else(on_message::<WindowScaleFactorChanged>),
+            ),
+        );
+        #[cfg(target_os = "macos")]
+        app.add_systems(
+            Update,
+            (
+                apply.run_if(resource_changed::<Settings>),
+                macos::reapply
+                    .run_if(on_message::<CursorEntered>.or_else(on_message::<WindowFocused>)),
+            )
+                .chain(),
+        );
     }
 }
 
