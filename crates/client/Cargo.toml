@@ -35,21 +35,30 @@ rand.workspace = true
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = [
     "std",
+    "NSArray",
     "NSData",
+    "NSEnumerator",
     "NSGeometry",
     "objc2-core-foundation",
 ] }
 objc2-app-kit = { version = "0.3", default-features = false, features = [
     "std",
     "NSApplication",
+    "NSBitmapImageRep",
     "NSCell",
     "NSControl",
+    "NSCursor",
     "NSDockTile",
     "NSImage",
+    "NSImageRep",
     "NSImageView",
     "NSResponder",
     "NSView",
+    "NSWindow",
 ] }
+# Nur für das Feature: Die Zeigerbilder gehen als PNG an AppKit (`ui/cursor/macos.rs`); `resvg` bringt tiny-skia
+# ohne PNG-Unterstützung mit.
+tiny-skia = { version = "0.12", default-features = false, features = ["png-format"] }
 
 [lints]
 workspace = true
