@@ -2,7 +2,7 @@
 //! die eines von drei eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
 //! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern samt Regler für seine
 //! Größe und der Sprache;
-//! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild) und der FPS-Anzeige; „Sound“ mit den Reglern für Musik, Effekte und
+//! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), VSync und der FPS-Anzeige; „Sound“ mit den Reglern für Musik, Effekte und
 //! Bordfunk. Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den Einstellungen, auch wenn
 //! sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der Dialog beim Wechsel
 //! der Tabs seine Größe behält.
@@ -101,6 +101,7 @@ enum Choice {
     Language(Language),
     WindowMode(WindowMode),
     ShowFps(bool),
+    Vsync(bool),
 }
 
 impl Choice {
@@ -112,6 +113,7 @@ impl Choice {
             Self::Language(language) => locale.language == language,
             Self::WindowMode(mode) => settings.window_mode == mode,
             Self::ShowFps(show) => settings.show_fps == show,
+            Self::Vsync(on) => settings.vsync == on,
         }
     }
 
@@ -123,6 +125,7 @@ impl Choice {
             Self::Language(language) => settings.language = Some(language),
             Self::WindowMode(mode) => settings.window_mode = mode,
             Self::ShowFps(show) => settings.show_fps = show,
+            Self::Vsync(on) => settings.vsync = on,
         }
     }
 }
@@ -702,6 +705,18 @@ pub(super) fn spawn(
                                             fonts,
                                             locale.settings_window_mode(),
                                             options(window_modes)
+                                        ),
+                                        choice(
+                                            fonts,
+                                            "VSync",
+                                            options(
+                                                [false, true]
+                                                    .map(|on| (
+                                                        Choice::Vsync(on),
+                                                        locale.on_off(on)
+                                                    ))
+                                                    .into()
+                                            )
                                         ),
                                         choice(
                                             fonts,

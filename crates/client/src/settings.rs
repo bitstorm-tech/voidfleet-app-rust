@@ -10,7 +10,7 @@ use std::{fs, path::PathBuf};
 
 use bevy::{
     prelude::*,
-    window::{MonitorSelection, PrimaryWindow, WindowMode as BevyWindowMode},
+    window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode as BevyWindowMode},
 };
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -114,6 +114,8 @@ pub struct Settings {
     pub window_mode: WindowMode,
     /// FPS-Anzeige oben links, siehe [`crate::ui::fps`].
     pub show_fps: bool,
+    /// Bildaufbau im Takt des Monitors (`PresentMode::Fifo`), sonst ungebremst.
+    pub vsync: bool,
     pub language: Option<Language>,
 }
 
@@ -131,6 +133,7 @@ impl Default for Settings {
             cursor_size: 32.0,
             window_mode: WindowMode::Maximized,
             show_fps: false,
+            vsync: true,
             language: None,
         }
     }
@@ -164,7 +167,7 @@ impl Settings {
     }
 }
 
-/// Lädt die Einstellungen beim Start, speichert jede Änderung und setzt den Fenstermodus.
+/// Lädt die Einstellungen beim Start, speichert jede Änderung und setzt Fenstermodus und VSync.
 pub struct SettingsPlugin;
 
 impl Plugin for SettingsPlugin {
@@ -174,7 +177,7 @@ impl Plugin for SettingsPlugin {
             (
                 save_settings
                     .run_if(resource_changed::<Settings>.and_then(not(resource_added::<Settings>))),
-                apply_window_mode.run_if(resource_changed::<Settings>),
+                (apply_window_mode, apply_vsync).run_if(resource_changed::<Settings>),
             ),
         );
     }
@@ -209,6 +212,18 @@ fn apply_window_mode(
         WindowMode::Fullscreen => {
             window.mode = BevyWindowMode::BorderlessFullscreen(MonitorSelection::Current);
         }
+    }
+}
+
+/// Setzt VSync beim Start und bei jeder Änderung der Einstellung.
+fn apply_vsync(settings: Res<Settings>, mut window: Single<&mut Window, With<PrimaryWindow>>) {
+    let mode = if settings.vsync {
+        PresentMode::Fifo
+    } else {
+        PresentMode::AutoNoVsync
+    };
+    if window.present_mode != mode {
+        window.present_mode = mode;
     }
 }
 
