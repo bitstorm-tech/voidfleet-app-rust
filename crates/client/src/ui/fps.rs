@@ -1,8 +1,11 @@
 //! FPS-Anzeige oben links, über den Einstellungen (Tab „Video“) ein- und ausschaltbar.
 
+use std::time::Duration;
+
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
+    time::common_conditions::on_timer,
 };
 
 use super::{Fonts, theme};
@@ -54,7 +57,9 @@ impl Plugin for FpsPlugin {
                 Update,
                 (
                     show.run_if(resource_changed::<Settings>),
-                    update.run_if(|settings: Res<Settings>| settings.show_fps),
+                    update
+                        .run_if(on_timer(Duration::from_secs(1)))
+                        .run_if(|settings: Res<Settings>| settings.show_fps),
                 ),
             );
     }
