@@ -72,7 +72,16 @@
   .chart-row .n { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
   .chart-row:hover .fill { filter: brightness(1.3); }
   footer { color: var(--dim); font-size: 13px; text-align: center; padding: 60px 0 40px; }
-  .pill { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 12px; font-weight: 600; color: var(--bg); }
+  .uml { cursor: pointer; }
+  .uml text { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  .uml .t { font-family: "Rajdhani", "Exo 2", system-ui, sans-serif; font-size: 15px; font-weight: 700; }
+  .uml:hover > rect:first-child { stroke-width: 2.5; }
+  .dim { opacity: .18; transition: opacity .2s; }
+  .edge-label { font-size: 11px; fill: #9fb3d4; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+  #structTabs button.on { background: var(--accent); border-color: var(--accent); }
+  .rel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .rel { grid-template-columns: 1fr; } }
+  .rel li { cursor: pointer; } .rel li:hover { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -84,7 +93,7 @@
     Alles auf dieser Seite ist anklickbar.</p>
   <nav>
     <a href="#crates">Crates</a><a href="#netz">Ablauf einer Runde</a><a href="#aufloesung">Auflösung</a>
-    <a href="#client">Client-Module</a><a href="#bot">Computergegner</a><a href="#umfang">Umfang</a>
+    <a href="#client">Client-Module</a><a href="#bot">Computergegner</a><a href="#strukturen">Code-Strukturen</a><a href="#umfang">Umfang</a>
   </nav>
 </header>
 
@@ -222,8 +231,26 @@
 </section>
 
 <!-- ============ UMFANG ============ -->
+<section id="strukturen">
+  <h2>6 · Code-Strukturen</h2>
+  <p class="lead">Die wichtigsten Structs, Enums und Funktionen und wie sie zusammenhängen, mit den echten Feldern aus dem Code
+    (gekürzt). Ein Klick auf einen Kasten hebt seine Beziehungen hervor und erklärt ihn; ein Klick ins Leere hebt die Auswahl auf.</p>
+  <div class="panel">
+    <div class="tabs" id="structTabs"></div>
+    <p id="structIntro" style="margin:0 0 10px;color:var(--dim)"></p>
+    <svg id="structSvg" width="100%"></svg>
+    <div class="legend">
+      <span><i style="background:#7f93b3"></i>enthält / Feld</span>
+      <span><i style="background:transparent;border:1px dashed #7f93b3"></i>verweist / nutzt</span>
+      <span><i style="background:var(--accent)"></i>wird zu / Datenfluss</span>
+      <span>Kasten: <b>struct</b> · <i style="background:transparent;border:1px dashed #9aa7bd"></i><b>enum</b> · runde Ecken <b>fn</b></span>
+    </div>
+  </div>
+  <div class="panel detail" id="structDetail" style="margin-top:16px"></div>
+</section>
+
 <section id="umfang">
-  <h2>6 · Umfang in Codezeilen</h2>
+  <h2>7 · Umfang in Codezeilen</h2>
   <p class="lead">Zeilen in <code>*.rs</code> je Bereich (inkl. Unit-Tests in den Modulen), Stand dieses Commits.
     Der Großteil steckt in Darstellung (Szene, UI) – das Regelwerk ist schlank.</p>
   <div class="panel" id="chart"></div>
@@ -368,6 +395,229 @@ document.getElementById('chart').innerHTML = sizes.map(s =>
    <div class="track"><div class="fill" style="width:${s[1] / biggest * 100}%;background:${C[s[2]]}"></div></div>
    <span class="n">${s[1].toLocaleString('de')}</span></div>`).join('') +
   `<div class="legend"><span><i style="background:var(--core)"></i>core</span><span><i style="background:var(--server)"></i>server</span><span><i style="background:var(--client)"></i>client</span></div>`;
+
+// ---------- 6 · Code-Strukturen ----------
+// Kasten: [id, x, y, art (struct|enum|fn|type), crate, name, felder, datei, beschreibung]
+// Kante: [von, nach, art (has|ref|flow), beschriftung, seiten?, krümmung?]
+const diagrams = {
+  board: { title: 'Brett & Schiffe', intro: 'Das Brett in <code>voidfleet-core</code>: wie Schiffe gespeichert, adressiert und als Snapshot verschickt werden.',
+    boxes: [
+      ['Board', 20, 30, 'struct', 'core', 'Board', ['slots: Sides<Lanes<', '  [Option<Ship>; SLOT_COUNT]>>', 'overdrive: i32', 'hive_launches: Sides<u32>', 'jumping: Vec<Jump>', 'last_uid: u32'], 'core/src/board.rs',
+        'Der Live-Zustand des Bretts. Je Seite und Lane 6 Slots (<code>SLOT_COUNT</code>); <code>board[at]</code> liefert <code>Option&lt;Ship&gt;</code>. Grenzen: 4 Schiffe je Lane, 6 je Seite, Tokens zählen nicht. Hier liegen auch <code>can_place</code>, <code>can_move</code>, <code>attack</code> (Karte + Overdrive + Schrott + Booster + Speerspitze + Rundenbonus) und die Deckungsregel <code>is_exposed</code>. <code>overdrive</code> setzt der Server zu Rundenbeginn.'],
+      ['Sides', 305, 30, 'struct', 'core', 'Sides<T>', ['player: T', 'enemy: T'], 'core/src/board.rs',
+        'Ein Wert je Seite, indizierbar mit <code>Side</code>. <code>Side::Player</code> ist immer die Seite des Betrachters bzw. des ersten Sitzes – der zweite Sitz bekommt alles gespiegelt.'],
+      ['Lanes', 305, 135, 'struct', 'core', 'Lanes<T>', ['strike: T', 'command: T'], 'core/src/board.rs',
+        'Ein Wert je Lane, indizierbar mit <code>LaneType</code>. Strike ist vorne, Command hinten: Ein Command-Schiff ist gedeckt, solange im Strike-Slot davor ein Schiff steht.'],
+      ['Ship', 590, 30, 'struct', 'core', 'Ship', ['card: ShipId', 'uid: u32', 'hp: i32 · shield: i32', 'scrap_bonus: i32', 'marked: bool', '── Rundenzustand ──', 'attack_bonus · shield_bonus', 'disabled · arrived · taunting', 'maneuvered · moved', 'self_damage_after_combat', 'powers: Vec<PowerId>', 'locks: Vec<CommandId>', 'aim: Option<Aim>'], 'core/src/board.rs',
+        'Ein Schiff auf dem Brett. Sein Zustand zieht bei jeder Bewegung mit. Alles unter „Rundenzustand“ setzt <code>Ship::end_round</code> im Cleanup zurück. <code>uid</code> kennzeichnet das Schiff, solange es steht – darauf verweist Schiffsfeuer. <code>powers</code> und <code>locks</code> sind Marken von Admiralsfähigkeiten bzw. Wärmesucher/Traktorstrahl, die dem Schiff folgen.'],
+      ['Aim', 875, 30, 'enum', 'core', 'Aim', ['Column(usize)', 'Ship(u32)  // uid'], 'core/src/board.rs',
+        'Der gebundene Feuerbefehl eines Schützen (<code>bind_fire</code>). <code>Column</code> trifft das vorderste Schiff der Spalte, <code>Ship</code> folgt dem Ziel per <code>uid</code> und verpufft, wenn es gedeckt ist.'],
+      ['ShipCard', 875, 135, 'struct', 'core', 'ShipCard', ['id: ShipId', 'class: ShipClass', 'hp: i32', 'atk: i32', 'shield: i32'], 'core/src/cards.rs',
+        'Die festen Kartenwerte, abgefragt über <code>ShipId::card()</code>. <code>ShipId</code> ist ein Enum (8 Deck-Schiffe, 2 Tokens, 5 Flaggschiffe); über die Leitung geht nur die Id als <code>snake_case</code>.'],
+      ['SlotRef', 590, 390, 'struct', 'core', 'SlotRef', ['side: Side', 'lane: LaneType', 'slot_index: usize'], 'core/src/board.rs',
+        'Absolute Adresse eines Slots samt Seite. Wird in Ereignissen, im Bot und im Client überall als Schlüssel verwendet (z. B. <code>HashMap&lt;SlotRef, …&gt;</code>).'],
+      ['SlotTarget', 875, 390, 'struct', 'core', 'SlotTarget', ['lane: LaneType', 'slot_index: usize'], 'core/src/board.rs',
+        'Slot ohne Seite – die Seite folgt aus dem Zusammenhang. So adressiert der Zugplan (<code>TurnPlan</code>) seine Ziele, relativ zum Planenden.'],
+      ['Jump', 305, 260, 'struct', 'core', 'Jump', ['slot: SlotRef', 'ship: Ship'], 'core/src/board.rs',
+        'Ein Schiff im Kurzsprung: Es verlässt samt Zustand das Brett, sein Slot bleibt bis zur Rückkehr im Cleanup gesperrt und zählt zur Lane-Grenze.'],
+      ['BoardSnapshot', 20, 250, 'type', 'core', 'BoardSnapshot', ['= Sides<Lanes<', '  [Option<SlotState>; 6]>>'], 'core/src/board.rs',
+        'Der serialisierbare Zustand des Bretts, wie er in <code>PlayerView</code> zum Client geht. <code>Board::snapshot()</code> erzeugt ihn, <code>Board::from_snapshot()</code> lädt ihn und vergibt dabei neue <code>uid</code>s. Rundenzustand gehört nicht hinein.'],
+      ['SlotState', 20, 370, 'struct', 'core', 'SlotState', ['card_id: ShipId', 'hp: i32', 'shield: i32', 'scrap_bonus: i32', 'marked: bool'], 'core/src/board.rs',
+        'Was über die Runde hinaus von einem Schiff bleibt: Karte, HP, Schild, Schrottbonus und die Markierung der Pendulum.'],
+    ],
+    edges: [
+      ['Board', 'Sides', 'has', 'slots'], ['Sides', 'Lanes', 'has', 'T ='], ['Lanes', 'Ship', 'has', '[Option<Ship>; 6]'],
+      ['Board', 'Jump', 'has', 'jumping'], ['Jump', 'Ship', 'has', 'ship'], ['Jump', 'SlotRef', 'has', 'slot'],
+      ['Ship', 'Aim', 'has', 'aim'], ['Ship', 'ShipCard', 'ref', 'ShipId::card()'],
+      ['Board', 'BoardSnapshot', 'flow', 'snapshot() ⇄ from_snapshot()'],
+      ['BoardSnapshot', 'SlotState', 'has', ''], ['SlotRef', 'SlotTarget', 'ref', 'ohne side'],
+    ] },
+
+  turn: { title: 'Zug & Protokoll', intro: 'Vom Klick zum Ereignis: <code>TurnPlan</code> (Hand-Indizes, relativ) → <code>Turn</code> (Karten, geprüft) → <code>resolve_turns</code> → <code>RoundEvent</code>s. Alles in <code>core/src/protocol.rs</code> und <code>resolution.rs</code>.',
+    boxes: [
+      ['ClientMessage', 20, 30, 'enum', 'core', 'ClientMessage', ['ChooseAdmiral { admiral }', 'Draft { pick: DraftPick }', 'Submit { plan: TurnPlan }', 'AddBot · RemoveBot', 'Surrender'], 'core/src/protocol.rs',
+        'Alles, was der Client dem Server schickt, als JSON mit <code>snake_case</code>-Tags über den WebSocket.'],
+      ['TurnPlan', 305, 30, 'struct', 'core', 'TurnPlan', ['ships: Vec<Deploy>', 'command: Option<CommandPlan>', 'maneuver: Option<Maneuver>', 'flagship: Option<SlotTarget>', 'power: Option<PowerPlan>', 'mark: Option<SlotTarget>', 'fire: Vec<FireOrder>'], 'core/src/protocol.rs',
+        'Der Zug eines Spielers, so wie er geplant und verschickt wird: Karten als Hand-Index, Ziele als <code>SlotTarget</code> relativ zum Planenden, eigene in der Stellung vor dem Manöver. Der Client baut ihn in <code>game::Match</code>, der Bot in <code>plan_bot_turn</code>; der Server prüft ihn in <code>Match::validate</code>.'],
+      ['Deploy', 590, 20, 'struct', 'core', 'Deploy', ['hand_index: usize', 'target: SlotTarget'], 'core/src/protocol.rs', 'Ein Schiff von der Hand in einen eigenen Slot.'],
+      ['CommandPlan', 590, 100, 'struct', 'core', 'CommandPlan', ['hand_index: usize', 'target: Option<SlotTarget>', 'destination: Option<usize>'], 'core/src/protocol.rs',
+        'Der Befehl der Runde mit Ziel und – bei verlegenden Befehlen – dem Slot-Index in der Ziel-Lane.'],
+      ['Maneuver', 590, 195, 'struct', 'core', 'Maneuver', ['ship: SlotTarget', 'destination: SlotTarget'], 'core/src/protocol.rs',
+        'Das Grundmanöver: ein eigenes Schiff in einen freien Slot (bei der Mirage auch in einen belegten: Phasentausch). Das Schiff feuert in dieser Runde nicht.'],
+      ['FireOrder', 590, 280, 'struct', 'core', 'FireOrder', ['ship: SlotTarget', 'target: FireTarget'], 'core/src/protocol.rs',
+        'Ein Feuerbefehl je eigenem Kampfschiff. Ohne Feuerbefehl feuert ein Schiff nicht – eine automatische Zielwahl gibt es nicht.'],
+      ['FireTarget', 875, 280, 'enum', 'core', 'FireTarget', ['Column(usize)', 'Ship(SlotTarget)'], 'core/src/protocol.rs',
+        'Spaltenfeuer (trifft das vorderste Schiff der Spalte) oder Schiffsfeuer (folgt dem Schiff, verpufft bei Deckung). Wird in der Auflösung zu <code>Ship::aim</code>.'],
+      ['Turn', 305, 300, 'struct', 'core', 'Turn', ['side: Side', 'ships: Vec<PlannedArrival>', 'flagship: Option<PlannedArrival>', 'command: Option<TurnCommand>', 'maneuver: Option<Maneuver>', 'power: Option<PowerUse>', 'mark: Option<SlotTarget>', 'fire: Vec<FireOrder>'], 'core/src/resolution.rs',
+        'Der aufgedeckte, geprüfte Zug: Karten statt Hand-Indizes (<code>PlannedArrival</code>, <code>TurnCommand</code>), die Fähigkeit als <code>PowerUse</code> mit ihrer <code>PowerId</code>. Der Server erzeugt ihn in <code>Player::reveal()</code>, der Client für die Zielvorschau in <code>own_turn</code>.'],
+      ['resolve_turns', 590, 380, 'fn', 'core', 'resolve_turns()', ['board: &mut Board', 'turns: &[Turn]', 'commander: &mut dyn Commander', 'rng: Option<&mut dyn RngCore>', '→ Vec<RoundEvent>'], 'core/src/resolution.rs',
+        'Spielt alle Phasen einer Runde auf dem Brett durch (Deploy → Manöver → Effects → Combat → Cleanup). <code>Commander</code> zieht Karten für Befehle wie Plündern (jede Closure <code>FnMut(Side, u32, u32) -&gt; Drawn</code>). Ohne <code>rng</code> (Client-Vorschau) feuern Plasma Frigates nicht.'],
+      ['RoundEvent', 875, 380, 'enum', 'core', 'RoundEvent', ['Deploy · Pass · Maneuver · Swap', 'Power · Decoy · Mark', 'Command · Effect · Miss · Draw', 'Ability · Spawn · Railgun', 'Attack { attacker, target, … }', 'Fizzle { attacker, miss }', 'Counterfire · SelfDamage', 'Destroyed · Return · Vanish', '… (28 Varianten)'], 'core/src/protocol.rs',
+        'Jeder Schritt der Auflösung samt Werten danach (<code>ShipStats</code>). Schiffe als <code>ShipRef</code> (Slot samt Karte, weil der Slot danach leer sein kann). Der Client spielt sie ab, Endzustand ist aber immer der Snapshot.'],
+      ['PlayerView', 20, 305, 'struct', 'core', 'PlayerView', ['round: u32', 'admiral: Option<AdmiralId>', 'board: BoardSnapshot', 'ship_hand · command_hand', 'submitted_plan: Option<TurnPlan>', 'draft: Option<DraftOffer>', 'opponent: Option<OpponentView>', 'result: Option<MatchResult>'], 'core/src/protocol.rs',
+        'Die Sicht eines Sitzes auf das Match – alles aus Sicht des Empfängers. Vom Gegner nur <code>OpponentView</code>: Admiral (erst wenn beide gewählt haben), abgegeben, Hand- und Deckgrößen, gespielte Befehle.'],
+      ['ServerMessage', 20, 500, 'enum', 'core', 'ServerMessage', ['State { view: Box<PlayerView> }', 'Round { round, events }', 'Error { code: ErrorCode }'], 'core/src/protocol.rs',
+        'Alles, was der Server schickt. Bei Erfolg bekommen beide Sitze <code>State</code>, bei Fehler nur der Absender <code>Error</code>. Nach der Auflösung <code>Round</code> – für den zweiten Sitz per <code>Mirror</code> gespiegelt.'],
+    ],
+    edges: [
+      ['ClientMessage', 'TurnPlan', 'has', 'Submit'],
+      ['TurnPlan', 'Deploy', 'has', 'ships'], ['TurnPlan', 'CommandPlan', 'has', 'command'], ['TurnPlan', 'Maneuver', 'has', 'maneuver'], ['TurnPlan', 'FireOrder', 'has', 'fire'],
+      ['FireOrder', 'FireTarget', 'has', 'target'],
+      ['TurnPlan', 'Turn', 'flow', 'Player::reveal()'],
+      ['Turn', 'resolve_turns', 'flow', '&[Turn]'],
+      ['resolve_turns', 'RoundEvent', 'flow', 'Vec<RoundEvent>'],
+      ['RoundEvent', 'ServerMessage', 'flow', 'Round { events } · Mirror für Sitz 2', ['b', 'b'], 110],
+      ['ServerMessage', 'PlayerView', 'has', 'State'],
+      ['PlayerView', 'TurnPlan', 'ref', 'submitted_plan', ['t', 'l'], 60],
+    ] },
+
+  server: { title: 'Server & Bot', intro: 'Wie der Server Matches hält und der Computergegner plant (<code>crates/server</code>).',
+    boxes: [
+      ['Rooms', 20, 30, 'struct', 'server', 'Rooms', ['rooms: Arc<Mutex<HashMap<', '  String, Arc<Mutex<Room>>>>>', 'next_connection: AtomicU64'], 'server/src/server.rs',
+        'Der geteilte Zustand des axum-Routers: alle Räume nach Match-Id. Ein Raum entsteht beim ersten Beitritt. Jeder Raum hat sein eigenes Schloss, so blockieren sich Matches nicht gegenseitig.'],
+      ['Room', 305, 30, 'struct', 'server', 'Room', ['game: Match', 'connections:', '  [Option<Connection>; 2]'], 'server/src/server.rs',
+        'Ein Match samt den Verbindungen beider Sitze. <code>Room::handle</code> führt jede Nachricht auf einem Blocking-Thread aus (der Bot rechnet dabei), schickt danach beiden Sitzen ihre Sicht bzw. die Ereignisse.'],
+      ['Connection', 305, 160, 'struct', 'server', 'Connection', ['id: u64', 'outbox: UnboundedSender<Msg>'], 'server/src/server.rs',
+        'Eine WebSocket-Verbindung. Ein zweiter Tab mit demselben Token übernimmt den Sitz, die ältere Verbindung wird geschlossen.'],
+      ['Match', 590, 30, 'struct', 'server', 'Match', ['id: String', 'board: Board', 'players: Vec<Player>', 'round: u32', 'winner: Option<Outcome>', 'surrendered: bool', 'rng: Box<dyn RngCore + Send>'], 'server/src/game.rs',
+        'Das autoritative Match: Sitze per Token, Admiralswahl, Zugprüfung (<code>validate</code>), Auflösung (<code>resolve_round</code>: aufdecken, <code>resolve_turns</code>, Sieg-Check, Overdrive), Nachschub, Aufgabe und die Sicht je Sitz (<code>view</code>). Intern spielt <code>Seat::First</code> auf <code>Side::Player</code>.'],
+      ['Player', 875, 30, 'struct', 'server', 'Player', ['token: Option<String>', 'seat: Seat', 'ship_deck: Deck<ShipId>', 'command_deck: Deck<CommandId>', 'ship_hand: Vec<ShipId>', 'command_hand: Vec<CommandId>', 'played_commands: Vec<…>', 'admiral: Option<AdmiralId>', 'plan: Option<TurnPlan>', 'draft: Option<DraftOffer>'], 'server/src/game.rs',
+        'Ein Sitz: Decks, Hände, abgegebener Plan, offener Nachschub. <code>token: None</code> ist der Computergegner. <code>reveal()</code> macht aus dem <code>TurnPlan</code> einen <code>Turn</code> und nimmt die Karten von der Hand.'],
+      ['Deck', 875, 290, 'struct', 'server', 'Deck<T>', ['cards: Vec<T>'], 'server/src/deck.rs',
+        'Gemischter Nachziehstapel; gezogen wird von oben, <code>put_back</code> mischt den Rest des Nachschubs zurück. Kopien je Karte aus <code>deck_copies</code> in core.'],
+      ['BotView', 590, 260, 'struct', 'server', 'BotView', ['board: Board', 'round: u32', 'side: Side', 'admiral: AdmiralId', 'ship_hand · command_hand', 'opponent: OpponentView'], 'server/src/game.rs',
+        'Was der Bot sieht – genau das, was ein Spieler sieht. Den fremden Plan kennt er nicht.'],
+      ['plan_bot_turn', 590, 440, 'fn', 'server', 'plan_bot_turn()', ['view: &BotView', 'rng: &mut dyn RngCore', '→ TurnPlan'], 'server/src/bot/mod.rs',
+        'Plant den Bot-Zug in fester Reihenfolge: Deploy, Befehl, Grundmanöver, Fähigkeit statt Manöver, Markierung, Feuerbefehle. Liefert einen normalen <code>TurnPlan</code>, der dieselbe Prüfung durchläuft wie der eines Menschen.'],
+      ['Situation', 305, 290, 'struct', 'server', 'Situation<\'a>', ['board: Board  // Kopie', 'view: &BotView', 'own · enemies: Vec<SlotRef>', 'risks: HashMap<SlotRef, Risk>', 'enemy_fire: &[FireOrder]', 'preview: Board', 'baseline: OnceCell<f64>'], 'server/src/bot/situation.rs',
+        'Die Lage nach dem Deploy auf einer Brett-Kopie, mit den vermuteten gegnerischen Feuerbefehlen (<code>predict_fire</code>). <code>battle</code>/<code>outcome</code> spielen einen Probekampf und bewerten die Stellung danach (HP, Schild, Flaggschiff doppelt, ATK als Feuer der Folgerunden).'],
+      ['Trial', 20, 290, 'struct', 'server', 'Trial', ['power: Option<SlotTarget>', 'maneuver: Option<Maneuver>', 'command: Option<TrialCommand>', 'enemy_power: Option<PowerUse>'], 'server/src/bot/situation.rs',
+        'Eine Variante des eigenen Zugs, die im Probekampf durchgespielt wird – so vergleicht der Bot Befehle, Ziele, Manöver und Fähigkeiten.'],
+      ['phases', 20, 440, 'fn', 'core', 'core: Phasen einzeln', ['bind_fire · resolve_power', 'resolve_maneuver', 'resolve_effects', 'resolve_combat · resolve_cleanup'], 'core/src/resolution.rs',
+        'Die Phasen der Auflösung sind einzeln öffentlich, damit der Bot Probekämpfe exakt nach den echten Regeln rechnen kann – ohne eigene Regel-Kopie.'],
+    ],
+    edges: [
+      ['Rooms', 'Room', 'has', 'HashMap'], ['Room', 'Match', 'has', 'game'], ['Room', 'Connection', 'has', '×2'],
+      ['Match', 'Player', 'has', 'players'], ['Player', 'Deck', 'has', 'Decks'],
+      ['Match', 'BotView', 'flow', 'bot_view(seat)'], ['BotView', 'plan_bot_turn', 'flow', ''],
+      ['plan_bot_turn', 'Situation', 'flow', 'Situation::new'], ['Situation', 'BotView', 'ref', 'view'],
+      ['Situation', 'Trial', 'ref', 'battle(&Trial)'], ['Situation', 'phases', 'ref', 'Probekampf'],
+      ['plan_bot_turn', 'Match', 'flow', 'TurnPlan', ['r', 'r'], 50],
+    ] },
+
+  client: { title: 'Client', intro: 'Der Weg einer Server-Nachricht durch den Bevy-Client bis auf den Bildschirm – und zurück als Zug.',
+    boxes: [
+      ['Connection', 20, 30, 'struct', 'client', 'Connection', ['outgoing: Sender<ClientMessage>', 'incoming: Receiver<Incoming>'], 'client/src/net/connection.rs',
+        'Ein eigener Thread mit blockierendem <code>tungstenite</code> und kurzem Lese-Timeout, verbunden über zwei Kanäle. Fällt die Verbindung, schließt er den Socket.'],
+      ['Server', 20, 150, 'resource', 'client', 'Server', ['endpoint: Endpoint', 'connection: Connection'], 'client/src/net/mod.rs',
+        'Die Bevy-Ressource des <code>NetPlugin</code>. Liest die Kanäle und meldet <code>FromServer</code> bzw. schreibt jede <code>ToServer</code>-Message. <code>Endpoint</code> trägt Adresse, Match-Id und Token.'],
+      ['ServerInbox', 305, 30, 'struct', 'client', 'ServerInbox', ['queue: VecDeque<ServerMessage>', 'held: bool'], 'client/src/game/mod.rs',
+        'Warteschlange der Server-Nachrichten. Je Bild wird höchstens eine übernommen; während der Rundenwiedergabe hält der Controller sie an (<code>held</code>), damit der neue Zustand erst danach kommt.'],
+      ['Messages', 305, 150, 'type', 'client', 'Bevy-Messages', ['StateChanged', 'RoundResolved { round, events }', 'ServerError', 'PlayRound { round, events }', 'PlaybackFinished'], 'client/src/game, playback',
+        'Die Plugins reden über Messages statt direkt miteinander: <code>game</code> meldet, der <code>controller</code> reagiert und startet die Wiedergabe, <code>playback</code> meldet ihr Ende.'],
+      ['Match', 590, 30, 'resource', 'client', 'game::Match', ['board: Board', 'ship_hand · command_hand', 'round: u32', 'admiral: Option<AdmiralId>', 'plan: TurnPlan  // privat', 'submitted: bool', 'draft: Option<DraftOffer>', 'opponent: Option<OpponentView>', 'result: Option<MatchResult>'], 'client/src/game/state.rs',
+        'Das Match aus Sicht des Clients, ohne Darstellung. <code>apply(PlayerView)</code> übernimmt die Server-Sicht (ein nicht abgegebener Plan bleibt erhalten). Der Plan ist privat: Nur die Planungsmethoden (<code>plan_ship</code>, <code>set_command</code>, <code>set_fire</code> …) ändern ihn und halten ihn dabei gültig. <code>to_turn_plan()</code> liefert den Zug.'],
+      ['Planner', 875, 30, 'struct', 'client', 'Planner<\'a>', ['game: &mut Match', 'selection: &mut Selection', 'notices: &mut Notices', 'can_plan: bool'], 'client/src/controller/planner.rs',
+        'Die Klick-Zustandsmaschine ohne Bevy – getestet ohne Fenster. Übersetzt Klicks auf Handkarten, Slots und Spalten in Planungsaufrufe; <code>is_valid_target</code> gilt für Hervorhebung und Klick zugleich.'],
+      ['Selection', 875, 170, 'enum', 'client', 'Selection', ['Idle', 'Ship(ShipPick)', 'Command { index, move_source }', 'Unit(SlotRef)', 'Power · Mark'], 'client/src/controller/planner.rs',
+        'Was der Spieler gerade gewählt hat und was der nächste Klick bedeutet.'],
+      ['BoardFocus', 875, 320, 'resource', 'client', 'BoardFocus', ['hypothetical: Option<Match>', 'shooter: Option<SlotTarget>'], 'client/src/scene/sync.rs',
+        'Welcher Zug gezeigt wird: der echte oder <code>hypothetical</code> – der Zug nach einem Klick auf das Ziel unter dem Zeiger. So sieht der Spieler die Folgen, bevor er klickt.'],
+      ['RoundPreview', 590, 260, 'struct', 'client', 'RoundPreview', ['shots: Vec<PreviewShot>', 'losses: Vec<SlotRef>', 'drones: Vec<SlotRef>', 'outcomes: HashMap<SlotRef, …>'], 'client/src/game/preview.rs',
+        'Ergebnis von <code>preview_round</code>: die Runde mit dem eigenen Plan gegen einen leeren Gegnerzug, gerechnet mit <code>resolve_turns</code> aus core auf einer Brett-Kopie. Daraus zeichnet die Szene Zielbögen, Verlustvorschau und HP nach der Runde.'],
+      ['Ship', 590, 430, 'component', 'client', 'scene::Ship', ['id: ShipId', 'ghost: bool', '+ OnSlot(SlotRef)', '+ ToonState · ShipMarkers'], 'client/src/scene/ship.rs',
+        'Ein Schiff in der 3D-Szene: Entity mit Modell als glTF-Szene darunter. In der Planung stellt <code>scene::sync</code> je Slot das Schiff aus <code>Match</code> (Geister für eingeplante); in der Wiedergabe bewegen es die Animationen.'],
+      ['Script', 305, 330, 'component', 'client', 'Script', ['beats: VecDeque<Vec<Cue>>', 'tether: Option<Entity>'], 'client/src/playback/script.rs',
+        'Die Wiedergabe eines Schritts: <code>steps.rs</code> gruppiert die Ereignisse, <code>plan.rs</code> übersetzt sie in Takte. Je Bild höchstens ein Takt, und erst, wenn alle Aufträge des vorigen fertig sind.'],
+      ['Cue', 305, 440, 'enum', 'client', 'Cue', ['Log · Banner · Say · Sound', 'Effect(Bolt | Beam | Missile …)', 'Ship(SlotRef, ShipAction)', '…'], 'client/src/playback/script.rs',
+        'Ein einzelner Auftrag eines Takts. Cues tragen Slots; welches Schiff gemeint ist, entscheidet sich erst beim Start des Takts über <code>OnSlot</code>.'],
+      ['Animation', 20, 330, 'component', 'client', 'Animation', ['duration · elapsed: f32', 'scope: Option<AnimationScope>', '+ AwaitedBy(Entity)'], 'client/src/scene/animation.rs',
+        'Jede Animation ist ein Auftrag: eine Entity mit Komponente plus <code>Animation</code>, am Ende <code>AnimationFinished</code>. Über die Relation <code>AwaitedBy</code>/<code>Awaiting</code> weiß das Script, wann der Takt fertig ist. Die <code>AnimationClock</code> streckt nach Animationsgeschwindigkeit und kann springen.'],
+      ['BoardMode', 20, 450, 'enum', 'client', 'BoardMode', ['Planning', 'Playback'], 'client/src/scene/sync.rs',
+        'Wer die Szene gerade besitzt: In <code>Planning</code> gleicht <code>scene::sync</code> sie dem Zustand an, in <code>Playback</code> gehört sie der Wiedergabe.'],
+    ],
+    edges: [
+      ['Server', 'Connection', 'has', 'connection'], ['Connection', 'ServerInbox', 'flow', 'FromServer'],
+      ['ServerInbox', 'Match', 'flow', 'apply(PlayerView)'], ['ServerInbox', 'Messages', 'flow', 'meldet'],
+      ['Planner', 'Match', 'ref', '&mut'], ['Planner', 'Selection', 'has', ''], ['BoardFocus', 'Match', 'ref', 'hypothetical', ['l', 'r'], 30],
+      ['Match', 'RoundPreview', 'flow', 'preview_round()'], ['Match', 'Connection', 'flow', 'ToServer(Submit)', ['t', 't'], 36],
+      ['Messages', 'Script', 'flow', 'PlayRound'], ['Script', 'Cue', 'has', 'beats'], ['Cue', 'Ship', 'ref', 'OnSlot'],
+      ['Script', 'Animation', 'ref', 'Awaiting'], ['RoundPreview', 'Ship', 'flow', 'scene::sync'],
+    ] },
+};
+
+const BW = 244, LH = 16;
+const KIND_LABEL = { struct: 'struct', enum: 'enum', fn: 'fn', type: 'type', resource: 'struct · Resource', component: 'struct · Component' };
+const DIR = { l: [-1, 0], r: [1, 0], t: [0, -1], b: [0, 1] };
+let diagram = 'board', picked = null;
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const boxH = b => 34 + b[6].length * LH;
+function anchor(b, s) {
+  const h = boxH(b);
+  return { l: [b[1], b[2] + h / 2], r: [b[1] + BW, b[2] + h / 2], t: [b[1] + BW / 2, b[2]], b: [b[1] + BW / 2, b[2] + h] }[s];
+}
+function sides(a, b) {
+  const dx = b[1] - a[1], dy = (b[2] + boxH(b) / 2) - (a[2] + boxH(a) / 2);
+  if (Math.abs(dx) > BW * 0.6) return dx > 0 ? ['r', 'l'] : ['l', 'r'];
+  return dy > 0 ? ['b', 't'] : ['t', 'b'];
+}
+function renderStructs() {
+  const d = diagrams[diagram], byId = Object.fromEntries(d.boxes.map(b => [b[0], b]));
+  document.getElementById('structTabs').innerHTML = Object.entries(diagrams).map(([k, v]) =>
+    `<button data-k="${k}" class="${k === diagram ? 'on' : ''}">${v.title}</button>`).join('');
+  document.querySelectorAll('#structTabs button').forEach(b => b.onclick = () => { diagram = b.dataset.k; picked = null; renderStructs(); });
+  document.getElementById('structIntro').innerHTML = d.intro;
+
+  const near = new Set(picked ? [picked] : []);
+  d.edges.forEach(e => { if (e[0] === picked) near.add(e[1]); if (e[1] === picked) near.add(e[0]); });
+  const dimmed = id => picked && !near.has(id) ? 'dim' : '';
+
+  let maxY = 0, svg = `<defs>${['#7f93b3', '#5cc8ff'].map((c, i) =>
+    `<marker id="sa${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('')}</defs>`;
+  let labels = '';
+  d.edges.forEach(e => {
+    const a = byId[e[0]], b = byId[e[1]], [sa, sb] = e[4] || sides(a, b);
+    const p0 = anchor(a, sa), p1 = anchor(b, sb);
+    const k = e[5] || Math.max(25, Math.min(110, Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * 0.4));
+    const c0 = [p0[0] + DIR[sa][0] * k, p0[1] + DIR[sa][1] * k], c1 = [p1[0] + DIR[sb][0] * k, p1[1] + DIR[sb][1] * k];
+    const flow = e[2] === 'flow', on = picked && (e[0] === picked || e[1] === picked);
+    const cls = picked && !on ? 'dim' : '';
+    svg += `<path class="${cls}" d="M${p0} C${c0} ${c1} ${p1}" fill="none" stroke="${flow ? '#5cc8ff' : '#7f93b3'}"
+      stroke-width="${on ? 2.5 : 1.5}" ${e[2] === 'ref' ? 'stroke-dasharray="5 4"' : ''} marker-end="url(#sa${flow ? 1 : 0})"/>`;
+    maxY = Math.max(maxY, p0[1] + 0.75 * Math.max(0, c0[1] - p0[1]) + 10, p1[1] + 0.75 * Math.max(0, c1[1] - p1[1]) + 10);
+    if (e[3]) {
+      const m = [0, 1].map(i => .125 * p0[i] + .375 * c0[i] + .375 * c1[i] + .125 * p1[i]);
+      labels += `<text class="edge-label ${cls}" x="${m[0]}" y="${m[1] + 4}" text-anchor="middle">${esc(e[3])}</text>`;
+    }
+  });
+  d.boxes.forEach(b => {
+    const [id, x, y, kind, crate, name, fields] = b, h = boxH(b), col = C[crate];
+    maxY = Math.max(maxY, y + h);
+    svg += `<g class="uml ${dimmed(id)}" data-id="${id}">
+      <rect x="${x}" y="${y}" width="${BW}" height="${h}" rx="${kind === 'fn' ? 14 : 4}" fill="#0b1322" stroke="${col}"
+        stroke-width="${id === picked ? 3 : 1.5}" ${kind === 'enum' ? 'stroke-dasharray="6 3"' : ''}/>
+      <rect x="${x}" y="${y}" width="${BW}" height="26" rx="${kind === 'fn' ? 14 : 4}" fill="${col}" fill-opacity=".14"/>
+      <text class="t" x="${x + 10}" y="${y + 18}" fill="${col}">${esc(name)}</text>
+      <text x="${x + BW - 8}" y="${y + 17}" fill="#7f93b3" text-anchor="end" font-size="10">${KIND_LABEL[kind]}</text>
+      ${fields.map((f, i) => `<text x="${x + 10}" y="${y + 44 + i * LH}" fill="${f.startsWith('──') ? '#7f93b3' : '#d6e2f5'}">${esc(f)}</text>`).join('')}
+    </g>`;
+  });
+  const el = document.getElementById('structSvg');
+  el.setAttribute('viewBox', `0 -16 1140 ${Math.ceil(maxY + 36)}`);
+  el.innerHTML = svg + labels;
+  el.querySelectorAll('.uml').forEach(g => g.addEventListener('click', ev => { ev.stopPropagation(); picked = g.dataset.id; renderStructs(); }));
+  el.onclick = () => { picked = null; renderStructs(); };
+
+  const det = document.getElementById('structDetail');
+  if (!picked) { det.innerHTML = '<p style="margin:0;color:var(--dim)">Einen Kasten anklicken, um Details und Beziehungen zu sehen.</p>'; return; }
+  const b = byId[picked], rel = (list, other) => list.length ? `<ul>${list.map(e =>
+    `<li data-id="${e[other]}"><b>${esc(byId[e[other]][5])}</b>${e[3] ? ` – ${esc(e[3])}` : ''} <span style="color:var(--dim)">(${{ has: 'enthält', ref: 'verweist', flow: 'Datenfluss' }[e[2]]})</span></li>`).join('')}</ul>` : '<p style="color:var(--dim)">–</p>';
+  det.innerHTML = `<h3 style="color:${C[b[4]]}">${esc(b[5])}</h3><div class="tag">${KIND_LABEL[b[3]]} · <code>crates/${b[7]}</code></div>
+    <p>${b[8]}</p><div class="rel"><div><b>Ausgehend</b>${rel(d.edges.filter(e => e[0] === picked), 1)}</div>
+    <div><b>Eingehend</b>${rel(d.edges.filter(e => e[1] === picked), 0)}</div></div>`;
+  det.querySelectorAll('li[data-id]').forEach(li => li.onclick = () => { picked = li.dataset.id; renderStructs(); });
+}
+renderStructs();
 </script>
 </body>
 </html>
