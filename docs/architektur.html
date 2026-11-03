@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voidfleet – Architektur</title>
+<style>
+  :root {
+    --bg: #070b14; --panel: #0e1626; --line: #1f2d47; --text: #d6e2f5; --dim: #7f93b3;
+    --core: #f2b53c; --server: #4fd1c5; --client: #8b8cff; --tool: #e06c9f; --accent: #5cc8ff;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; background: radial-gradient(ellipse at top, #10203d 0%, var(--bg) 60%) no-repeat;
+    color: var(--text); font: 15px/1.55 "Rajdhani", "Exo 2", system-ui, sans-serif;
+  }
+  header, section { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  header { padding-top: 48px; }
+  h1 { font-size: 40px; letter-spacing: .18em; text-transform: uppercase; margin: 0; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 20px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+       border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 56px 0 16px; }
+  p.lead { color: var(--dim); max-width: 760px; font-size: 17px; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: #ffd68a;
+         background: #ffffff0d; padding: 1px 5px; border-radius: 3px; }
+  nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+  nav a { color: var(--text); text-decoration: none; border: 1px solid var(--line); padding: 4px 12px;
+          clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); background: var(--panel); }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  svg text { font-family: inherit; }
+  .node { cursor: pointer; }
+  .node rect { transition: stroke-width .15s, filter .15s; }
+  .node:hover rect, .node.active rect { stroke-width: 3; filter: drop-shadow(0 0 8px currentColor); }
+  .detail h3 { margin: 0 0 4px; font-size: 22px; letter-spacing: .06em; }
+  .detail .tag { display: inline-block; font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+  .detail ul { padding-left: 18px; margin: 8px 0; }
+  .detail li { margin: 4px 0; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs button { background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 5px 12px;
+                 font: inherit; cursor: pointer; border-radius: 3px; }
+  .tabs button.on { color: var(--bg); background: var(--client); border-color: var(--client); font-weight: 600; }
+  .mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .mod { border: 1px solid var(--line); border-left: 3px solid var(--client); padding: 8px 10px; cursor: pointer;
+         background: #ffffff05; border-radius: 3px; }
+  .mod:hover, .mod.on { background: #8b8cff1c; }
+  .mod b { display: block; font-size: 15px; }
+  .mod small { color: var(--dim); }
+  .bar { height: 4px; background: var(--client); margin-top: 6px; border-radius: 2px; opacity: .7; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 12px 0 18px; }
+  .flow .st { flex: 1 1 120px; padding: 10px 12px; border: 1px solid var(--line); background: #ffffff05;
+              position: relative; min-height: 70px; transition: background .2s, border-color .2s; }
+  .flow .st + .st { margin-left: -1px; }
+  .flow .st.on { background: #5cc8ff22; border-color: var(--accent); z-index: 1; }
+  .flow .st.done { opacity: .55; }
+  .flow .st b { display: block; font-size: 14px; letter-spacing: .05em; }
+  .flow .st small { color: var(--dim); font-size: 12px; }
+  .ctrl { display: flex; gap: 8px; align-items: center; }
+  .ctrl button { background: var(--panel); color: var(--text); border: 1px solid var(--accent); padding: 6px 14px;
+                 font: inherit; cursor: pointer; letter-spacing: .08em; }
+  .ctrl button:hover { background: #5cc8ff22; }
+  .ctrl span { color: var(--dim); margin-left: auto; font-size: 13px; }
+  .explain { min-height: 96px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--dim); margin-top: 8px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .chart-row { display: grid; grid-template-columns: 170px 1fr 60px; align-items: center; gap: 10px; margin: 5px 0; font-size: 14px; }
+  .chart-row .track { background: #ffffff08; height: 16px; border-radius: 2px; }
+  .chart-row .fill { height: 100%; border-radius: 2px; }
+  .chart-row .n { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .chart-row:hover .fill { filter: brightness(1.3); }
+  footer { color: var(--dim); font-size: 13px; text-align: center; padding: 60px 0 40px; }
+  .pill { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 12px; font-weight: 600; color: var(--bg); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Void<span>fleet</span> · Architektur</h1>
+  <p class="lead">Asynchroner PvP-Deckbuilder mit Simultaneous Blind Play – als Rust-Cargo-Workspace (Edition 2024).
+    Ein reines Regelwerk ohne I/O, ein autoritativer Server und ein Bevy-Desktop-Client, der nur plant und abspielt.
+    Alles auf dieser Seite ist anklickbar.</p>
+  <nav>
+    <a href="#crates">Crates</a><a href="#netz">Ablauf einer Runde</a><a href="#aufloesung">Auflösung</a>
+    <a href="#client">Client-Module</a><a href="#bot">Computergegner</a><a href="#umfang">Umfang</a>
+  </nav>
+</header>
+
+<!-- ============ CRATES ============ -->
+<section id="crates">
+  <h2>1 · Crates und Abhängigkeiten</h2>
+  <div class="grid2">
+    <div class="panel">
+      <svg viewBox="0 0 560 400" width="100%" id="crateSvg">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7f93b3"/></marker>
+          <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#5cc8ff"/></marker>
+        </defs>
+        <!-- edges -->
+        <g stroke="#7f93b3" stroke-width="1.5" fill="none">
+          <path d="M150,110 L250,265" marker-end="url(#arr)"/>
+          <path d="M410,110 L310,265" marker-end="url(#arr)"/>
+          <path d="M220,72 L340,72" marker-end="url(#arr)" stroke-dasharray="5 4"/>
+          <path d="M400,330 L470,330" stroke-dasharray="2 4"/>
+        </g>
+        <g stroke="#5cc8ff" stroke-width="1.5" fill="none">
+          <path d="M340,92 Q280,130 220,92" marker-end="url(#arrA)"/>
+          <path d="M220,52 Q280,14 340,52" marker-end="url(#arrA)"/>
+        </g>
+        <text x="280" y="30" fill="#5cc8ff" font-size="12" text-anchor="middle">WebSocket · ServerMessage</text>
+        <text x="280" y="140" fill="#5cc8ff" font-size="12" text-anchor="middle">ClientMessage</text>
+        <text x="280" y="66" fill="#7f93b3" font-size="11" text-anchor="middle">bettet ein</text>
+        <text x="160" y="200" fill="#7f93b3" font-size="11">Zielvorschau,</text>
+        <text x="160" y="214" fill="#7f93b3" font-size="11">Planungsregeln</text>
+        <text x="345" y="200" fill="#7f93b3" font-size="11">Zugprüfung,</text>
+        <text x="345" y="214" fill="#7f93b3" font-size="11">Auflösung, Bot</text>
+
+        <g class="node" data-id="client" style="color:var(--client)">
+          <rect x="30" y="40" width="190" height="70" rx="6" fill="#141634" stroke="currentColor" stroke-width="1.5"/>
+          <text x="125" y="70" fill="currentColor" font-size="18" text-anchor="middle" font-weight="700">voidfleet-client</text>
+          <text x="125" y="92" fill="#7f93b3" font-size="12" text-anchor="middle">Bevy 0.20 · Binary „voidfleet“</text>
+        </g>
+        <g class="node" data-id="server" style="color:var(--server)">
+          <rect x="340" y="40" width="190" height="70" rx="6" fill="#0d2427" stroke="currentColor" stroke-width="1.5"/>
+          <text x="435" y="70" fill="currentColor" font-size="18" text-anchor="middle" font-weight="700">voidfleet-server</text>
+          <text x="435" y="92" fill="#7f93b3" font-size="12" text-anchor="middle">axum · Bot · simulate</text>
+        </g>
+        <g class="node" data-id="core" style="color:var(--core)">
+          <rect x="185" y="270" width="190" height="80" rx="6" fill="#2a2110" stroke="currentColor" stroke-width="1.5"/>
+          <text x="280" y="302" fill="currentColor" font-size="18" text-anchor="middle" font-weight="700">voidfleet-core</text>
+          <text x="280" y="324" fill="#7f93b3" font-size="12" text-anchor="middle">Regelwerk · nur serde + rand</text>
+        </g>
+        <g class="node" data-id="tools" style="color:var(--tool)">
+          <rect x="420" y="300" width="125" height="60" rx="6" fill="#2a1020" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="482" y="326" fill="currentColor" font-size="15" text-anchor="middle" font-weight="700">rasterize</text>
+          <text x="482" y="345" fill="#7f93b3" font-size="11" text-anchor="middle">außerhalb Workspace</text>
+        </g>
+        <g class="node" data-id="assets" style="color:#9aa7bd">
+          <rect x="20" y="300" width="125" height="60" rx="6" fill="#151b26" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="82" y="326" fill="currentColor" font-size="15" text-anchor="middle" font-weight="700">assets/</text>
+          <text x="82" y="345" fill="#7f93b3" font-size="11" text-anchor="middle">Modelle, Bilder, Ton</text>
+        </g>
+        <path d="M82,300 L100,112" stroke="#7f93b3" stroke-dasharray="2 4" fill="none" marker-end="url(#arr)"/>
+      </svg>
+      <div class="legend">
+        <span><i style="background:#7f93b3"></i>Cargo-Abhängigkeit</span>
+        <span><i style="background:#5cc8ff"></i>Laufzeit-Nachrichten</span>
+      </div>
+    </div>
+    <div class="panel detail" id="crateDetail"></div>
+  </div>
+</section>
+
+<!-- ============ NETZ ============ -->
+<section id="netz">
+  <h2>2 · Ablauf einer Runde über das Netz</h2>
+  <p class="lead">Beide Spieler planen blind und gleichzeitig. Der Server ist autoritativ; der Client animiert nur die gemeldeten
+    Ereignisse und übernimmt danach den Snapshot des Servers.</p>
+  <div class="panel">
+    <div class="flow" id="netFlow"></div>
+    <div class="explain" id="netExplain"></div>
+    <div class="ctrl">
+      <button data-f="net" data-d="-1">◀ Zurück</button>
+      <button data-f="net" data-d="1">Weiter ▶</button>
+      <button data-f="net" data-d="play">▶ Abspielen</button>
+      <span id="netCount"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AUFLÖSUNG ============ -->
+<section id="aufloesung">
+  <h2>3 · Auflösung einer Runde (<code>resolve_turns</code> in core)</h2>
+  <p class="lead">Feste Phasen statt Sitzreihenfolge – die Seiten sind symmetrisch (Tests prüfen dieselbe Lage auch gespiegelt).
+    Fällt ein Flaggschiff, bricht die Runde nach dem Schritt ab. Die Phasen sind einzeln öffentlich,
+    weil der Computergegner damit Probekämpfe auf einer Brett-Kopie rechnet.</p>
+  <div class="panel">
+    <div class="flow" id="resFlow"></div>
+    <div class="explain" id="resExplain"></div>
+    <div class="ctrl">
+      <button data-f="res" data-d="-1">◀ Zurück</button>
+      <button data-f="res" data-d="1">Weiter ▶</button>
+      <button data-f="res" data-d="play">▶ Abspielen</button>
+      <span id="resCount"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLIENT ============ -->
+<section id="client">
+  <h2>4 · Client-Module (<code>crates/client/src</code>)</h2>
+  <p class="lead">Je Bereich ein Bevy-Plugin, zusammengefasst in <code>ClientPlugin</code>. Die Pipeline pro Bild:
+    <code>net</code> → <code>game</code> → <code>controller</code> → <code>scene</code>/<code>playback</code>/<code>ui</code>.
+    Widgets melden nur Absichten als Messages; was sie bedeuten, entscheidet der Controller.</p>
+  <div class="grid2">
+    <div class="panel">
+      <div class="tabs" id="clientTabs"></div>
+      <div class="mods" id="clientMods"></div>
+    </div>
+    <div class="panel detail" id="modDetail"></div>
+  </div>
+</section>
+
+<!-- ============ BOT ============ -->
+<section id="bot">
+  <h2>5 · Computergegner (<code>crates/server/src/bot</code>)</h2>
+  <p class="lead">Der Bot sieht nur, was ein Spieler sieht (<code>BotView</code>), und plant auf einer Kopie des Bretts.
+    Entscheidungen bewertet er per Probekampf mit den echten Phasen aus core.</p>
+  <div class="panel">
+    <div class="flow" id="botFlow"></div>
+    <div class="explain" id="botExplain"></div>
+    <div class="ctrl">
+      <button data-f="bot" data-d="-1">◀ Zurück</button>
+      <button data-f="bot" data-d="1">Weiter ▶</button>
+      <span id="botCount"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ UMFANG ============ -->
+<section id="umfang">
+  <h2>6 · Umfang in Codezeilen</h2>
+  <p class="lead">Zeilen in <code>*.rs</code> je Bereich (inkl. Unit-Tests in den Modulen), Stand dieses Commits.
+    Der Großteil steckt in Darstellung (Szene, UI) – das Regelwerk ist schlank.</p>
+  <div class="panel" id="chart"></div>
+</section>
+
+<footer>Erzeugt aus den <code>AGENTS.md</code> der Crates · Voidfleet ist in Entwicklung, Details können abweichen.</footer>
+
+<script>
+const C = { core: 'var(--core)', server: 'var(--server)', client: 'var(--client)', tools: 'var(--tool)', assets: '#9aa7bd' };
+
+// ---------- 1 · Crates ----------
+const crates = {
+  core: { title: 'voidfleet-core', tag: 'crates/core · ~3.600 Zeilen · kein I/O, keine Texte', items: [
+    '<code>cards.rs</code> – Schiffe (<code>ShipId</code>), Befehle (<code>CommandId</code>), Tokens, Flaggschiffe, Deck-Kopien, Zielregeln.',
+    '<code>admirals.rs</code> – fünf Admirale mit Flaggschiff und Fähigkeit (<code>PowerId</code>), alle Zahlen in <code>ABILITY_VALUES</code>.',
+    '<code>board.rs</code> – Brett mit <code>Sides</code>/<code>Lanes</code>, Slots, <code>Ship</code>-Zustand, Grenzen, ATK-Berechnung, Deckung, <code>BoardSnapshot</code>.',
+    '<code>powers.rs</code> – gültige Ziele der Fähigkeiten, identisch für Client-Zielwahl und Server-Prüfung.',
+    '<code>protocol.rs</code> – <code>ClientMessage</code>, <code>ServerMessage</code>, <code>TurnPlan</code>, <code>RoundEvent</code>, <code>Mirror</code> für den zweiten Sitz.',
+    '<code>resolution.rs</code> – <code>resolve_turns</code> und die einzelnen Phasen.',
+    'Enums gehen per serde als <code>snake_case</code> über die Leitung; Texte liegen im Client.' ] },
+  server: { title: 'voidfleet-server', tag: 'crates/server · ~8.400 Zeilen · axum + WebSocket', items: [
+    '<code>server.rs</code> – Router <code>/ws?match=&lt;id&gt;&amp;token=&lt;token&gt;[&amp;bot]</code>, ein <code>Room</code> je Match mit eigenem Schloss; <code>spawn_local</code> für den eingebetteten Betrieb.',
+    '<code>game.rs</code> – autoritatives <code>Match</code>: Sitze, Admiralswahl, Zugprüfung (<code>validate</code> → <code>ErrorCode</code>), Auflösung, Sieg-Check, Overdrive, Nachschub, Aufgabe, Sicht je Sitz.',
+    '<code>deck.rs</code> – gemischte Nachziehstapel.',
+    '<code>bot/</code> – Computergegner (siehe Abschnitt 5).',
+    '<code>bin/simulate.rs</code> – Bot gegen Bot über alle Admiral-Paarungen, parallel; misst Balance und Spieltempo.',
+    'Matches leben nur im Speicher.' ] },
+  client: { title: 'voidfleet-client', tag: 'crates/client · ~33.000 Zeilen · Bevy 0.20, Kira, tungstenite', items: [
+    'Ohne Argumente: eingebetteter Server auf <code>127.0.0.1</code> in eigenem Thread, Match gegen den Computer.',
+    '<code>--server ws://… [--match &lt;id&gt;] [--bot]</code> für PvP über einen entfernten Server.',
+    'Plant den Zug mit denselben Regeln aus core (Zielvorschau via <code>preview_round</code>), schickt ihn ab, animiert die <code>RoundEvent</code>s.',
+    'Ton über Kira statt Bevy-Audio, Toon-Shading mit eigenen WESL-Shadern, UI in <code>bevy_ui</code>, Deutsch/Englisch.',
+    'Details: Abschnitt 4.' ] },
+  tools: { title: 'tools/rasterize', tag: 'eigenes Cargo-Projekt außerhalb des Workspaces', items: [
+    'Rastert Icons nach <code>assets/images/ui/</code> und Regel-Illustrationen nach <code>assets/images/rules/</code>, weil Bevy kein SVG zeichnet.',
+    'Wird einmalig von Hand ausgeführt, nicht beim Build.' ] },
+  assets: { title: 'assets/', tag: 'Wurzelverzeichnis', items: [
+    'glTF-Schiffsmodelle samt Wracks, Kartenbilder, Admiral-Porträts, Hintergründe, Musik, Effekte, Bordfunk, Schriften, Shader.',
+    'Der Client lädt alles beim Start (<code>assets.rs</code>), danach wird nichts nachgeladen; eine Generalprobe übersetzt alle Pipelines hinter dem Ladebildschirm.',
+    'Suchreihenfolge: <code>$BEVY_ASSET_ROOT</code>, neben dem Binary, macOS-Bundle, Repository.' ] },
+};
+function showCrate(id) {
+  const c = crates[id];
+  document.querySelectorAll('#crateSvg .node').forEach(n => n.classList.toggle('active', n.dataset.id === id));
+  document.getElementById('crateDetail').innerHTML =
+    `<h3 style="color:${C[id]}">${c.title}</h3><div class="tag">${c.tag}</div><ul>${c.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+}
+document.querySelectorAll('#crateSvg .node').forEach(n => n.addEventListener('click', () => showCrate(n.dataset.id)));
+showCrate('core');
+
+// ---------- Stepper (2, 3, 5) ----------
+const flows = {
+  net: [
+    ['Verbinden', 'Client', 'Der Client erzeugt Match-Id und Token (<code>Endpoint::new</code>) und öffnet <code>/ws?match=…&token=…</code>. Der Server legt beim ersten Beitritt einen <code>Room</code> an; mit <code>&bot</code> sitzt der Computergegner gleich gegenüber.'],
+    ['Admiralswahl', 'beide', '<code>choose_admiral</code> – verdeckt, einmal je Sitz. Runde 1 beginnt, sobald beide gewählt haben. Der Server antwortet jedem mit <code>state</code> (<code>PlayerView</code> samt <code>OpponentView</code>).'],
+    ['Planen', 'Client', 'Der Controller übersetzt Klicks in den Zugplan (<code>game::Match</code>, Planner-Zustandsmaschine). Jede Änderung hält den Plan gültig; <code>preview_round</code> rechnet mit core die Zielvorschau auf einer Brett-Kopie.'],
+    ['Abgeben', 'Client → Server', '<code>submit</code> mit <code>TurnPlan</code>: Deploys per Hand-Index, Befehl, Grundmanöver oder Fähigkeit, Markierung, Feuerbefehle. Ziele sind relativ zum Planenden.'],
+    ['Prüfen', 'Server', '<code>Match::validate</code> prüft jede Regel; Fehler gehen nur an den Absender als <code>ErrorCode</code> (Text formuliert der Client). Gegen den Bot plant dieser jetzt seinen Zug – ohne den fremden Plan zu kennen.'],
+    ['Auflösen', 'Server', 'Sobald beide abgegeben haben: Karten aufdecken, <code>resolve_turns</code> aus core mit dem Zufall des Matches, Sieg-Check, Overdrive der neuen Runde setzen, Nachschub anbieten.'],
+    ['Ereignisse', 'Server → Client', '<code>round</code> mit den <code>RoundEvent</code>s – für den zweiten Sitz per <code>Mirror</code> gespiegelt, damit „player“ immer die eigene Seite ist. Danach <code>state</code> mit dem neuen Snapshot.'],
+    ['Wiedergabe', 'Client', 'Der Controller hält die Warteschlange an, schaltet auf <code>BoardMode::Playback</code>; <code>playback</code> gruppiert die Ereignisse in Schritte und spielt sie als Takte mit Effekten, Ton und Bordfunk ab. Leertaste überspringt.'],
+    ['Nachschub', 'beide', 'Aus je 3 Schiffen und 3 Befehlen wählt jeder eine Karte (<code>draft</code>); bis dahin lehnt der Server <code>submit</code> ab. Dann schaltet der Client auf <code>BoardMode::Planning</code> – die nächste Runde beginnt.'],
+  ],
+  res: [
+    ['Deploy', '', 'Beide Seiten legen Schiffe; in Runde 1 zuerst das Flaggschiff. Ein Phasentausch der Mirage steht vorher fest.'],
+    ['Feuerbefehle', '', '<code>bind_fire</code>: Jeder Schütze merkt sich Spalte (Spaltenfeuer) oder die <code>uid</code> des Zielschiffs (Schiffsfeuer) in <code>Ship::aim</code> – das zieht mit dem Schiff um.'],
+    ['Fähigkeiten', '', '<code>resolve_power</code>: Trugbild erscheint als Token; andere Fähigkeiten liegen als <code>Ship::powers</code> auf ihrem Schiff. Dann Erfassung von Wärmesucher/Traktorstrahl.'],
+    ['Deploy-Effekte', '', '<code>resolve_deploy_abilities</code>: Titan Carrier startet eine Drohne, Plasma Frigate schießt 3 auf ein zufälliges Ziel. Dann die Markierung der Pendulum.'],
+    ['Manöver', '', '<code>resolve_maneuver</code> / <code>resolve_swap</code>: Grundmanöver in einen freien Slot (das Schiff feuert nicht) oder Phasentausch. Danach der Wächterschild der Bastion.'],
+    ['Effects', '', '<code>resolve_effects</code> nach <code>COMMAND_ORDER</code>: Umgruppierung → Taktik → Verstärkung → Spezial → Schwächung → Angriff. Angriffe also nach allen Bewegungen.'],
+    ['Combat', '', '<code>resolve_combat</code>: erst die Railgun, dann Taktvorsprung, dann alle übrigen in Slot-Reihenfolge. Spaltenfeuer trifft das vorderste Schiff, Schiffsfeuer verpufft bei Deckung. Zuletzt Gegenfeuer.'],
+    ['Cleanup', '', '<code>resolve_cleanup</code>: Rückkehr aus dem Kurzsprung, Eigenschaden, Zerstörte entfernen, Repair Drone heilt, Trugbild verschwindet, Rundenzustand zurücksetzen. Dann Brutkammer der Hive.'],
+  ],
+  bot: [
+    ['Deploy', 'deploy.rs', 'So viele Schiffe wie erlaubt: Runde 1 das Flaggschiff mittig hinten und das robusteste Kampfschiff davor; später Wächter vor ungedeckte, bedrohte Command-Schiffe.'],
+    ['Lage', 'threat.rs · situation.rs', '<code>predict_fire</code> vermutet die gegnerischen Feuerbefehle mit derselben Zielwahl aus dessen Sicht. <code>Situation</code> hält die Lage nach dem Deploy; <code>battle</code> spielt Probekämpfe mit den core-Phasen.'],
+    ['Befehl', 'commands.rs', 'Der Befehl mit dem größten geschätzten Nutzen (<code>estimate</code>); Kombinationen und Ziele werden im Probekampf durchgespielt. Unbekanntes (Gegenmaßnahmen, Minenfeld) wird nach Wahrscheinlichkeit geschätzt.'],
+    ['Manöver / Fähigkeit', 'maneuver.rs · mod.rs', 'Ausweichen vor vermutetem Feuer, Flaggschiff in Deckung, Rückzug … Die Admiralsfähigkeit ersetzt das Manöver, wenn sie im Probekampf mehr bringt.'],
+    ['Feuer', 'fire.rs', '<code>aim_fire</code>: erst das gegnerische Flaggschiff (mit Vorhalten), dann Abschüsse je Schaden, Schiffsfeuer auf Ziele, die nur ungedeckt ausweichen können, Rest aufs wertvollste Ziel.'],
+    ['Abstimmung', 'bin/simulate', 'Stellschrauben stehen als Konstanten in <code>bot/mod.rs</code>. <code>simulate</code> spielt Tausende Partien je Paarung – vor und nach jeder Regel- oder Bot-Änderung.'],
+  ],
+};
+const pos = { net: 0, res: 0, bot: 0 }, timers = {};
+function render(f) {
+  const steps = flows[f], i = pos[f];
+  document.getElementById(f + 'Flow').innerHTML = steps.map((s, k) =>
+    `<div class="st ${k === i ? 'on' : k < i ? 'done' : ''}" data-k="${k}" style="cursor:pointer"><b>${k + 1}. ${s[0]}</b><small>${s[1]}</small></div>`).join('');
+  document.getElementById(f + 'Explain').innerHTML = `<h3 style="margin:0 0 6px;color:var(--accent)">${steps[i][0]}</h3><p style="margin:0">${steps[i][2]}</p>`;
+  document.getElementById(f + 'Count').textContent = `Schritt ${i + 1} / ${steps.length}`;
+  document.querySelectorAll(`#${f}Flow .st`).forEach(el => el.onclick = () => { stop(f); pos[f] = +el.dataset.k; render(f); });
+}
+function stop(f) { clearInterval(timers[f]); timers[f] = null; }
+document.querySelectorAll('.ctrl button').forEach(b => b.addEventListener('click', () => {
+  const f = b.dataset.f, d = b.dataset.d, n = flows[f].length;
+  if (d === 'play') {
+    if (timers[f]) return stop(f);
+    pos[f] = 0; render(f);
+    timers[f] = setInterval(() => { if (pos[f] >= n - 1) return stop(f); pos[f]++; render(f); }, 2200);
+    return;
+  }
+  stop(f); pos[f] = Math.min(n - 1, Math.max(0, pos[f] + +d)); render(f);
+}));
+Object.keys(flows).forEach(render);
+
+// ---------- 4 · Client-Module ----------
+const mods = [
+  ['net', 'Netz', 424, 'Kommandozeile (<code>Launch::from_args</code>), WebSocket mit blockierendem <code>tungstenite</code> in eigenem Thread, zwei Kanäle. Meldet <code>FromServer</code>, <code>ConnectionLost</code>; Ausgehendes als <code>ToServer</code>.'],
+  ['game', 'Zustand', 1693, 'Das Match ohne Darstellung: <code>Match</code> mit Brett, Händen, Gegner, Nachschub und Zugplan. Übernimmt höchstens eine Server-Nachricht je Bild und meldet <code>StateChanged</code>, <code>RoundResolved</code>, <code>ServerError</code>. <code>preview.rs</code>: Zielvorschau mit core.'],
+  ['controller', 'Logik', 1952, 'Drei Systemmengen: <b>Server</b> (Auswahl zurücksetzen, Musik, Banner, Wiedergabe starten/beenden), <b>Input</b> (je Eingabe ein System), <b>Refresh</b> (<code>Highlights</code>, <code>BoardFocus</code>, <code>HudState</code>). <code>planner.rs</code> ist die Klick-Zustandsmaschine ohne Bevy.'],
+  ['scene', 'Darstellung', 9079, '3D-Szene: Kamera mit zwei Ansichten, Brett, Mesh-Picking, <code>sync.rs</code> gleicht die Szene dem Zustand an (<code>BoardMode::Planning</code>). Toon-Shading mit Konturen, Effekte, Partikel, Zerstörung in drei Akten, Animationen als Aufträge (Entity + <code>Animation</code>).'],
+  ['playback', 'Darstellung', 2418, 'Rundenwiedergabe: <code>steps.rs</code> gruppiert Ereignisse, <code>plan.rs</code> übersetzt einen Schritt in ein <code>Script</code> aus Takten, <code>script.rs</code> spielt es ab – nächster Takt erst, wenn alle Aufträge fertig sind. Endzustand kommt immer vom Server.'],
+  ['ui', 'Darstellung', 9694, '<code>bevy_ui</code>: Theme, HUD-Tasten, Karten, Hand mit Hover-Zoom, HUD mit Aktionsknopf und Log, Fähigkeitskarte, Gegnerpanel, Bordfunk-Untertitel, Mauszeiger (unter macOS direkt über AppKit), Dialoge (Admiralswahl, Nachschub, Ergebnis, Regeln, Einstellungen, Aufgabe).'],
+  ['audio', 'Darstellung', 1439, 'Kira-Mixer mit Bussen für Musik, Effekte, Bordfunk und Limiter. Effekte mit Varianten, Verstimmung und Panorama; Musik mit Überblendung; UI-Klänge synthetisiert; Funk mit Warteschlange und Prioritäten.'],
+  ['i18n', 'Texte', 3738, 'Je sichtbarem Text eine Methode im Trait <code>Messages</code>; <code>En</code> und <code>De</code>. <code>Locale</code> folgt Einstellung oder Systemsprache, Wechsel ohne Neustart.'],
+  ['data', 'Assets', 698, 'Kataloge mit Handles: Schiffsmodelle, Kartenbilder, Porträts, Hintergründe, Sounds, Bordfunk. Ids sind die core-Enums, Dateiname = serde-Name (per Test geprüft).'],
+  ['dev', 'Werkzeuge', 1984, 'Rauchtest, Autoplay über den Controller, Dev-Szenen ohne Server (<code>board</code>, <code>hit</code>, <code>commands</code> …) – alles über <code>VOIDFLEET_*</code>-Umgebungsvariablen, sonst inaktiv.'],
+];
+const groups = ['Alle', ...new Set(mods.map(m => m[1]))];
+let group = 'Alle', sel = 'controller';
+const maxLines = Math.max(...mods.map(m => m[2]));
+function renderMods() {
+  document.getElementById('clientTabs').innerHTML = groups.map(g => `<button class="${g === group ? 'on' : ''}">${g}</button>`).join('');
+  document.querySelectorAll('#clientTabs button').forEach(b => b.onclick = () => { group = b.textContent; sel = mods.find(m => group === "Alle" || m[1] === group)[0]; renderMods(); });
+  document.getElementById('clientMods').innerHTML = mods.filter(m => group === 'Alle' || m[1] === group).map(m =>
+    `<div class="mod ${m[0] === sel ? 'on' : ''}" data-id="${m[0]}"><b>${m[0]}/</b><small>${m[1]} · ${m[2].toLocaleString('de')} Zeilen</small>
+     <div class="bar" style="width:${m[2] / maxLines * 100}%"></div></div>`).join('');
+  document.querySelectorAll('#clientMods .mod').forEach(el => el.onclick = () => { sel = el.dataset.id; renderMods(); });
+  const m = mods.find(m => m[0] === sel);
+  document.getElementById('modDetail').innerHTML =
+    `<h3 style="color:var(--client)">${m[0]}/</h3><div class="tag">${m[1]}</div><p>${m[3]}</p>`;
+}
+renderMods();
+
+// ---------- 6 · Umfang ----------
+const sizes = [
+  ['core', 3581, 'core'], ['server (ohne bot)', 8400 - 3936, 'server'], ['server/bot', 3936, 'server'],
+  ...mods.map(m => ['client/' + m[0], m[2], 'client']),
+].sort((a, b) => b[1] - a[1]);
+const biggest = sizes[0][1];
+document.getElementById('chart').innerHTML = sizes.map(s =>
+  `<div class="chart-row" title="${s[0]}: ${s[1].toLocaleString('de')} Zeilen"><span>${s[0]}</span>
+   <div class="track"><div class="fill" style="width:${s[1] / biggest * 100}%;background:${C[s[2]]}"></div></div>
+   <span class="n">${s[1].toLocaleString('de')}</span></div>`).join('') +
+  `<div class="legend"><span><i style="background:var(--core)"></i>core</span><span><i style="background:var(--server)"></i>server</span><span><i style="background:var(--client)"></i>client</span></div>`;
+</script>
+</body>
+</html>
