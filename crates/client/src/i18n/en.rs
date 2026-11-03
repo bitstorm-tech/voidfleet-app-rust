@@ -201,6 +201,12 @@ impl Messages for En {
             WindowMode::Fullscreen => "Fullscreen",
         }
     }
+    fn settings_show_fps(&self) -> &'static str {
+        "FPS counter"
+    }
+    fn on_off(&self, on: bool) -> &'static str {
+        if on { "On" } else { "Off" }
+    }
     fn settings_music_volume(&self) -> &'static str {
         "Music"
     }

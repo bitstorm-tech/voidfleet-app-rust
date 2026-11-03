@@ -200,6 +200,12 @@ impl Messages for De {
             WindowMode::Fullscreen => "Vollbild",
         }
     }
+    fn settings_show_fps(&self) -> &'static str {
+        "FPS-Anzeige"
+    }
+    fn on_off(&self, on: bool) -> &'static str {
+        if on { "An" } else { "Aus" }
+    }
     fn settings_music_volume(&self) -> &'static str {
         "Musik"
     }

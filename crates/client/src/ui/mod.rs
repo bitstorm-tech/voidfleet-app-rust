@@ -31,6 +31,7 @@ pub mod button;
 pub mod card;
 pub mod cursor;
 pub mod dialogs;
+pub mod fps;
 pub mod fullscreen;
 pub mod hand;
 pub mod hud;
@@ -269,6 +270,7 @@ impl Plugin for InterfacePlugin {
                 dialogs::DialogsPlugin,
                 preview::PreviewPlugin,
             ))
+            .add_plugins(fps::FpsPlugin)
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
             .add_systems(OnEnter(LoadingPhase::Rehearsal), set_window_icon);
         #[cfg(target_os = "macos")]

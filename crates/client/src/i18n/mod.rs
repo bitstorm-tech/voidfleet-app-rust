@@ -245,6 +245,8 @@ pub trait Messages: Sync {
     fn settings_tab(&self, tab: SettingsTab) -> &'static str;
     fn settings_window_mode(&self) -> &'static str;
     fn window_mode(&self, mode: WindowMode) -> &'static str;
+    fn settings_show_fps(&self) -> &'static str;
+    fn on_off(&self, on: bool) -> &'static str;
     fn settings_music_volume(&self) -> &'static str;
     fn settings_effects_volume(&self) -> &'static str;
     fn settings_voice_volume(&self) -> &'static str;

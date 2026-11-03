@@ -2,7 +2,7 @@
 //! die eines von drei eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
 //! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern samt Regler für seine
 //! Größe und der Sprache;
-//! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild); „Sound“ mit den Reglern für Musik, Effekte und
+//! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild) und der FPS-Anzeige; „Sound“ mit den Reglern für Musik, Effekte und
 //! Bordfunk. Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den Einstellungen, auch wenn
 //! sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der Dialog beim Wechsel
 //! der Tabs seine Größe behält.
@@ -100,6 +100,7 @@ enum Choice {
     Cursor(CursorId),
     Language(Language),
     WindowMode(WindowMode),
+    ShowFps(bool),
 }
 
 impl Choice {
@@ -110,6 +111,7 @@ impl Choice {
             Self::Cursor(cursor) => settings.cursor == cursor,
             Self::Language(language) => locale.language == language,
             Self::WindowMode(mode) => settings.window_mode == mode,
+            Self::ShowFps(show) => settings.show_fps == show,
         }
     }
 
@@ -120,6 +122,7 @@ impl Choice {
             Self::Cursor(cursor) => settings.cursor = cursor,
             Self::Language(language) => settings.language = Some(language),
             Self::WindowMode(mode) => settings.window_mode = mode,
+            Self::ShowFps(show) => settings.show_fps = show,
         }
     }
 }
@@ -694,11 +697,25 @@ pub(super) fn spawn(
                                 ),
                                 (
                                     panel(SettingsTab::Video),
-                                    children![choice(
-                                        fonts,
-                                        locale.settings_window_mode(),
-                                        options(window_modes)
-                                    )],
+                                    children![
+                                        choice(
+                                            fonts,
+                                            locale.settings_window_mode(),
+                                            options(window_modes)
+                                        ),
+                                        choice(
+                                            fonts,
+                                            locale.settings_show_fps(),
+                                            options(
+                                                [false, true]
+                                                    .map(|show| (
+                                                        Choice::ShowFps(show),
+                                                        locale.on_off(show)
+                                                    ))
+                                                    .into()
+                                            )
+                                        ),
+                                    ],
                                 ),
                                 (
                                     panel(SettingsTab::Sound),

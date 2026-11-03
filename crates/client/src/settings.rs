@@ -112,6 +112,8 @@ pub struct Settings {
     /// Kantenlänge des Mauszeigers in logischen Pixeln (Punkten), siehe [`crate::ui::cursor`].
     pub cursor_size: f32,
     pub window_mode: WindowMode,
+    /// FPS-Anzeige oben links, siehe [`crate::ui::fps`].
+    pub show_fps: bool,
     pub language: Option<Language>,
 }
 
@@ -128,6 +130,7 @@ impl Default for Settings {
             cursor: CursorId::Arrow,
             cursor_size: 32.0,
             window_mode: WindowMode::Maximized,
+            show_fps: false,
             language: None,
         }
     }
