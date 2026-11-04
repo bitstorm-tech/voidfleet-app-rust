@@ -32,7 +32,7 @@ pub struct FromServer(pub ServerMessage);
 #[derive(Message, Clone, Debug)]
 pub struct ConnectionLost;
 
-/// Stand der Verbindung, für die Statuszeile.
+/// Stand der Verbindung.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ConnectionStatus {
     #[default]

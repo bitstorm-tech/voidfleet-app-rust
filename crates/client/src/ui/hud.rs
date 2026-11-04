@@ -35,9 +35,6 @@ struct RoundLabel;
 #[derive(Component)]
 struct OverdriveLabel;
 
-#[derive(Component)]
-struct StatusLabel;
-
 /// Aktionsknopf und Checkliste in der Mitte der Hand; die Hand richtet sich nach seiner Breite.
 #[derive(Component)]
 pub(super) struct ActionArea;
@@ -106,16 +103,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
                     theme::caps(fonts.display_bold(16.0), "", theme::TRACKING, palette::BUFF),
                     Pickable::IGNORE,
                 )],
-            ),
-            (
-                StatusLabel,
-                Node {
-                    padding: UiRect::top(px(3)),
-                    flex_shrink: 1.0,
-                    ..default()
-                },
-                theme::text(fonts.body(19.0), "", palette::TEXT_DIM),
-                Pickable::IGNORE,
             ),
         ],
     ));
@@ -312,23 +299,18 @@ fn append_log(
     }
 }
 
-/// Runde, Overdrive und Status.
+/// Runde und Overdrive.
 fn update_top_bar(
     game: Res<Match>,
-    hud: Res<HudState>,
     locale: Res<Locale>,
-    mut round: Single<&mut Text, (With<RoundLabel>, Without<StatusLabel>)>,
-    mut status: Single<&mut Text, (With<StatusLabel>, Without<RoundLabel>)>,
+    mut round: Single<&mut Text, With<RoundLabel>>,
     overdrive: Single<(&mut Node, &mut Tooltip, &Children), With<OverdriveLabel>>,
-    mut texts: Query<&mut Text, (Without<RoundLabel>, Without<StatusLabel>)>,
+    mut texts: Query<&mut Text, Without<RoundLabel>>,
 ) {
-    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
+    if !game.is_changed() && !locale.is_changed() {
         return;
     }
     round.0 = locale.hud_round(game.round).to_uppercase();
-    if status.0 != hud.status {
-        status.0.clone_from(&hud.status);
-    }
     let bonus = overdrive_bonus(game.round);
     let (mut node, mut tooltip, children) = overdrive.into_inner();
     node.display = if bonus == 0 {

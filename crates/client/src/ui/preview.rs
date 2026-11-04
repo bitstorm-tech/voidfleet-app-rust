@@ -123,15 +123,9 @@ fn setup(mut inbox: ResMut<ServerInbox>) {
 }
 
 /// Setzt Spielzustand und HUD, sobald das Match beginnt.
-fn fill(
-    mut game: ResMut<Match>,
-    mut hud: ResMut<HudState>,
-    preview: Res<Preview>,
-    locale: Res<Locale>,
-) {
+fn fill(mut game: ResMut<Match>, mut hud: ResMut<HudState>, preview: Res<Preview>) {
     *game = sample_match(preview.round);
     *hud = HudState {
-        status: locale.status_idle().into(),
         action: HudAction::EndTurn,
         action_enabled: true,
         planning: true,

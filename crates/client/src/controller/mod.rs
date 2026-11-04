@@ -3,7 +3,6 @@
 //! was unter dem Zeiger als Vorschau steht und was das HUD sagt.
 //!
 //! - [`planner`]: die Auswahl als Zustandsmaschine ([`Selection`]) und was ein Klick je Zustand bedeutet.
-//! - [`status`]: die Statuszeile.
 //!
 //! Ablauf je Bild, nach der Übernahme der Server-Nachricht ([`ApplySet`]) und vor dem Abgleich der Szene
 //! ([`SyncSystems`]):
@@ -22,7 +21,6 @@
 //! Dev-Ansichten, die Brett und HUD selbst stellen, setzen [`Scripted`]; dann ruht der Controller.
 
 pub mod planner;
-pub mod status;
 
 use std::time::Duration;
 
@@ -32,13 +30,12 @@ use voidfleet_core::{
     protocol::{ClientMessage, MatchResult},
 };
 
-pub use planner::{Escape, Notice, Notices, Planner, Selection};
-use status::{StatusView, status_line};
+pub use planner::{Escape, Planner, Selection};
 
 use crate::{
     assets::AppState,
     audio::{Music, MusicMood, PlayUiSound, RadioCue, Say, UiSound},
-    game::{ApplySet, Match, RoundResolved, ServerError, ServerInbox, StateChanged, preview_round},
+    game::{ApplySet, Match, RoundResolved, ServerError, ServerInbox, StateChanged},
     i18n::Locale,
     net::{ConnectionLost, ConnectionStatus, Server, ToServer},
     playback::{PlayRound, PlaybackFinished, SkipPlayback},
@@ -124,7 +121,6 @@ impl Plugin for ControllerPlugin {
     fn build(&self, app: &mut App) {
         use ControllerSystems::{Input, Refresh, Server};
         app.init_resource::<Selection>()
-            .init_resource::<Notices>()
             .init_resource::<Reported>()
             .configure_sets(
                 Update,
@@ -170,7 +166,7 @@ impl Plugin for ControllerPlugin {
                     (
                         update_highlights.run_if(planning_changed),
                         update_focus.run_if(focus_changed),
-                        update_hud.run_if(focus_changed),
+                        update_hud.run_if(planning_changed),
                         hide_hand.run_if(resource_changed::<Match>),
                     )
                         .chain()
@@ -191,7 +187,6 @@ fn can_plan(game: &Match, connection: ConnectionStatus, mode: BoardMode) -> bool
 struct Desk<'w> {
     game: ResMut<'w, Match>,
     selection: ResMut<'w, Selection>,
-    notices: ResMut<'w, Notices>,
     connection: Res<'w, ConnectionStatus>,
     mode: Res<'w, State<BoardMode>>,
     sounds: MessageWriter<'w, PlayUiSound>,
@@ -204,7 +199,6 @@ impl Desk<'_> {
         let mut planner = Planner {
             game: &mut self.game,
             selection: &mut self.selection,
-            notices: &mut self.notices,
             can_plan,
         };
         if let Some(sound) = click(&mut planner) {
@@ -215,14 +209,13 @@ impl Desk<'_> {
 
 // --- Server ---
 
-/// Ein neuer Zustand: Auswahl und Hinweise gehen, die Musik folgt der Phase, eine neue Runde wird angekündigt, und der
+/// Ein neuer Zustand: die Auswahl geht, die Musik folgt der Phase, eine neue Runde wird angekündigt, und der
 /// Bordfunk meldet, was sich zwischen den Runden getan hat.
 fn follow_state(
     mut commands: Commands,
     game: Res<Match>,
     mut reported: ResMut<Reported>,
     mut selection: ResMut<Selection>,
-    mut notices: ResMut<Notices>,
     mut music: ResMut<Music>,
     mut round_banner: MessageWriter<ShowRoundBanner>,
     mut say: MessageWriter<Say>,
@@ -230,7 +223,6 @@ fn follow_state(
     let before = *reported;
     *reported = Reported::of(&game);
     selection.set_if_neq(Selection::Idle);
-    notices.set_if_neq(Notices::default());
     music.set_if_neq(Music(game.result.is_none().then_some(MusicMood::Calm)));
     if let Some(result) = game.result {
         if before.result.is_none() {
@@ -329,14 +321,9 @@ fn resume_planning(mut commands: Commands, mut mode: ResMut<NextState<BoardMode>
     mode.set(BoardMode::Planning);
 }
 
-fn lose_connection(
-    mut lost: MessageReader<ConnectionLost>,
-    mut selection: ResMut<Selection>,
-    mut notices: ResMut<Notices>,
-) {
+fn lose_connection(mut lost: MessageReader<ConnectionLost>, mut selection: ResMut<Selection>) {
     lost.clear();
     selection.set_if_neq(Selection::Idle);
-    notices.set_if_neq(Notices::default());
 }
 
 fn log_errors(
@@ -533,20 +520,15 @@ fn planning_changed(
         || mode.is_some_and(|mode| mode.is_changed())
 }
 
-/// Dazu der Zeiger, die Hinweise und die Sprache.
+/// Dazu der Zeiger.
 fn focus_changed(
     game: Res<Match>,
     selection: Res<Selection>,
     connection: Res<ConnectionStatus>,
     mode: Option<Res<State<BoardMode>>>,
     hover: Res<BoardHover>,
-    notices: Res<Notices>,
-    locale: Res<Locale>,
 ) -> bool {
-    planning_changed(game, selection, connection, mode)
-        || hover.is_changed()
-        || notices.is_changed()
-        || locale.is_changed()
+    planning_changed(game, selection, connection, mode) || hover.is_changed()
 }
 
 fn update_highlights(
@@ -575,35 +557,17 @@ fn update_focus(
     };
 }
 
-/// Statuszeile, Aktionsknopf, ob geplant wird und was gewählt ist.
+/// Aktionsknopf, ob geplant wird und was gewählt ist.
 fn update_hud(
     game: Res<Match>,
     selection: Res<Selection>,
-    notices: Res<Notices>,
-    hover: Res<BoardHover>,
-    focus: Res<BoardFocus>,
     connection: Res<ConnectionStatus>,
     mode: Res<State<BoardMode>>,
-    server: Option<Res<Server>>,
-    locale: Res<Locale>,
     mut hud: ResMut<HudState>,
 ) {
     let connected = *connection == ConnectionStatus::Connected;
     let playing_back = *mode.get() == BoardMode::Playback;
     let can_plan = can_plan(&game, *connection, *mode.get());
-    let shown = focus.hypothetical.as_ref().unwrap_or(&game);
-    let preview = can_plan.then(|| preview_round(shown, shown.plan()));
-    let view = StatusView {
-        game: &game,
-        selection: *selection,
-        notices: &notices.0,
-        hover: *hover,
-        preview: preview.as_ref(),
-        locale: &**locale,
-    };
-    let match_id = server
-        .as_ref()
-        .map_or("", |server| server.endpoint.match_id.as_str());
     // Neue Matches gehen gegen den Computergegner; bis zur Admiralswahl macht der Knopf seinen Platz für einen
     // Mitspieler frei, und solange keiner da ist, holt er ihn zurück.
     let open = connected && game.round > 0 && game.result.is_none();
@@ -621,7 +585,6 @@ fn update_hud(
     };
     let has_opponent = game.opponent.is_some();
     hud.set_if_neq(HudState {
-        status: status_line(*connection, playing_back, match_id, &view),
         action,
         action_enabled: action != HudAction::EndTurn
             || can_plan && has_opponent && !game.flagship_missing(),

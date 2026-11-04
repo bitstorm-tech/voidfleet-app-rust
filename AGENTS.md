@@ -23,7 +23,7 @@ Rust-Port des TypeScript-Originals (Babylon.js-Client, Bun-Server, Electron-App)
 Die gängigen Befehle stehen auch als Rezepte in der `justfile` (`just` listet sie, z. B. `just play`, `just check`, `just scene hit`).
 
 - `cargo run -p voidfleet-client` — startet das Spiel: ohne Argumente mit eingebettetem Server (eigener Thread, `127.0.0.1`, freier Port) in einem neuen Match gegen den Computer.
-- `cargo run -p voidfleet-client -- --server ws://host:port [--match <id>] [--bot]` — verbindet mit einem eigenständigen Server; ohne `--match` entsteht ein neues Match (die Match-Id steht im Log und in der Statuszeile), mit `--match <id>` tritt der zweite Spieler bei (PvP), `--bot` legt das neue Match gleich gegen den Computer an.
+- `cargo run -p voidfleet-client -- --server ws://host:port [--match <id>] [--bot]` — verbindet mit einem eigenständigen Server; ohne `--match` entsteht ein neues Match (die Match-Id steht im Log), mit `--match <id>` tritt der zweite Spieler bei (PvP), `--bot` legt das neue Match gleich gegen den Computer an.
 - `cargo run -p voidfleet-server` — eigenständiger Server auf `ws://<HOST>:<PORT>/ws` (Umgebung `PORT`, Standard 3000, und `HOST`, Standard `0.0.0.0`).
 - `cargo run -p voidfleet-server --release --bin simulate -- [partien je paarung]` — Bot gegen Bot über alle Paarungen der Admirale (Standard 2000 Partien je Paarung), misst Spieltempo und Balance.
 - Das gebaute Binary sucht seine Assets in `$BEVY_ASSET_ROOT/assets`, sonst in `assets/` neben dem Binary bzw. in `Contents/Resources/assets` eines macOS-Bundles, sonst im Repository.

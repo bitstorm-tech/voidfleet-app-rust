@@ -3,7 +3,6 @@
 //! Gewählt ist immer höchstens eines ([`Selection`]): eine Schiffskarte (oder das Flaggschiff), ein Befehl samt
 //! Ausgangsschiff eines Lane-Wechsels, ein eigenes Schiff auf dem Brett, die Admiralsfähigkeit oder die Zielerfassung.
 //! Was ein Klick bedeutet, hängt davon ab; [`Planner`] ändert Plan und Auswahl und sagt, welcher Klang dazu gehört.
-//! Was dabei wegfällt, merkt sich [`Notices`] bis zum nächsten Klick (die Statuszeile nennt es).
 //!
 //! Gültige Ziele sagt eine einzige Regel ([`is_valid_target`]) für Hervorhebung und Klick; [`hypothetical`] liefert
 //! den Zug, wie er nach einem Klick auf das Ziel unter dem Zeiger aussähe (Geister, Pfeile, Zielvorschau).
@@ -12,13 +11,13 @@ use bevy::prelude::*;
 use voidfleet_core::{
     admirals::PowerId,
     board::{LaneType, Side, SlotRef, SlotTarget},
-    cards::{CommandId, ShipId},
+    cards::CommandId,
     protocol::{CommandPlan, FireTarget, Maneuver, PowerPlan},
 };
 
 use crate::{
     audio::UiSound,
-    game::{CommandChange, Match, ShipPick},
+    game::{Match, ShipPick},
     scene::board::{BoardHover, Highlights, all_slots},
     ui::{HandCard, Selected},
 };
@@ -58,30 +57,6 @@ impl Selection {
     }
 }
 
-/// Was der letzte Klick nebenbei bewirkt hat.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Notice {
-    /// Der alte Befehl ist weg und mit ihm, was er erlaubt hat: ein Schiff (Schnellverlegung) bzw. die Fähigkeit
-    /// (Freie Hand).
-    CommandDropped {
-        command: CommandId,
-        ship: Option<ShipId>,
-        power: Option<PowerId>,
-    },
-    /// Das Schiff feuert nicht mehr (Manöver, Rammkurs, Kurzsprung); sein Feuerbefehl ist weg.
-    FireCleared(ShipId),
-    /// Das Grundmanöver hat die Fähigkeit verdrängt.
-    ManeuverReplacesPower(PowerId),
-    /// Die Fähigkeit hat das Grundmanöver dieses Schiffs verdrängt.
-    PowerReplacesManeuver { power: PowerId, ship: ShipId },
-    /// Die Fähigkeit hat gerade kein Ziel.
-    NoPowerTarget(PowerId),
-}
-
-/// Die Hinweise des letzten Klicks; der nächste Klick löscht sie.
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
-pub struct Notices(pub Vec<Notice>);
-
 /// Was Escape bewirkt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Escape {
@@ -91,12 +66,11 @@ pub enum Escape {
     OpenSettings,
 }
 
-/// Die Planung im Griff eines Klicks: Spielzustand, Auswahl, Hinweise und ob gerade geplant werden darf (verbunden,
+/// Die Planung im Griff eines Klicks: Spielzustand, Auswahl und ob gerade geplant werden darf (verbunden,
 /// keine Wiedergabe, Admirale gewählt, Zug offen, Nachschub gewählt, Match nicht entschieden).
 pub struct Planner<'a> {
     pub game: &'a mut Match,
     pub selection: &'a mut Selection,
-    pub notices: &'a mut Notices,
     pub can_plan: bool,
 }
 
@@ -104,7 +78,6 @@ impl Planner<'_> {
     /// Eine Karte der Hand: eine eingeplante Schiffskarte nimmt ihr Schiff zurück, die gewählte Karte die Wahl.
     /// Befehle ohne Zielwahl sind mit einem Klick eingeplant, sonst folgt der Klick aufs Brett.
     pub fn press_hand_card(&mut self, card: HandCard) -> UiSound {
-        self.notices.0.clear();
         if !self.can_plan {
             return UiSound::Denied;
         }
@@ -131,7 +104,7 @@ impl Planner<'_> {
                     .command
                     .is_some_and(|command| command.hand_index == index)
                 {
-                    self.set_command(None);
+                    self.game.set_command(None);
                     self.deselect()
                 } else if matches!(*self.selection, Selection::Command { index: chosen, .. } if chosen == index)
                 {
@@ -142,7 +115,7 @@ impl Planner<'_> {
                         move_source: None,
                     })
                 } else {
-                    self.set_command(Some(CommandPlan {
+                    self.game.set_command(Some(CommandPlan {
                         hand_index: index,
                         target: None,
                         destination: None,
@@ -154,9 +127,8 @@ impl Planner<'_> {
     }
 
     /// Die Fähigkeitskarte: startet die Zielwahl; ein weiterer Klick bricht sie ab bzw. nimmt die eingeplante
-    /// Fähigkeit zurück. Ohne Ziel sagt ein Hinweis, warum nicht.
+    /// Fähigkeit zurück.
     pub fn press_power(&mut self) -> UiSound {
-        self.notices.0.clear();
         if !self.can_plan {
             return UiSound::Denied;
         }
@@ -168,8 +140,6 @@ impl Planner<'_> {
             return self.deselect();
         }
         if self.game.power_targets().is_empty() {
-            let power = self.game.power().expect("Fähigkeit nach der Admiralswahl");
-            self.notices.0.push(Notice::NoPowerTarget(power));
             return UiSound::Denied;
         }
         self.select(Selection::Power)
@@ -177,7 +147,6 @@ impl Planner<'_> {
 
     /// Der Knopf der Zielerfassung: wie die Fähigkeitskarte, für das Ziel der Railgun in der nächsten Runde.
     pub fn press_mark(&mut self) -> UiSound {
-        self.notices.0.clear();
         if !self.can_plan || !self.game.can_mark() {
             return UiSound::Denied;
         }
@@ -197,7 +166,6 @@ impl Planner<'_> {
     /// Ein Klick auf einen Slot (Pad, Schiff oder Geist darauf). Ohne Auswahl wählt er ein eigenes Schiff, auf das
     /// Trugbild nimmt er die Fähigkeit zurück; mit Auswahl plant er auf ein gültiges Ziel, sonst verweigert er.
     pub fn press_slot(&mut self, slot: SlotRef) -> Option<UiSound> {
-        self.notices.0.clear();
         let game = &*self.game;
         match *self.selection {
             Selection::Idle => {
@@ -220,15 +188,9 @@ impl Planner<'_> {
                 Some(self.stage_command_target(index, move_source, slot))
             }
             Selection::Power => {
-                let power = game.power().expect("Fähigkeit nach der Admiralswahl");
-                let replaced = self.game.set_power(Some(PowerPlan {
+                self.game.set_power(Some(PowerPlan {
                     target: slot.target(),
                 }));
-                if let Some(ship) = replaced {
-                    self.notices
-                        .0
-                        .push(Notice::PowerReplacesManeuver { power, ship });
-                }
                 Some(self.place())
             }
             Selection::Mark => {
@@ -241,23 +203,18 @@ impl Planner<'_> {
     /// Ein Klick auf den Pfeil vor einer gegnerischen Spalte: Spaltenfeuer des gewählten Schützen (die Pfeile sind nur
     /// zu sehen, solange einer zielt).
     pub fn press_column(&mut self, column: usize) -> Option<UiSound> {
-        self.notices.0.clear();
         let shooter = shooter(self.game, *self.selection)?;
         Some(self.stage_fire(shooter, FireTarget::Column(column)))
     }
 
     /// Ein Klick neben das Brett bricht die Auswahl ab.
     pub fn miss(&mut self) -> Option<UiSound> {
-        self.notices.0.clear();
         (*self.selection != Selection::Idle).then(|| self.deselect())
     }
 
     /// Ein Rechtsklick bricht eine angefangene Auswahl ab.
     pub fn cancel(&mut self) -> Option<UiSound> {
-        (self.can_plan && *self.selection != Selection::Idle).then(|| {
-            self.notices.0.clear();
-            self.deselect()
-        })
+        (self.can_plan && *self.selection != Selection::Idle).then(|| self.deselect())
     }
 
     /// Escape bricht eine angefangene Auswahl ab, sonst nimmt es das Grundmanöver zurück, dann die Fähigkeit, dann die
@@ -271,7 +228,6 @@ impl Planner<'_> {
         if !self.can_plan || nothing {
             return Escape::OpenSettings;
         }
-        self.notices.0.clear();
         if *self.selection == Selection::Idle {
             if plan.maneuver.is_some() {
                 self.game.set_maneuver(None);
@@ -373,17 +329,12 @@ impl Planner<'_> {
         }
     }
 
-    /// Das Grundmanöver des gewählten Schiffs; was wegfällt (Fähigkeit, Feuerbefehl), sagt der Hinweis.
+    /// Das Grundmanöver des gewählten Schiffs.
     fn stage_maneuver(&mut self, unit: SlotRef, slot: SlotRef) -> UiSound {
-        let change = self.game.set_maneuver(Some(Maneuver {
+        self.game.set_maneuver(Some(Maneuver {
             ship: unit.target(),
             destination: slot.target(),
         }));
-        if change.power {
-            let power = self.game.power().expect("Fähigkeit nach der Admiralswahl");
-            self.notices.0.push(Notice::ManeuverReplacesPower(power));
-        }
-        self.notices.0.extend(change.fire.map(Notice::FireCleared));
         self.place()
     }
 
@@ -401,31 +352,16 @@ impl Planner<'_> {
                 move_source: Some(slot),
             }),
             None => {
-                self.set_command(Some(command_plan(card, index, slot, None)));
+                self.game
+                    .set_command(Some(command_plan(card, index, slot, None)));
                 self.place()
             }
             Some(source) => {
-                self.set_command(Some(command_plan(card, index, source, Some(slot))));
+                self.game
+                    .set_command(Some(command_plan(card, index, source, Some(slot))));
                 self.place()
             }
         }
-    }
-
-    /// Plant einen Befehl (`None`: keinen); was mit dem alten Befehl wegfällt oder wegen des neuen nicht mehr feuert,
-    /// sagt der Hinweis.
-    fn set_command(&mut self, command: Option<CommandPlan>) {
-        let before = self.game.planned_command();
-        let CommandChange { ship, power, fire } = self.game.set_command(command);
-        if let Some(command) = before
-            && (ship.is_some() || power)
-        {
-            self.notices.0.push(Notice::CommandDropped {
-                command,
-                ship,
-                power: self.game.power().filter(|_| power),
-            });
-        }
-        self.notices.0.extend(fire.map(Notice::FireCleared));
     }
 }
 
@@ -475,7 +411,7 @@ fn shows_unit(game: &Match, slot: SlotRef, unit: SlotRef) -> bool {
 }
 
 /// Ob das Schiff im eingeplanten Grundmanöver den Slot wechselt, beim Phasentausch auch der Tauschpartner.
-pub fn is_maneuvering(game: &Match, slot: SlotRef) -> bool {
+fn is_maneuvering(game: &Match, slot: SlotRef) -> bool {
     game.planned_maneuver().is_some_and(|planned| {
         planned.from == slot || (game.planned_swap().is_some() && planned.to == slot)
     })
@@ -557,7 +493,7 @@ pub fn highlights(game: &Match, selection: Selection) -> Highlights {
 
 /// Worauf ein Klick des zielenden Schiffs gerade gälte: der Pfeil vor einer Spalte oder das gegnerische Schiff unter
 /// dem Zeiger.
-pub fn hovered_aim(game: &Match, selection: Selection, hover: BoardHover) -> Option<FireTarget> {
+fn hovered_aim(game: &Match, selection: Selection, hover: BoardHover) -> Option<FireTarget> {
     shooter(game, selection)?;
     if let Some(column) = hover.column {
         return Some(FireTarget::Column(column));

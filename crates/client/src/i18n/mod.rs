@@ -303,72 +303,6 @@ pub trait Messages: Sync {
     fn loading_assets(&self, percent: u32) -> String;
     fn loading_failed(&self) -> &'static str;
 
-    // --- status ---
-    fn status_disconnected(&self) -> &'static str;
-    fn status_connecting(&self) -> &'static str;
-    fn status_submitted(&self) -> &'static str;
-    fn status_waiting_for_opponent(&self, match_id: &str) -> String;
-    fn status_choose_admiral(&self, match_id: Option<&str>) -> String;
-    fn status_opponent_choosing(&self) -> &'static str;
-    fn status_draft(&self) -> &'static str;
-    fn status_flagship_first(&self, flagship: &str) -> String;
-    fn status_fleet(&self, count: usize, max: usize) -> String;
-    fn status_no_free_slot(&self, ship: &str, per_lane: usize, per_side: usize) -> String;
-    fn status_deploys_left(&self, count: usize) -> String;
-    fn status_place_ship(&self, ship: &str) -> String;
-    fn status_no_command_target(&self, command: &str) -> String;
-    fn status_choose_command_target(&self, command: &str) -> String;
-    fn status_choose_enemy_slot(&self, command: &str) -> String;
-    fn status_choose_enemy_ship(&self, command: &str) -> String;
-    fn status_choose_enemy_column(&self, command: &str) -> String;
-    fn status_no_enemy_target(&self, command: &str) -> String;
-    fn status_command_dropped(&self, command: &str, dropped: &str) -> String;
-    fn status_choose_destination(&self, command: &str, ship: &str) -> String;
-    /// Ein gewähltes eigenes Schiff: sein Feuerbefehl, sein Grundmanöver und was ein zweiter Klick zurücknimmt.
-    fn status_choose_fire_target(&self, ship: &str) -> String;
-    fn status_maneuver_instead(&self) -> &'static str;
-    fn status_maneuver_or_swap(&self) -> &'static str;
-    fn status_no_guns(&self, ship: &str) -> String;
-    fn status_maneuvering(&self, ship: &str) -> String;
-    fn status_command_holds_fire(&self, ship: &str, command: &str) -> String;
-    fn status_maneuver_hint(&self) -> &'static str;
-    fn status_change_maneuver(&self) -> &'static str;
-    /// Der jetzige Feuerbefehl des gewählten Schiffs; unter dem Zeiger stattdessen, was ein Klick daraus macht.
-    fn status_column_fire(&self, column: usize) -> String;
-    fn status_track_fire(&self, target: &str) -> String;
-    fn status_tap_column_fire(&self, column: usize) -> String;
-    fn status_tap_track_fire(&self, target: &str) -> String;
-    fn status_tap_clears_fire(&self) -> &'static str;
-    /// Was der Schuss laut Vorschau trifft oder warum er verpufft.
-    fn status_fire_hits(&self, target: &str) -> String;
-    fn status_fire_through(&self, target: &str) -> String;
-    fn status_column_empty(&self) -> &'static str;
-    fn status_column_cleared(&self) -> &'static str;
-    fn status_fire_covered(&self, target: &str) -> String;
-    fn status_fire_fizzles(&self, target: &str) -> String;
-    fn status_fire_gone(&self) -> &'static str;
-    fn status_swarm_fire(&self, power: &str) -> String;
-    fn status_again_unplan(&self) -> &'static str;
-    fn status_again_maneuver(&self) -> &'static str;
-    fn status_esc_cancels(&self) -> &'static str;
-    fn status_fire_cleared(&self, ship: &str) -> String;
-    fn status_fire_orders(&self, count: usize) -> String;
-    fn status_fizzles(&self, count: usize) -> String;
-    fn status_maneuver(&self, ship: &str) -> String;
-    fn status_swap(&self, ship: &str, partner: &str) -> String;
-    fn status_choose_power_target(&self, power: &str) -> String;
-    fn status_no_power_target(&self, power: &str) -> String;
-    fn status_no_drone(&self, power: &str) -> String;
-    fn status_power(&self, power: &str, target: &str) -> String;
-    fn status_power_replaces_maneuver(&self, power: &str, ship: &str) -> String;
-    fn status_maneuver_replaces_power(&self, power: &str) -> String;
-    fn status_choose_mark(&self) -> &'static str;
-    fn status_mark(&self, ship: &str) -> String;
-    fn status_planned(&self, cards: &str) -> String;
-    fn status_idle(&self) -> &'static str;
-    fn status_resolving(&self) -> &'static str;
-    fn status_match_over(&self) -> &'static str;
-
     // --- opponent ---
     fn opponent_title(&self) -> &'static str;
     fn opponent_choosing(&self) -> &'static str;
@@ -640,9 +574,6 @@ mod tests {
     fn plurals_and_signs() {
         let en = Locale::new(Language::En);
         let de = Locale::new(Language::De);
-        assert_eq!(en.status_deploys_left(0), "all ships planned");
-        assert_eq!(en.status_deploys_left(1), "1 ship left to deploy");
-        assert_eq!(de.status_deploys_left(2), "noch 2 Schiffe zu legen");
         assert_eq!(en.hud_checklist_ships(1, 1), "Deploy a ship");
         assert_eq!(de.hud_checklist_ships(1, 2), "Schiffe legen (1/2)");
         assert_eq!(en.float_attack(-1), "−1 ATK");

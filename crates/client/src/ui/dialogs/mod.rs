@@ -264,7 +264,7 @@ fn follow_locale(
 
 // --- Gemeinsames der Overlays über dem Brett ---
 
-/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Admiralswahl und Nachschub müssen zwischen Statuszeile
+/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Admiralswahl und Nachschub müssen zwischen Kopfzeile
 /// und Hand passen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Density {
@@ -286,7 +286,7 @@ impl Density {
     }
 }
 
-/// Ein Overlay über dem Brett zwischen Statuszeile und Hand (`.admiral-overlay`, `.draft-overlay`); als erstes Kind
+/// Ein Overlay über dem Brett zwischen Kopfzeile und Hand (`.admiral-overlay`, `.draft-overlay`); als erstes Kind
 /// gehört [`overlay_backdrop`] hinein.
 fn board_overlay() -> impl Bundle {
     (

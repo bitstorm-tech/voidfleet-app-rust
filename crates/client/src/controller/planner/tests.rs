@@ -40,12 +40,11 @@ fn game(admiral: AdmiralId) -> Match {
     game
 }
 
-/// Spielzustand, Auswahl und Hinweise eines Tests.
+/// Spielzustand und Auswahl eines Tests.
 #[derive(Default)]
 struct Desk {
     game: Match,
     selection: Selection,
-    notices: Notices,
 }
 
 impl Desk {
@@ -60,7 +59,6 @@ impl Desk {
         Planner {
             game: &mut self.game,
             selection: &mut self.selection,
-            notices: &mut self.notices,
             can_plan: true,
         }
     }
@@ -236,16 +234,11 @@ fn maneuver_drops_the_fire_order_and_second_click_takes_it_back() {
         Some(own(Command, 3))
     );
     assert_eq!(desk.game.fire_order_at(unit.target()), None);
-    assert_eq!(
-        desk.notices.0,
-        vec![Notice::FireCleared(S::IronDreadnought)]
-    );
     // Wieder gewählt über seinen Geist; ein zweiter Klick nimmt das Manöver zurück.
     assert_eq!(
         desk.planner().press_slot(own(Command, 3)),
         Some(UiSound::Select)
     );
-    assert!(desk.notices.0.is_empty());
     assert_eq!(desk.selection, Selection::Unit(unit));
     assert_eq!(desk.planner().press_slot(unit), Some(UiSound::Cancel));
     assert_eq!(desk.game.planned_maneuver(), None);
@@ -267,14 +260,10 @@ fn escape_cancels_selection_then_maneuver_then_opens_settings() {
 }
 
 #[test]
-fn power_without_target_is_denied_with_a_notice() {
+fn power_without_target_is_denied() {
     // Halvorsens Schwarmangriff braucht eine eigene Drohne.
     let mut desk = Desk::new(AdmiralId::Halvorsen);
     assert_eq!(desk.planner().press_power(), UiSound::Denied);
-    assert_eq!(
-        desk.notices.0,
-        vec![Notice::NoPowerTarget(PowerId::SwarmStrike)]
-    );
     assert_eq!(desk.selection, Selection::Idle);
 }
 
@@ -291,13 +280,6 @@ fn power_replaces_the_maneuver() {
         .expect("Osei hat ein Ziel");
     assert_eq!(desk.planner().press_slot(target), Some(UiSound::Place));
     assert_eq!(desk.game.planned_maneuver(), None);
-    assert_eq!(
-        desk.notices.0,
-        vec![Notice::PowerReplacesManeuver {
-            power: AdmiralId::Osei.power(),
-            ship: S::IronDreadnought,
-        }]
-    );
     // Ein weiterer Klick auf die Fähigkeitskarte nimmt sie zurück.
     assert_eq!(desk.planner().press_power(), UiSound::Cancel);
     assert!(desk.game.plan().power.is_none());

@@ -163,8 +163,6 @@ pub enum Selected {
 /// Was der Controller für das HUD festlegt; Hand, HUD und Fähigkeitskarte zeigen es zusammen mit dem Spielzustand.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct HudState {
-    /// Die Statuszeile oben.
-    pub status: String,
     pub action: HudAction,
     /// Der Aktionsknopf ist frei (etwa: geplant werden darf, ein Gegner ist da, das Flaggschiff liegt).
     pub action_enabled: bool,
