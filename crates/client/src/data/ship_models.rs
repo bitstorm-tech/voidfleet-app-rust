@@ -32,7 +32,7 @@ impl ShipKind {
         }
     }
 
-    /// Flaggschiffe tragen eine Krone: das eigene und das Siegel.
+    /// Flaggschiff: das eigene und das Siegel.
     pub fn is_flagship(self) -> bool {
         self.class() == EnemyClass::Flagship
     }

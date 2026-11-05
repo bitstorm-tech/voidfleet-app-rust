@@ -1,5 +1,5 @@
 //! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild über dem
-//! Modell, als Billboard zur Kamera gedreht, Krone der Flaggschiffe (eigenes und Siegel) rechts daneben, Totenkopf der
+//! Modell, als Billboard zur Kamera gedreht, Krone des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der
 //! Vorschau links daneben, und der Boden unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
 //! in [`ShipStatus`]; wer sie ändert, ändert die Balken.
 //!
@@ -8,7 +8,7 @@
 //! Balken, Größe der Marken, Mitte und Radius für Effekte).
 
 use bevy::{camera::primitives::Aabb, prelude::*};
-use voidfleet_core::events::UnitStats;
+use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 
 use super::{
     animation::AnimationSystems,
@@ -19,7 +19,7 @@ use super::{
     ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, Wreck},
     sync::SyncSystems,
 };
-use crate::palette;
+use crate::{data::ship_models::ShipKind, palette};
 
 /// Die Balken schweben mindestens so hoch, bei hohen Aufbauten knapp über dem Modell (Raum des Schiffs).
 const BAR_MIN_HEIGHT: f32 = 1.15;
@@ -349,19 +349,22 @@ fn dress_ship(
             ))
             .id()
     };
-    // Die Krone wird mit den Balken gedämpft.
-    let crown = ship.kind.is_flagship().then(|| {
-        let crown = badge(
-            &mut commands,
-            &mut materials,
-            bars,
-            badges.crown.clone(),
-            CROWN_SIZE,
-            (TRACK_WIDTH + CROWN_SIZE) / 2.0 + 0.08,
+    // Die Krone trägt nur ein gegnerisches Flaggschiff; sie wird mit den Balken gedämpft.
+    let crown =
+        matches!(ship.kind, ShipKind::Enemy(enemy) if enemy.class() == EnemyClass::Flagship).then(
+            || {
+                let crown = badge(
+                    &mut commands,
+                    &mut materials,
+                    bars,
+                    badges.crown.clone(),
+                    CROWN_SIZE,
+                    (TRACK_WIDTH + CROWN_SIZE) / 2.0 + 0.08,
+                );
+                commands.entity(crown).insert(Bar { alpha: 1.0 });
+                crown
+            },
         );
-        commands.entity(crown).insert(Bar { alpha: 1.0 });
-        crown
-    });
     let skull = badge(
         &mut commands,
         &mut materials,
