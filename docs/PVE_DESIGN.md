@@ -7,7 +7,7 @@ Wer ist wer in diesem Text:
 - **Der Spieler** ist ein Mensch. Er führt genau eine Einheit, sein Flaggschiff, besetzt dessen Stationen und spielt Karten.
 - **Das Flaggschiff** ohne Zusatz ist immer das Schiff des Spielers. Ein gegnerisches Flaggschiff gibt es nur in Boss-Gefechten.
 - **Die Gegner** sind alle Einheiten auf der anderen Seite. Sie steuert das Spiel nach festen Mustern mit angesagten Absichten (Abschnitt 12): kein zweiter Mensch, kein planender Bot. Sie spielen keine Karten und haben keine Stationen.
-- **Die Runde** ist Spielerzug, Gegnerzug, Bilanz (Abschnitt 5). Im Spielerzug handelt nur der Spieler, im Gegnerzug nur das Spiel.
+- **Die Runde** ist Spielerzug, Gegnerzug, Auflösung (Abschnitt 5). Im Spielerzug handelt nur der Spieler, im Gegnerzug nur das Spiel.
 
 ## 1. Was das Spiel sein soll
 
@@ -35,7 +35,7 @@ Nach dem MDA-Framework, von hinten nach vorn:
 | Schlachtschiff | nur Gegner                   | 1 großes Modell mit Bränden und Rumpfbrüchen                                | Spaltenfeuer mit Aufladen, Panzerung, ruft Verstärkung |
 | Flaggschiff    | Spieler; Gegner nur als Boss | wie Schlachtschiff, größer, mit Ring und Krone                              | das Schiff des Spielers, der Held des Runs             |
 
-Jede Einheit hat **Hülle** und **ATK**, keinen Schildwert. Schilde gibt es nur für einen Gegnerzug, aus der Schild-Station, aus Befehlskarten und bei Gegnern aus der Aktion Schilde; sie verfallen in der Bilanz. Dazu kommt Deckung.
+Jede Einheit hat **Hülle** und **ATK**, keinen Schildwert. Schilde gibt es nur für einen Gegnerzug, aus der Schild-Station, aus Befehlskarten und bei Gegnern aus der Aktion Schilde; sie verfallen in der Auflösung. Dazu kommt Deckung.
 
 ### Schaden
 
@@ -56,11 +56,11 @@ Zustände sind sichtbar. Sie sind der Motor der Eskalation und ersetzen den Over
 
 | Zustand                                       | Auslöser                                                                                                                                                  | Wirkung                                                                                   | Ende                                                                                    |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Brand** (Jäger: „Zersprengt“)               | ein Treffer bringt die Hülle auf 50 % oder weniger; beim Flaggschiff schon ab 60 %, wenn ein Plasmakreuzer trifft; bei Gegnern bei jedem Treffer der Glut | in der Bilanz −2 Hülle (Gegner der Glut −3)                                               | beim Flaggschiff Schadenskontrolle oder Reparaturtrupp; ein Gegner brennt, bis er fällt |
+| **Brand** (Jäger: „Zersprengt“)               | ein Treffer bringt die Hülle auf 50 % oder weniger; beim Flaggschiff schon ab 60 %, wenn ein Plasmakreuzer trifft; bei Gegnern bei jedem Treffer der Glut | in der Auflösung −2 Hülle (Gegner der Glut −3)                                            | beim Flaggschiff Schadenskontrolle oder Reparaturtrupp; ein Gegner brennt, bis er fällt |
 | **Notfall** (Flaggschiff: „Brücke getroffen“) | Hülle bei 25 % oder weniger                                                                                                                               | ATK halbiert. Gegner: kein Ausweichen. Flaggschiff: keine Admiralsstation                 | Hülle wieder über 25 %                                                                  |
 | **Zerstört**                                  | Hülle 0                                                                                                                                                   | Gegner: verlässt das Brett, der Slot ist frei für Verstärkung. Flaggschiff: der Run endet | —                                                                                       |
 
-Ein Brand kann in der Bilanz zerstören: „Ausgebrannt.“
+Ein Brand kann in der Auflösung zerstören: „Ausgebrannt.“
 
 ### Das Flaggschiff im Run
 
@@ -70,13 +70,13 @@ Die Hülle des Flaggschiffs bleibt zwischen den Gefechten, wie sie ist; geheilt 
 
 Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (Abschnitt 12). Das Flaggschiff besetzt pro Runde genau eine Station. Station, Ziel und Spalte bleiben eingestellt, bis der Spieler sie ändert; eine Runde kann deshalb einen Klick brauchen oder acht. Die Station wird ausgeführt, sobald der Spieler sie auslöst, spätestens beim Zugende; davor und danach dürfen Karten gespielt werden.
 
-| Station                                     | Wirkung                                                                                                                 |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Waffen**, feuert auf ein gewähltes Schiff | beim Auslösen die ATK des Flaggschiffs auf das Ziel, mit den Abzügen aus Abschnitt 3                                    |
-| **Schilde**, feuert nicht                   | schluckt im folgenden Gegnerzug 8 Schaden (Mauer 12), Zielfeuer wie Spaltenfeuer; was übrig ist, verfällt in der Bilanz |
-| **Schadenskontrolle**, feuert nicht         | löscht den Brand, +5 Hülle, nie über die volle Hülle                                                                    |
-| **Manöver**, feuert nicht                   | wechselt die Spalte und entgeht so dem Spaltenfeuer, das auf die alte Spalte angesagt ist; Zielfeuer folgt              |
-| **Admiralsstation**                         | je Admiral, Abschnitt 7; im Notfall nicht möglich                                                                       |
+| Station                                     | Wirkung                                                                                                                    |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Waffen**, feuert auf ein gewähltes Schiff | beim Auslösen die ATK des Flaggschiffs auf das Ziel, mit den Abzügen aus Abschnitt 3                                       |
+| **Schilde**, feuert nicht                   | schluckt im folgenden Gegnerzug 8 Schaden (Mauer 12), Zielfeuer wie Spaltenfeuer; was übrig ist, verfällt in der Auflösung |
+| **Schadenskontrolle**, feuert nicht         | löscht den Brand, +5 Hülle, nie über die volle Hülle                                                                       |
+| **Manöver**, feuert nicht                   | wechselt die Spalte und entgeht so dem Spaltenfeuer, das auf die alte Spalte angesagt ist; Zielfeuer folgt                 |
+| **Admiralsstation**                         | je Admiral, Abschnitt 7; im Notfall nicht möglich                                                                          |
 
 Regeln im Detail:
 
@@ -85,15 +85,15 @@ Regeln im Detail:
 - Das Flaggschiff weicht nicht aus; Panzerung hat es nur durch Ablativpanzerung und Module. Gegen gegnerisches Feuer hat der Spieler vier Antworten: Schilde gegen den Schaden, Manöver gegen Spaltenfeuer, Kurzsprung gegen alles, und den Schützen zerstören, bevor er handelt.
 - Die Karte Alarmstufe Rot erlaubt zwei Stationen in einer Runde; das ist der einzige Weg zu zwei Stationen.
 
-## 5. Die Runde: Spielerzug, Gegnerzug, Bilanz
+## 5. Die Runde: Spielerzug, Gegnerzug, Auflösung
 
-Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Bilanz, die das Spiel von selbst ausführt. Vor Runde 1 sieht der Spieler Formation und Absichten der Gegner und wählt die Spalte seines Flaggschiffs.
+Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Vor Runde 1 sieht der Spieler Formation und Absichten der Gegner und wählt die Spalte seines Flaggschiffs.
 
 | Abschnitt      | Wer handelt                | Was geschieht                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Spielerzug** | der Spieler                | Karten und Station wirken sofort, in der Reihenfolge des Spielers (Abschnitt 6). Gegner mit Hülle 0 fallen auf der Stelle und handeln in dieser Runde nicht mehr.                                                                                                                                                                                                                                              |
 | **Gegnerzug**  | das Spiel                  | Angesagte Verstärkung trifft ein und sagt ihre erste Absicht an. Dann handelt jede gegnerische Einheit nach ihrer Absicht, Front vor Back, links nach rechts: Spaltenfeuer, Zielfeuer, Rammkurs, Aufladen, Schilde, Ausweichen, Zielerfassung, Verstärkung rufen. Schilde des Flaggschiffs, Gegenfeuer, Standhalten und Gegenmaßnahmen werden je Treffer gerechnet. Fällt das Flaggschiff, endet der Run hier. |
-| **Bilanz**     | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3, die Station bleibt eingestellt. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
+| **Auflösung**  | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3, die Station bleibt eingestellt. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
 
 Weil der Spieler zuerst handelt, feuert ein Gegner, der im Spielerzug fällt, nie: Das ist die wichtigste Regel des Runs. Jeder Angriff ist eine Rechnung gegen die Ansage: Was fällt, bevor es handelt, hat nie gehandelt; was in den Notfall geht, handelt mit halber ATK. Umgekehrt gibt es keinen Schutz, den man nicht vor dem Zugende aufgebaut hat.
 
@@ -105,7 +105,7 @@ Im Spielerzug wirkt alles sofort, in der Reihenfolge, in der der Spieler es tut,
 2. **Station.** Eine der fünf Stationen, bei Waffen ein Ziel, bei Manöver eine Spalte; voreingestellt ist, was in der Vorrunde galt. Die Station wird ausgeführt, sobald der Spieler sie auslöst, spätestens beim Zugende. Danach dürfen noch Karten gespielt werden.
 3. **Zug beenden.** Der Gegnerzug beginnt.
 
-Die Hand wird jede Runde neu gezogen: fünf Befehle vom Deck, nicht gespielte Karten gehen in der Bilanz auf den Ablagestapel, und ist das Deck leer, wird der Ablagestapel gemischt. So zählt jede Karte im Deck, und der Deckbau im Run hat eine Wirkung.
+Die Hand wird jede Runde neu gezogen: fünf Befehle vom Deck, nicht gespielte Karten gehen in der Auflösung auf den Ablagestapel, und ist das Deck leer, wird der Ablagestapel gemischt. So zählt jede Karte im Deck, und der Deckbau im Run hat eine Wirkung.
 
 ## 7. Die vier Admirale
 
@@ -132,34 +132,34 @@ Was die vier unterscheidet, in einem Satz: Die Mauer gewinnt, indem sie aushält
 
 Karten spielt nur der Spieler; die Gegner haben keine. Kosten in Befehlspunkten. Angriffskarten treffen immer, mit festem Schaden und den Abzügen eines Schusses (Abschnitt 3), wo nichts anderes steht. Portiert aus den heutigen 32 Befehlen, Bewegungskarten, Drohnen und alles, was eine zweite eigene Einheit braucht, entfallen.
 
-| Karte             | BP  | Typ         | Wirkung                                                                                                                                                                         |
-| ----------------- | --- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Torpedo           | 2   | Angriff     | 6 Schaden auf ein gewähltes Schiff, Ausweichen zählt nicht                                                                                                                      |
-| Orbitalschlag     | 3   | Angriff     | 7 Schaden auf ein gewähltes Schiff, ignoriert Deckung                                                                                                                           |
-| Salvenfeuer       | 2   | Angriff     | 2 Schaden auf jede gegnerische Einheit, ignoriert Deckung                                                                                                                       |
-| Sperrfeuer        | 1   | Angriff     | 4 Schaden auf jedes gegnerische Schiff, das gerade ausweicht                                                                                                                    |
-| Wärmesucher       | 2   | Angriff     | 5 Schaden auf ein gewähltes Schiff, ignoriert Deckung; 8, wenn es gerade ausweicht                                                                                              |
-| Gnadenstoß        | 2   | Angriff     | 3 Schaden auf ein gewähltes Schiff; 8, wenn es im Notfall ist                                                                                                                   |
-| Bombardement      | 2   | Angriff     | 3 Schaden auf jede Einheit in der gegnerischen Back-Reihe                                                                                                                       |
-| Rammkurs          | 3   | Angriff     | Das Flaggschiff rammt ein gewähltes Schiff: Das Ziel nimmt das Doppelte der ATK des Flaggschiffs, das Flaggschiff die ATK des Ziels                                             |
-| Brandsatz         | 1   | Angriff     | 2 Schaden auf ein gewähltes Schiff und setzt es in Brand. Kennkarte der Glut                                                                                                    |
-| Notschilde        | 1   | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich                                                                                                                              |
-| Standhalten       | 1   | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich; jeder Schütze, der es trifft, verliert 2 Hülle. Kennkarte der Mauer                                                         |
-| Ablativpanzerung  | 2   | Verstärkung | Das Flaggschiff nimmt für den Rest des Gefechts je Treffer 1 weniger                                                                                                            |
-| Überladung        | 1   | Verstärkung | Das Flaggschiff feuert diese Runde mit +5 ATK und nimmt am Zugende 3 Schaden. Kennkarte des Hammers                                                                             |
-| Energiestoß       | 2   | Verstärkung | Das Flaggschiff feuert diese Runde mit +3 ATK                                                                                                                                   |
-| Reparaturtrupp    | 1   | Verstärkung | Brand gelöscht, +4 Hülle, zusätzlich zur Station                                                                                                                                |
-| EMP-Stoß          | 2   | Schwächung  | Ein gegnerisches Schiff: Seine Schilde fallen aus, eine Aufladung bricht ab                                                                                                     |
-| Zielstörer        | 1   | Schwächung  | Alle gegnerischen Schüsse im Gegnerzug −1 ATK                                                                                                                                   |
-| Funkstille        | 2   | Schwächung  | Die Sonderaktion eines gegnerischen Schiffs (Aufladen, Zielerfassung, Verstärkung rufen, Riegel) fällt diese Runde aus, und es feuert auch nicht                                |
-| Traktorstrahl     | 2   | Schwächung  | Ein gegnerisches Schiff außer einem Flaggschiff wird in einen freien Slot seiner Reihe gezogen; Deckung bricht                                                                  |
-| Kurzsprung        | 2   | Taktik      | Das Flaggschiff verlässt das Brett: Es führt diese Runde keine Station aus, ist im Gegnerzug kein Ziel und kehrt in der Bilanz in seine Spalte zurück. Kennkarte des Uhrmachers |
-| Ausweichmanöver   | 1   | Taktik      | Das Flaggschiff wechselt sofort die Spalte, ohne seine Station zu verlieren                                                                                                     |
-| Gegenmaßnahmen    | 1   | Taktik      | Der erste gegnerische Angriff im Gegnerzug, Spaltenfeuer oder Schuss, macht halben Schaden                                                                                      |
-| Plündern          | 1   | Taktik      | Zwei Befehle ziehen                                                                                                                                                             |
-| Alarmstufe Rot    | 2   | Taktik      | Das Flaggschiff besetzt diese Runde zwei Stationen; die Admiralsstation darf eine davon sein                                                                                    |
-| Feuerleitdoktrin  | 2   | Doktrin     | Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +1 Schaden                                                                                                    |
-| Alarmbereitschaft | 2   | Doktrin     | Für den Rest des Gefechts schluckt das Flaggschiff in jedem Gegnerzug 2                                                                                                         |
+| Karte             | BP  | Typ         | Wirkung                                                                                                                                                                            |
+| ----------------- | --- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Torpedo           | 2   | Angriff     | 6 Schaden auf ein gewähltes Schiff, Ausweichen zählt nicht                                                                                                                         |
+| Orbitalschlag     | 3   | Angriff     | 7 Schaden auf ein gewähltes Schiff, ignoriert Deckung                                                                                                                              |
+| Salvenfeuer       | 2   | Angriff     | 2 Schaden auf jede gegnerische Einheit, ignoriert Deckung                                                                                                                          |
+| Sperrfeuer        | 1   | Angriff     | 4 Schaden auf jedes gegnerische Schiff, das gerade ausweicht                                                                                                                       |
+| Wärmesucher       | 2   | Angriff     | 5 Schaden auf ein gewähltes Schiff, ignoriert Deckung; 8, wenn es gerade ausweicht                                                                                                 |
+| Gnadenstoß        | 2   | Angriff     | 3 Schaden auf ein gewähltes Schiff; 8, wenn es im Notfall ist                                                                                                                      |
+| Bombardement      | 2   | Angriff     | 3 Schaden auf jede Einheit in der gegnerischen Back-Reihe                                                                                                                          |
+| Rammkurs          | 3   | Angriff     | Das Flaggschiff rammt ein gewähltes Schiff: Das Ziel nimmt das Doppelte der ATK des Flaggschiffs, das Flaggschiff die ATK des Ziels                                                |
+| Brandsatz         | 1   | Angriff     | 2 Schaden auf ein gewähltes Schiff und setzt es in Brand. Kennkarte der Glut                                                                                                       |
+| Notschilde        | 1   | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich                                                                                                                                 |
+| Standhalten       | 1   | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich; jeder Schütze, der es trifft, verliert 2 Hülle. Kennkarte der Mauer                                                            |
+| Ablativpanzerung  | 2   | Verstärkung | Das Flaggschiff nimmt für den Rest des Gefechts je Treffer 1 weniger                                                                                                               |
+| Überladung        | 1   | Verstärkung | Das Flaggschiff feuert diese Runde mit +5 ATK und nimmt am Zugende 3 Schaden. Kennkarte des Hammers                                                                                |
+| Energiestoß       | 2   | Verstärkung | Das Flaggschiff feuert diese Runde mit +3 ATK                                                                                                                                      |
+| Reparaturtrupp    | 1   | Verstärkung | Brand gelöscht, +4 Hülle, zusätzlich zur Station                                                                                                                                   |
+| EMP-Stoß          | 2   | Schwächung  | Ein gegnerisches Schiff: Seine Schilde fallen aus, eine Aufladung bricht ab                                                                                                        |
+| Zielstörer        | 1   | Schwächung  | Alle gegnerischen Schüsse im Gegnerzug −1 ATK                                                                                                                                      |
+| Funkstille        | 2   | Schwächung  | Die Sonderaktion eines gegnerischen Schiffs (Aufladen, Zielerfassung, Verstärkung rufen, Riegel) fällt diese Runde aus, und es feuert auch nicht                                   |
+| Traktorstrahl     | 2   | Schwächung  | Ein gegnerisches Schiff außer einem Flaggschiff wird in einen freien Slot seiner Reihe gezogen; Deckung bricht                                                                     |
+| Kurzsprung        | 2   | Taktik      | Das Flaggschiff verlässt das Brett: Es führt diese Runde keine Station aus, ist im Gegnerzug kein Ziel und kehrt in der Auflösung in seine Spalte zurück. Kennkarte des Uhrmachers |
+| Ausweichmanöver   | 1   | Taktik      | Das Flaggschiff wechselt sofort die Spalte, ohne seine Station zu verlieren                                                                                                        |
+| Gegenmaßnahmen    | 1   | Taktik      | Der erste gegnerische Angriff im Gegnerzug, Spaltenfeuer oder Schuss, macht halben Schaden                                                                                         |
+| Plündern          | 1   | Taktik      | Zwei Befehle ziehen                                                                                                                                                                |
+| Alarmstufe Rot    | 2   | Taktik      | Das Flaggschiff besetzt diese Runde zwei Stationen; die Admiralsstation darf eine davon sein                                                                                       |
+| Feuerleitdoktrin  | 2   | Doktrin     | Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +1 Schaden                                                                                                       |
+| Alarmbereitschaft | 2   | Doktrin     | Für den Rest des Gefechts schluckt das Flaggschiff in jedem Gegnerzug 2                                                                                                            |
 
 Entfallen gegenüber dem heutigen Spiel: Flankenmanöver, Abfangen, Rückruf, Durchschlag, Kreuzfeuer, Minenfeld, Drohnenstaffel, Feuerschutz, Freie Hand, Schrottverwertung, Schildgitter, Ablenkung, Schnellverlegung. Doktrinen sind die Power-Karten von Slay the Spire: Sie bleiben liegen, bis das Gefecht endet.
 
@@ -175,7 +175,7 @@ Im Spielerzug zeigt das Spiel jede Karte und die Station sofort: Salve, Einschla
 - **Reihenfolge im Gegnerzug.** Verstärkung zuerst, dann die Gegner Front vor Back, links nach rechts. Wer im Spielerzug gefallen ist, hat keinen Auftritt mehr, und der Bericht sagt es: „Der Wachkreuzer bricht auseinander, bevor er feuern kann.“
 - **Jede Zahl erklärt sich.** Am Einschlag steht der Schaden, darunter in Kurzform, wie er entstand: „11“, dazu Marken wie „weicht aus: 6“, „Panzerung −2“, „gedeckt: 4 an den Wachkreuzer“, „Schild schluckt 8“. Dieselbe Rechnung steht als Vorschau am Ziel, bevor der Spieler auslöst: Was die Vorschau zeigt, geschieht. Das Log führt dieselben Zeilen in Klartext.
 - **Zustände sind Auftritte.** Ein neuer Brand, ein Notfall, ein ausgebranntes Schiff bekommen Banner, Funkspruch und Kamerablick. Beim Flaggschiff spricht die Brücke, beim Gegner der abgehörte Funk.
-- **Rundenbilanz.** Nach dem Gegnerzug ein kurzes Tableau: Schaden genommen und ausgeteilt, Verluste des Gegners, neue Zustände, die Absichten der Gegner für die nächste Runde, die neue Hand. Erst dann beginnt die Planung.
+- **Auflösung.** Nach dem Gegnerzug ein kurzes Tableau: Schaden genommen und ausgeteilt, Verluste des Gegners, neue Zustände, die Absichten der Gegner für die nächste Runde, die neue Hand. Erst dann beginnt die Planung.
 - **Funk.** Jeder Zug hat Ankündigung und Reaktion. Die eigene Brücke meldet Schäden, Brände und den Notfall; die Geschützleitung meldet Treffer; der abgehörte Gegnerfunk verrät Angst, Verstärkung und den Moment, in dem ein Verband bricht.
 
 ## 10. Beispielrunde
@@ -190,14 +190,14 @@ Der sichere Zug: Torpedo auf den Belagerer (6, Panzerung −2, also 4, er steht 
 
 Der Zug des Hammers: Überladung, Torpedo, dann Fokusfeuer auf den Belagerer. Die Rechnung vor dem Klick, und die Vorschau zeigt sie: Fokusfeuer mit doppeltem Vorstoß macht ATK 15, mit Überladung 20, minus 2 Panzerung sind 18. Der Belagerer steht nach dem Torpedo bei 18. Das reicht auf den Punkt: Er fällt, bevor er feuert, und die Vanguard zahlt dafür 3 Hülle an die Überladung und 4 an die Plünderer. Stünde er bei 23, fehlte ein Punkt, und auch das stünde vor dem Klick in der Vorschau; dann bliebe der sichere Zug.
 
-| Zug     | Ereignis                                     | Ergebnis                                                                                      |
-| ------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Spieler | Überladung                                   | ATK diese Runde +5                                                                            |
-| Spieler | Torpedo auf den Belagerer                    | 6, Panzerung −2: 4, Belagerer 18/30                                                           |
-| Spieler | Fokusfeuer, 11 + 4 Vorstoß + 5 Überladung    | 20, Panzerung −2: 18, Belagerer zerstört, das Hauptgeschütz feuert nie                        |
-| Spieler | Zugende: Überladung                          | Vanguard 35/50                                                                                |
-| Gegner  | Plünderer auf die Vanguard, 2, Fokusfeuer +2 | 4, Vanguard 31/50                                                                             |
-| Bilanz  |                                              | Belagerer gefallen, Modul gesichert. Vanguard 31/50, Vorstoß +3. Plünderer sagen Zielfeuer an |
+| Zug       | Ereignis                                     | Ergebnis                                                                                      |
+| --------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Spieler   | Überladung                                   | ATK diese Runde +5                                                                            |
+| Spieler   | Torpedo auf den Belagerer                    | 6, Panzerung −2: 4, Belagerer 18/30                                                           |
+| Spieler   | Fokusfeuer, 11 + 4 Vorstoß + 5 Überladung    | 20, Panzerung −2: 18, Belagerer zerstört, das Hauptgeschütz feuert nie                        |
+| Spieler   | Zugende: Überladung                          | Vanguard 35/50                                                                                |
+| Gegner    | Plünderer auf die Vanguard, 2, Fokusfeuer +2 | 4, Vanguard 31/50                                                                             |
+| Auflösung |                                              | Belagerer gefallen, Modul gesichert. Vanguard 31/50, Vorstoß +3. Plünderer sagen Zielfeuer an |
 
 Was der Bericht erzählt: Der Torpedo hat die Panzerung aufgerissen, das Fokusfeuer hat den Belagerer zerlegt, und sein Hauptgeschütz, zwei Runden lang angekündigt, ist nie losgegangen. Der sichere Zug hätte 38 Hülle behalten und dafür zwei weitere Runden Belagerer eingehandelt. Beides ist richtig; was richtiger war, entscheidet die Karte dahinter.
 
@@ -245,7 +245,7 @@ Die Gegner steuert das Spiel; im Run gibt es keinen zweiten Menschen und keinen 
 
 ### Absichten
 
-In der Bilanz jeder Runde zeigt jede gegnerische Einheit ihre Absicht für die nächste Runde: Aktion, bei Zielfeuer den Schaden, bei Spaltenfeuer die Spalte und den Schaden, bei Aufladen den Zähler. Das ist der Kern des Runs: Der Spieler plant mit offenem Gegner, der Gegner weiß nichts vom Spieler. Vor Runde 1 wählt der Spieler seine Spalte, nachdem er Formation und Absichten gesehen hat; der Uhrmacher sieht zwei Runden. Der Spieler handelt zuerst: Ein Gegner, der im Spielerzug fällt, führt seine Absicht nie aus, einer im Notfall mit halber ATK.
+In der Auflösung jeder Runde zeigt jede gegnerische Einheit ihre Absicht für die nächste Runde: Aktion, bei Zielfeuer den Schaden, bei Spaltenfeuer die Spalte und den Schaden, bei Aufladen den Zähler. Das ist der Kern des Runs: Der Spieler plant mit offenem Gegner, der Gegner weiß nichts vom Spieler. Vor Runde 1 wählt der Spieler seine Spalte, nachdem er Formation und Absichten gesehen hat; der Uhrmacher sieht zwei Runden. Der Spieler handelt zuerst: Ein Gegner, der im Spielerzug fällt, führt seine Absicht nie aus, einer im Notfall mit halber ATK.
 
 Absichten werden bei der Ansage bestimmt und nicht mehr geändert. Ein Kurzsprung lässt jedes Feuer ins Leere gehen, ein Manöver nur das Spaltenfeuer: die beiden Fälle, in denen ein Schuss nichts trifft, und beide sind verdient. Damit Schilde und Manöver nicht zur sicheren Antwort werden, feuern Verbände mit mehreren Waffen, Schlachtschiffe laden auf, Spotter erhöhen den Preis jeder Runde, und die Gefechtsuhr bestraft das Zögern.
 
@@ -331,8 +331,8 @@ Der Run braucht keinen Server: Die Auflösung liegt in `shared/`, die Muster der
 
 ## 15. Umsetzungsreihenfolge
 
-1. `shared/`: Flaggschiff, Stationen, Zustände, Schaden und Abzüge, Spielerzug mit sofortiger Wirkung, Gegnerzug und Bilanz, Gegnermuster und Absichten als Datenmodell und Ereignisstrom. Tests gegen die Beispielrunde.
-2. `client/`: ein Gefecht gegen Muster-Gegner: Station am Flaggschiff wählen, Ziel und Spalte per Klick, Karten mit Befehlspunkten, Absichten über den Gegnern, Checkliste; dann der Gefechtsbericht mit Rundenbilanz; Regel-Dialog neu.
+1. `shared/`: Flaggschiff, Stationen, Zustände, Schaden und Abzüge, Spielerzug mit sofortiger Wirkung, Gegnerzug und Auflösung, Gegnermuster und Absichten als Datenmodell und Ereignisstrom. Tests gegen die Beispielrunde.
+2. `client/`: ein Gefecht gegen Muster-Gegner: Station am Flaggschiff wählen, Ziel und Spalte per Klick, Karten mit Befehlspunkten, Absichten über den Gegnern, Checkliste; dann der Gefechtsbericht mit Auflösung; Regel-Dialog neu.
 3. `client/`: der Run: Admiralswahl, Sternenkarte, Knoten, Beute, Werft, Schwarzmarkt, Ereignisse, Speicherstand.
 4. Assets: Modellgruppen und Gegnerlackierungen, Pyre, Reyes, Wächter, Holodeck, Funksprüche für Brücke, Geschützleitung und Gegnerfunk.
 5. `server/`: Koop und Duell auf derselben Auflösung; Bot für das Duell.
