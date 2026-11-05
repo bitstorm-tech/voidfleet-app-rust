@@ -41,12 +41,12 @@ test *args:
 scene name="board":
     VOIDFLEET_DEV_SCENE={{ name }} cargo run -p voidfleet-client
 
-# Rauchtest: Partie gegen den Computer über den Controller, Screenshots je Station unter <dir>
+# Rauchtest: ein Run über den Controller, Screenshots je Station unter <dir>
 smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":
     mkdir -p "{{ dir }}"
     VOIDFLEET_SMOKE_FRAMES=200000 VOIDFLEET_SMOKE_PLAY={{ rounds }} VOIDFLEET_SMOKE_SCREENSHOT="{{ dir }}/play.png" cargo run -p voidfleet-client
 
-# Mauszeiger, Icons und Regel-Illustrationen zu PNG rastern
+# Icons zu PNG rastern
 rasterize:
     cargo run --release --manifest-path tools/rasterize/Cargo.toml
 
