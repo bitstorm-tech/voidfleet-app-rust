@@ -15,7 +15,7 @@ Nach dem MDA-Framework, von hinten nach vorn:
 
 - **Ästhetik.** Kommandanten-Fantasie und Schauwert. Der Moment, für den man wiederkommt, ist „Was für eine Schlacht“: ein Schiff, eine Crew, eine Übermacht. Ton wie Battlestar Galactica und The Expanse: rau, militärisch, Schadensmeldungen von der Brücke, Verluste und Schaden tun weh. Der Ton kommt aus Funk, Text, Zuständen und Inszenierung, nicht aus dem Look; der Clean-Toon-Stil bleibt und wird detailreicher und schmutziger. Nicht im Zentrum: Mindgame; die offene Rechnung ist Mittel, nicht Zweck.
 - **Dynamik.** Eines gegen viele, Mensch gegen Spiel, in Zügen im Wechsel. Die gegnerische Flotte steht in Formation und sagt an, was sie in ihrem Zug tun wird; der Spieler handelt zuerst, rechnet gegen die Ansage und entscheidet, welche Station seines Schiffs in dieser Runde besetzt wird: Geschütz, Schild, Werft oder Admiral; dann führt das Spiel aus, was von der Ansage noch steht. Der Spannungsbogen kommt aus Verfall: Gegner brennen, fallen in den Notfall, verlieren sichtbar Modelle, und das Flaggschiff trägt seine Hülle durch den ganzen Run. Kein Schuss geht ins Nichts, und jede Zahl steht fest, bevor der Spieler klickt. Jede Runde stellt die Frage: Wo gebe ich Feuerkraft auf, um zu überleben, und wofür gebe ich meine Befehlspunkte aus?
-- **Mechanik.** Das Flaggschiff besetzt pro Runde eine Station. Befehlspunkte zahlen Karten aus einem Deck, das im Run wächst. Vier Admirale als Charaktere, jeder mit Waffe, Passiv, Admiralsstation und Startdeck. Gegner haben Muster und Absichten statt Karten. Drei Sektoren mit Sternenkarte, Beute und Bossen. Die Auflösung ist ein erzählter Gefechtsbericht. Fällt das Flaggschiff, endet der Run.
+- **Mechanik.** Das Flaggschiff besetzt pro Runde eine Station. Befehlspunkte zahlen Karten aus einem Deck, das im Run wächst. Vier Admirale als Charaktere, jeder mit Waffe, Passiv, Admiralsstation und Startdeck. Gegner haben Muster und Absichten statt Karten. Drei Sektoren mit Sternenkarte, Beute und Bossen. Der Gegnerzug ist ein erzählter Gefechtsbericht. Fällt das Flaggschiff, endet der Run.
 
 ## 2. Brett und Formation
 
@@ -314,7 +314,7 @@ Alle drei Modi nutzen dieselben Gefechtsregeln (Abschnitte 2 bis 9). Sie untersc
 | Läuft    | im Client, offline, mit Seed               | über den Server                                                              | über den Server                                      |
 | Sieg     | das Wurmloch nach Hause                    | wie Run                                                                      | gegnerisches Flaggschiff fällt                       |
 
-Der Run braucht keinen Server: Die Auflösung liegt in `shared/`, die Muster der Gegner sind Daten, und ein Seed macht jeden Run wiederholbar. Ohne Server entstehen für den Run keine laufenden Kosten. Das Duell braucht später einen eigenen Entwurf: Im Wechsel gezogen dauert eine asynchrone Runde beide Züge nacheinander, das gleichzeitige blinde Ziehen des alten Spiels passt nicht mehr zu diesen Regeln, und Flaggschiff gegen Flaggschiff ohne Formation ist ein anderes Spiel als der Run.
+Der Run braucht keinen Server: Die Gefechtsregeln liegen in `shared/`, die Muster der Gegner sind Daten, und ein Seed macht jeden Run wiederholbar. Ohne Server entstehen für den Run keine laufenden Kosten. Das Duell braucht später einen eigenen Entwurf: Im Wechsel gezogen dauert eine asynchrone Runde beide Züge nacheinander, das gleichzeitige blinde Ziehen des alten Spiels passt nicht mehr zu diesen Regeln, und Flaggschiff gegen Flaggschiff ohne Formation ist ein anderes Spiel als der Run.
 
 ## 14. Offene Punkte und Risiken
 
@@ -335,4 +335,4 @@ Der Run braucht keinen Server: Die Auflösung liegt in `shared/`, die Muster der
 2. `client/`: ein Gefecht gegen Muster-Gegner: Station am Flaggschiff wählen, Ziel und Spalte per Klick, Karten mit Befehlspunkten, Absichten über den Gegnern, Checkliste; dann der Gefechtsbericht mit Auflösung; Regel-Dialog neu.
 3. `client/`: der Run: Admiralswahl, Sternenkarte, Knoten, Beute, Werft, Schwarzmarkt, Ereignisse, Speicherstand.
 4. Assets: Modellgruppen und Gegnerlackierungen, Pyre, Reyes, Wächter, Holodeck, Funksprüche für Brücke, Geschützleitung und Gegnerfunk.
-5. `server/`: Koop und Duell auf derselben Auflösung; Bot für das Duell.
+5. `server/`: Koop und Duell auf denselben Gefechtsregeln; Bot für das Duell.
