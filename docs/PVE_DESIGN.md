@@ -35,7 +35,7 @@ Nach dem MDA-Framework, von hinten nach vorn:
 | Schlachtschiff | nur Gegner                   | 1 großes Modell mit Bränden und Rumpfbrüchen                                | Spaltenfeuer mit Aufladen, Panzerung, ruft Verstärkung |
 | Flaggschiff    | Spieler; Gegner nur als Boss | wie Schlachtschiff, größer, mit Ring und Krone                              | das Schiff des Spielers, der Held des Runs             |
 
-Jede Einheit hat **Hülle** und **ATK**. Schilde regenerieren nicht und stehen nicht auf den Karten; Schutz entsteht durch Stationen, Deckung und Karten.
+Jede Einheit hat **Hülle** und **ATK**, keinen Schildwert. Schilde gibt es nur für einen Gegnerzug, aus der Schild-Station, aus Befehlskarten und bei Gegnern aus der Aktion Schilde; sie verfallen in der Bilanz. Dazu kommt Deckung.
 
 ### Schaden
 
