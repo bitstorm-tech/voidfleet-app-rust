@@ -11,7 +11,7 @@
 //!    meldet sie [`PlaybackFinished`], gehört die Szene wieder der Planung. Abgelehnte Aktionen erscheinen als Banner.
 //! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand, Slots, Klick daneben (zweimal schnell:
 //!    Vollbild), Rechtsklick und Escape brechen ab, Escape ohne Auswahl öffnet die Einstellungen, Leertaste
-//!    überspringt, Stationen-Feld und Aktionsknöpfe, Admiralswahl und Ergebnis.
+//!    überspringt, Stationen-Feld und Aktionsknöpfe. Admiralswahl, Ergebnis und Run laufen über [`crate::run`].
 //! 3. [`ControllerSystems::Refresh`] — [`Highlights`], [`BoardFocus`] und [`HudState`] aus Gefecht, Auswahl und Zeiger.
 //!
 //! Dev-Ansichten, die Brett und HUD selbst stellen, setzen [`Scripted`]; dann ruht der Controller.
@@ -25,10 +25,7 @@ pub use selection::{Outcome, Pick, Selection};
 use crate::{
     assets::AppState,
     audio::{Music, MusicMood, PlayUiSound, RadioCue, Say, UiSound},
-    game::{
-        Battle, BattleEvents, BattleStarted, GameSystems, LeaveBattle, PlayerAction, RuleRejected,
-        StartBattle,
-    },
+    game::{Battle, BattleEvents, BattleStarted, GameSystems, PlayerAction, RuleRejected},
     i18n::Locale,
     playback::{PlayEvents, PlaybackFinished, SkipPlayback},
     scene::{
@@ -40,7 +37,7 @@ use crate::{
     ui::{
         ActionPressed, AppendLog, ClearLog, HandCardPressed, HudAction, HudState, ShowBanner,
         StationPressed,
-        dialogs::{AdmiralChosen, Dialog, DialogSystems, NewRun, NextBattle, OpenDialog},
+        dialogs::{Dialog, DialogSystems, OpenDialog},
         fullscreen::ToggleFullscreen,
         theme::Modal,
     },
@@ -95,7 +92,6 @@ impl Plugin for ControllerPlugin {
                         cancel_on_right_click,
                         escape.before(DialogSystems),
                         skip_on_space.run_if(in_state(BoardMode::Playback)),
-                        forward_choices,
                     )
                         .in_set(Input),
                     (
@@ -376,31 +372,6 @@ fn skip_on_space(
 ) {
     if keys.just_pressed(KeyCode::Space) && modal.is_empty() {
         skip.write(SkipPlayback);
-    }
-}
-
-/// Admiralswahl und Ergebnis: Ein Admiral beginnt ein Gefecht, „Weiter“ das nächste Test-Gefecht mit demselben,
-/// „Neuer Run“ führt zurück zur Admiralswahl.
-fn forward_choices(
-    mut admirals: MessageReader<AdmiralChosen>,
-    mut next: MessageReader<NextBattle>,
-    mut new_run: MessageReader<NewRun>,
-    battle: Option<Res<Battle>>,
-    mut start: MessageWriter<StartBattle>,
-    mut leave: MessageWriter<LeaveBattle>,
-    mut music: ResMut<Music>,
-) {
-    if let Some(&AdmiralChosen(admiral)) = admirals.read().last() {
-        start.write(StartBattle(admiral));
-    }
-    if next.read().last().is_some()
-        && let Some(battle) = &battle
-    {
-        start.write(StartBattle(battle.flagship.admiral));
-    }
-    if new_run.read().last().is_some() {
-        leave.write(LeaveBattle);
-        music.set_if_neq(Music(Some(MusicMood::Calm)));
     }
 }
 

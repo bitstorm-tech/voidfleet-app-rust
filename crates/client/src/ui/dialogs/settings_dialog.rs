@@ -17,15 +17,19 @@ use bevy::{
     },
 };
 
-use super::{Dialog, dialog_console, footer_close, icon_dialog};
+use super::{
+    Dialog, close_dialogs, dialog_console, footer_close, icon_dialog, run_nodes::AbandonPrompt,
+};
 use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
     i18n::{LANGUAGES, Locale, SettingsTab},
     palette,
+    run::ActiveRun,
     settings::{AnimationSpeed, CursorId, Language, Settings, WindowMode},
     ui::{
         Fonts,
+        button::{self, Key},
         cursor::{self, CURSORS, CursorImages},
         theme::{self, rgb, rgba},
         tooltip::Tooltip,
@@ -597,6 +601,7 @@ pub(super) fn spawn(
     locale: Res<Locale>,
     settings: Res<Settings>,
     cursors: Res<CursorImages>,
+    run: Option<Res<ActiveRun>>,
 ) {
     let fonts = &*fonts;
     let locale = &*locale;
@@ -740,10 +745,44 @@ pub(super) fn spawn(
                         ),
                     ],
                 )),
-                Spawn(footer_close(fonts, locale, 22.0)),
+                Spawn((
+                    Node {
+                        margin: UiRect::top(px(22)),
+                        column_gap: px(12),
+                        justify_content: JustifyContent::FlexEnd,
+                        ..default()
+                    },
+                    Children::spawn((
+                        SpawnIter(
+                            run.is_some()
+                                .then(|| abandon_button(fonts, locale))
+                                .into_iter(),
+                        ),
+                        Spawn(footer_close(fonts, locale, 0.0)),
+                    )),
+                )),
             ),
         ),
     ));
+}
+
+/// „Run abbrechen“: schließt die Einstellungen und fragt nach.
+fn abandon_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
+    (
+        button::text_button(
+            fonts.display_bold(18.0),
+            locale.run_abandon(),
+            Key::DANGER,
+            Node {
+                padding: UiRect::axes(px(22), px(9)),
+                ..default()
+            },
+        ),
+        observe(|_: On<Activate>, mut commands: Commands| {
+            commands.insert_resource(AbandonPrompt);
+        }),
+        observe(close_dialogs),
+    )
 }
 
 /// Eine Taste der Auswahl schreibt ihre Wahl.

@@ -12,6 +12,7 @@
 //! - [`stations`] — Befehlspunkte, die fünf Stationen mit Ziel bzw. Spalte, „Auslösen“ und „Zug beenden“ mit
 //!   Checkliste.
 //! - [`hud`] — Kopfzeile (Runde, Gefechtsuhr, Hülle), Log, Banner.
+//! - [`run_bar`] — der Stand des Runs in der Kopfzeile (Hülle, Schrott, Deck, Sektor, Module).
 //! - [`round_log`] — je Ereignis des Gefechts eine Log-Zeile.
 //! - [`radio_subtitle`] — Untertitel des Bordfunks.
 //! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
@@ -36,6 +37,7 @@ pub mod hud;
 pub mod loading_screen;
 pub mod radio_subtitle;
 pub mod round_log;
+pub mod run_bar;
 pub mod stations;
 pub mod theme;
 pub mod tooltip;
@@ -224,6 +226,7 @@ impl Plugin for InterfacePlugin {
                 card::CardPlugin,
                 hand::HandPlugin,
                 hud::HudPlugin,
+                run_bar::RunBarPlugin,
                 stations::StationsPlugin,
                 radio_subtitle::RadioSubtitlePlugin,
                 view_toggle::ViewTogglePlugin,

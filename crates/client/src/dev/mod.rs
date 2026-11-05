@@ -1,13 +1,14 @@
-//! Rauchtest für Läufe ohne Spieler: Mit `VOIDFLEET_SMOKE_FRAMES=<n>` wählt die App nach dem Laden Admiral Osei und
-//! startet das Gefecht, schreibt `n` Bilder nach dem Start einen Screenshot nach `VOIDFLEET_SMOKE_SCREENSHOT` (kleine
+//! Rauchtest für Läufe ohne Spieler: Mit `VOIDFLEET_SMOKE_FRAMES=<n>` beginnt die App nach dem Laden einen Run mit
+//! Admiral Osei (fester Seed) und fliegt zum ersten Gefecht, schreibt `n` Bilder nach dem Start einen Screenshot nach `VOIDFLEET_SMOKE_SCREENSHOT` (kleine
 //! `n` zeigen den Ladebildschirm) und endet, sobald er auf der Platte liegt; ohne Screenshot-Pfad endet sie nach `n`
 //! Bildern. `VOIDFLEET_SMOKE_TOGGLE=1` fährt zu Beginn zur anderen Kameraansicht. Mit
 //! `VOIDFLEET_SMOKE_SHOTS=<bild>,<bild>,…` entsteht statt des einen Screenshots je genanntem Bild einer
 //! (`<stamm>-<bild>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`), die App endet nach dem letzten. Gezählt wird mit
 //! [`FrameCount`].
 //!
-//! `VOIDFLEET_SMOKE_PLAY=<runden>` spielt stattdessen das Gefecht über dieselben Messages wie ein Spieler
-//! ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<station>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`).
+//! `VOIDFLEET_SMOKE_PLAY=<runden>` spielt stattdessen den Run ab der Sternenkarte über dieselben Messages wie ein
+//! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
+//! `VOIDFLEET_SMOKE_SCREENSHOT`). Rauchtest und Vorschau-Szenen speichern keinen Run ([`RunSave`] ohne Pfad).
 //!
 //! `VOIDFLEET_DEV_SCENE` startet statt des Gefechts eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne die
 //! Variablen tut das Plugin nichts.
@@ -30,7 +31,14 @@ use bevy::{
 };
 use voidfleet_core::admirals::AdmiralId;
 
-use crate::{assets::AppState, game::StartBattle, scene::camera::CameraCommand};
+use crate::{
+    assets::AppState,
+    run::{ActiveRun, RunSave, new_run},
+    scene::camera::CameraCommand,
+};
+
+/// Seed der Runs von Rauchtest und Vorschau-Szenen, damit die Bilder vergleichbar bleiben.
+const DEV_SEED: u64 = 7;
 
 #[derive(Resource)]
 struct Smoke {
@@ -47,6 +55,7 @@ impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
         let staged = if let Some(scene) = scenes::DevScene::from_env() {
             scenes::plugin(app, scene);
+            app.insert_resource(RunSave(None));
             true
         } else {
             false
@@ -57,6 +66,7 @@ impl Plugin for DevPlugin {
         else {
             return;
         };
+        app.insert_resource(RunSave(None));
         let screenshot = std::env::var_os("VOIDFLEET_SMOKE_SCREENSHOT").map(PathBuf::from);
         let play = std::env::var("VOIDFLEET_SMOKE_PLAY")
             .ok()
@@ -68,7 +78,7 @@ impl Plugin for DevPlugin {
                     shots: Vec::new(),
                     toggle: false,
                 })
-                .add_systems(OnEnter(AppState::Match), start_battle)
+                .add_systems(OnEnter(AppState::Match), start_run)
                 .add_systems(
                     Update,
                     (
@@ -117,9 +127,24 @@ fn toggle_view(smoke: Res<Smoke>, mut camera: MessageWriter<CameraCommand>) {
     }
 }
 
-/// Wählt Admiral Osei und beginnt das Gefecht.
-fn start_battle(mut start: MessageWriter<StartBattle>) {
-    start.write(StartBattle(AdmiralId::Osei));
+/// Ein Run mit festem Seed; mit `to_battle` schon am ersten Knoten (Reihe 1 ist immer ein Gefecht).
+fn dev_run(admiral: AdmiralId, to_battle: bool) -> ActiveRun {
+    let mut run = new_run(admiral, DEV_SEED);
+    if to_battle {
+        let column = run.choices()[0];
+        run.advance(column).expect("Reihe 1 ist wählbar");
+    }
+    run
+}
+
+/// Beginnt einen Run mit Admiral Osei auf der Sternenkarte.
+fn start_run(mut commands: Commands) {
+    commands.insert_resource(dev_run(AdmiralId::Osei, false));
+}
+
+/// Beginnt einen Run mit Admiral Osei am ersten Gefecht.
+fn start_battle(mut commands: Commands) {
+    commands.insert_resource(dev_run(AdmiralId::Osei, true));
 }
 
 /// Schreibt jeden Screenshot in seinem Bild; nach dem letzten endet die App, ohne Screenshots nach `frames` Bildern.

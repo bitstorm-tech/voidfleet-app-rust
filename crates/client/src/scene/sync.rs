@@ -303,13 +303,13 @@ mod tests {
     use voidfleet_core::events::{Breakdown, UnitRef};
 
     use super::*;
-    use crate::{game::start_test_battle, settings::Language};
+    use crate::{game::fixture_battle, settings::Language};
 
     /// Drei Gegner und das Flaggschiff; im Kurzsprung fehlt es. Der Uhrmacher sieht zwei Absichten.
     #[test]
     fn wanted_follows_battle() {
         let locale = Locale::new(Language::De);
-        let mut battle = start_test_battle(AdmiralId::Kerr).0;
+        let mut battle = fixture_battle(AdmiralId::Kerr);
         let ships = wanted_ships(&battle, &*locale, &BoardFocus::default());
         assert_eq!(ships.len(), 4);
         assert!(ships[..3].iter().all(|ship| !ship.caption.next.is_empty()));

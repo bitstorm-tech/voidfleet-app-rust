@@ -4,21 +4,16 @@
 //! Ablauf: Wer etwas tun will (Controller, Oberfläche, Rauchtest), schreibt eine [`PlayerAction`]; [`GameSystems`]
 //! führt sie am Regelwerk aus. Gelingt sie, wirkt sie sofort im Zustand, und ihre Ereignisse gehen als
 //! [`BattleEvents`] hinaus; lehnt das Regelwerk ab, meldet es [`RuleRejected`]. [`StartBattle`] beginnt ein Gefecht
-//! ([`BattleStarted`]), [`LeaveBattle`] räumt es ab (zurück zur Admiralswahl).
-//!
-//! Vorerst gibt es keinen Run: [`test_setup`] stellt eine feste Formation (Phase 4 ersetzt das durch die Sternenkarte).
+//! ([`BattleStarted`]), [`LeaveBattle`] räumt es ab. Welches Gefecht ansteht, bestimmt der Run ([`crate::run`]).
 
 use bevy::prelude::*;
 use voidfleet_core::{
-    admirals::{AdmiralId, Station},
-    battle::{self, BattleSetup, Encounter, RuleError, Target},
-    board::{EnemySlot, Row},
-    cards::starter_deck,
-    enemies::EnemyId,
+    admirals::Station,
+    battle::{self, RuleError, Target},
     events::BattleEvent,
 };
 
-/// Das laufende Gefecht; fehlt, solange der Admiral gewählt wird.
+/// Das laufende Gefecht; fehlt außerhalb der Gefechte des Runs.
 #[derive(Resource, Debug, Clone, Deref, DerefMut)]
 pub struct Battle(pub battle::Battle);
 
@@ -46,51 +41,21 @@ pub struct BattleEvents(pub Vec<BattleEvent>);
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RuleRejected(pub RuleError);
 
-/// Beginnt ein neues Gefecht mit diesem Admiral.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StartBattle(pub AdmiralId);
+/// Beginnt dieses Gefecht (das des aktuellen Knotens im Run).
+#[derive(Message, Clone, Debug)]
+pub struct StartBattle(pub Box<battle::Battle>);
 
 /// Ein neues Gefecht steht in [`Battle`].
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BattleStarted;
 
-/// Räumt das Gefecht ab; die Admiralswahl erscheint wieder.
+/// Räumt das Gefecht ab; zu sehen ist wieder der Run (Beute, Run-Ende) bzw. das Hauptmenü.
 #[derive(Message, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LeaveBattle;
 
 /// Hier führt das Plugin die Aktionen aus; wer auf seine Messages reagiert, läuft danach.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct GameSystems;
-
-/// Das Test-Gefecht: Startdeck, keine Module, volle Hülle, eine feste Formation.
-pub fn test_setup(admiral: AdmiralId) -> BattleSetup {
-    BattleSetup {
-        admiral,
-        hull: admiral.hull(),
-        max_hull: admiral.hull(),
-        deck: starter_deck(admiral),
-        modules: Vec::new(),
-        emergency_generator_available: false,
-        encounter: Encounter {
-            units: vec![
-                (EnemyId::GuardCruiser, EnemySlot::new(Row::Front, 1)),
-                (EnemyId::Raiders, EnemySlot::new(Row::Back, 0)),
-                (EnemyId::Besieger, EnemySlot::new(Row::Front, 2)),
-            ],
-            hull_percent: 100,
-            reinforcements: Vec::new(),
-            replacements: Vec::new(),
-        },
-    }
-}
-
-/// Ein Test-Gefecht mit einem Seed aus der Systemzeit.
-pub fn start_test_battle(admiral: AdmiralId) -> Battle {
-    let seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |time| time.as_nanos() as u64);
-    Battle(battle::Battle::new(test_setup(admiral), seed))
-}
 
 /// Führt eine Aktion am Gefecht aus; `Ok` mit ihren Ereignissen (Einstellungen haben keine).
 pub fn apply(
@@ -135,9 +100,9 @@ fn start_battle(
     mut start: MessageReader<StartBattle>,
     mut started: MessageWriter<BattleStarted>,
 ) {
-    if let Some(&StartBattle(admiral)) = start.read().last() {
-        info!("Gefecht beginnt: {admiral:?}");
-        commands.insert_resource(start_test_battle(admiral));
+    if let Some(StartBattle(battle)) = start.read().last() {
+        info!("Gefecht beginnt: {:?}", battle.flagship.admiral);
+        commands.insert_resource(Battle((**battle).clone()));
         started.write(BattleStarted);
     }
 }
@@ -174,14 +139,47 @@ fn run_actions(
     }
 }
 
+/// Ein festes Gefecht für die Tests: Startdeck, volle Hülle, Wachkreuzer Front Mitte, Plünderer Back links, Belagerer
+/// Front rechts.
+#[cfg(test)]
+pub fn fixture_battle(admiral: voidfleet_core::admirals::AdmiralId) -> battle::Battle {
+    use voidfleet_core::{
+        battle::{BattleSetup, Encounter},
+        board::{EnemySlot, Row},
+        cards::starter_deck,
+        enemies::EnemyId,
+    };
+    let setup = BattleSetup {
+        admiral,
+        hull: admiral.hull(),
+        max_hull: admiral.hull(),
+        deck: starter_deck(admiral),
+        modules: Vec::new(),
+        emergency_generator_available: false,
+        encounter: Encounter {
+            units: vec![
+                (EnemyId::GuardCruiser, EnemySlot::new(Row::Front, 1)),
+                (EnemyId::Raiders, EnemySlot::new(Row::Back, 0)),
+                (EnemyId::Besieger, EnemySlot::new(Row::Front, 2)),
+            ],
+            hull_percent: 100,
+            reinforcements: Vec::new(),
+            replacements: Vec::new(),
+        },
+    };
+    battle::Battle::new(setup, 1)
+}
+
 #[cfg(test)]
 mod tests {
+    use voidfleet_core::admirals::AdmiralId;
+
     use super::*;
 
-    /// Das Test-Gefecht beginnt mit drei Gegnern und voller Hand; Waffen auf den Wachkreuzer lösen aus und treffen.
+    /// Das Gefecht beginnt mit drei Gegnern und voller Hand; Waffen auf den Wachkreuzer lösen aus und treffen.
     #[test]
     fn test_battle_plays() {
-        let mut battle = start_test_battle(AdmiralId::Osei).0;
+        let mut battle = fixture_battle(AdmiralId::Osei);
         assert_eq!(battle.enemies.len(), 3);
         assert_eq!(battle.hand.len(), 5);
         let uid = battle.enemies[0].uid;

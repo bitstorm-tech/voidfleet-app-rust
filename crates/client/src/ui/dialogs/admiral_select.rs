@@ -1,7 +1,7 @@
-//! Die Admiralswahl (Port von `ui/admiralSelect.ts`): Solange kein Gefecht läuft, liegt über dem Brett ein Overlay
+//! Die Admiralswahl (Port von `ui/admiralSelect.ts`): Nach „Neuer Run“ liegt über dem Brett ein Overlay
 //! mit vier Karten — Porträt, Name und Beiname, das Flaggschiff mit Bild, Hülle, ATK und Waffe, Passiv,
-//! Admiralsstation und Kennkarte, alles in der Akzentfarbe des Admirals. Ein Klick wählt ([`AdmiralChosen`]); bis das
-//! Gefecht steht, bleibt die Karte markiert und die übrigen sind gesperrt.
+//! Admiralsstation und Kennkarte, alles in der Akzentfarbe des Admirals. Ein Klick wählt ([`AdmiralChosen`]); bis der
+//! Run steht, bleibt die Karte markiert und die übrigen sind gesperrt.
 
 use bevy::{
     picking::hover::Hovered,
@@ -21,9 +21,9 @@ use crate::{
         admirals::AdmiralPortraits,
         card_art::{Card, CardArt},
     },
-    game::Battle,
     i18n::Locale,
     palette,
+    run::{ActiveRun, Screen},
     settings::Language,
     ui::{
         Fonts, UiIcons, button,
@@ -32,7 +32,7 @@ use crate::{
     },
 };
 
-/// Der gewählte Admiral, bis das Gefecht steht.
+/// Der gewählte Admiral, bis der Run steht.
 #[derive(Resource, Default, Debug)]
 struct PendingAdmiral(Option<AdmiralId>);
 
@@ -370,10 +370,10 @@ fn choose(
     }
 }
 
-/// Zeigt die Wahl, solange kein Gefecht läuft; baut sie bei anderer Sprache oder Fensterhöhe neu.
+/// Zeigt die Wahl auf ihrem Bildschirm; baut sie bei anderer Sprache oder Fensterhöhe neu.
 fn show(
     mut commands: Commands,
-    battle: Option<Res<Battle>>,
+    screen: Res<Screen>,
     locale: Res<Locale>,
     fonts: Res<Fonts>,
     icons: Res<UiIcons>,
@@ -382,7 +382,7 @@ fn show(
     window: Single<&Window, With<PrimaryWindow>>,
     overlays: Query<(Entity, &AdmiralOverlay)>,
 ) {
-    let open = battle.is_none();
+    let open = *screen == Screen::Admirals;
     let wanted = open.then(|| AdmiralOverlay {
         language: locale.language,
         density: Density::of(&window),
@@ -432,9 +432,9 @@ fn show(
     ));
 }
 
-/// Hebt die wartende Wahl auf, sobald das Gefecht steht.
-fn settle(battle: Option<Res<Battle>>, mut pending: ResMut<PendingAdmiral>) {
-    if battle.is_some() && pending.0.is_some() {
+/// Hebt die wartende Wahl auf, sobald der Run steht.
+fn settle(run: Option<Res<ActiveRun>>, mut pending: ResMut<PendingAdmiral>) {
+    if run.is_some() && pending.0.is_some() {
         pending.0 = None;
     }
 }

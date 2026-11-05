@@ -12,6 +12,7 @@
 //! - [`ui`] — Oberfläche in `bevy_ui`: Karten, Hand, Stationen, HUD, Rundenlog, Dialoge, Ladebildschirm.
 //! - [`i18n`] — Texte in Englisch und Deutsch ([`i18n::Locale`]).
 //! - [`game`] — das Gefecht als Ressource; führt die Aktionen des Spielers am Regelwerk aus.
+//! - [`run`] — der Run als Ressource: Bildschirm, Wahlen, Gefechte der Knoten, Speicherstand `run.json`.
 //! - [`controller`] — verbindet Gefecht, Szene und Oberfläche: Auswahl, Klicks, Hervorhebung, Vorschau, Musik.
 //! - [`playback`] — Wiedergabe der Ereignisse einer Aktion (vorerst nur Log und Bordfunk).
 //! - [`dev`] — Rauchtest für Läufe ohne Spieler (`VOIDFLEET_SMOKE_*`) und Vorschau-Szenen (`VOIDFLEET_DEV_SCENE`).
@@ -29,6 +30,7 @@ pub mod game;
 pub mod i18n;
 pub mod palette;
 pub mod playback;
+pub mod run;
 pub mod scene;
 pub mod settings;
 pub mod ui;
@@ -112,6 +114,7 @@ impl Plugin for ClientPlugin {
             settings::SettingsPlugin,
             i18n::I18nPlugin,
             game::GamePlugin,
+            run::RunPlugin,
             assets::AssetsPlugin,
             scene::ScenePlugin,
             audio::SoundPlugin,

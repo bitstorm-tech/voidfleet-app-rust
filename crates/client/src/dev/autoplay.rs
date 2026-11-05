@@ -1,7 +1,10 @@
-//! Spielt das Gefecht für den Rauchtest (`VOIDFLEET_SMOKE_PLAY=<runden>`) über dieselben Messages wie ein Spieler:
-//! je Runde Waffen auf den ersten Gegner auslösen, die erste bezahlbare Karte ohne Ziel spielen, Zug beenden. Vor jedem
-//! Schritt wartet es, bis die Szene ruht, und schreibt einen Screenshot (`<stamm>-<runde>-<schritt>.png` neben
-//! `VOIDFLEET_SMOKE_SCREENSHOT`). Es endet nach dem Gefecht oder nach `runden` Runden mit einem letzten Screenshot.
+//! Spielt den Run für den Rauchtest (`VOIDFLEET_SMOKE_PLAY=<runden>`) über dieselben Messages wie ein Spieler: auf der
+//! Karte den ersten wählbaren Knoten, bei der Beute die erste Karte bzw. das erste Modul, im Ereignis die erste
+//! bezahlbare Entscheidung, in der Werft Reparieren, den Markt sofort verlassen; im Gefecht je Runde Waffen auf den
+//! ersten Gegner auslösen, die erste bezahlbare Karte ohne Ziel spielen, Zug beenden, nach dem Ergebnis „Weiter“. Vor
+//! jedem Schritt wartet es, bis die Szene ruht. Je Station (Karte, Beute, Ereignis, Werft, Markt, Beginn eines
+//! Gefechts) schreibt es einen Screenshot `<stamm>-<nr>-<station>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`. Es endet
+//! mit dem Run oder nach `runden` gespielten Runden mit einem letzten Screenshot.
 
 use std::path::PathBuf;
 
@@ -9,15 +12,21 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, save_to_disk},
 };
-use voidfleet_core::{admirals::Station, battle::Target, cards::CardTarget};
+use voidfleet_core::{
+    admirals::Station,
+    battle::Target,
+    cards::CardTarget,
+    run::{EventOption, PILOT_PRICE, Stage},
+};
 
 use super::exit_when_captured;
 use crate::{
-    game::{Battle, PlayerAction},
+    game::{Battle, LeaveBattle, PlayerAction},
+    run::{ActiveRun, RunAction, RunFlow, Screen},
     scene::sync::BoardMode,
 };
 
-/// So viele Bilder ruht die Szene vor jedem Schritt, damit Karten eingeflogen und Balken gesetzt sind.
+/// So viele Bilder ruht die Szene vor jedem Schritt, damit Overlays stehen, Karten eingeflogen und Balken gesetzt sind.
 const SETTLE_FRAMES: u32 = 45;
 
 /// Die Schritte einer Runde.
@@ -31,7 +40,9 @@ enum Step {
 #[derive(Resource)]
 pub(super) struct AutoPlay {
     rounds: u32,
+    played: u32,
     screenshot: Option<PathBuf>,
+    shots: u32,
     step: Step,
     wait: u32,
     done: bool,
@@ -41,7 +52,9 @@ impl AutoPlay {
     pub(super) fn new(rounds: u32, screenshot: Option<PathBuf>) -> Self {
         Self {
             rounds,
+            played: 0,
             screenshot,
+            shots: 0,
             step: Step::Weapons,
             wait: SETTLE_FRAMES,
             done: false,
@@ -49,17 +62,27 @@ impl AutoPlay {
     }
 
     /// Schreibt einen Screenshot dieser Station; der letzte beendet die App.
-    fn shoot(&self, commands: &mut Commands, name: &str, last: bool) {
+    fn shoot(&mut self, commands: &mut Commands, name: &str, last: bool) {
         let Some(path) = &self.screenshot else {
             return;
         };
+        self.shots += 1;
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
         let mut shot = commands.spawn(Screenshot::primary_window());
         shot.observe(save_to_disk(
-            path.with_file_name(format!("{stem}-{name}.png")),
+            path.with_file_name(format!("{stem}-{:03}-{name}.png", self.shots)),
         ));
         if last {
             shot.observe(exit_when_captured);
+        }
+    }
+
+    fn finish(&mut self, commands: &mut Commands, exit: &mut MessageWriter<AppExit>) {
+        self.done = true;
+        if self.screenshot.is_some() {
+            self.shoot(commands, "end", true);
+        } else {
+            exit.write(AppExit::Success);
         }
     }
 }
@@ -67,15 +90,26 @@ impl AutoPlay {
 pub(super) fn autoplay(
     mut commands: Commands,
     mut play: ResMut<AutoPlay>,
+    screen: Res<Screen>,
+    run: Option<Res<ActiveRun>>,
     battle: Option<Res<Battle>>,
     mode: Option<Res<State<BoardMode>>>,
     mut actions: MessageWriter<PlayerAction>,
+    mut run_actions: MessageWriter<RunAction>,
+    mut flow: MessageWriter<RunFlow>,
+    mut leave: MessageWriter<LeaveBattle>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let (Some(battle), Some(mode)) = (battle, mode) else {
+    if play.done {
+        return;
+    }
+    if screen.is_changed() {
+        play.wait = SETTLE_FRAMES;
+    }
+    let Some(run) = run else {
         return;
     };
-    if play.done || *mode.get() != BoardMode::Planning {
+    if battle.is_some() && mode.is_none_or(|mode| *mode.get() != BoardMode::Planning) {
         return;
     }
     if play.wait > 0 {
@@ -83,21 +117,70 @@ pub(super) fn autoplay(
         return;
     }
     play.wait = SETTLE_FRAMES;
-    if battle.result.is_some() || battle.round > play.rounds {
-        play.done = true;
-        info!(
-            "Rauchtest: Ende in Runde {}, Ergebnis {:?}",
-            battle.round, battle.result
-        );
-        if play.screenshot.is_some() {
-            play.shoot(&mut commands, "end", true);
-        } else {
-            exit.write(AppExit::Success);
-        }
+    if play.played >= play.rounds {
+        info!("Rauchtest: Ende nach {} Runden", play.played);
+        play.finish(&mut commands, &mut exit);
         return;
     }
-    let name = format!("{}-{:?}", battle.round, play.step).to_lowercase();
-    play.shoot(&mut commands, &name, false);
+    if let Some(battle) = battle {
+        if battle.result.is_some() {
+            info!(
+                "Rauchtest: Gefecht {:?} in Runde {}",
+                battle.result, battle.round
+            );
+            leave.write(LeaveBattle);
+            play.step = Step::Weapons;
+            return;
+        }
+        if battle.round == 1 && play.step == Step::Weapons {
+            play.shoot(&mut commands, "battle", false);
+        }
+        fight(&battle, &mut play, &mut actions);
+        return;
+    }
+    match *screen {
+        Screen::Map => {
+            play.shoot(&mut commands, "map", false);
+            run_actions.write(RunAction::Advance(run.choices()[0]));
+        }
+        Screen::Loot => {
+            play.shoot(&mut commands, "loot", false);
+            let offers = matches!(&run.stage, Stage::Loot(loot) if !loot.cards.is_empty() || !loot.modules.is_empty());
+            run_actions.write(RunAction::TakeLoot(offers.then_some(0)));
+        }
+        Screen::Event => {
+            play.shoot(&mut commands, "event", false);
+            if let Stage::Event(event) = run.stage {
+                let index = event
+                    .options()
+                    .iter()
+                    .position(|&option| option != EventOption::PayPilot || run.scrap >= PILOT_PRICE)
+                    .unwrap_or(0);
+                run_actions.write(RunAction::Choose(index));
+            }
+        }
+        Screen::EventOutcome => {
+            play.shoot(&mut commands, "outcome", false);
+            flow.write(RunFlow::Dismiss);
+        }
+        Screen::Shipyard => {
+            play.shoot(&mut commands, "shipyard", false);
+            run_actions.write(RunAction::Repair);
+        }
+        Screen::Market => {
+            play.shoot(&mut commands, "market", false);
+            run_actions.write(RunAction::LeaveMarket);
+        }
+        Screen::Ended => {
+            info!("Rauchtest: Run vorbei, {:?}", run.result);
+            play.finish(&mut commands, &mut exit);
+        }
+        Screen::Menu | Screen::Admirals | Screen::Battle => {}
+    }
+}
+
+/// Ein Schritt im Gefecht.
+fn fight(battle: &Battle, play: &mut AutoPlay, actions: &mut MessageWriter<PlayerAction>) {
     match play.step {
         Step::Weapons => {
             if let Some(enemy) = battle.enemies.first() {
@@ -121,6 +204,7 @@ pub(super) fn autoplay(
         }
         Step::EndTurn => {
             actions.write(PlayerAction::EndTurn);
+            play.played += 1;
             play.step = Step::Weapons;
         }
     }

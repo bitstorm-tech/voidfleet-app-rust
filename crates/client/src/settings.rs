@@ -93,6 +93,11 @@ impl Default for CameraSettings {
     }
 }
 
+/// Eine Datei im Konfigurationsordner des Systems (Einstellungen, Speicherstand des Runs).
+pub fn config_file(name: &str) -> Option<PathBuf> {
+    ProjectDirs::from("dev", "voidfleet", "Voidfleet").map(|dirs| dirs.config_dir().join(name))
+}
+
 /// Die Einstellungen des Spielers.
 #[derive(Resource, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -142,8 +147,7 @@ impl Default for Settings {
 impl Settings {
     /// Pfad der Datei im Konfigurationsordner des Systems.
     pub fn path() -> Option<PathBuf> {
-        ProjectDirs::from("dev", "voidfleet", "Voidfleet")
-            .map(|dirs| dirs.config_dir().join("settings.json"))
+        config_file("settings.json")
     }
 
     /// Liest die gespeicherten Einstellungen; ohne Datei (erster Start) gelten die Standardwerte.

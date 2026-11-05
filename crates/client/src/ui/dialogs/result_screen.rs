@@ -1,8 +1,7 @@
 //! Ergebnis nach Gefechtsende (Port von `ui/resultScreen.ts`): Sieg oder Niederlage groß in der Bildmitte, darunter
 //! die Abschüsse bzw. das verlorene Flaggschiff. „Brett ansehen“ blendet das Overlay aus und lässt ein Abzeichen oben
-//! in der Mitte stehen, über das es wieder aufgeht. Nach einem Sieg meldet „Weiter“ [`NextBattle`] (vorerst ein neues
-//! Test-Gefecht), nach einer Niederlage „Neuer Run“ [`NewRun`] (zurück zur Admiralswahl). Beim Erscheinen erklingt
-//! eine Fanfare, bei Niederlage eine düstere.
+//! in der Mitte stehen, über das es wieder aufgeht. „Weiter“ räumt das Gefecht ab ([`LeaveBattle`]); der Run zeigt
+//! dann die Beute bzw. sein Ende. Beim Erscheinen erklingt eine Fanfare, bei Niederlage eine düstere.
 
 use bevy::{
     prelude::*,
@@ -10,11 +9,11 @@ use bevy::{
 };
 use voidfleet_core::battle::BattleResult;
 
-use super::{FadeIn, NewRun, NextBattle, PopIn, RESULT_LAYER};
+use super::{FadeIn, PopIn, RESULT_LAYER};
 use crate::{
     assets::AppState,
     audio::{PlaySound, SoundId},
-    game::Battle,
+    game::{Battle, LeaveBattle},
     i18n::Locale,
     palette,
     ui::{
@@ -161,25 +160,13 @@ fn spawn_result(
                             (
                                 button::text_button(
                                     fonts.display_bold(22.0),
-                                    match result {
-                                        BattleResult::Won => locale.result_continue(),
-                                        BattleResult::Lost => locale.result_new_run(),
-                                    },
+                                    locale.result_continue(),
                                     Key::PRIMARY,
                                     action_node(),
                                 ),
                                 observe(
-                                    move |_: On<Activate>,
-                                          mut next: MessageWriter<NextBattle>,
-                                          mut new_run: MessageWriter<NewRun>| {
-                                        match result {
-                                            BattleResult::Won => {
-                                                next.write(NextBattle);
-                                            }
-                                            BattleResult::Lost => {
-                                                new_run.write(NewRun);
-                                            }
-                                        }
+                                    |_: On<Activate>, mut leave: MessageWriter<LeaveBattle>| {
+                                        leave.write(LeaveBattle);
                                     }
                                 ),
                             ),

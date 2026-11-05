@@ -14,9 +14,10 @@ use voidfleet_core::{
     enemies::{Action, BOLT_SHIELD, EnemyClass, EnemyId, RAM_DAMAGE},
     events::{DestroyCause, IdleReason, MissReason},
     modules::ModuleId,
+    run::{EventId, EventOption, NodeKind},
 };
 
-use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab};
+use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, signed};
 use crate::{
     data::radio::RadioCue,
     settings::{AnimationSpeed, CursorId, WindowMode},
@@ -884,5 +885,324 @@ impl Messages for De {
             BattleResult::Won => "Die feindliche Flotte ist vernichtet.",
             BattleResult::Lost => "Das Flaggschiff ist verloren.",
         }
+    }
+
+    // --- Run ---
+
+    fn menu_tagline(&self) -> &'static str {
+        "Ein Wurmloch hat dein Flaggschiff verschluckt. Drei Sektoren trennen dich von zu Hause."
+    }
+
+    fn menu_new_run(&self) -> &'static str {
+        "Neuer Run"
+    }
+
+    fn menu_continue(&self) -> &'static str {
+        "Weiter"
+    }
+
+    fn menu_saved_run(&self, admiral: &str, sector: u32, row: usize) -> String {
+        format!("{admiral} · Sektor {sector}, Reihe {row}")
+    }
+
+    fn sector_name(&self, sector: u32) -> &'static str {
+        match sector {
+            1 => "Das Trümmerfeld",
+            2 => "Die Stille",
+            _ => "Die Schwelle",
+        }
+    }
+
+    fn map_title(&self, sector: u32) -> String {
+        format!("Sektor {sector}: {}", self.sector_name(sector))
+    }
+
+    fn map_hint(&self) -> &'static str {
+        "Wähle den nächsten Knoten. Oben wartet der Boss des Sektors."
+    }
+
+    fn sector_banner_hint(&self) -> &'static str {
+        "Der Weg nach Hause führt weiter."
+    }
+
+    fn node_kind(&self, kind: NodeKind) -> &'static str {
+        match kind {
+            NodeKind::Battle => "Gefecht",
+            NodeKind::Elite => "Elite",
+            NodeKind::Event => "Ereignis",
+            NodeKind::Shipyard => "Werft",
+            NodeKind::Market => "Schwarzmarkt",
+            NodeKind::Boss => "Boss",
+        }
+    }
+
+    fn node_kind_hint(&self, kind: NodeKind) -> &'static str {
+        match kind {
+            NodeKind::Battle => "Ein Verband des Sektors. Beute: Schrott und eine Befehlskarte.",
+            NodeKind::Elite => "Ein mächtiges Schlachtschiff. Beute: viel Schrott und ein Modul.",
+            NodeKind::Event => "Eine Szene über Funk mit einer Entscheidung.",
+            NodeKind::Shipyard => "Reparieren, eine Karte aufwerten oder eine ausmustern.",
+            NodeKind::Market => "Karten, Module, Reparatur und Ausmustern für Schrott.",
+            NodeKind::Boss => "Der Abschluss des Sektors. Beute: ein Modul und Reparatur.",
+        }
+    }
+
+    fn run_scrap(&self, scrap: u32) -> String {
+        format!("Schrott {scrap}")
+    }
+
+    fn run_deck(&self, cards: usize) -> String {
+        format!("Deck {cards}")
+    }
+
+    fn run_show_deck(&self) -> &'static str {
+        "Deck ansehen"
+    }
+
+    fn run_modules(&self, count: usize) -> String {
+        format!("Module {count}")
+    }
+
+    fn run_no_modules(&self) -> &'static str {
+        "Keine Module"
+    }
+
+    fn run_position(&self, sector: u32, row: usize) -> String {
+        format!("Sektor {sector} · Reihe {row}")
+    }
+
+    fn run_scrap_change(&self, scrap: i64) -> String {
+        format!("{} Schrott", signed(scrap))
+    }
+
+    fn run_hull_change(&self, hull: i32) -> String {
+        format!("{} Hülle", signed(i64::from(hull)))
+    }
+
+    fn run_module_gained(&self, module: &str) -> String {
+        format!("Neues Modul: {module}")
+    }
+
+    fn run_card_upgraded(&self, card: &str) -> String {
+        format!("Aufgewertet: {card}")
+    }
+
+    fn loot_title(&self) -> &'static str {
+        "Beute"
+    }
+
+    fn loot_cards_hint(&self) -> &'static str {
+        "Eine Befehlskarte kommt ins Deck, oder keine."
+    }
+
+    fn loot_modules_hint(&self) -> &'static str {
+        "Ein Modul wirkt bis zum Ende des Runs."
+    }
+
+    fn loot_take(&self) -> &'static str {
+        "Nehmen"
+    }
+
+    fn loot_skip(&self) -> &'static str {
+        "Keine"
+    }
+
+    fn event_title(&self, event: EventId) -> &'static str {
+        match event {
+            EventId::Resolute => "Das Wrack der Resolute",
+            EventId::Pilot => "Der Lotse",
+            EventId::Flicker => "Flackern",
+        }
+    }
+
+    fn event_text(&self, event: EventId) -> &'static str {
+        match event {
+            EventId::Resolute => {
+                "Ein Kreuzer der eigenen Flotte treibt ausgebrannt im Feld: die Resolute. Das Wurmloch hat auch sie \
+                 verschluckt. Ihr Reaktor glimmt noch, ihre Funkboje sendet in einer Schleife die letzte Meldung."
+            }
+            EventId::Pilot => {
+                "Ein Händler meldet sich auf einer offenen Frequenz. Vor dir liegt ein Minenfeld, und er kennt den \
+                 sicheren Weg hindurch, für einen Preis."
+            }
+            EventId::Flicker => {
+                "Das Wurmloch meldet sich. Für einen Augenblick flackert der Raum um das Flaggschiff, und zwischen dem \
+                 Rauschen liegt etwas Vertrautes."
+            }
+        }
+    }
+
+    fn event_option(&self, option: EventOption) -> &'static str {
+        match option {
+            EventOption::Salvage => "Bergen",
+            EventOption::Logbooks => "Die Logbücher sichern",
+            EventOption::MoveOn => "Weiterfliegen und die Crew bestatten",
+            EventOption::PayPilot => "Den Lotsen bezahlen",
+            EventOption::FlyYourself => "Selbst fliegen",
+            EventOption::Embrace => "Ins Flackern fliegen",
+            EventOption::Listen => "Zuhören",
+        }
+    }
+
+    fn event_consequence(&self, option: EventOption, flicker_damage: i32) -> String {
+        use voidfleet_core::run::{PILOT_DAMAGE, PILOT_PRICE, RESOLUTE_SCRAP};
+        match option {
+            EventOption::Salvage => {
+                format!("+{RESOLUTE_SCRAP} Schrott; das nächste Gefecht beginnt brennend.")
+            }
+            EventOption::Logbooks => "Ein zufälliges Modul.".to_owned(),
+            EventOption::MoveOn => "Nichts.".to_owned(),
+            EventOption::PayPilot => {
+                format!("{PILOT_PRICE} Schrott; der nächste Knoten wird eine Werft.")
+            }
+            EventOption::FlyYourself => format!("−{PILOT_DAMAGE} Hülle, dafür ein Kartenangebot."),
+            EventOption::Embrace => {
+                format!("−{flicker_damage} Hülle; eine zufällige Karte wird aufgewertet.")
+            }
+            EventOption::Listen => "Nichts geschieht.".to_owned(),
+        }
+    }
+
+    fn event_outcome(&self, option: EventOption) -> &'static str {
+        match option {
+            EventOption::Salvage => {
+                "Die Bergungstrupps schneiden heraus, was sich tragen lässt. Beim Ablegen zündet ein Leck im Hangar."
+            }
+            EventOption::Logbooks => {
+                "In den Logbüchern stecken die Baupläne, die die Resolute nicht mehr braucht."
+            }
+            EventOption::MoveOn => {
+                "Die Crew bekommt ihr Begräbnis im All. Über Funk die letzte Meldung der Resolute: „Wir halten die \
+                 Linie.“"
+            }
+            EventOption::PayPilot => "Der Händler überträgt seine Route. Am Ende wartet ein Dock.",
+            EventOption::FlyYourself => {
+                "Zwei Minen streifen die Hülle. Im Feld treiben Container mit Befehlssätzen."
+            }
+            EventOption::Embrace => "Das Flackern brennt durch die Systeme und lässt etwas zurück.",
+            EventOption::Listen => {
+                "Zum ersten Mal seit dem Sprung: der heimische Funk. Dann wieder Rauschen."
+            }
+        }
+    }
+
+    fn shipyard_title(&self) -> &'static str {
+        "Werft"
+    }
+
+    fn shipyard_hint(&self) -> &'static str {
+        "Ein Auftrag, dann geht es weiter."
+    }
+
+    fn shipyard_repair(&self) -> &'static str {
+        "Reparieren"
+    }
+
+    fn shipyard_repair_text(&self, hull: i32) -> String {
+        format!("+{hull} Hülle.")
+    }
+
+    fn shipyard_upgrade(&self) -> &'static str {
+        "Aufwerten"
+    }
+
+    fn shipyard_upgrade_text(&self) -> &'static str {
+        "Eine Karte des Decks wird stärker."
+    }
+
+    fn shipyard_remove(&self) -> &'static str {
+        "Ausmustern"
+    }
+
+    fn shipyard_remove_text(&self) -> &'static str {
+        "Eine Karte verlässt das Deck."
+    }
+
+    fn gallery_deck(&self) -> &'static str {
+        "Deck"
+    }
+
+    fn gallery_upgrade_hint(&self) -> &'static str {
+        "Wähle eine Karte, die noch nicht aufgewertet ist."
+    }
+
+    fn gallery_remove_hint(&self) -> &'static str {
+        "Wähle die Karte, die das Deck verlässt."
+    }
+
+    fn gallery_back(&self) -> &'static str {
+        "Zurück"
+    }
+
+    fn market_title(&self) -> &'static str {
+        "Schwarzmarkt"
+    }
+
+    fn market_hint(&self) -> &'static str {
+        "Bezahlt wird in Schrott. Fragen werden keine gestellt."
+    }
+
+    fn market_cards(&self) -> &'static str {
+        "Befehlskarten"
+    }
+
+    fn market_modules(&self) -> &'static str {
+        "Module"
+    }
+
+    fn market_services(&self) -> &'static str {
+        "Dienste"
+    }
+
+    fn market_buy(&self, price: u32) -> String {
+        format!("Kaufen · {price}")
+    }
+
+    fn market_removal(&self) -> &'static str {
+        "Karte entfernen"
+    }
+
+    fn market_repair(&self, hull: i32) -> String {
+        format!("{hull} Hülle reparieren")
+    }
+
+    fn market_sold_out(&self) -> &'static str {
+        "Verkauft"
+    }
+
+    fn market_leave(&self) -> &'static str {
+        "Verlassen"
+    }
+
+    fn run_won_title(&self) -> &'static str {
+        "Das Wurmloch nach Hause"
+    }
+
+    fn run_won_text(&self) -> &'static str {
+        "Kommandantin Vey ist gefallen, das Wurmloch steht offen. Auf der anderen Seite: die eigene Flotte."
+    }
+
+    fn run_lost_text(&self, sector: u32, row: usize) -> String {
+        format!("Das Flaggschiff fiel in Sektor {sector}, Reihe {row}.")
+    }
+
+    fn run_abandon(&self) -> &'static str {
+        "Run abbrechen"
+    }
+
+    fn run_abandon_title(&self) -> &'static str {
+        "Run abbrechen?"
+    }
+
+    fn run_abandon_text(&self) -> &'static str {
+        "Der Speicherstand wird gelöscht. Das lässt sich nicht rückgängig machen."
+    }
+
+    fn run_abandon_confirm(&self) -> &'static str {
+        "Abbrechen"
+    }
+
+    fn run_abandon_back(&self) -> &'static str {
+        "Weiterfliegen"
     }
 }

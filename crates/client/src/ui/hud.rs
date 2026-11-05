@@ -1,4 +1,5 @@
-//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8 und der Hülle des Flaggschiffs, das
+//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8, der Hülle des Flaggschiffs und dem
+//! Stand des Runs ([`super::run_bar`]), das
 //! Log hinter dem Icon-Knopf oben rechts, das Banner für kurze Ansagen (etwa abgelehnte Aktionen) und die Ankündigung
 //! einer neuen Runde.
 
@@ -98,6 +99,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
                     Pickable::IGNORE,
                 )],
             ),
+            super::run_bar::run_header(),
         ],
     ));
     commands.spawn((

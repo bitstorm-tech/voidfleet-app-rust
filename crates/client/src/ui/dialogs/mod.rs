@@ -2,25 +2,29 @@
 //! `rulesDialog.ts`).
 //!
 //! Zwei Arten:
-//! - Overlays, die das Gefecht verlangt und die sich selbst aus [`Battle`](crate::game::Battle) ableiten: die
-//!   Admiralswahl ([`admiral_select`]) solange kein Gefecht läuft, das Ergebnis ([`result_screen`]) sobald es
-//!   entschieden ist.
+//! - Overlays, die sich selbst aus [`Screen`](crate::run::Screen) bzw. [`Battle`](crate::game::Battle) ableiten:
+//!   Hauptmenü ([`main_menu`]), Admiralswahl ([`admiral_select`]), Sternenkarte ([`star_map`]), die Knoten des Runs
+//!   und sein Ende ([`run_nodes`]), das Ergebnis eines Gefechts ([`result_screen`]).
 //! - Dialoge hinter den Icon-Knöpfen oben rechts ([`Dialog`]): ein Steuerpult über abgedunkeltem Hintergrund, als
 //!   [`Modal`] markiert. Sie öffnen per Knopf oder [`OpenDialog`]; „Schließen“ oder Escape schließt sie, ein Klick auf
 //!   den Hintergrund nicht. Höchstens einer ist offen.
 //!
 //! Schnittstelle zum Controller:
 //! - rein: [`OpenDialog`] (etwa Escape ohne Auswahl → Einstellungen).
-//! - raus: [`AdmiralChosen`] (mit Bestätigungsklang; bis das Gefecht steht, bleibt die Wahl gesperrt), [`NextBattle`],
-//!   [`NewRun`]. Die Einstellungen schreibt der Dialog direkt in [`Settings`](crate::settings::Settings).
+//! - raus: [`AdmiralChosen`] (mit Bestätigungsklang; bis der Run steht, bleibt die Wahl gesperrt), „Weiter“ im
+//!   Ergebnis als [`LeaveBattle`](crate::game::LeaveBattle), alles im Run als [`RunAction`](crate::run::RunAction)
+//!   und [`RunFlow`](crate::run::RunFlow). Die Einstellungen schreibt der Dialog direkt in [`Settings`](crate::settings::Settings).
 //!
 //! Escape schließt einen offenen Dialog in [`DialogSystems`]; wer Escape selbst auswertet, läuft davor und prüft, ob
 //! ein [`Modal`] offen ist.
 
 pub mod admiral_select;
+pub mod main_menu;
 pub mod result_screen;
 pub mod rules;
+pub mod run_nodes;
 pub mod settings_dialog;
+pub mod star_map;
 
 use bevy::{
     ecs::spawn::SpawnableList,
@@ -51,14 +55,6 @@ pub struct OpenDialog(pub Dialog);
 /// Der Spieler hat seinen Admiral gewählt.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AdmiralChosen(pub AdmiralId);
-
-/// „Weiter“ nach einem Sieg: das nächste Gefecht.
-#[derive(Message, Clone, Copy, Debug, Default)]
-pub struct NextBattle;
-
-/// „Neuer Run“ nach einer Niederlage: zurück zur Admiralswahl.
-#[derive(Message, Clone, Copy, Debug, Default)]
-pub struct NewRun;
 
 /// Hier schließt Escape einen offenen Dialog.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -403,10 +399,11 @@ impl Plugin for DialogsPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<OpenDialog>()
             .add_message::<AdmiralChosen>()
-            .add_message::<NextBattle>()
-            .add_message::<NewRun>()
             .add_plugins((
                 admiral_select::AdmiralSelectPlugin,
+                main_menu::MainMenuPlugin,
+                star_map::StarMapPlugin,
+                run_nodes::RunNodesPlugin,
                 result_screen::ResultScreenPlugin,
                 settings_dialog::SettingsDialogPlugin,
                 rules::RulesPlugin,

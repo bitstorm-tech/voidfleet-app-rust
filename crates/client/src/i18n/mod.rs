@@ -25,6 +25,7 @@ use voidfleet_core::{
     enemies::{Action, EnemyClass, EnemyId},
     events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
     modules::ModuleId,
+    run::{EventId, EventOption, NodeKind},
 };
 
 pub use de::De;
@@ -34,6 +35,15 @@ use crate::{
     data::radio::RadioCue,
     settings::{AnimationSpeed, CursorId, Language, Settings, WindowMode},
 };
+
+/// Zahl mit Vorzeichen, negativ mit echtem Minus.
+pub(super) fn signed(value: i64) -> String {
+    if value < 0 {
+        format!("−{}", -value)
+    } else {
+        format!("+{value}")
+    }
+}
 
 /// Alle Sprachen in der Reihenfolge der Sprachwahl.
 pub const LANGUAGES: [Language; 2] = [Language::En, Language::De];
@@ -207,6 +217,70 @@ pub trait Messages: Sync {
     fn result_view_board(&self) -> &'static str;
     fn result_continue(&self) -> &'static str;
     fn result_new_run(&self) -> &'static str;
+
+    // --- Run: Hauptmenü, Sternenkarte, Knoten, Ende ---
+    fn menu_tagline(&self) -> &'static str;
+    fn menu_new_run(&self) -> &'static str;
+    fn menu_continue(&self) -> &'static str;
+    fn menu_saved_run(&self, admiral: &str, sector: u32, row: usize) -> String;
+    fn sector_name(&self, sector: u32) -> &'static str;
+    fn map_title(&self, sector: u32) -> String;
+    fn map_hint(&self) -> &'static str;
+    fn sector_banner_hint(&self) -> &'static str;
+    fn node_kind(&self, kind: NodeKind) -> &'static str;
+    fn node_kind_hint(&self, kind: NodeKind) -> &'static str;
+    fn run_scrap(&self, scrap: u32) -> String;
+    fn run_deck(&self, cards: usize) -> String;
+    fn run_show_deck(&self) -> &'static str;
+    fn run_modules(&self, count: usize) -> String;
+    fn run_no_modules(&self) -> &'static str;
+    fn run_position(&self, sector: u32, row: usize) -> String;
+    fn run_scrap_change(&self, scrap: i64) -> String;
+    fn run_hull_change(&self, hull: i32) -> String;
+    fn run_module_gained(&self, module: &str) -> String;
+    fn run_card_upgraded(&self, card: &str) -> String;
+    fn loot_title(&self) -> &'static str;
+    fn loot_cards_hint(&self) -> &'static str;
+    fn loot_modules_hint(&self) -> &'static str;
+    fn loot_take(&self) -> &'static str;
+    fn loot_skip(&self) -> &'static str;
+    fn event_title(&self, event: EventId) -> &'static str;
+    fn event_text(&self, event: EventId) -> &'static str;
+    fn event_option(&self, option: EventOption) -> &'static str;
+    /// Die Folgen einer Entscheidung; `flicker_damage` ist der Hüllenverlust im Flackern.
+    fn event_consequence(&self, option: EventOption, flicker_damage: i32) -> String;
+    /// Was nach der Entscheidung geschieht.
+    fn event_outcome(&self, option: EventOption) -> &'static str;
+    fn shipyard_title(&self) -> &'static str;
+    fn shipyard_hint(&self) -> &'static str;
+    fn shipyard_repair(&self) -> &'static str;
+    fn shipyard_repair_text(&self, hull: i32) -> String;
+    fn shipyard_upgrade(&self) -> &'static str;
+    fn shipyard_upgrade_text(&self) -> &'static str;
+    fn shipyard_remove(&self) -> &'static str;
+    fn shipyard_remove_text(&self) -> &'static str;
+    fn gallery_deck(&self) -> &'static str;
+    fn gallery_upgrade_hint(&self) -> &'static str;
+    fn gallery_remove_hint(&self) -> &'static str;
+    fn gallery_back(&self) -> &'static str;
+    fn market_title(&self) -> &'static str;
+    fn market_hint(&self) -> &'static str;
+    fn market_cards(&self) -> &'static str;
+    fn market_modules(&self) -> &'static str;
+    fn market_services(&self) -> &'static str;
+    fn market_buy(&self, price: u32) -> String;
+    fn market_removal(&self) -> &'static str;
+    fn market_repair(&self, hull: i32) -> String;
+    fn market_sold_out(&self) -> &'static str;
+    fn market_leave(&self) -> &'static str;
+    fn run_won_title(&self) -> &'static str;
+    fn run_won_text(&self) -> &'static str;
+    fn run_lost_text(&self, sector: u32, row: usize) -> String;
+    fn run_abandon(&self) -> &'static str;
+    fn run_abandon_title(&self) -> &'static str;
+    fn run_abandon_text(&self) -> &'static str;
+    fn run_abandon_confirm(&self) -> &'static str;
+    fn run_abandon_back(&self) -> &'static str;
 
     // --- Ids aus dem Regelwerk ---
     fn rule_error(&self, error: RuleError) -> &'static str;
@@ -504,6 +578,17 @@ mod tests {
             }
             for chapter in RulesChapter::ALL {
                 assert!(!locale.rules_section(chapter).paragraphs.is_empty());
+            }
+            for sector in 1..=voidfleet_core::run::SECTORS {
+                assert!(!locale.sector_name(sector).is_empty());
+            }
+            for event in EventId::ALL {
+                assert!(!locale.event_text(event).is_empty());
+                for &option in event.options() {
+                    assert!(!locale.event_option(option).is_empty());
+                    assert!(!locale.event_consequence(option, 18).is_empty());
+                    assert!(!locale.event_outcome(option).is_empty());
+                }
             }
         }
     }

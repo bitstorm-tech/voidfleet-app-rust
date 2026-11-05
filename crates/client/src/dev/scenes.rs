@@ -1,6 +1,7 @@
 //! Vorschau-Szenen ohne Spieler (wie `client/dev/*.html` im Original), gewählt mit `VOIDFLEET_DEV_SCENE`:
 //!
-//! - `board` — das Test-Gefecht mit Kerr, Station Waffen auf den Belagerer: Absichten, Visier, Hand, Stationen.
+//! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed), Station Waffen auf den ersten Gegner: Absichten,
+//!   Visier, Hand, Stationen.
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
 //! - `destroy` — die Schiffe gehen nacheinander unter und landen danach neu.
@@ -21,7 +22,7 @@ use crate::{
     assets::AppState,
     controller::Scripted,
     data::ship_models::{ShipKind, ShipModels},
-    game::start_test_battle,
+    game::Battle,
     palette,
     scene::{
         animation::{Animation, AnimationFinished},
@@ -160,14 +161,11 @@ fn stage(
     };
     match *scene {
         DevScene::Board => {
-            let mut battle = start_test_battle(AdmiralId::Kerr);
-            let besieger = battle
-                .enemies
-                .iter()
-                .find(|enemy| enemy.id == EnemyId::Besieger)
-                .map(|enemy| enemy.uid);
+            let run = super::dev_run(AdmiralId::Kerr, true);
+            let mut battle = Battle(run.start_battle());
             battle.flagship.station = Station::Weapons;
-            battle.flagship.target = besieger;
+            battle.flagship.target = battle.enemies.first().map(|enemy| enemy.uid);
+            commands.insert_resource(run);
             commands.insert_resource(battle);
         }
         DevScene::Hit(_) => {

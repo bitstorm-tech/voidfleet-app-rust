@@ -429,12 +429,12 @@ mod tests {
     use voidfleet_core::admirals::AdmiralId;
 
     use super::*;
-    use crate::{game::start_test_battle, settings::Language};
+    use crate::{game::fixture_battle, settings::Language};
 
     #[test]
     fn checklist_follows_station() {
         let locale = Locale::new(Language::De);
-        let mut battle = start_test_battle(AdmiralId::Osei).0;
+        let mut battle = fixture_battle(AdmiralId::Osei);
         let texts = |battle: &CoreBattle| {
             checklist_lines(&locale, battle)
                 .into_iter()

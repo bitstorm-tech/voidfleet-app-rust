@@ -199,10 +199,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::game::start_test_battle;
+    use crate::game::fixture_battle;
 
     fn battle() -> Battle {
-        let mut battle = start_test_battle(AdmiralId::Kerr).0;
+        let mut battle = fixture_battle(AdmiralId::Kerr);
         battle.hand = [
             CardId::Torpedo,
             CardId::EmergencyShields,
