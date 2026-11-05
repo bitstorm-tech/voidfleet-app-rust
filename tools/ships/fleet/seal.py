@@ -5,9 +5,6 @@ Türkis. Anders als die Mirage: keine Projektorflossen in der Schiffsmitte, sond
 mit Karminplatte und leuchtender Oberkante; Klingen in Karmin an den Flügelspitzen statt der Flügelplatten; zwei
 Canards am Bug; ein zweistufiger Kommandoturm mit umlaufendem Fensterband und Mast statt der flachen Kabine; dahinter
 das runde Siegel als Wappen: Goldrand, dunkle Scheibe, ein Schlüsselloch in Karmin, die Rundung zum Bug.
-
-Vey steht nicht in palette.ADMIRALS/FLAGSHIPS: Ihre Farben stehen vorerst als Konstanten hier, der Flaggschiff-
-Materialsatz (Akzent, Lichter, `signal`, `trim`) entsteht in `flagship_materials`.
 """
 
 import math
@@ -23,25 +20,12 @@ STATIONS = [(-3.4, 0.9, 0.18, 0.12), (-1.8, 1.8, 0.32, 0.22), (0.2, 2.2, 0.38, 0
 TOP = 0.36  # Anteil des flachen Grats an der Breite
 LOW = 0.74  # Anteil des flachen Bodens an der Breite
 
-VEY = "#ff4f6e"  # UI-Farbe von Kommandantin Vey (Karmin), Vorschlag für palette.ADMIRALS
-VEY_ACCENT = palette.tones(palette.oklch(0.58, 0.13, 14))  # Akzentfläche, gedämpft wie die anderen Admiralsakzente
-
 
 def keyhole(cy=-0.14, r=0.24, neck=0.09, foot=0.2, end=0.42, n=16):
     """Schlüsselloch (x, y): Rundung um (0, cy) zum Bug, Fuß nach achtern bis y = end."""
     a0 = math.asin(neck / r)
     arc = [(r * math.sin(a), cy + r * math.cos(a)) for a in (a0 + (2 * math.pi - 2 * a0) * k / n for k in range(n + 1))]
     return [(foot, end)] + arc + [(-foot, end)]
-
-
-def flagship_materials(m, name):
-    """Flaggschiff-Satz in Veys Farben über den Klassensatz legen (wie vf.materials für palette.FLAGSHIPS)."""
-    m["accent"] = vf.toon(f"{name}_accent", VEY_ACCENT)
-    m["accent_round"] = vf.toon(f"{name}_accent_round", VEY_ACCENT, round=True, glint=vf.GLINT)
-    m["glow"] = vf.light(f"{name}_glow", VEY)
-    m["core"] = vf.light(f"{name}_core", palette.pale(VEY))
-    m["signal"] = vf.light(f"{name}_signal", VEY, glow=False)
-    m["trim"] = vf.toon(f"{name}_trim", palette.TRIM)
 
 
 def joint(y, w, up, z=0.08):
@@ -57,7 +41,6 @@ def seam(s, mat, points, w=0.06, h=0.05, mirror=True):
 def build():
     s = Ship("seal")
     m = vf.materials(s.name, "fighter")
-    flagship_materials(m, s.name)
     m["phantom"] = vf.toon(f"{s.name}_phantom", palette.PHANTOM)
 
     # Rumpf wie die Mirage: flacher Facettenpfeil, Kimmkante bei z = 0; goldene Zierlinie auf der Kimm, im Flügelbereich auf der Fuge

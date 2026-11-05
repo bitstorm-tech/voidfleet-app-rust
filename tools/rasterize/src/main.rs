@@ -1,15 +1,9 @@
-//! Rastert Vektorgrafiken der Oberfläche zu PNG, weil Bevy kein SVG zeichnet:
-//!
-//! - die Icons unten (Lucide-Stil, Strich in Weiß, damit die Oberfläche sie einfärbt) zu `assets/images/ui/<name>.png`
-//!   in [`ICON_SIZE`] Pixeln,
-//! - die Illustrationen des Regel-Dialogs ([`figures`]) ohne Beschriftung zu `assets/images/rules/<name>.png` in
-//!   doppelter Größe; die Beschriftung setzt der Client in seiner Sprache darüber (`ui/dialogs/rules_figures.rs`).
+//! Rastert die Icons der Oberfläche zu PNG, weil Bevy kein SVG zeichnet: Lucide-Stil, Strich in Weiß, damit die
+//! Oberfläche sie einfärbt, nach `assets/images/ui/<name>.png` in [`ICON_SIZE`] Pixeln.
 //!
 //! ```sh
 //! cargo run --release --manifest-path tools/rasterize/Cargo.toml
 //! ```
-
-mod figures;
 
 use std::{fs, path::Path};
 
@@ -57,11 +51,6 @@ const ICONS: &[(&str, &str)] = &[
         "rules",
         r#"<circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />"#,
     ),
-    // Aufgeben (Lucide „flag“).
-    (
-        "surrender",
-        r#"<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />"#,
-    ),
 ];
 
 /// Gefüllte Icons.
@@ -88,21 +77,13 @@ fn main() {
             format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">{body}</svg>"#);
         render(&svg, ICON_SIZE, &icons.join(format!("{name}.png")));
     }
-    let rules = root.join("images/rules");
-    for (name, svg) in figures::all() {
-        render(&svg, 0, &rules.join(format!("{name}.png")));
-    }
 }
 
-/// Rastert `svg` auf `size` Pixel Kantenlänge (0: eigene Größe) und schreibt das PNG.
+/// Rastert `svg` auf `size` Pixel Kantenlänge und schreibt das PNG.
 fn render(svg: &str, size: u32, out: &Path) {
     let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("gültiges SVG");
     let natural = tree.size();
-    let scale = if size == 0 {
-        1.0
-    } else {
-        size as f32 / natural.width().max(natural.height())
-    };
+    let scale = size as f32 / natural.width().max(natural.height());
     let width = (natural.width() * scale).round() as u32;
     let height = (natural.height() * scale).round() as u32;
     let mut pixmap = tiny_skia::Pixmap::new(width, height).expect("Fläche");

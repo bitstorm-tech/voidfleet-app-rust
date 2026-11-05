@@ -137,8 +137,10 @@ CLASSES = {
 
 # ---------------------------------------------------------------- Admirale (crates/client/src/palette.rs)
 
-ADMIRALS = {"osei": "#e8a33a", "vance": "#e2483d", "halvorsen": "#9d5cf2", "moreau": "#33d1c6", "kerr": "#5b8dff"}
-FLAGSHIPS = {"bastion": "osei", "vanguard": "vance", "hive": "halvorsen", "mirage": "moreau", "pendulum": "kerr"}
+ADMIRALS = {"osei": "#e8a33a", "vance": "#e2483d", "halvorsen": "#9d5cf2", "moreau": "#33d1c6", "kerr": "#5b8dff", "reyes": "#ff7a2a",
+            "vey": "#ff4f6e"}
+FLAGSHIPS = {"bastion": "osei", "vanguard": "vance", "hive": "halvorsen", "mirage": "moreau", "pendulum": "kerr", "pyre": "reyes",
+             "seal": "vey"}
 # Akzentfläche der Flaggschiffe: Farbton des Admirals, gedämpft wie die Klassenakzente; die Kennzeichen tragen die
 # UI-Farbe selbst (Licht ohne Glühen), Düsen und Leuchtfeuer leuchten in ihr
 ADMIRAL_ACCENT = {
@@ -147,6 +149,8 @@ ADMIRAL_ACCENT = {
     "halvorsen": tones(oklch(0.62, 0.12, 300)),
     "moreau": tones(oklch(0.68, 0.09, 188)),
     "kerr": tones(oklch(0.66, 0.11, 266)),
+    "reyes": tones(oklch(0.64, 0.13, 48)),
+    "vey": tones(oklch(0.58, 0.13, 14)),
 }
 
 # ---------------------------------------------------------------- Sonderfarben einzelner Schiffe

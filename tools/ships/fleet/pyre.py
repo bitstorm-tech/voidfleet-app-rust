@@ -6,38 +6,20 @@ vor dem drei dunkle Klauen eine leuchtende Glutkugel halten. An beiden Flanken j
 Kühlkörper mit vier schrägen Glutschlitzen, auf dem Rückendeck zwei Reihen großer Kühlblöcke mit Glutkante.
 Dahinter die Wappenplatte mit Reyes' Flamme, achtern die Brücke aus drei Keilen mit Fensterband und Mast, Panzerschürzen
 in Glutorange, Kiel und drei schwere Düsen.
-
-Reyes steht noch nicht in palette.ADMIRALS/FLAGSHIPS: Ihre Farben stehen vorerst als Konstanten hier, der
-Flaggschiff-Materialsatz (Akzent, Lichter, `signal`, `trim`) entsteht in `flagship_materials`.
 """
 
-import palette
 import vf
 from parts import badge, engine, sym, trim_line
 from vf import Ship, box, keel, loft, octagon, plate, post, sec, sphere, tube, wedge
-
-REYES = "#ff7a2a"  # UI-Farbe von Admiralin Reyes (Glut), Vorschlag für palette.ADMIRALS
-REYES_ACCENT = palette.tones(palette.oklch(0.64, 0.13, 48))  # Akzentfläche, gedämpft wie die anderen Admiralsakzente
 
 # Wappen: Platte mit Spitze zum Bug, darauf eine Flamme, die zum Bug lodert
 PLATE = sym([(0.0, -0.95), (0.62, -0.45), (0.62, 0.55), (0.0, 0.8)])
 FLAME = sym([(0.0, -0.74), (0.13, -0.3), (0.3, -0.48), (0.38, -0.04), (0.34, 0.28), (0.18, 0.48), (0.0, 0.54)])
 
 
-def flagship_materials(m, name):
-    """Flaggschiff-Satz in Reyes' Farben über den Klassensatz legen (wie vf.materials für palette.FLAGSHIPS)."""
-    m["accent"] = vf.toon(f"{name}_accent", REYES_ACCENT)
-    m["accent_round"] = vf.toon(f"{name}_accent_round", REYES_ACCENT, round=True, glint=vf.GLINT)
-    m["glow"] = vf.light(f"{name}_glow", REYES)
-    m["core"] = vf.light(f"{name}_core", palette.pale(REYES))
-    m["signal"] = vf.light(f"{name}_signal", REYES, glow=False)
-    m["trim"] = vf.toon(f"{name}_trim", palette.TRIM)
-
-
 def build():
     s = Ship("pyre")
     m = vf.materials(s.name, "battleship")
-    flagship_materials(m, s.name)
 
     # Breiter Keilrumpf, darauf das hohe Rückendeck; Zierlinie an der Rumpfkante
     hull = [(-3.4, 2.0, 1.1), (-2.4, 3.4, 1.5), (2.2, 3.6, 1.6), (3.9, 2.8, 1.3), (4.5, 2.0, 1.0)]
