@@ -38,6 +38,7 @@ use crate::{
     game::Battle,
     i18n::{Condition, Locale, Messages},
     palette,
+    playback::PlayEvents,
 };
 
 /// Wem die Szene gehört: der Planung, die sie aus dem Gefecht stellt, oder der Wiedergabe.
@@ -76,6 +77,8 @@ impl Plugin for SyncPlugin {
                     .run_if(board_changed)
                     .in_set(SyncSystems)
                     .run_if(in_state(BoardMode::Planning))
+                    // Der Wechsel zur Wiedergabe greift erst im nächsten Bild; so lange bleibt der alte Stand.
+                    .run_if(not(on_message::<PlayEvents>))
                     .run_if(not(resource_exists::<Scripted>)),
             );
     }
