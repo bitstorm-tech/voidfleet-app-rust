@@ -31,7 +31,7 @@ use crate::{
     run::{ActiveRun, RunAction, RunFlow, RunView, Screen},
     settings::Language,
     ui::{
-        Fonts,
+        Fonts, UiIcons,
         button::{self, Key},
         card::{CardAssets, CardHover, command_card},
         theme::{self, Modal, UiOpacity},
@@ -747,6 +747,7 @@ fn show_gallery(
     run: Option<Res<ActiveRun>>,
     screen: Res<Screen>,
     assets: CardAssets,
+    icons: Res<UiIcons>,
     shown: Query<Entity, With<GalleryDialog>>,
 ) {
     if screen.is_changed() && !screen.is_added() && gallery.is_some() {
@@ -818,8 +819,11 @@ fn show_gallery(
                             pair.spawn(command_card(&assets, card, 1.4));
                             if gallery.purpose == Purpose::Upgrade {
                                 pair.spawn((
-                                    theme::caps(fonts.display_bold(48.0), "→", 0.0, palette::BUFF),
+                                    ImageNode::new(icons.arrow_right.clone())
+                                        .with_color(palette::BUFF),
                                     Node {
+                                        width: px(48),
+                                        height: px(48),
                                         align_self: AlignSelf::Center,
                                         ..default()
                                     },

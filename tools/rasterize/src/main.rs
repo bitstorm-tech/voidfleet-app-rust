@@ -39,6 +39,8 @@ const ICONS: &[(&str, &str)] = &[
         "crosshair",
         r#"<circle cx="12" cy="12" r="7" /><path d="M12 1v6M12 17v6M1 12h6M17 12h6" />"#,
     ),
+    // Pfeil im Aufwerten-Dialog (Lucide „arrow-right“).
+    ("arrow_right", r#"<path d="M5 12h14M12 5l7 7-7 7" />"#),
     // Haken der Checkliste und des Gegner-Felds.
     ("check", r#"<path d="M20 6 9 17l-5-5" />"#),
     // Einstellungen (Lucide „settings“).
