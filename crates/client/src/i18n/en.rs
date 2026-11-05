@@ -398,6 +398,80 @@ impl Messages for En {
                 "Kill confirmed!",
             ],
             RadioCue::HullCritical => &["Hull integrity critical!", "She's badly hurt, Admiral!"],
+            RadioCue::IncomingFire => &[
+                "Incoming fire! Brace, brace, brace!",
+                "They're opening up on us!",
+            ],
+            RadioCue::ColumnFireIncoming => &[
+                "Beam weapons charging on our line!",
+                "They've got our column bracketed! Get us out of there!",
+            ],
+            RadioCue::FireOnboard => &[
+                "Fire on deck four! Damage control, move!",
+                "We've got fire in the main corridor!",
+            ],
+            RadioCue::FireOut => &[
+                "Fire's out. Venting the smoke now.",
+                "Fire suppressed, Admiral.",
+            ],
+            RadioCue::ShieldsUp => &["Shields up!", "All power to forward shields!"],
+            RadioCue::Maneuver => &[
+                "Helm, hard to port! Changing lanes!",
+                "Coming about, new heading!",
+            ],
+            RadioCue::MicroJump => &[
+                "Spinning up the drive. Jump in three, two, one!",
+                "Micro jump, now!",
+            ],
+            RadioCue::JumpReturn => &[
+                "Jump complete. We're back in the fight.",
+                "Back on the grid. Weapons hot.",
+            ],
+            RadioCue::RamIncoming => &[
+                "Fireship on a collision course!",
+                "That one's gonna ram us! Brace for impact!",
+            ],
+            RadioCue::ReinforcementsSighted => &[
+                "New contacts! Enemy reinforcements jumping in!",
+                "More of them, Admiral. Fresh hostiles on the board.",
+            ],
+            RadioCue::EmergencyGenerator => &[
+                "Main power's gone! Emergency generator is holding us!",
+                "Backup power online! We're still breathing!",
+            ],
+            RadioCue::Repairs => &[
+                "Repair crews on the hull breach.",
+                "Damage control teams, patch her up!",
+            ],
+            RadioCue::TargetLocked => {
+                &["Target locked. Firing!", "Firing solution set. Guns away!"]
+            }
+            RadioCue::DirectHit => &["Direct hit!", "Good hit, good hit! Hull breach on target!"],
+            RadioCue::EnemyBurning => &["Target's burning!", "She's on fire! Keep it up!"],
+            RadioCue::TorpedoAway => &["Torpedo away!", "Torpedo running hot!"],
+            RadioCue::OrbitalStrike => &["Orbital strike inbound!", "Calling it down from above!"],
+            RadioCue::RailgunFire => &["Rail's charged. Fire!", "Slug away!"],
+            RadioCue::PlasmaFire => &["Plasma ready. Burn them!", "Venting plasma, now!"],
+            RadioCue::Counterfire => &[
+                "Counterfire! Return the favor!",
+                "They hit us, we hit back!",
+            ],
+            RadioCue::EnemyPanic => &[
+                "Mayday, mayday! We're breaking up out here!",
+                "Reactor's failing! Somebody help us!",
+            ],
+            RadioCue::EnemyCharging => &[
+                "Main battery charging. Hold your fire.",
+                "Full power to the big gun. On my mark.",
+            ],
+            RadioCue::EnemyCallsReinforcements => &[
+                "All ships, all ships, converge on my position!",
+                "We need backup! Send everything you've got!",
+            ],
+            RadioCue::EnemyBreaking => &[
+                "Break off! Break off! Everyone run!",
+                "We can't hold them! Pull back!",
+            ],
         }
     }
 

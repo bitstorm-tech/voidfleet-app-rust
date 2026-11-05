@@ -400,6 +400,87 @@ impl Messages for De {
                 "Hüllenintegrität kritisch!",
                 "Das Schiff ist schwer getroffen, Admiral!",
             ],
+            RadioCue::IncomingFire => &[
+                "Feindfeuer im Anflug! Festhalten!",
+                "Sie eröffnen das Feuer auf uns!",
+            ],
+            RadioCue::ColumnFireIncoming => &[
+                "Strahlwaffen laden auf unsere Linie!",
+                "Sie haben unsere Spalte im Visier! Bringt uns da raus!",
+            ],
+            RadioCue::FireOnboard => &[
+                "Feuer auf Deck vier! Schadenskontrolle, los!",
+                "Feuer im Hauptkorridor!",
+            ],
+            RadioCue::FireOut => &[
+                "Feuer gelöscht. Wir lüften den Rauch ab.",
+                "Brand eingedämmt, Admiral.",
+            ],
+            RadioCue::ShieldsUp => &["Schilde hoch!", "Alle Energie auf die Frontschilde!"],
+            RadioCue::Maneuver => &[
+                "Ruder hart Backbord! Wir wechseln die Bahn!",
+                "Wir drehen bei, neuer Kurs!",
+            ],
+            RadioCue::MicroJump => &[
+                "Antrieb läuft an. Sprung in drei, zwei, eins!",
+                "Kurzsprung, jetzt!",
+            ],
+            RadioCue::JumpReturn => &[
+                "Sprung beendet. Wir sind zurück im Gefecht.",
+                "Zurück auf dem Feld. Waffen scharf.",
+            ],
+            RadioCue::RamIncoming => &[
+                "Brander auf Rammkurs!",
+                "Der rammt uns! Auf Aufprall gefasst machen!",
+            ],
+            RadioCue::ReinforcementsSighted => &[
+                "Neue Kontakte! Feindliche Verstärkung springt ein!",
+                "Es werden mehr, Admiral. Frische Feinde auf dem Feld.",
+            ],
+            RadioCue::EmergencyGenerator => &[
+                "Hauptenergie weg! Das Notaggregat hält uns!",
+                "Notstrom an! Wir atmen noch!",
+            ],
+            RadioCue::Repairs => &[
+                "Reparaturtrupps an der Hüllenbresche.",
+                "Schadenskontrolle, flickt sie zusammen!",
+            ],
+            RadioCue::TargetLocked => &[
+                "Ziel erfasst. Feuer!",
+                "Feuerlösung steht. Geschütze feuern!",
+            ],
+            RadioCue::DirectHit => &[
+                "Volltreffer!",
+                "Guter Treffer! Hülle des Ziels aufgerissen!",
+            ],
+            RadioCue::EnemyBurning => &["Ziel brennt!", "Der brennt! Weiter so!"],
+            RadioCue::TorpedoAway => &["Torpedo los!", "Torpedo läuft!"],
+            RadioCue::OrbitalStrike => &["Orbitalschlag kommt!", "Wir holen es von oben runter!"],
+            RadioCue::RailgunFire => &["Railgun geladen. Feuer!", "Projektil raus!"],
+            RadioCue::PlasmaFire => &[
+                "Plasma bereit. Brennt sie nieder!",
+                "Plasma ablassen, jetzt!",
+            ],
+            RadioCue::Counterfire => &[
+                "Gegenfeuer! Zahlt es ihnen heim!",
+                "Sie treffen uns, wir schlagen zurück!",
+            ],
+            RadioCue::EnemyPanic => &[
+                "Mayday, Mayday! Wir brechen auseinander!",
+                "Der Reaktor versagt! Helft uns doch!",
+            ],
+            RadioCue::EnemyCharging => &[
+                "Hauptbatterie lädt. Feuer halten.",
+                "Volle Energie aufs Hauptgeschütz. Auf mein Zeichen.",
+            ],
+            RadioCue::EnemyCallsReinforcements => &[
+                "An alle Schiffe: Sammeln auf meiner Position!",
+                "Wir brauchen Verstärkung! Schickt alles, was ihr habt!",
+            ],
+            RadioCue::EnemyBreaking => &[
+                "Abdrehen! Abdrehen! Alle weg hier!",
+                "Wir können sie nicht halten! Rückzug!",
+            ],
         }
     }
 

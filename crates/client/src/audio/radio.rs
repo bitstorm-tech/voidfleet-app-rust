@@ -35,6 +35,8 @@ const KEY_UP: f64 = 0.12;
 const TAIL: f64 = 0.18;
 const VOICE_LEVEL: f32 = 0.7;
 const HISS_LEVEL: f32 = 0.012;
+/// Abgehörter Gegnerfunk rauscht stärker.
+const INTERCEPTED_HISS_LEVEL: f32 = 0.05;
 const CARRIER_RATE: u32 = 48_000;
 
 /// Ein Funkspruch, sobald der Funk frei ist; `variant` wählt eine bestimmte Aufnahme und übergeht die Sperre gegen
@@ -241,7 +243,7 @@ impl Radio {
             .volume(decibels(sample.gain * VOICE_LEVEL));
         let played = mixer
             .voice
-            .play(carrier(end))
+            .play(carrier(end, hiss_level(say.cue)))
             .and_then(|carrier| Ok((carrier, mixer.voice.play(voice)?)));
         let (carrier, voice) = match played {
             Ok(handles) => handles,
@@ -266,9 +268,17 @@ impl Radio {
     }
 }
 
-/// Träger eines Spruchs, dessen Stimme bei `end` Sekunden endet: Rauschstoß beim Drücken, leises Rauschen unter der
-/// Stimme, Rauschstoß beim Loslassen und das Piepen der Sprechtaste.
-fn carrier(end: f64) -> StaticSoundData {
+fn hiss_level(cue: RadioCue) -> f32 {
+    if cue.intercepted() {
+        INTERCEPTED_HISS_LEVEL
+    } else {
+        HISS_LEVEL
+    }
+}
+
+/// Träger eines Spruchs, dessen Stimme bei `end` Sekunden endet: Rauschstoß beim Drücken, Rauschen der Stärke `level`
+/// unter der Stimme, Rauschstoß beim Loslassen und das Piepen der Sprechtaste.
+fn carrier(end: f64, level: f32) -> StaticSoundData {
     let end = end as f32;
     let tail = TAIL as f32;
     let length = ((end + tail) * CARRIER_RATE as f32) as usize;
@@ -277,11 +287,11 @@ fn carrier(end: f64) -> StaticSoundData {
         .map(|i| {
             let t = i as f32 / CARRIER_RATE as f32;
             let hiss = if t < 0.07 {
-                0.25 * (HISS_LEVEL / 0.25).powf(t / 0.07)
+                0.25 * (level / 0.25).powf(t / 0.07)
             } else if t < end {
-                HISS_LEVEL
+                level
             } else if t < end + 0.02 {
-                HISS_LEVEL + (0.22 - HISS_LEVEL) * (t - end) / 0.02
+                level + (0.22 - level) * (t - end) / 0.02
             } else {
                 0.22 * (0.0001_f32 / 0.22).powf((t - end - 0.02) / (tail - 0.02))
             };
@@ -311,7 +321,7 @@ mod tests {
 
     #[test]
     fn carrier_spans_key_up_to_release() {
-        let data = carrier(1.0);
+        let data = carrier(1.0, INTERCEPTED_HISS_LEVEL);
         let seconds = data.duration().as_secs_f64();
         assert!((seconds - (1.0 + TAIL)).abs() < 1e-3, "{seconds}");
         let peak = data
