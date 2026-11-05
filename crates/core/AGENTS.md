@@ -1,7 +1,7 @@
 # Regelwerk (`voidfleet-core`)
 
 - `cargo test -p voidfleet-core`, `cargo clippy -p voidfleet-core --all-targets -- -D warnings`. Abhängigkeiten nur `serde` und `rand`; kein I/O, keine Texte.
-- Die Regeln stehen in `docs/PVE_DESIGN.md` (Abschnitte 2 bis 12); dieses Crate setzt das Gefecht um, der Run (Sternenkarte, Beute, Werft) liegt später im Client.
+- Die Regeln stehen in `docs/PVE_DESIGN.md` (Abschnitte 2 bis 12); dieses Crate setzt das Gefecht und den Run (Abschnitte 11 und 12) um; der Client zeichnet, speichert und spielt ihn ab.
 - Ids sind Enums und serialisieren als `snake_case`; der Client leitet daraus Dateinamen ab und hält Namen und Effekttexte.
 
 ## Aufbau
@@ -13,6 +13,7 @@
 - `src/modules.rs` — `ModuleId` und die Zahlen der Module.
 - `src/events.rs` — `BattleEvent` in Ausführungsreihenfolge; Einheiten als `UnitRef` samt Id und Slot, Treffer mit `Breakdown` (jede Zahl der Rechnung) und `UnitStats` danach. `Hit` ist ein Treffer der Vorschau, `Intent` eine Ansage samt live gerechnetem Schaden.
 - `src/battle.rs` — `Battle`, die eine Schnittstelle für den Client. Der Zustand liegt in öffentlichen Feldern (`flagship`, `enemies`, `hand`, Stapel, `points`, `kills`, `result` …), abgeleitete Werte über Methoden (`flagship_attack`, `flagship_armor`, `enemy_attack`, `announced`, `covered`, `clock`). Spielerzug: `place`, `set_station`/`set_target`/`set_column`, `can_trigger`, `trigger_station`, `play_card`, `end_turn`; Vorschau `preview_station`/`preview_card` spielt auf einer Kopie, rechnet also genau wie die Ausführung.
+- `src/run.rs` — `Run`, der Run aus Sternenkarte, Verbänden, Beute, Werft, Schwarzmarkt und Ereignissen (Abschnitt „Run“ unten).
 - `tests/battle.rs` — die Beispielrunde aus Abschnitt 10 (beide Züge) und je ein Test für die übrigen Regeln. Zustände werden über `Battle::new` und direkte Felder aufgesetzt.
 
 ## Eine Runde
@@ -25,3 +26,17 @@
 ## Schaden
 
 Schuss auf einen Gegner (`shoot`): Ausweichen halbiert (aufgerundet, nicht im Notfall), Panzerung zieht ab, Deckung leitet die aufgerundete Hälfte an den Vordermann (eigener Treffer), Schild schluckt, Rest auf die Hülle. Brand bei Hülle ≤ 50 % nach einem Treffer, durch Plasmawerfer und Brandsatz; Notfall bei ≤ 25 % (ATK aufgerundet halbiert). Mit Hülle 0 fällt eine Einheit sofort: Abschuss zählen, Ziel leeren, Schrottkönige heilen 8, ein Nachrücker übernimmt den Slot, Sieg prüfen (keine Einheit, keine Verstärkung, kein Nachrücker; oder das Siegel fällt). Gegnerschüsse: `enemy_attack` (Grundwert + Gefechtsuhr + Spotter − Zielstörer, im Notfall halbiert), Zielfeuer einfach, Spaltenfeuer doppelt bei Torpedo-Staffel oder Aufladung, Aufladung verdoppelt auch Zielfeuer, Rammkurs fest 10; nach Fokusfeuer +2 je Treffer.
+
+## Run
+
+- **Zustand** in öffentlichen Feldern von `Run` (Serde, der Client speichert ihn als JSON): Admiral, `hull`/`max_hull` (samt Verstärkter Spanten), `scrap`, `deck`, `modules`, `emergency_generator_used`, `sector` (1 bis 3), `map` (Reihen × Knoten, `MapNode { kind, next }`, Reihe und Spalte sind die Indizes, `next` die Spalten der nächsten Reihe), `path` (besuchte Spalte je Reihe, der letzte ist der aktuelle Knoten), `stage` (was ansteht), `burning` (nächstes Gefecht brennend), `pilot` (nächster Knoten wird Werft), `result`.
+- **Zufall**: kein RNG im Zustand. Jede Entscheidung zieht `StdRng::seed_from_u64(seed ^ rolls * 0x9E37_79B9_7F4A_7C15)` und zählt `rolls` hoch; gleicher Seed und gleiche Wahl ergeben denselben Run, auch nach dem Laden. Der Seed des Gefechts steht in `Stage::Battle`, also baut `start_battle(&self)` nach dem Laden dasselbe Gefecht.
+- **Ablauf**: `Stage::Map` → `advance(column)` (nur `choices()`) → je nach `NodeKind`:
+  - `Battle`/`Elite`/`Boss`: `Stage::Battle { encounter, seed }` → `start_battle` → Gefecht → `finish_battle(&battle) -> Loot` (Hülle, Notaggregat, Schrott sofort verbucht; Boss nach Sektor 1 und 2 repariert wie die Werft) → `Stage::Loot` → `take_loot(Option<index>)` (Karte bei Gefechten, Modul bei Elite und Boss, `None` nimmt nichts).
+  - `Event`: `Stage::Event(EventId)` → `choose(index in EventId::options()) -> Gain`; „Selbst fliegen“ führt in ein Kartenangebot (`Stage::Loot`).
+  - `Shipyard`: `repair_at_shipyard`, `upgrade_at_shipyard(deck_index)` oder `remove_at_shipyard(deck_index)`.
+  - `Market`: `buy_card`, `buy_module`, `buy_removal(deck_index)` (einmal), `buy_repair` (beliebig oft), `leave_market`.
+  - Danach zurück auf `Stage::Map`; nach dem Boss beginnt der nächste Sektor mit neuer Karte und leerem `path`. Der Boss von Sektor 3 setzt `result: Won`, eine Niederlage `Lost`.
+- **Fehler**: `RunError` (falsche Phase, nicht erreichbarer Knoten, zu wenig Schrott, Index außerhalb, schon aufgewertet, ausverkauft).
+- **Zahlen** als Konstanten oben in `run.rs` (Reihen, Schrott, Preise, Reparatur, Ereignisse, Sektor-Skalierung), die Anteile der Knoten in `generate_map`, die Verbände und die festen Aufstellungen von Elite und Bossen in `encounter`, die Aufstellungsregel in `formation` (Jäger und Schlachtschiffe vorn, Spotter hinten, Kreuzer hinter Jägern, hinten nur gedeckt, Mitte zuerst).
+- `tests/run.rs` — Kartenerzeugung, Verbände und Aufstellungen, Beute, Werft, Schwarzmarkt, die drei Ereignisse, Sektorwechsel und Sieg, Determinismus, Serde-Roundtrip und ein durchgespielter Run.
