@@ -1,7 +1,7 @@
-//! Die Admiralswahl vor Runde 1 (Port von `ui/admiralSelect.ts`): Solange der eigene Admiral fehlt, liegt über dem
-//! Brett ein Overlay mit fünf Karten — Porträt, Name und Beiname, das Flaggschiff mit Klasse, HP, ATK und Fähigkeit,
-//! die Admiralsfähigkeit, alles in der Akzentfarbe des Admirals. Ein Klick wählt ([`AdmiralChosen`]); bis der Server
-//! bestätigt (oder ablehnt), bleibt die Karte markiert und die übrigen sind gesperrt. Die Hand darunter bleibt frei.
+//! Die Admiralswahl (Port von `ui/admiralSelect.ts`): Solange kein Gefecht läuft, liegt über dem Brett ein Overlay
+//! mit vier Karten — Porträt, Name und Beiname, das Flaggschiff mit Bild, Hülle, ATK und Waffe, Passiv,
+//! Admiralsstation und Kennkarte, alles in der Akzentfarbe des Admirals. Ein Klick wählt ([`AdmiralChosen`]); bis das
+//! Gefecht steht, bleibt die Karte markiert und die übrigen sind gesperrt.
 
 use bevy::{
     picking::hover::Hovered,
@@ -13,15 +13,15 @@ use bevy::{
 };
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 
-use super::{
-    AdmiralChosen, Density, NewMatch, board_overlay, choice_cancelled, overlay_backdrop,
-    overlay_hint, overlay_title,
-};
+use super::{AdmiralChosen, Density, board_overlay, overlay_backdrop, overlay_hint, overlay_title};
 use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
-    data::admirals::AdmiralPortraits,
-    game::{Match, ServerError},
+    data::{
+        admirals::AdmiralPortraits,
+        card_art::{Card, CardArt},
+    },
+    game::Battle,
     i18n::Locale,
     palette,
     settings::Language,
@@ -32,7 +32,7 @@ use crate::{
     },
 };
 
-/// Der gewählte Admiral, bis der Server ihn bestätigt.
+/// Der gewählte Admiral, bis das Gefecht steht.
 #[derive(Resource, Default, Debug)]
 struct PendingAdmiral(Option<AdmiralId>);
 
@@ -120,6 +120,7 @@ fn admiral_card(
     fonts: &Fonts,
     icons: &UiIcons,
     portraits: &AdmiralPortraits,
+    art: &CardArt,
     locale: &Locale,
     admiral: AdmiralId,
     density: Density,
@@ -127,8 +128,9 @@ fn admiral_card(
     let color = palette::admiral_color(admiral);
     let text = locale.admiral(admiral);
     let flagship = admiral.flagship();
-    let ship = flagship.card();
-    let power = locale.power(admiral.power());
+    let signature = locale.card(voidfleet_core::cards::DeckCard::new(
+        admiral.signature_card(),
+    ));
     let (portrait, name, epithet, ship_name, body, line_height, choose_size, choose_pad) =
         match density {
             Density::Regular => (120.0, 24.0, 17.0, 18.0, 14.5, 1.3, 18.0, 6.0),
@@ -206,46 +208,90 @@ fn admiral_card(
                 ],
             ),
             (
-                section(),
+                Node {
+                    column_gap: px(10),
+                    ..section()
+                },
                 Pickable::IGNORE,
                 children![
-                    section_label(
-                        fonts,
-                        locale.admiral_select_flagship(),
-                        Some(icons.crown.clone())
-                    ),
                     (
-                        theme::text(
-                            fonts.body(ship_name),
-                            locale.ship(flagship).name,
-                            palette::FLAGSHIP_TRIM
-                        ),
+                        Node {
+                            width: px(46),
+                            height: px(64),
+                            flex_shrink: 0.0,
+                            overflow: Overflow::clip(),
+                            border_radius: BorderRadius::all(px(3)),
+                            ..default()
+                        },
+                        BoxShadow(vec![theme::ring(
+                            palette::FLAGSHIP_TRIM.with_alpha(0.7),
+                            1.0
+                        )]),
                         Pickable::IGNORE,
+                        children![theme::cover_image(
+                            art.get(Card::Flagship(flagship)),
+                            ART_ASPECT,
+                            0.5
+                        )],
                     ),
                     (
                         Node {
-                            margin: UiRect::bottom(px(3)),
+                            flex_direction: FlexDirection::Column,
+                            flex_shrink: 1.0,
                             ..default()
                         },
-                        theme::text(
-                            fonts.body(14.0),
-                            format!(
-                                "{} · {} {} · {} {}",
-                                locale.ship_class(ship.class),
-                                ship.hp,
-                                locale.stats_hp(),
-                                ship.atk,
-                                locale.stats_atk()
-                            ),
-                            palette::TEXT_DIM
-                        ),
                         Pickable::IGNORE,
+                        children![
+                            section_label(
+                                fonts,
+                                locale.label_flagship(),
+                                Some(icons.crown.clone())
+                            ),
+                            (
+                                theme::text(
+                                    fonts.body(ship_name),
+                                    locale.flagship(flagship),
+                                    palette::FLAGSHIP_TRIM
+                                ),
+                                Pickable::IGNORE,
+                            ),
+                            (
+                                theme::text(
+                                    fonts.body(14.0),
+                                    format!(
+                                        "{} {} · {} {}",
+                                        locale.stats_hull(),
+                                        admiral.hull(),
+                                        locale.stats_atk(),
+                                        admiral.attack()
+                                    ),
+                                    palette::TEXT_DIM
+                                ),
+                                Pickable::IGNORE,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            (
+                Node {
+                    row_gap: px(4),
+                    ..section()
+                },
+                Pickable::IGNORE,
+                children![
+                    lead_text(
+                        fonts.body(body),
+                        format!("{}:", locale.label_weapon()),
+                        palette::TEXT,
+                        text.weapon,
+                        line_height,
                     ),
                     lead_text(
                         fonts.body(body),
-                        format!("{}:", text.ability),
+                        format!("{}:", locale.label_passive()),
                         palette::TEXT,
-                        locale.ship(flagship).effect,
+                        text.passive,
                         line_height,
                     ),
                 ],
@@ -254,12 +300,26 @@ fn admiral_card(
                 section(),
                 Pickable::IGNORE,
                 children![
-                    section_label(fonts, locale.admiral_select_power(), None),
+                    section_label(fonts, locale.label_station(), None),
                     lead_text(
                         fonts.body(body),
-                        format!("{}:", power.name),
+                        format!("{}:", text.station),
                         color,
-                        power.effect,
+                        text.station_text,
+                        line_height,
+                    ),
+                ],
+            ),
+            (
+                section(),
+                Pickable::IGNORE,
+                children![
+                    section_label(fonts, locale.label_signature(), None),
+                    lead_text(
+                        fonts.body(body),
+                        format!("{}:", signature.name),
+                        color,
+                        signature.effect,
                         line_height,
                     ),
                 ],
@@ -310,18 +370,19 @@ fn choose(
     }
 }
 
-/// Zeigt die Wahl, solange der eigene Admiral fehlt; baut sie bei anderer Sprache oder Fensterhöhe neu.
+/// Zeigt die Wahl, solange kein Gefecht läuft; baut sie bei anderer Sprache oder Fensterhöhe neu.
 fn show(
     mut commands: Commands,
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     locale: Res<Locale>,
     fonts: Res<Fonts>,
     icons: Res<UiIcons>,
     portraits: Res<AdmiralPortraits>,
+    art: Res<CardArt>,
     window: Single<&Window, With<PrimaryWindow>>,
     overlays: Query<(Entity, &AdmiralOverlay)>,
 ) {
-    let open = game.round > 0 && game.admiral.is_none() && game.result.is_none();
+    let open = battle.is_none();
     let wanted = open.then(|| AdmiralOverlay {
         language: locale.language,
         density: Density::of(&window),
@@ -341,7 +402,7 @@ fn show(
     };
     let density = overlay.density;
     let cards = ADMIRAL_IDS
-        .map(|admiral| admiral_card(&fonts, &icons, &portraits, &locale, admiral, density));
+        .map(|admiral| admiral_card(&fonts, &icons, &portraits, &art, &locale, admiral, density));
     commands.spawn((
         Name::new("Admiralswahl"),
         overlay,
@@ -371,14 +432,9 @@ fn show(
     ));
 }
 
-/// Hebt die wartende Wahl auf, sobald der Admiral feststeht, der Server ablehnt oder ein neues Match beginnt.
-fn settle(
-    game: Res<Match>,
-    mut pending: ResMut<PendingAdmiral>,
-    mut errors: MessageReader<ServerError>,
-    mut new_match: MessageReader<NewMatch>,
-) {
-    if choice_cancelled(&mut errors, &mut new_match) || game.admiral.is_some() {
+/// Hebt die wartende Wahl auf, sobald das Gefecht steht.
+fn settle(battle: Option<Res<Battle>>, mut pending: ResMut<PendingAdmiral>) {
+    if battle.is_some() && pending.0.is_some() {
         pending.0 = None;
     }
 }

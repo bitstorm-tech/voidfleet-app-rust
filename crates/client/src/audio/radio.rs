@@ -323,8 +323,7 @@ mod tests {
 
     #[test]
     fn repeats_by_priority() {
-        assert_eq!(repeat_after(RadioCue::OrdersSent), 60.0);
-        assert_eq!(repeat_after(RadioCue::EnemyReady), 15.0);
-        assert_eq!(repeat_after(RadioCue::ShipLost), 0.0);
+        assert_eq!(repeat_after(RadioCue::EnemyDestroyed), 15.0);
+        assert_eq!(repeat_after(RadioCue::Victory), 0.0);
     }
 }

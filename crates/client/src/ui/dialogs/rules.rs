@@ -1,9 +1,8 @@
 //! Spielregeln (Port von `ui/rulesDialog.ts`): Das Fragezeichen in der Icon-Leiste öffnet einen großen Dialog mit
 //! Kapitelnavigation links und dem scrollenden Regeltext rechts; die Navigation markiert das Kapitel oben im
 //! sichtbaren Bereich, ein Klick scrollt sanft dorthin (Mausrad, Pfeiltasten, Bild auf/ab, Pos1 und Ende scrollen
-//! auch). Die Texte kommen aus [`Messages::rules_section`](crate::i18n::Messages::rules_section); jedes Kapitel bekommt
-//! seine Illustration ([`rules_figures`](super::rules_figures)), die Screenshots aus `images/rules/`, die Admirale mit
-//! Flaggschiff und Fähigkeitskarte oder die Galerie aller Karten samt Flaggschiffen und Tokens.
+//! auch). Die Texte kommen aus [`Messages::rules_section`](crate::i18n::Messages::rules_section): Brett, Runde,
+//! Stationen, Schaden, Zustände, Admirale, Karten, Gegner und Steuerung.
 
 use bevy::{
     picking::hover::Hovered,
@@ -11,90 +10,18 @@ use bevy::{
     text::LineHeight,
     ui_widgets::{Activate, Button, ScrollArea, observe},
 };
-use voidfleet_core::{
-    admirals::{ADMIRAL_IDS, AdmiralId},
-    cards::{COMMAND_ORDER, COMMANDS, CommandId, FLAGSHIPS, SHIPS, ShipId, TOKENS},
-};
 
-use super::{Dialog, dialog_console, footer_close, icon_dialog, rules_figures};
+use super::{Dialog, dialog_console, footer_close, icon_dialog};
 use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
-    data::admirals::flagship_admiral,
     i18n::RulesChapter,
     palette,
     ui::{
-        card::{ART_ASPECT, CardAssets, command_card, power_card, ship_card},
-        preloaded,
+        card::CardAssets,
         theme::{self, rgba},
     },
 };
-
-/// Bilder des Regel-Dialogs: Screenshots und die gerasterten Figuren.
-#[derive(Resource)]
-pub(super) struct RulesImages {
-    pub deploy: Handle<Image>,
-    pub maneuver: Handle<Image>,
-    pub board: Handle<Image>,
-    pub fire_orders: Handle<Image>,
-    pub turn_maneuver: Handle<Image>,
-    pub turn_fire: Handle<Image>,
-}
-
-impl FromWorld for RulesImages {
-    fn from_world(world: &mut World) -> Self {
-        preloaded(world, |server, preload| {
-            let mut image = |name: &str| preload.track(server.load(format!("images/rules/{name}")));
-            Self {
-                deploy: image("deploy.jpg"),
-                maneuver: image("maneuver.jpg"),
-                board: image("board.png"),
-                fire_orders: image("fire_orders.png"),
-                turn_maneuver: image("turn_maneuver.png"),
-                turn_fire: image("turn_fire.png"),
-            }
-        })
-    }
-}
-
-/// Eine Illustration.
-#[derive(Clone, Copy, Debug)]
-enum Figure {
-    Overdrive,
-    Turn,
-    DeployScreenshot,
-    Admirals,
-    Board,
-    ManeuverScreenshot,
-    Phases,
-    FireOrders,
-    Ships,
-    Commands,
-}
-
-/// Kapitel in Lesereihenfolge mit ihren Illustrationen; die stehen vor dem Absatz `after` (`None`: nach dem letzten).
-const CHAPTERS: [(RulesChapter, &[Figure], Option<usize>); 12] = [
-    (RulesChapter::Goal, &[Figure::Overdrive], None),
-    (
-        RulesChapter::Turn,
-        &[Figure::Turn, Figure::DeployScreenshot],
-        Some(2),
-    ),
-    (RulesChapter::Admirals, &[], None),
-    (RulesChapter::Roster, &[Figure::Admirals], None),
-    (RulesChapter::Board, &[Figure::Board], Some(2)),
-    (
-        RulesChapter::Movement,
-        &[Figure::ManeuverScreenshot],
-        Some(1),
-    ),
-    (RulesChapter::Resolution, &[Figure::Phases], None),
-    (RulesChapter::Combat, &[Figure::FireOrders], Some(2)),
-    (RulesChapter::Ships, &[Figure::Ships], Some(1)),
-    (RulesChapter::Commands, &[Figure::Commands], None),
-    (RulesChapter::Hand, &[], None),
-    (RulesChapter::Controls, &[], None),
-];
 
 /// Der scrollende Regeltext; `target` ist, wohin er gerade sanft scrollt.
 #[derive(Component, Default)]
@@ -135,10 +62,7 @@ fn well() -> impl Bundle {
     )
 }
 
-/// Fläche der Einträge in Galerien und Phasen.
-const TILE: Color = rgba(255, 255, 255, 0.03);
-
-pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<RulesImages>) {
+pub(super) fn spawn(mut commands: Commands, assets: CardAssets) {
     let fonts = &assets.fonts;
     let locale = &assets.locale;
     let body = commands
@@ -159,7 +83,7 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<Rule
             well(),
         ))
         .id();
-    for (index, &(chapter, figures, after)) in CHAPTERS.iter().enumerate() {
+    for (index, chapter) in RulesChapter::ALL.into_iter().enumerate() {
         let text = locale.rules_section(chapter);
         let first = index == 0;
         let section = commands
@@ -189,18 +113,7 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<Rule
             ),
             ChildOf(section),
         ));
-        let figure_at = after.unwrap_or(text.paragraphs.len());
-        for (index, paragraph) in text.paragraphs.iter().enumerate() {
-            if index == figure_at {
-                spawn_figures(
-                    &mut commands,
-                    section,
-                    figures,
-                    text.caption,
-                    &assets,
-                    &images,
-                );
-            }
+        for paragraph in &text.paragraphs {
             commands.spawn((
                 Node {
                     margin: UiRect::bottom(px(12)),
@@ -211,20 +124,10 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<Rule
                 ChildOf(section),
             ));
         }
-        if figure_at >= text.paragraphs.len() {
-            spawn_figures(
-                &mut commands,
-                section,
-                figures,
-                text.caption,
-                &assets,
-                &images,
-            );
-        }
     }
-    let links: Vec<_> = CHAPTERS
-        .iter()
-        .map(|&(chapter, ..)| {
+    let links: Vec<_> = RulesChapter::ALL
+        .into_iter()
+        .map(|chapter| {
             (
                 ChapterLink(chapter),
                 Button,
@@ -311,319 +214,6 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets, images: Res<Rule
             ),
         ),
     ));
-}
-
-/// Hängt die Illustrationen eines Kapitels an; die Bildunterschrift steht unter der letzten.
-fn spawn_figures(
-    commands: &mut Commands,
-    section: Entity,
-    figures: &[Figure],
-    caption: Option<&str>,
-    assets: &CardAssets,
-    images: &RulesImages,
-) {
-    let fonts = &assets.fonts;
-    let locale = &assets.locale;
-    for (index, &figure) in figures.iter().enumerate() {
-        let wrapper = commands
-            .spawn((
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    margin: UiRect::new(Val::ZERO, Val::ZERO, px(6), px(16)),
-                    ..default()
-                },
-                ChildOf(section),
-            ))
-            .id();
-        let mut content = match figure {
-            Figure::Overdrive => commands.spawn(rules_figures::overdrive(fonts, locale)),
-            Figure::Turn => commands.spawn(rules_figures::turn(assets, images)),
-            Figure::DeployScreenshot => commands.spawn(screenshot(images.deploy.clone())),
-            Figure::Admirals => commands.spawn(admiral_gallery(assets)),
-            Figure::Board => commands.spawn(rules_figures::board(fonts, locale, images)),
-            Figure::ManeuverScreenshot => commands.spawn(screenshot(images.maneuver.clone())),
-            Figure::Phases => commands.spawn(rules_figures::phases(fonts, locale)),
-            Figure::FireOrders => commands.spawn(rules_figures::fire_orders(fonts, locale, images)),
-            Figure::Ships => commands.spawn(ship_gallery(assets)),
-            Figure::Commands => commands.spawn(command_gallery(assets)),
-        };
-        content.insert(ChildOf(wrapper));
-        if let Some(caption) = caption.filter(|_| index == figures.len() - 1) {
-            commands.spawn((
-                Node {
-                    margin: UiRect::top(px(6)),
-                    ..default()
-                },
-                theme::text(fonts.body(14.0), caption, rgba(199, 219, 250, 0.7)),
-                LineHeight::RelativeToFont(1.4),
-                ChildOf(wrapper),
-            ));
-        }
-    }
-}
-
-/// Ein Screenshot vom Brett (1080 × 515), so breit wie der Text.
-fn screenshot(image: Handle<Image>) -> impl Bundle {
-    (
-        Node {
-            width: percent(100),
-            aspect_ratio: Some(1080.0 / 515.0),
-            border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(3)),
-            ..default()
-        },
-        BorderColor::all(Color::WHITE.with_alpha(0.08)),
-        ImageNode::new(image),
-    )
-}
-
-/// Ein Raster, das so viele Spalten von mindestens `min` Pixeln bildet, wie hineinpassen.
-fn auto_grid(min: f32, gap: f32) -> Node {
-    Node {
-        display: Display::Grid,
-        grid_template_columns: vec![RepeatedGridTrack::minmax(
-            GridTrackRepetition::AutoFill,
-            MinTrackSizingFunction::Px(min),
-            MaxTrackSizingFunction::Fraction(1.0),
-        )],
-        row_gap: px(gap),
-        column_gap: px(gap),
-        ..default()
-    }
-}
-
-/// Je Admiral Porträt, Name und Beiname, sein Flaggschiff und die Karte seiner Fähigkeit.
-fn admiral_gallery(assets: &CardAssets) -> impl Bundle {
-    let fonts = &assets.fonts;
-    let entries: Vec<_> = ADMIRAL_IDS
-        .into_iter()
-        .map(|admiral: AdmiralId| {
-            let color = palette::admiral_color(admiral);
-            let text = assets.locale.admiral(admiral);
-            (
-                Node {
-                    display: Display::Grid,
-                    grid_template_columns: vec![GridTrack::auto(), GridTrack::fr(1.0)],
-                    align_items: AlignItems::Center,
-                    row_gap: px(10),
-                    column_gap: px(12),
-                    padding: UiRect::all(px(12)),
-                    border: UiRect::left(px(3)),
-                    border_radius: BorderRadius::all(px(3)),
-                    ..default()
-                },
-                BackgroundColor(TILE),
-                BorderColor::all(color),
-                children![
-                    (
-                        Node {
-                            width: px(52),
-                            height: px(52),
-                            overflow: Overflow::clip(),
-                            border_radius: BorderRadius::MAX,
-                            ..default()
-                        },
-                        BoxShadow(vec![theme::ring(color, 2.0)]),
-                        children![theme::cover_image(
-                            assets.portraits.get(admiral),
-                            ART_ASPECT,
-                            0.5
-                        )],
-                    ),
-                    (
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            ..default()
-                        },
-                        children![
-                            theme::text(fonts.body(17.0), text.name, palette::TEXT),
-                            theme::text(fonts.body(15.0), text.epithet, color),
-                        ],
-                    ),
-                    (
-                        Node {
-                            grid_column: GridPlacement::span(2),
-                            align_items: AlignItems::FlexEnd,
-                            column_gap: px(10),
-                            ..default()
-                        },
-                        children![
-                            ship_card(assets, admiral.flagship(), 1.0),
-                            power_card(assets, admiral, 1.0),
-                        ],
-                    ),
-                ],
-            )
-        })
-        .collect();
-    (
-        auto_grid(300.0, 14.0),
-        Children::spawn(SpawnIter(entries.into_iter())),
-    )
-}
-
-/// Eine Karte in Originalgröße, daneben Name, Zusatz, Kopien im Deck und Zeilen wie Werte und Effekt.
-fn gallery_entry(
-    assets: &CardAssets,
-    card: impl Bundle,
-    name: &str,
-    meta: String,
-    lines: Vec<String>,
-) -> impl Bundle {
-    let fonts = &assets.fonts;
-    let lines: Vec<_> = lines
-        .into_iter()
-        .map(|line| {
-            (
-                theme::text(fonts.body(14.0), line, palette::TEXT_DIM),
-                LineHeight::RelativeToFont(1.45),
-            )
-        })
-        .collect();
-    (
-        Node {
-            column_gap: px(14),
-            padding: UiRect::all(px(10)),
-            border_radius: BorderRadius::all(px(3)),
-            ..default()
-        },
-        BackgroundColor(TILE),
-        children![
-            card,
-            (
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    flex_shrink: 1.0,
-                    min_width: Val::ZERO,
-                    row_gap: px(5),
-                    ..default()
-                },
-                Children::spawn((
-                    Spawn(theme::text(fonts.body(16.0), name, palette::TEXT)),
-                    Spawn(theme::caps(fonts.display_bold(12.5), &meta, 0.04, NOTE)),
-                    SpawnIter(lines.into_iter()),
-                )),
-            ),
-        ],
-    )
-}
-
-/// Gedämpfte Zusatzzeile (`.meta`).
-const NOTE: Color = rgba(199, 219, 250, 0.6);
-
-/// Zusatz einer Karte samt Kopien im Deck.
-fn meta(parts: impl IntoIterator<Item = String>, copies: usize, assets: &CardAssets) -> String {
-    parts
-        .into_iter()
-        .chain((copies > 0).then(|| assets.locale.rules_copies(copies)))
-        .collect::<Vec<_>>()
-        .join(" · ")
-}
-
-/// Alle Schiffe als Karte mit Klasse, Werten und Effekt, danach die Tokens wie die Drohne und die Flaggschiffe.
-fn ship_gallery(assets: &CardAssets) -> impl Bundle {
-    let locale = &assets.locale;
-    let entries: Vec<_> = SHIPS
-        .into_iter()
-        .chain(TOKENS)
-        .chain(FLAGSHIPS)
-        .map(|ship: ShipId| {
-            let card = ship.card();
-            let admiral = flagship_admiral(ship);
-            let origin = match admiral {
-                Some(admiral) => Some(locale.rules_flagship(&locale.admiral_title(admiral))),
-                None => ship.is_token().then(|| locale.rules_token().to_owned()),
-            };
-            let mut stats = format!(
-                "{} {} · {} {}",
-                locale.stats_hp(),
-                card.hp,
-                locale.stats_atk(),
-                card.atk
-            );
-            if card.shield > 0 {
-                stats.push_str(&format!(" · {} {}", locale.stats_shield(), card.shield));
-            }
-            let effect = locale.ship(ship).effect;
-            let effect = match admiral {
-                Some(admiral) => format!("{}: {effect}", locale.admiral(admiral).ability),
-                None => effect.into_owned(),
-            };
-            gallery_entry(
-                assets,
-                ship_card(assets, ship, 1.0),
-                locale.ship(ship).name,
-                meta(
-                    std::iter::once(locale.ship_class(card.class).to_owned()).chain(origin),
-                    ship.deck_copies(),
-                    assets,
-                ),
-                vec![stats, effect],
-            )
-        })
-        .collect();
-    (
-        auto_grid(330.0, 14.0),
-        Children::spawn(SpawnIter(entries.into_iter())),
-    )
-}
-
-/// Alle Befehle, nach Typ in der Reihenfolge der Auflösung gruppiert.
-fn command_gallery(assets: &CardAssets) -> impl Bundle {
-    let locale = &assets.locale;
-    let groups: Vec<_> = COMMAND_ORDER
-        .into_iter()
-        .enumerate()
-        .map(|(index, command_type)| {
-            let entries: Vec<_> = COMMANDS
-                .into_iter()
-                .filter(|command| command.command_type() == command_type)
-                .map(|command: CommandId| {
-                    let text = locale.command(command);
-                    let target = text
-                        .target
-                        .unwrap_or_else(|| locale.target_mode(command.target_mode()));
-                    gallery_entry(
-                        assets,
-                        command_card(assets, command, 1.0),
-                        text.name,
-                        meta([target.to_owned()], command.deck_copies(), assets),
-                        vec![text.effect.into_owned()],
-                    )
-                })
-                .collect();
-            (
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    ..default()
-                },
-                children![
-                    (
-                        Node {
-                            margin: UiRect::new(Val::ZERO, Val::ZERO, px(18), px(8)),
-                            ..default()
-                        },
-                        theme::text(
-                            assets.fonts.body(16.0),
-                            format!("{}. {}", index + 1, locale.command_type(command_type)),
-                            palette::TEXT,
-                        ),
-                    ),
-                    (
-                        auto_grid(330.0, 14.0),
-                        Children::spawn(SpawnIter(entries.into_iter())),
-                    ),
-                ],
-            )
-        })
-        .collect();
-    (
-        Node {
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        Children::spawn(SpawnIter(groups.into_iter())),
-    )
 }
 
 /// Ein Eintrag der Kapitelnavigation scrollt sanft zu seinem Kapitel.
@@ -718,7 +308,7 @@ fn mark_active(
         .filter(|(_, transform, node)| transform.translation.y - node.size().y / 2.0 <= line)
         .map(|(section, ..)| section.0)
         .last()
-        .unwrap_or(CHAPTERS[0].0);
+        .unwrap_or(RulesChapter::ALL[0]);
     for (entity, link, marked) in &links {
         let wanted = link.0 == active;
         if wanted && !marked {
@@ -785,13 +375,12 @@ pub(super) struct RulesPlugin;
 
 impl Plugin for RulesPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<RulesImages>().add_systems(
+        app.add_systems(
             Update,
             (
                 scroll_body,
                 mark_active.run_if(any_match_filter::<SectionMoved>),
                 style_links,
-                rules_figures::scale_labels,
             )
                 .run_if(in_state(AppState::Match)),
         );

@@ -1,22 +1,21 @@
 //! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild über dem
-//! Modell, als Billboard zur Kamera gedreht, Krone der Flaggschiffe rechts daneben, Totenkopf der Zielvorschau links
-//! daneben (auch an Geistern, die keine Balken haben), und der Boden unter dem Schiff für die Marken
-//! ([`crate::scene::markers`]). Die Werte stehen in [`ShipStatus`]; wer sie ändert, ändert die Balken.
+//! Modell, als Billboard zur Kamera gedreht, Krone der Flaggschiffe (eigenes und Siegel) rechts daneben, Totenkopf der
+//! Vorschau links daneben, und der Boden unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
+//! in [`ShipStatus`]; wer sie ändert, ändert die Balken.
 //!
-//! Zielvorschau: Die Füllung zeigt, was nach der Runde bleibt, der Rest bis zum jetzigen Stand blinkt in der
-//! Schadensfarbe; fällt das Schiff, pulsiert der Totenkopf. Solange ein Schiff wegen seines Manövers nicht feuert, sind
-//! seine Balken gedämpft. Dazu die Grenzen des Modells ([`ShipBounds`]: Höhe der Balken, Größe der Marken, Mitte und
-//! Radius für Effekte) und das Flackern des Trugbilds ([`Hologram`]).
+//! Vorschau: Die Füllung zeigt, was nach dem Schuss oder der Karte bleibt, der Rest bis zum jetzigen Stand blinkt in
+//! der Schadensfarbe; fällt das Schiff, pulsiert der Totenkopf. Dazu die Grenzen des Modells ([`ShipBounds`]: Höhe der
+//! Balken, Größe der Marken, Mitte und Radius für Effekte).
 
 use bevy::{camera::primitives::Aabb, prelude::*};
-use voidfleet_core::{cards::ShipId, protocol::ShipStats};
+use voidfleet_core::events::UnitStats;
 
 use super::{
     animation::AnimationSystems,
     board::SHIP_ANCHOR_HEIGHT,
     fx::{Billboard, FxAssets, FxMaterial, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
-    ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, ToonState, Wreck},
+    ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, Wreck},
     sync::SyncSystems,
 };
 use crate::palette;
@@ -29,8 +28,6 @@ const BAR_WIDTH: f32 = 2.56;
 const TRACK_COLOR: Color = Color::srgb(0.13, 0.15, 0.22);
 const TRACK_ALPHA: f32 = 0.92;
 const FILL_ALPHA: f32 = 0.999;
-/// Ein Schiff, das diese Runde manövriert und deshalb nicht feuert, zeigt seine Balken gedämpft.
-const HOLD_FIRE_ALPHA: f32 = 0.3;
 /// Zielvorschau: Takt (Hz) und schwächste Deckkraft des blinkenden Verlusts.
 const PREVIEW_PULSE: f32 = 1.4;
 const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
@@ -38,36 +35,28 @@ const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
 const SKULL_SIZE: f32 = 0.62;
 const CROWN_SIZE: f32 = 0.62;
 const BADGE_TEXTURE: u32 = 128;
-/// Hologramm des Trugbilds: Deckkraft schwankt um diesen Wert, ab und zu setzt das Bild aus und springt seitlich.
-const HOLOGRAM_ALPHA: f32 = 0.82;
-const HOLOGRAM_FLICKER: f32 = 0.18;
-const HOLOGRAM_GLITCH: f32 = 0.025;
-const HOLOGRAM_JITTER: f32 = 0.09;
 
-/// Werte über dem Schiff; die Maxima kommen aus der Karte.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+/// Werte über dem Schiff.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ShipStatus {
-    pub hp: i32,
+    pub hull: i32,
+    pub max_hull: i32,
     pub shield: i32,
-    /// Zielvorschau: HP und Schild nach der Runde (beides 0, wenn das Schiff fällt); `None` ohne Vorschau.
-    pub preview: Option<ShipStats>,
-    /// Totenkopf: Laut Zielvorschau fällt das Schiff in dieser Runde.
+    /// Vorschau: Hülle und Schild nach dem Schuss oder der Karte; `None` ohne Vorschau.
+    pub preview: Option<UnitStats>,
+    /// Totenkopf: Laut Vorschau fällt das Schiff.
     pub doomed: bool,
-    /// Gedämpfte Balken: Das Schiff feuert wegen seines Manövers nicht.
-    pub holding_fire: bool,
     /// Balken, Krone und Marken ausgeblendet (Einflug, Todeskampf).
     pub hidden: bool,
 }
 
 impl ShipStatus {
-    pub fn new(ship: ShipId) -> Self {
+    pub fn new(hull: i32, max_hull: i32, shield: i32) -> Self {
         Self {
-            hp: ship.hp(),
-            shield: ship.card().shield,
-            preview: None,
-            doomed: false,
-            holding_fire: false,
-            hidden: false,
+            hull,
+            max_hull,
+            shield,
+            ..default()
         }
     }
 }
@@ -115,12 +104,6 @@ pub struct ShipParts {
     pub floor: Entity,
 }
 
-/// Flackern des Trugbilds; `fade` ist die Deckkraft beim Auf- und Abbau darunter.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct Hologram {
-    pub fade: f32,
-}
-
 /// Material und volle Deckkraft eines Balkens.
 #[derive(Component, Clone, Copy, Debug)]
 struct Bar {
@@ -148,7 +131,6 @@ impl Plugin for StatusPlugin {
                     (update_bars, pulse_preview)
                         .after(AnimationSystems::Apply)
                         .after(SyncSystems),
-                    flicker,
                 ),
             );
     }
@@ -240,7 +222,7 @@ fn skull() -> Image {
     canvas.into_image()
 }
 
-/// Gibt jedem neuen Schiff Balken, Krone, Totenkopf, Boden und Werte; dem Trugbild sein Flackern.
+/// Gibt jedem neuen Schiff Balken, Krone, Totenkopf, Boden und Werte.
 fn dress_ship(
     add: On<Add<Ship>>,
     ships: Query<&Ship>,
@@ -280,11 +262,7 @@ fn dress_ship(
         .spawn((
             Name::new("Balken"),
             Transform::default(),
-            if ship.ghost {
-                Visibility::Hidden
-            } else {
-                Visibility::default()
-            },
+            Visibility::default(),
             ChildOf(overlay),
         ))
         .id();
@@ -371,7 +349,7 @@ fn dress_ship(
             .id()
     };
     // Die Krone wird mit den Balken gedämpft.
-    let crown = (ship.id.is_flagship() && !ship.ghost).then(|| {
+    let crown = ship.kind.is_flagship().then(|| {
         let crown = badge(
             &mut commands,
             &mut materials,
@@ -403,7 +381,7 @@ fn dress_ship(
         .id();
     let mut entity = commands.entity(add.entity);
     // Wer das Schiff spawnt, kann seine Werte gleich mitgeben.
-    entity.insert_if_new(ShipStatus::new(ship.id));
+    entity.insert_if_new(ShipStatus::default());
     entity.insert((ShipParts {
         overlay,
         bars,
@@ -417,9 +395,6 @@ fn dress_ship(
         skull,
         floor,
     },));
-    if ship.id == ShipId::Decoy {
-        entity.insert(Hologram { fade: 1.0 });
-    }
 }
 
 /// Misst das Modell, sobald seine Teile Lage und Grenzen haben, und hebt die Balken knapp darüber.
@@ -497,15 +472,14 @@ fn set_section(transform: &mut Transform, visibility: &mut Visibility, from: f32
 
 /// Füllung bis zu dem, was nach der Vorschau bleibt (ohne Vorschau: alles), dahinter der Verlust bis zum jetzigen Stand.
 fn update_bars(
-    ships: Query<(&Ship, &ShipStatus, &ShipParts), Changed<ShipStatus>>,
+    ships: Query<(&ShipStatus, &ShipParts), Changed<ShipStatus>>,
     mut parts: Query<(&mut Transform, &mut Visibility)>,
     bars: Query<(&Bar, &MeshMaterial3d<FxMaterial>)>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
-    for (ship, status, ship_parts) in &ships {
-        let card = ship.id.card();
-        let after = status.preview.unwrap_or(ShipStats {
-            hp: status.hp,
+    for (status, ship_parts) in &ships {
+        let after = status.preview.unwrap_or(UnitStats {
+            hull: status.hull,
             shield: status.shield,
         });
         let mut section = |entity: Entity, from: f32, to: f32| {
@@ -513,14 +487,15 @@ fn update_bars(
                 set_section(&mut transform, &mut visibility, from, to);
             }
         };
-        let hp = after.hp.min(status.hp);
-        section(ship_parts.hp_fill, 0.0, ratio(hp, card.hp));
+        let hull = after.hull.min(status.hull);
+        section(ship_parts.hp_fill, 0.0, ratio(hull, status.max_hull));
         section(
             ship_parts.hp_loss,
-            ratio(hp, card.hp),
-            ratio(status.hp, card.hp),
+            ratio(hull, status.max_hull),
+            ratio(status.hull, status.max_hull),
         );
-        let shield_max = card.shield.max(status.shield);
+        // Schilde halten nur einen Gegnerzug: Der Balken zeigt, was davon übrig ist.
+        let shield_max = status.shield;
         let shield = after.shield.min(status.shield);
         section(ship_parts.shield_fill, 0.0, ratio(shield, shield_max));
         section(
@@ -539,7 +514,7 @@ fn update_bars(
             *visibility = visible(shield_max > 0);
         }
         for (entity, shown) in [
-            (ship_parts.bars, !ship.ghost && !status.hidden),
+            (ship_parts.bars, !status.hidden),
             (ship_parts.skull, status.doomed && !status.hidden),
             (ship_parts.floor, !status.hidden),
         ] {
@@ -548,12 +523,7 @@ fn update_bars(
             }
         }
 
-        let dim = if status.holding_fire {
-            HOLD_FIRE_ALPHA
-        } else {
-            1.0
-        };
-        let fill_color = hp_color(ratio(hp, card.hp));
+        let fill_color = hp_color(ratio(hull, status.max_hull));
         let mut entities = vec![
             ship_parts.hp_fill,
             ship_parts.shield_fill,
@@ -566,9 +536,9 @@ fn update_bars(
                 continue;
             };
             if let Some(mut material) = materials.get_mut(&material.0) {
-                material.set_alpha(bar.alpha * dim);
+                material.set_alpha(bar.alpha);
                 if entity == ship_parts.hp_fill {
-                    material.color = linear(fill_color, bar.alpha * dim);
+                    material.color = linear(fill_color, bar.alpha);
                 }
             }
         }
@@ -588,45 +558,15 @@ fn pulse_preview(
         if status.preview.is_none() && !status.doomed {
             continue;
         }
-        let dim = if status.holding_fire {
-            HOLD_FIRE_ALPHA
-        } else {
-            1.0
-        };
         for (entity, alpha) in [
-            (parts.hp_loss, loss * FILL_ALPHA * dim),
-            (parts.shield_loss, loss * FILL_ALPHA * dim),
+            (parts.hp_loss, loss * FILL_ALPHA),
+            (parts.shield_loss, loss * FILL_ALPHA),
             (parts.skull, 0.55 + 0.45 * strength),
         ] {
             if let Ok(material) = materials_of.get(entity)
                 && let Some(mut material) = materials.get_mut(&material.0)
             {
                 material.set_alpha(alpha);
-            }
-        }
-    }
-}
-
-/// Hologramm: Die Deckkraft schwankt, ab und zu setzt das Bild aus und springt seitlich.
-fn flicker(
-    mut holograms: Query<(&Hologram, &mut ToonState, &Children)>,
-    mut models: Query<&mut Transform, With<ShipModel>>,
-) {
-    for (hologram, mut state, children) in &mut holograms {
-        let glitch = rand::random::<f32>() < HOLOGRAM_GLITCH;
-        let alpha = if glitch {
-            0.25
-        } else {
-            HOLOGRAM_ALPHA + HOLOGRAM_FLICKER * (rand::random::<f32>() - 0.5)
-        };
-        state.opacity = alpha * hologram.fade;
-        for child in children.iter() {
-            if let Ok(mut model) = models.get_mut(child) {
-                model.translation.x = if glitch {
-                    (rand::random::<f32>() - 0.5) * HOLOGRAM_JITTER
-                } else {
-                    0.0
-                };
             }
         }
     }

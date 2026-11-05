@@ -21,9 +21,6 @@ winit = { version = "0.30", default-features = false }
 resvg = { version = "0.49", default-features = false }
 directories = "6"
 voidfleet-core.workspace = true
-# WebSocket zum Server in einem eigenen Thread (blockierend, ohne TLS: lokal bzw. `ws://`).
-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
-crossbeam-channel = "0.5"
 sys-locale = "0.3"
 serde.workspace = true
 serde_json.workspace = true

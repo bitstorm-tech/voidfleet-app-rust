@@ -1,190 +1,100 @@
-//! Rundenwiedergabe (Port von `roundPlayback.ts` und `radioCues.ts`): spielt die aufgedeckten Ereignisse einer Runde
-//! auf dem Brett ab — Deploy, Admiralsfähigkeiten, Zielerfassung, Manöver, Befehle, Kampf und Cleanup nacheinander,
-//! gleichartige Ereignisse jeweils gleichzeitig ([`steps`]), mit Bannern, Log, Schwebetexten, Sounds und Bordfunk
-//! ([`radio_cues`]).
+//! Wiedergabe der Ereignisse einer Aktion. Vorerst minimal: Sie schreibt je Ereignis eine Log-Zeile, kündigt eine neue
+//! Runde an, lässt den Bordfunk melden (Abschuss, Hülle kritisch, Sieg, Niederlage) und meldet sofort
+//! [`PlaybackFinished`]. Die erzählte
+//! Wiedergabe mit Kamera, Salven und Bannern (Entwurf Abschnitt 9) baut auf demselben Vertrag auf.
 //!
-//! Vertrag mit dem Controller: Er hält beim [`crate::game::RoundResolved`] die Warteschlange des Servers an, schaltet
-//! auf [`crate::scene::sync::BoardMode::Playback`] und sendet [`PlayRound`]. Die Wiedergabe meldet am Ende
-//! [`PlaybackFinished`]; dann stehen alle überlebenden Schiffe auf ihren neuen Slots ([`OnSlot`]), damit der Abgleich
-//! sie stehen lässt, und der Controller gibt die Warteschlange frei und schaltet zurück auf die Planung, sobald der
-//! neue Zustand da ist.
-//! [`SkipPlayback`] bricht ab: Animationen springen ans Ende, Sounds, Funk, Banner und Schwebetexte verstummen, die
-//! restlichen Schritte landen nur noch im Log.
-//!
-//! Ablauf als Daten: [`Playback`] hält die Schritte; ist keiner mehr im Gang, übersetzt [`drive`] den nächsten mit
-//! dem [`plan::Planner`] in ein [`script::Script`] aus Takten, das [`script::run_scripts`] Takt für Takt abspielt,
-//! jeweils sobald die Animationen des vorigen fertig sind. Die Szene läuft dabei dem Spielzustand voraus; den Endzustand
-//! übernimmt danach der Server-Snapshot — auch nach dem Überspringen.
+//! Vertrag mit dem Controller: Nach jeder Aktion mit Ereignissen schaltet er die Szene auf
+//! [`crate::scene::sync::BoardMode::Playback`] und sendet [`PlayEvents`]; die Szene zeigt dann noch den Stand von vor
+//! der Aktion. Am Ende meldet die Wiedergabe [`PlaybackFinished`], der Controller schaltet zurück auf die Planung, und
+//! [`crate::scene::sync`] gleicht die Szene dem neuen Zustand an. [`SkipPlayback`] bricht eine laufende Wiedergabe ab.
 
-mod plan;
-pub mod radio_cues;
-mod script;
-pub mod steps;
-
-use std::collections::VecDeque;
-
-use bevy::{platform::collections::HashMap, prelude::*};
-use voidfleet_core::{board::SlotRef, protocol::RoundEvent};
-
-use self::{
-    plan::Planner,
-    script::{Script, run_scripts},
-    steps::group_steps,
+use bevy::prelude::*;
+use voidfleet_core::{
+    battle::BattleResult,
+    events::{BattleEvent, UnitRef},
 };
+
 use crate::{
-    audio::{SilenceRadio, StopSounds},
+    audio::{RadioCue, Say},
+    game::Battle,
     i18n::Locale,
-    scene::{
-        animation::AnimationSystems,
-        animation::{AnimationClock, AnimationScope},
-        board::OnSlot,
-        camera::BoardLayout,
-        floating_text::FloatingText,
-        ship::{BOARD_SCALE, Ship},
-    },
-    ui::{AppendLog, HideBanner, round_log::describe_event},
+    ui::{AppendLog, ShowRoundBanner, round_log::describe_event},
 };
 
-/// Spielt die Ereignisse der Runde `round` ab (aus eigener Sicht, in Auflösungsreihenfolge).
+/// Spielt die Ereignisse einer Aktion ab (in Ausführungsreihenfolge).
 #[derive(Message, Clone, Debug)]
-pub struct PlayRound {
-    pub round: u32,
-    pub events: Vec<RoundEvent>,
-}
+pub struct PlayEvents(pub Vec<BattleEvent>);
 
-/// Die Runde `round` ist abgespielt (oder übersprungen); die Schiffe stehen auf ihren neuen Slots.
-#[derive(Message, Clone, Copy, Debug)]
-pub struct PlaybackFinished {
-    pub round: u32,
-}
+/// Die Ereignisse sind abgespielt (oder übersprungen).
+#[derive(Message, Clone, Copy, Debug, Default)]
+pub struct PlaybackFinished;
 
 /// Bricht die laufende Wiedergabe ab.
 #[derive(Message, Clone, Copy, Debug, Default)]
 pub struct SkipPlayback;
 
-/// Die laufende Wiedergabe; nur vorhanden, solange eine Runde abgespielt wird.
-#[derive(Resource, Debug)]
-pub struct Playback {
-    round: u32,
-    /// Die Schritte, die noch nicht begonnen haben.
-    steps: VecDeque<Vec<RoundEvent>>,
-    skipped: bool,
-    /// Schiffe im Kurzsprung nach ihrem Slot: Sie haben das Brett verlassen und kehren im Cleanup zurück.
-    jumped: HashMap<SlotRef, Entity>,
-}
-
 pub struct PlaybackPlugin;
 
 impl Plugin for PlaybackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<PlayRound>()
+        app.add_message::<PlayEvents>()
             .add_message::<PlaybackFinished>()
             .add_message::<SkipPlayback>()
-            .add_systems(
-                Update,
-                (
-                    start,
-                    skip.run_if(on_message::<SkipPlayback>)
-                        .run_if(resource_exists::<Playback>),
-                    (run_scripts, drive)
-                        .chain()
-                        .run_if(resource_exists::<Playback>),
-                )
-                    .chain()
-                    // Was ein Takt beginnt, läuft noch im selben Bild an.
-                    .before(AnimationSystems::Advance),
-            );
+            .add_systems(Update, play.run_if(on_message::<PlayEvents>));
     }
 }
 
-fn start(
-    mut commands: Commands,
-    mut rounds: MessageReader<PlayRound>,
-    locale: Res<Locale>,
-    mut clock: ResMut<AnimationClock>,
-    mut logs: MessageWriter<AppendLog>,
-) {
-    for PlayRound { round, events } in rounds.read() {
-        logs.write(AppendLog(vec![locale.log_round_header(*round)]));
-        clock.skip = false;
-        commands.insert_resource(Playback {
-            round: *round,
-            steps: group_steps(events).into(),
-            skipped: false,
-            jumped: HashMap::default(),
-        });
+/// Der Funkspruch zu einem Ereignis.
+fn radio_cue(event: &BattleEvent) -> Option<RadioCue> {
+    match event {
+        BattleEvent::Destroyed {
+            target: UnitRef::Enemy { .. },
+            ..
+        } => Some(RadioCue::EnemyDestroyed),
+        BattleEvent::Emergency {
+            target: UnitRef::Flagship,
+            active: true,
+        } => Some(RadioCue::HullCritical),
+        BattleEvent::BattleEnded { result } => Some(match result {
+            BattleResult::Won => RadioCue::Victory,
+            BattleResult::Lost => RadioCue::Defeat,
+        }),
+        _ => None,
     }
 }
 
-/// Animationen springen ans Ende, Sounds und Funk verstummen, Banner und Schwebetexte verschwinden.
-fn skip(
-    mut commands: Commands,
-    mut playback: ResMut<Playback>,
-    mut clock: ResMut<AnimationClock>,
-    mut stop: MessageWriter<StopSounds>,
-    mut silence: MessageWriter<SilenceRadio>,
-    mut banner: MessageWriter<HideBanner>,
-) {
-    playback.skipped = true;
-    clock.skip = true;
-    stop.write(StopSounds);
-    silence.write(SilenceRadio);
-    banner.write(HideBanner);
-    commands.despawn_all::<With<FloatingText>>();
-}
-
-/// Beginnt den nächsten Schritt, sobald keiner mehr im Gang ist; übersprungen kommen die übrigen nur ins Log. Am Ende
-/// kehren Schiffe aus dem Kurzsprung, die noch fort sind, auf ihren Slot zurück.
-fn drive(
-    mut commands: Commands,
-    mut playback: ResMut<Playback>,
-    scripts: Query<(), With<Script>>,
-    ships: Query<(&Ship, &OnSlot)>,
-    layout: Res<BoardLayout>,
+fn play(
+    mut plays: MessageReader<PlayEvents>,
+    battle: Option<Res<Battle>>,
     locale: Res<Locale>,
-    mut clock: ResMut<AnimationClock>,
     mut logs: MessageWriter<AppendLog>,
+    mut say: MessageWriter<Say>,
+    mut round_banner: MessageWriter<ShowRoundBanner>,
     mut finished: MessageWriter<PlaybackFinished>,
 ) {
-    if !scripts.is_empty() {
+    let Some(battle) = battle else {
+        plays.clear();
         return;
-    }
-    if playback.skipped {
-        let lines = playback
-            .steps
-            .drain(..)
-            .flatten()
-            .map(|event| describe_event(&**locale, &event))
-            .collect::<Vec<_>>();
-        if !lines.is_empty() {
-            logs.write(AppendLog(lines));
-        }
-    }
-    if let Some(step) = playback.steps.pop_front() {
-        let occupied = ships
+    };
+    let admiral = battle.flagship.admiral;
+    for PlayEvents(events) in plays.read() {
+        let lines = events
             .iter()
-            .filter(|(ship, _)| !ship.ghost)
-            .map(|(ship, on)| (on.0, ship.id))
+            .map(|event| describe_event(&**locale, event, admiral))
             .collect();
-        let planner = Planner {
-            layout: &layout,
-            locale: &**locale,
-            ships: &occupied,
-        };
-        commands.spawn((Name::new("Rundenwiedergabe"), planner.step(&step)));
-        return;
+        logs.write(AppendLog(lines));
+        for event in events {
+            if let BattleEvent::RoundStarted { round } = event {
+                round_banner.write(ShowRoundBanner(*round));
+            }
+        }
+        // Der wichtigste Spruch zuletzt: Der Funk lässt Unwichtigeres warten.
+        let mut cues: Vec<RadioCue> = events.iter().filter_map(radio_cue).collect();
+        cues.sort_by_key(|cue| cue.priority());
+        cues.dedup();
+        if let Some(&cue) = cues.last() {
+            say.write(Say::new(cue));
+        }
+        finished.write(PlaybackFinished);
     }
-    for (slot, ship) in playback.jumped.drain() {
-        commands.entity(ship).insert((
-            OnSlot(slot),
-            Visibility::Inherited,
-            Transform::from_scale(Vec3::splat(BOARD_SCALE)),
-        ));
-    }
-    clock.scope = AnimationScope::General;
-    clock.skip = false;
-    finished.write(PlaybackFinished {
-        round: playback.round,
-    });
-    commands.remove_resource::<Playback>();
 }

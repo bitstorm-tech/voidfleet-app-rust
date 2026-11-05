@@ -37,13 +37,9 @@ test *args:
 
 # --- Werkzeuge ---
 
-# Dev-Szene ohne Server: board, hit, destroy, arrive, move, effects, commands
+# Vorschau-Szene: board, hit, destroy, arrive, move, effects
 scene name="board":
     VOIDFLEET_DEV_SCENE={{ name }} cargo run -p voidfleet-client
-
-# Oberfläche mit Beispiel-Hand ohne Server in der angegebenen Runde
-ui-preview round="1":
-    VOIDFLEET_UI_PREVIEW={{ round }} cargo run -p voidfleet-client
 
 # Rauchtest: Partie gegen den Computer über den Controller, Screenshots je Station unter <dir>
 smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":

@@ -1,0 +1,463 @@
+//! Das Stationen-Feld rechts in der Hand: die fünf Stationen des Flaggschiffs (die Admiralsstation mit ihrem Namen je
+//! Admiral), die eingestellte leuchtet; darunter Ziel bzw. Spalte als Text. Daneben „Auslösen“
+//! (frei, wenn [`can_trigger`](voidfleet_core::battle::Battle::can_trigger) es erlaubt) und „Zug beenden“ (während
+//! einer Wiedergabe „Überspringen“) mit der Checkliste des Zugs: Platzierung in Runde 1, Station, Ziel bzw. Spalte,
+//! offene Befehlspunkte als Hinweis. Klicks melden [`StationPressed`] und [`ActionPressed`].
+
+use bevy::{
+    prelude::*,
+    text::LineHeight,
+    ui::InteractionDisabled,
+    ui_widgets::{Activate, observe},
+};
+use voidfleet_core::{
+    admirals::Station,
+    battle::{Battle as CoreBattle, RuleError},
+};
+
+use super::{
+    ActionPressed, Fonts, HudAction, HudState, StationPressed, UiIcons,
+    button::{self, Key, Lit},
+    theme,
+    tooltip::Tooltip,
+};
+use crate::{
+    assets::AppState, controller::selection::station_needs_target, game::Battle, i18n::Locale,
+    palette,
+};
+
+/// Eine Station im Feld.
+#[derive(Component, Clone, Copy, Debug)]
+struct StationButton(Station);
+
+/// Ziel bzw. Spalte der eingestellten Station.
+#[derive(Component)]
+struct StationDetail;
+
+/// Ein Aktionsknopf.
+#[derive(Component, Clone, Copy, Debug)]
+struct ActionButton(HudAction);
+
+#[derive(Component)]
+struct Checklist;
+
+/// Wie weit ein Punkt der Checkliste ist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChecklistState {
+    Done,
+    Open,
+    /// Nur ein Hinweis (offene Befehlspunkte, Spaltenwahl in Runde 1).
+    Hint,
+}
+
+/// Das Feld; steht rechts in der Hand ([`super::hand`]).
+pub(super) fn stations_panel(fonts: &Fonts) -> impl Bundle {
+    let station = |station: Station| {
+        (
+            StationButton(station),
+            button::text_button(
+                fonts.display_bold(16.0),
+                "",
+                Key::NORMAL,
+                Node {
+                    width: px(190),
+                    height: px(30),
+                    ..default()
+                },
+            ),
+            Tooltip::default(),
+            observe(
+                move |_: On<Activate>, mut pressed: MessageWriter<StationPressed>| {
+                    pressed.write(StationPressed(station));
+                },
+            ),
+        )
+    };
+    let action = |action: HudAction, key: Key, height: f32| {
+        (
+            ActionButton(action),
+            button::text_button(
+                fonts.display_bold(if action == HudAction::Trigger {
+                    18.0
+                } else {
+                    22.0
+                }),
+                "",
+                key,
+                Node {
+                    width: px(220),
+                    height: px(height),
+                    ..default()
+                },
+            ),
+            observe(
+                |activate: On<Activate>,
+                 buttons: Query<&ActionButton>,
+                 mut pressed: MessageWriter<ActionPressed>| {
+                    if let Ok(&ActionButton(action)) = buttons.get(activate.entity) {
+                        pressed.write(ActionPressed(action));
+                    }
+                },
+            ),
+        )
+    };
+    (
+        Name::new("Stationen"),
+        Node {
+            column_gap: px(14),
+            align_self: AlignSelf::Center,
+            flex_shrink: 0.0,
+            padding: UiRect::all(px(10)),
+            border_radius: BorderRadius::all(px(4)),
+            ..default()
+        },
+        BackgroundColor(theme::PANEL),
+        Pickable::IGNORE,
+        children![
+            (
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(4),
+                    ..default()
+                },
+                Pickable::IGNORE,
+                children![
+                    station(Station::Weapons),
+                    station(Station::Shields),
+                    station(Station::DamageControl),
+                    station(Station::Maneuver),
+                    station(Station::Admiral),
+                    (
+                        StationDetail,
+                        Node {
+                            width: px(190),
+                            margin: UiRect::top(px(2)),
+                            ..default()
+                        },
+                        theme::text(fonts.body(13.0), "", palette::TEXT_DIM),
+                        Pickable::IGNORE,
+                    ),
+                ],
+            ),
+            (
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(8),
+                    ..default()
+                },
+                Pickable::IGNORE,
+                children![
+                    action(HudAction::Trigger, Key::NORMAL, 40.0),
+                    action(HudAction::EndTurn, Key::PRIMARY, 56.0),
+                    (
+                        Checklist,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(3),
+                            ..default()
+                        },
+                        Visibility::Hidden,
+                        Pickable::IGNORE,
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+/// Beschriftung, Tooltip und Leuchten der Stationen; dazu Ziel bzw. Spalte der eingestellten.
+fn update_stations(
+    mut commands: Commands,
+    battle: Option<Res<Battle>>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    mut buttons: Query<(
+        Entity,
+        &StationButton,
+        &Children,
+        &mut Tooltip,
+        Has<Lit>,
+        Has<InteractionDisabled>,
+    )>,
+    mut labels: Query<&mut Text, Without<StationDetail>>,
+    mut detail: Single<&mut Text, With<StationDetail>>,
+) {
+    let Some(battle) = battle else {
+        return;
+    };
+    if !battle.is_changed() && !hud.is_changed() && !locale.is_changed() {
+        return;
+    }
+    let flagship = &battle.flagship;
+    let admiral = flagship.admiral;
+    for (entity, &StationButton(station), children, mut tooltip, lit, disabled) in &mut buttons {
+        let label = locale.station(station, admiral).to_uppercase();
+        for &child in children {
+            if let Ok(mut text) = labels.get_mut(child)
+                && text.0 != label
+            {
+                text.0.clone_from(&label);
+            }
+        }
+        tooltip.0 = locale.station_text(station, admiral);
+        let chosen = flagship.station == station;
+        if chosen && !lit {
+            commands.entity(entity).insert(Lit);
+        } else if !chosen && lit {
+            commands.entity(entity).remove::<Lit>();
+        }
+        let enabled = hud.planning;
+        if disabled == enabled {
+            button::set_enabled(&mut commands, entity, enabled);
+        }
+    }
+    let text = if flagship.stations_left == 0 {
+        locale.hud_station_done().to_owned()
+    } else if station_needs_target(&battle) {
+        match flagship.target.and_then(|uid| battle.enemy(uid)) {
+            Some(enemy) => locale.hud_target(&format!(
+                "{} ({})",
+                locale.enemy(enemy.id),
+                locale.slot_name(enemy.slot)
+            )),
+            None => locale.hud_no_target().to_owned(),
+        }
+    } else if flagship.station == Station::Maneuver {
+        locale.hud_column(flagship.maneuver_column)
+    } else {
+        String::new()
+    };
+    if detail.0 != text {
+        detail.0 = text;
+    }
+}
+
+/// Beschriftung und Sperre der Aktionsknöpfe; während einer Wiedergabe wird „Zug beenden“ zu „Überspringen“.
+fn update_actions(
+    mut commands: Commands,
+    battle: Option<Res<Battle>>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    mut buttons: Query<(
+        Entity,
+        &mut ActionButton,
+        &Children,
+        Has<InteractionDisabled>,
+    )>,
+    mut labels: Query<&mut Text>,
+) {
+    let changed = battle.as_ref().is_none_or(|battle| battle.is_changed());
+    if !changed && !hud.is_changed() && !locale.is_changed() {
+        return;
+    }
+    for (entity, mut button, children, disabled) in &mut buttons {
+        if button.0 != HudAction::Trigger {
+            button.0 = if hud.playing_back {
+                HudAction::Skip
+            } else {
+                HudAction::EndTurn
+            };
+        }
+        let (label, enabled) = match button.0 {
+            HudAction::Trigger => (
+                locale.hud_trigger(),
+                hud.planning
+                    && battle
+                        .as_ref()
+                        .is_some_and(|battle| battle.can_trigger().is_ok()),
+            ),
+            HudAction::EndTurn => (locale.hud_end_turn(), hud.planning),
+            HudAction::Skip => (locale.hud_skip(), true),
+        };
+        let label = label.to_uppercase();
+        for &child in children {
+            if let Ok(mut text) = labels.get_mut(child)
+                && text.0 != label
+            {
+                text.0.clone_from(&label);
+            }
+        }
+        if disabled == enabled {
+            button::set_enabled(&mut commands, entity, enabled);
+        }
+    }
+}
+
+/// Die Zeilen der Checkliste: in Runde 1 die Spaltenwahl, die Station (erledigt, wenn sie lief oder auslösbar ist),
+/// fehlendes Ziel bzw. fehlende Spalte, offene Befehlspunkte.
+pub fn checklist_lines(locale: &Locale, battle: &CoreBattle) -> Vec<(String, ChecklistState)> {
+    let flagship = &battle.flagship;
+    let mut lines = Vec::new();
+    if battle.placing {
+        lines.push((locale.checklist_place().to_owned(), ChecklistState::Hint));
+    }
+    let station = locale.station(flagship.station, flagship.admiral);
+    let ready = !flagship.stations_used.is_empty() || battle.can_trigger().is_ok();
+    lines.push((
+        locale.checklist_station(station),
+        if ready {
+            ChecklistState::Done
+        } else {
+            ChecklistState::Open
+        },
+    ));
+    if flagship.stations_used.is_empty() {
+        match battle.can_trigger() {
+            Err(RuleError::TargetRequired) => {
+                lines.push((locale.checklist_target().to_owned(), ChecklistState::Open));
+            }
+            Err(RuleError::SameColumn) => {
+                lines.push((locale.checklist_column().to_owned(), ChecklistState::Open));
+            }
+            _ => {}
+        }
+    }
+    let affordable = battle.hand.iter().any(|card| card.cost() <= battle.points);
+    if battle.points > 0 && affordable {
+        lines.push((locale.checklist_points(battle.points), ChecklistState::Hint));
+    }
+    lines
+}
+
+/// Eine Zeile der Checkliste: Kästchen (erledigt mit Haken) und Text; Hinweise ohne Kästchen.
+fn spawn_checklist_item(
+    list: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    check: &Handle<Image>,
+    text: &str,
+    state: ChecklistState,
+) {
+    let color = match state {
+        ChecklistState::Done => theme::ACCENT,
+        ChecklistState::Open => palette::TEXT,
+        ChecklistState::Hint => palette::TEXT_DIM.with_alpha(0.6),
+    };
+    let tick = (state == ChecklistState::Done).then(|| {
+        (
+            Node {
+                width: px(10),
+                height: px(10),
+                ..default()
+            },
+            ImageNode::new(check.clone()).with_color(color),
+            Pickable::IGNORE,
+        )
+    });
+    list.spawn((
+        Node {
+            align_items: AlignItems::Center,
+            column_gap: px(8),
+            ..default()
+        },
+        Pickable::IGNORE,
+    ))
+    .with_children(|row| {
+        row.spawn((
+            Node {
+                width: px(12),
+                height: px(12),
+                border: UiRect::all(px(1.5)),
+                border_radius: BorderRadius::all(px(3)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BorderColor::all(if state == ChecklistState::Hint {
+                Color::NONE
+            } else {
+                color
+            }),
+            Pickable::IGNORE,
+            Children::spawn(SpawnIter(tick.into_iter())),
+        ));
+        row.spawn((
+            theme::text(fonts.display(16.0), text, color),
+            LineHeight::RelativeToFont(1.1),
+            Pickable::IGNORE,
+        ));
+    });
+}
+
+/// Füllt die Checkliste; außerhalb des Zugs bleibt sie unsichtbar stehen, damit die Knöpfe nicht springen.
+fn update_checklist(
+    mut commands: Commands,
+    mut shown: Local<Vec<(String, ChecklistState)>>,
+    battle: Option<Res<Battle>>,
+    hud: Res<HudState>,
+    locale: Res<Locale>,
+    fonts: Res<Fonts>,
+    icons: Res<UiIcons>,
+    checklist: Single<(Entity, &mut Visibility), With<Checklist>>,
+) {
+    let (entity, mut visibility) = checklist.into_inner();
+    let lines = match battle.as_deref().filter(|_| hud.planning) {
+        Some(battle) => checklist_lines(&locale, battle),
+        None => Vec::new(),
+    };
+    visibility.set_if_neq(if lines.is_empty() {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    });
+    if *shown == lines {
+        return;
+    }
+    commands
+        .entity(entity)
+        .despawn_related::<Children>()
+        .with_children(|list| {
+            for (text, state) in &lines {
+                spawn_checklist_item(list, &fonts, &icons.check, text, *state);
+            }
+        });
+    *shown = lines;
+}
+
+pub(super) struct StationsPlugin;
+
+impl Plugin for StationsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (update_stations, update_actions, update_checklist).run_if(in_state(AppState::Match)),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use voidfleet_core::admirals::AdmiralId;
+
+    use super::*;
+    use crate::{game::start_test_battle, settings::Language};
+
+    #[test]
+    fn checklist_follows_station() {
+        let locale = Locale::new(Language::De);
+        let mut battle = start_test_battle(AdmiralId::Osei).0;
+        let texts = |battle: &CoreBattle| {
+            checklist_lines(&locale, battle)
+                .into_iter()
+                .map(|(text, _)| text)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            texts(&battle),
+            [
+                "Spalte wählen (optional)",
+                "Station: Waffen",
+                "Ziel wählen",
+                "3 Befehlspunkte offen"
+            ]
+        );
+        battle.placing = false;
+        battle.flagship.station = Station::Maneuver;
+        battle.points = 0;
+        assert_eq!(texts(&battle), ["Station: Manöver", "Spalte wählen"]);
+        battle.flagship.station = Station::Shields;
+        assert_eq!(
+            checklist_lines(&locale, &battle),
+            [("Station: Schilde".to_owned(), ChecklistState::Done)]
+        );
+    }
+}

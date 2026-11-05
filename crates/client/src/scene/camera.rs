@@ -28,9 +28,9 @@ use bevy::{
 
 use super::{
     animation::AnimationScope,
-    coords::{BOARD_CENTER, PAD_DEPTH, PAD_WIDTH, slot_z},
+    coords::{BOARD_CENTER, PAD_DEPTH, PAD_WIDTH, Side, slot_z},
 };
-use voidfleet_core::board::{LaneType, Side};
+use voidfleet_core::board::Row;
 
 use crate::settings::Settings;
 
@@ -44,34 +44,30 @@ pub struct ViewSpec {
     pub fov: f32,
     /// Bildband, das die Pads senkrecht füllen: Ober- und Unterkante in Bildhöhen von oben.
     pub frame: (f32, f32),
-    /// Welt-x der Lanes: eigene Command, eigene Strike, gegnerische Strike, gegnerische Command.
-    pub lane_x: [f32; 4],
-    /// Abstand der Slots entlang der Lane; zwischen den Pads bleibt eine Fuge.
+    /// Welt-x der Reihen: eigene, gegnerische Front, gegnerische Back.
+    pub lane_x: [f32; 3],
+    /// Abstand der Spalten; zwischen den Pads bleibt eine Fuge.
     pub slot_step: f32,
-    /// Lane-z der Beschriftung relativ zur Brettmitte, jenseits von Slot 0.
-    pub label_z: f32,
 }
 
-/// Von der Seite: eigene Seite links, Slot 0 hinten, die Beschriftung dahinter.
+/// Von der Seite: eigene Seite links, Spalte 0 hinten.
 pub const SIDE_VIEW: ViewSpec = ViewSpec {
     yaw: 0.0,
     pitch: 42.0 * PI / 180.0,
     fov: 33.5 * PI / 180.0,
-    frame: (0.16, 0.725),
-    lane_x: [-6.15, -2.75, 2.75, 6.15],
-    slot_step: 2.2,
-    label_z: -6.4,
+    frame: (0.2, 0.7),
+    lane_x: [-4.6, 1.4, 4.8],
+    slot_step: 2.9,
 };
 
-/// Von hinten oben: eigene Seite unten, Slot 0 links, die Beschriftung links daneben.
+/// Von hinten oben: eigene Seite unten, Spalte 0 links.
 pub const TOP_VIEW: ViewSpec = ViewSpec {
     yaw: FRAC_PI_2,
     pitch: 50.0 * PI / 180.0,
     fov: 30.0 * PI / 180.0,
-    frame: (0.153, 0.679),
-    lane_x: [-5.4, -2.0, 2.0, 5.4],
-    slot_step: 2.6,
-    label_z: -9.1,
+    frame: (0.17, 0.66),
+    lane_x: [-4.4, 1.1, 4.5],
+    slot_step: 3.2,
 };
 
 /// Dauer der Kamerafahrt zwischen den Ansichten in Sekunden, gestreckt wie die übrigen Animationen.
@@ -124,10 +120,9 @@ pub enum CameraCommand {
 /// Aufteilung des Bretts beim jetzigen Stand zwischen den Ansichten; Lanes, Slots und Beschriftungen folgen ihr.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct BoardLayout {
-    /// Lane-x wie in [`ViewSpec::lane_x`].
-    pub lane_x: [f32; 4],
+    /// Reihen-x wie in [`ViewSpec::lane_x`].
+    pub lane_x: [f32; 3],
     pub slot_step: f32,
-    pub label_z: f32,
 }
 
 impl BoardLayout {
@@ -136,28 +131,26 @@ impl BoardLayout {
         Self {
             lane_x: std::array::from_fn(|i| mix(SIDE_VIEW.lane_x[i], TOP_VIEW.lane_x[i])),
             slot_step: mix(SIDE_VIEW.slot_step, TOP_VIEW.slot_step),
-            label_z: mix(SIDE_VIEW.label_z, TOP_VIEW.label_z),
         }
     }
 
-    /// Welt-x einer Lane.
-    pub fn lane_x(&self, side: Side, lane: LaneType) -> f32 {
-        self.lane_x[match (side, lane) {
-            (Side::Player, LaneType::Command) => 0,
-            (Side::Player, LaneType::Strike) => 1,
-            (Side::Enemy, LaneType::Strike) => 2,
-            (Side::Enemy, LaneType::Command) => 3,
+    /// Welt-x einer Reihe; die Spielerseite hat nur eine.
+    pub fn lane_x(&self, side: Side, row: Row) -> f32 {
+        self.lane_x[match (side, row) {
+            (Side::Player, _) => 0,
+            (Side::Enemy, Row::Front) => 1,
+            (Side::Enemy, Row::Back) => 2,
         }]
     }
 
     /// Weltlage der Mitte eines Pads.
-    pub fn slot_position(&self, side: Side, lane: LaneType, index: usize) -> Vec3 {
-        BOARD_CENTER + Vec3::new(self.lane_x(side, lane), 0.0, slot_z(index, self.slot_step))
+    pub fn slot_position(&self, side: Side, row: Row, column: usize) -> Vec3 {
+        BOARD_CENTER + Vec3::new(self.lane_x(side, row), 0.0, slot_z(column, self.slot_step))
     }
 
-    /// Mitte einer Brettseite zwischen ihren Lanes, für Effekte und Sounds, die zu keinem Schiff gehören.
+    /// Mitte einer Brettseite, für Effekte und Sounds, die zu keinem Schiff gehören.
     pub fn side_center(&self, side: Side) -> Vec3 {
-        let x = (self.lane_x(side, LaneType::Strike) + self.lane_x(side, LaneType::Command)) / 2.0;
+        let x = (self.lane_x(side, Row::Front) + self.lane_x(side, Row::Back)) / 2.0;
         BOARD_CENTER + Vec3::X * x
     }
 

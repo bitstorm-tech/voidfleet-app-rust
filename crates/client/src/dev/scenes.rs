@@ -1,34 +1,33 @@
 //! Vorschau-Szenen ohne Spieler (wie `client/dev/*.html` im Original), gewählt mit `VOIDFLEET_DEV_SCENE`:
 //!
-//! - `board` — ein Brett mitten in der Planung: Schiffe beider Seiten mit Schaden und Schild, ein eingeplantes Schiff als
-//!   Geist, Grundmanöver mit Pfeil, Torpedo mit Fadenkreuz, Feuerbefehle mit Bögen der Zielvorschau, Marken
-//!   (Flaggschiff-Ringe, Zielerfassung, Bereitschaft, Visier), Pfeile vor den Spalten, leuchtende Ziel-Slots, Gitter.
+//! - `board` — das Test-Gefecht mit Kerr, Station Waffen auf den Belagerer: Absichten, Visier, Hand, Stationen.
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
-//! - `destroy` — die Schiffe gehen nacheinander unter und landen danach neu (Abgleich mit dem Spielzustand, Deploy).
+//! - `destroy` — die Schiffe gehen nacheinander unter und landen danach neu.
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
-//! - `move` — Lane-Wechsel nach vorn und hinten, seitlich innerhalb der Lane, gezogen.
+//! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildblase, Zielmarke und verpuffender Bolzen im Wechsel.
 //!
-//! Der Server bleibt angehalten ([`ServerInbox::hold`]); der Spielzustand ist erfunden.
+//! Außer `board` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
 
 use bevy::{diagnostic::FrameCount, prelude::*, time::Stopwatch};
 use voidfleet_core::{
-    admirals::AdmiralId,
-    board::{LaneType, Side, SlotRef, SlotTarget},
-    cards::{CommandId, SHIPS, ShipId},
-    protocol::{CommandPlan, FireOrder, FireTarget, Maneuver, OpponentView},
+    admirals::{AdmiralId, FlagshipId, Station},
+    board::{EnemySlot, Row},
+    enemies::EnemyId,
 };
 
 use crate::{
     assets::AppState,
-    data::ship_models::ShipModels,
-    game::{Match, ServerInbox, ShipPick},
+    controller::Scripted,
+    data::ship_models::{ShipKind, ShipModels},
+    game::start_test_battle,
     palette,
     scene::{
         animation::{Animation, AnimationFinished},
-        board::{BoardEntities, Highlights, OnSlot, anchor_position, place},
+        board::{BoardEntities, OnSlot, anchor_position, place},
         camera::BoardLayout,
+        coords::SlotRef,
         destruction::DestroyShip,
         effects::{
             Beam, Bolt, Bubble, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
@@ -37,7 +36,7 @@ use crate::{
         floating_text::{FloatTone, FloatingText},
         motion::{Arrive, HitFlash, MoveShip},
         ship::{Ship, spawn_ship},
-        sync::BoardFocus,
+        status::ShipStatus,
     },
 };
 
@@ -91,8 +90,10 @@ fn period(scene: DevScene) -> f32 {
 }
 
 pub(super) fn plugin(app: &mut App, scene: DevScene) {
+    if scene != DevScene::Board {
+        app.insert_resource(Scripted);
+    }
     app.insert_resource(scene)
-        .insert_resource(crate::controller::Scripted)
         .init_resource::<Loop>()
         .add_systems(OnEnter(AppState::Match), stage)
         // Vor dem Abgleich, damit er neue und umgehängte Schiffe schon auf ihren Slots sieht.
@@ -103,12 +104,12 @@ pub(super) fn plugin(app: &mut App, scene: DevScene) {
         );
 }
 
-fn own(lane: LaneType, index: usize) -> SlotRef {
-    SlotRef::new(Side::Player, lane, index)
+fn own(column: usize) -> SlotRef {
+    SlotRef::player(column)
 }
 
-fn enemy(lane: LaneType, index: usize) -> SlotRef {
-    SlotRef::new(Side::Enemy, lane, index)
+fn enemy(row: Row, column: usize) -> SlotRef {
+    SlotRef::enemy(EnemySlot::new(row, column))
 }
 
 /// Mitte eines Schiffs auf einem Slot (wie `centerOf` in der Rundenwiedergabe).
@@ -116,128 +117,94 @@ fn center(layout: &BoardLayout, slot: SlotRef) -> Vec3 {
     anchor_position(layout, slot) + Vec3::Y * 0.15
 }
 
-/// Ein Match in der dritten Runde, Admiral Osei gegen Admiralin Kerr; `ships` steht auf dem Brett.
-fn staged_match(ships: &[(SlotRef, ShipId, i32, i32)]) -> Match {
-    let mut game = Match::default();
-    game.round = 3;
-    game.admiral = Some(AdmiralId::Osei);
-    game.opponent = Some(OpponentView {
-        admiral: Some(AdmiralId::Kerr),
-        submitted: false,
-        ship_hand_size: 3,
-        command_hand_size: 3,
-        ship_deck_size: 10,
-        command_deck_size: 10,
-        bot: true,
-        played_commands: Vec::new(),
-    });
-    for &(slot, card, hp, shield) in ships {
-        let ship = game.board.put(slot, card);
-        ship.hp = hp;
-        ship.shield = shield;
-    }
-    game
+/// Stellt ein Schiff mit Hülle und Schild auf einen Slot.
+fn stage_ship(
+    commands: &mut Commands,
+    models: &ShipModels,
+    board: &BoardEntities,
+    kind: ShipKind,
+    slot: SlotRef,
+    (hull, max_hull, shield): (i32, i32, i32),
+) -> Entity {
+    let ship = spawn_ship(commands, models, kind);
+    place(commands, board, ship, slot);
+    commands
+        .entity(ship)
+        .insert(ShipStatus::new(hull, max_hull, shield));
+    ship
+}
+
+const BASTION: ShipKind = ShipKind::Flagship(FlagshipId::Bastion);
+const CRUISER: ShipKind = ShipKind::Enemy(EnemyId::GuardCruiser);
+
+/// Die Slots der Szene `destroy`, reihum.
+fn destroy_slots() -> [SlotRef; 6] {
+    [
+        own(0),
+        enemy(Row::Front, 0),
+        enemy(Row::Back, 1),
+        enemy(Row::Front, 2),
+        own(2),
+        enemy(Row::Back, 2),
+    ]
 }
 
 fn stage(
-    mut inbox: ResMut<ServerInbox>,
+    mut commands: Commands,
     scene: Res<DevScene>,
-    mut game: ResMut<Match>,
-    mut focus: ResMut<BoardFocus>,
-    mut highlights: ResMut<Highlights>,
+    models: Res<ShipModels>,
+    board: Res<BoardEntities>,
 ) {
-    inbox.hold();
-    use LaneType::{Command, Strike};
+    let mut put = |kind, slot, stats| {
+        stage_ship(&mut commands, &models, &board, kind, slot, stats);
+    };
     match *scene {
         DevScene::Board => {
-            let mut staged = staged_match(&[
-                (own(Strike, 1), ShipId::IronDreadnought, 5, 2),
-                (own(Strike, 3), ShipId::PlasmaFrigate, 4, 0),
-                (own(Command, 1), ShipId::RepairDrone, 3, 0),
-                (own(Command, 2), ShipId::Bastion, 12, 3),
-                (own(Command, 4), ShipId::SignalBooster, 2, 0),
-                (enemy(Strike, 1), ShipId::VoidInterceptor, 2, 0),
-                (enemy(Strike, 2), ShipId::HorizonCruiser, 5, 1),
-                (enemy(Strike, 4), ShipId::TitanCarrier, 6, 0),
-                (enemy(Command, 3), ShipId::Pendulum, 9, 0),
-                (enemy(Command, 4), ShipId::ScrapRaider, 3, 0),
-            ]);
-            staged.board[enemy(Strike, 2)]
-                .as_mut()
-                .expect("Kreuzer")
-                .marked = true;
-            staged.ship_hand = vec![ShipId::VoidInterceptor, ShipId::ScrapRaider];
-            staged.command_hand = vec![CommandId::Torpedo, CommandId::FlankingManeuver];
-            staged.plan_ship(ShipPick::Hand(0), SlotTarget::new(Strike, 5));
-            staged.set_command(Some(CommandPlan {
-                hand_index: 0,
-                target: Some(SlotTarget::new(Strike, 4)),
-                destination: None,
-            }));
-            staged.set_maneuver(Some(Maneuver {
-                ship: SlotTarget::new(Strike, 3),
-                destination: SlotTarget::new(Strike, 2),
-            }));
-            let dreadnought = SlotTarget::new(Strike, 1);
-            staged.set_fire(
-                dreadnought,
-                Some(FireOrder {
-                    ship: dreadnought,
-                    target: FireTarget::Ship(SlotTarget::new(Strike, 1)),
-                }),
-            );
-            let bastion = SlotTarget::new(Command, 2);
-            staged.set_fire(
-                bastion,
-                Some(FireOrder {
-                    ship: bastion,
-                    target: FireTarget::Column(4),
-                }),
-            );
-            focus.shooter = Some(dreadnought);
-            highlights.slots = staged.board.ships(Side::Enemy).collect();
-            highlights.grid = true;
-            *game = staged;
+            let mut battle = start_test_battle(AdmiralId::Kerr);
+            let besieger = battle
+                .enemies
+                .iter()
+                .find(|enemy| enemy.id == EnemyId::Besieger)
+                .map(|enemy| enemy.uid);
+            battle.flagship.station = Station::Weapons;
+            battle.flagship.target = besieger;
+            commands.insert_resource(battle);
         }
         DevScene::Hit(_) => {
-            *game = staged_match(&[
-                (own(Strike, 3), ShipId::IronDreadnought, 7, 2),
-                (enemy(Strike, 3), ShipId::HorizonCruiser, 5, 1),
-                (own(Command, 2), ShipId::PlasmaFrigate, 4, 0),
-                (enemy(Command, 4), ShipId::RepairDrone, 3, 0),
-            ]);
+            put(BASTION, own(1), (52, 70, 6));
+            put(CRUISER, enemy(Row::Front, 1), (9, 16, 0));
         }
         DevScene::Destroy => {
-            let slots = [
-                own(Strike, 1),
-                enemy(Strike, 1),
-                own(Strike, 3),
-                enemy(Strike, 3),
-                own(Command, 2),
-                enemy(Command, 2),
-                own(Command, 4),
-                enemy(Command, 4),
-            ];
-            let ships: Vec<_> = slots
-                .into_iter()
-                .zip(SHIPS)
-                .map(|(slot, ship)| (slot, ship, ship.hp(), 0))
-                .collect();
-            *game = staged_match(&ships);
+            let kinds: Vec<ShipKind> = crate::data::ship_models::ships().collect();
+            for (index, slot) in destroy_slots().into_iter().enumerate() {
+                put(kinds[index * 2 % kinds.len()], slot, (10, 10, 0));
+            }
         }
         DevScene::Arrive | DevScene::Effects => {
-            *game = staged_match(&[
-                (own(Command, 2), ShipId::RepairDrone, 3, 0),
-                (enemy(Command, 4), ShipId::SignalBooster, 2, 0),
-                (enemy(Strike, 2), ShipId::HorizonCruiser, 5, 0),
-            ]);
+            put(BASTION, own(1), (70, 70, 0));
+            put(
+                ShipKind::Enemy(EnemyId::Spotter),
+                enemy(Row::Back, 2),
+                (12, 12, 0),
+            );
+            put(CRUISER, enemy(Row::Front, 1), (16, 16, 0));
         }
         DevScene::Move => {
-            *game = staged_match(&[
-                (own(Strike, 2), ShipId::VoidInterceptor, 3, 0),
-                (own(Command, 4), ShipId::IronDreadnought, 7, 0),
-                (enemy(Strike, 3), ShipId::TitanCarrier, 6, 0),
-            ]);
+            put(
+                ShipKind::Flagship(FlagshipId::Vanguard),
+                own(0),
+                (50, 50, 0),
+            );
+            put(
+                ShipKind::Enemy(EnemyId::Raiders),
+                enemy(Row::Back, 0),
+                (8, 8, 0),
+            );
+            put(
+                ShipKind::Enemy(EnemyId::Carrier),
+                enemy(Row::Front, 2),
+                (26, 26, 0),
+            );
         }
     }
 }
@@ -251,7 +218,6 @@ fn run(
     layout: Res<BoardLayout>,
     board: Res<BoardEntities>,
     models: Res<ShipModels>,
-    mut game: ResMut<Match>,
     ships: Query<(Entity, &Ship, &OnSlot)>,
 ) {
     clock.stopwatch.tick(time.delta());
@@ -265,22 +231,21 @@ fn run(
     let ship_on = |slot: SlotRef| {
         ships
             .iter()
-            .find(|(_, ship, on)| !ship.ghost && on.0 == slot)
-            .map(|(entity, ..)| entity)
+            .find(|(_, _, on)| on.0 == slot)
+            .map(|(entity, ship, _)| (entity, ship.kind))
     };
-    use LaneType::{Command, Strike};
     match *scene {
         DevScene::Board => {}
         DevScene::Hit(variant) => {
             let (from, to, color) = if step.is_multiple_of(2) {
-                (own(Strike, 3), enemy(Strike, 3), palette::PLAYER)
+                (own(1), enemy(Row::Front, 1), palette::PLAYER)
             } else {
-                (enemy(Strike, 3), own(Strike, 3), palette::ENEMY)
+                (enemy(Row::Front, 1), own(1), palette::ENEMY)
             };
             let origin = center(&layout, from);
             let target = center(&layout, to);
             let impact = target - (target - origin).normalize() * 0.45;
-            let Some(victim) = ship_on(to) else {
+            let Some((victim, _)) = ship_on(to) else {
                 return;
             };
             commands.spawn(Pulse {
@@ -311,26 +276,27 @@ fn run(
                 });
         }
         DevScene::Destroy => {
-            let slots = [
-                own(Strike, 1),
-                enemy(Strike, 1),
-                own(Strike, 3),
-                enemy(Strike, 3),
-                own(Command, 2),
-                enemy(Command, 2),
-                own(Command, 4),
-                enemy(Command, 4),
-            ];
+            let slots = destroy_slots();
             let slot = slots[step as usize % slots.len()];
-            if let (Some(ship), Some(card)) = (ship_on(slot), game.board.card(slot)) {
+            if let Some((ship, kind)) = ship_on(slot) {
                 info!("Dev-Szene: {slot:?} geht unter (Bild {})", frame.0);
-                game.board[slot] = None;
                 commands.spawn(DestroyShip { ship }).observe(
                     move |_: On<AnimationFinished>, mut commands: Commands| {
-                        // Nach dem Verglühen der Trümmer stellt der Abgleich das Schiff wieder hin.
+                        // Nach dem Verglühen der Trümmer landet ein neues Schiff.
                         commands.spawn(Animation::new(3.0)).observe(
-                            move |_: On<AnimationFinished>, mut game: ResMut<Match>| {
-                                game.board.put(slot, card);
+                            move |_: On<AnimationFinished>,
+                                  mut commands: Commands,
+                                  models: Res<ShipModels>,
+                                  board: Res<BoardEntities>| {
+                                let ship = stage_ship(
+                                    &mut commands,
+                                    &models,
+                                    &board,
+                                    kind,
+                                    slot,
+                                    (10, 10, 0),
+                                );
+                                commands.spawn(Arrive { ship });
                             },
                         );
                     },
@@ -338,50 +304,36 @@ fn run(
             }
         }
         DevScene::Arrive => {
-            let slots = [
-                own(Strike, 2),
-                enemy(Strike, 4),
-                own(Command, 0),
-                enemy(Strike, 1),
-            ];
+            let slots = [own(2), enemy(Row::Front, 0), own(0), enemy(Row::Back, 1)];
             let slot = slots[step as usize % slots.len()];
-            if let Some(old) = ship_on(slot) {
+            if let Some((old, _)) = ship_on(slot) {
                 commands.entity(old).despawn();
             }
-            let card = SHIPS[step as usize % SHIPS.len()];
-            let ship = spawn_ship(&mut commands, &models, card, false);
-            place(&mut commands, &board, ship, slot);
+            let kinds: Vec<ShipKind> = crate::data::ship_models::ships().collect();
+            let kind = kinds[step as usize % kinds.len()];
+            let ship = stage_ship(&mut commands, &models, &board, kind, slot, (10, 10, 0));
             commands.spawn(Arrive { ship });
-            // Der Spielzustand kennt das neue Schiff, damit der Abgleich es stehen lässt.
-            game.board.put(slot, card);
         }
         DevScene::Move => {
             let (from, to, towed) = match step % 4 {
-                0 => (own(Strike, 2), own(Command, 0), false),
-                1 => (own(Command, 0), own(Strike, 4), false),
-                2 => (own(Strike, 4), own(Strike, 2), false),
-                _ => (own(Command, 4), own(Command, 1), true),
+                0 => (own(0), own(2), false),
+                1 => (own(2), own(1), false),
+                2 => (own(1), own(0), false),
+                _ => (enemy(Row::Back, 0), enemy(Row::Back, 1), true),
             };
-            let back = (to, from);
-            if let Some(ship) = ship_on(from) {
-                let card = game.board.card(from).expect("Schiff");
-                game.board[from] = None;
-                game.board.put(to, card);
+            if let Some((ship, _)) = ship_on(from) {
                 commands.spawn(MoveShip { ship, to, towed });
-            } else if let Some(ship) = ship_on(back.0) {
-                let card = game.board.card(back.0).expect("Schiff");
-                game.board[back.0] = None;
-                game.board.put(back.1, card);
+            } else if let Some((ship, _)) = ship_on(to) {
                 commands.spawn(MoveShip {
                     ship,
-                    to: back.1,
+                    to: from,
                     towed,
                 });
             }
         }
         DevScene::Effects => {
-            let origin = center(&layout, own(Strike, 2));
-            let target = center(&layout, enemy(Strike, 2));
+            let origin = center(&layout, own(1));
+            let target = center(&layout, enemy(Row::Front, 1));
             match step % 6 {
                 0 => {
                     commands.spawn(Beam {
@@ -399,7 +351,7 @@ fn run(
                     });
                 }
                 2 => {
-                    if let Some(ship) = ship_on(enemy(Strike, 2)) {
+                    if let Some((ship, _)) = ship_on(enemy(Row::Front, 1)) {
                         let tether = commands
                             .spawn(Tether {
                                 from: origin,
@@ -417,7 +369,7 @@ fn run(
                 }
                 3 => {
                     commands.spawn(Bubble {
-                        position: center(&layout, own(Command, 2)),
+                        position: center(&layout, own(1)),
                         color: palette::admiral_color(AdmiralId::Osei),
                         size: 2.4,
                     });
@@ -431,7 +383,7 @@ fn run(
                 _ => {
                     commands.spawn(Fizzle {
                         from: origin,
-                        to: center(&layout, enemy(Strike, 5)),
+                        to: center(&layout, enemy(Row::Back, 2)),
                         color: palette::PLAYER,
                     });
                 }

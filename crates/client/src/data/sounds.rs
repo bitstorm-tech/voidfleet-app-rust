@@ -4,6 +4,26 @@
 //! wählt. Alle Varianten werden beim Laden auf gleiche Lautheit gebracht ([`crate::audio`]); [`SoundId::volume`] legt
 //! nur noch fest, wie laut ein Effekt im Verhältnis zu den anderen ist.
 
+use voidfleet_core::{admirals::FlagshipId, enemies::EnemyId};
+
+use super::ship_models::ShipKind;
+
+/// Waffe je Schiff.
+pub fn shot_sound(kind: ShipKind) -> SoundId {
+    match kind {
+        ShipKind::Enemy(EnemyId::GuardCruiser | EnemyId::Carrier | EnemyId::Seal)
+        | ShipKind::Flagship(FlagshipId::Vanguard) => SoundId::LaserMedium,
+        ShipKind::Enemy(EnemyId::PlasmaCruiser) | ShipKind::Flagship(FlagshipId::Pyre) => {
+            SoundId::PlasmaShot
+        }
+        ShipKind::Enemy(EnemyId::Besieger | EnemyId::ScrapKing | EnemyId::Warden)
+        | ShipKind::Flagship(FlagshipId::Bastion | FlagshipId::Pendulum) => SoundId::CannonHeavy,
+        ShipKind::Enemy(
+            EnemyId::Raiders | EnemyId::Fireship | EnemyId::TorpedoWing | EnemyId::Spotter,
+        ) => SoundId::LaserLight,
+    }
+}
+
 /// Ein Soundeffekt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SoundId {

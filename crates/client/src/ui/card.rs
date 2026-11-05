@@ -1,14 +1,9 @@
-//! Karten als UI-Knoten (Port von `ui/cardView.ts` und der Karte aus `ui/powerCard.ts`), für Hand, Nachschub,
-//! Admiralswahl und Regeln:
+//! Befehlskarten als UI-Knoten (Port von `ui/cardView.ts`): [`command_card`] ist ein Datapad mit der Illustration im
+//! Farbton des Kartentyps als Screen, den Kosten als Zahl oben links, Typ und Zielangabe, Effekttext und
+//! Tastenleiste; aufgewertete Karten tragen „+“ am Namen und die erhöhten Werte im Text.
 //!
-//! - [`ship_card`]: Illustration als Hintergrund, oben und unten in die Farbe der Schiffsklasse verlaufend, Name,
-//!   Klasse und Werte; Flaggschiffe mit goldenem Rahmen, Kopfleiste in der Farbe ihres Admirals und Krone.
-//! - [`command_card`]: Datapad mit der Illustration im Farbton des Befehlstyps als Screen, Zielangabe, Effekttext
-//!   und Tastenleiste.
-//! - [`power_card`]: die Admiralsfähigkeit mit dem Porträt, flacher als die übrigen Karten.
-//!
-//! Alle nehmen einen Maßstab (`scale`): 1 ist die Größe in Regeln und Galerie (140 × 196), die Hand und der
-//! Nachschub zoomen um 1,3 ([`HAND_ZOOM`]); Schrift und Abstände wachsen mit, die Schrift bleibt scharf.
+//! Die Karte nimmt einen Maßstab (`scale`): 1 ist die Grundgröße (140 × 196), die Hand zoomt um 1,3 ([`HAND_ZOOM`]);
+//! Schrift und Abstände wachsen mit, die Schrift bleibt scharf.
 //!
 //! Zustände als Komponenten an der Karte: [`Marked`] (gewählt oder eingeplant: Rahmen in der Auswahlfarbe),
 //! [`CardHover`] (wie die Karte auf den Zeiger reagiert) und [`CardDraw`] (fliegt als neu gezogene Karte ein).
@@ -21,27 +16,20 @@ use bevy::{
     text::LineHeight,
     time::Stopwatch,
 };
-use voidfleet_core::{
-    admirals::AdmiralId,
-    cards::{CommandId, ShipId},
-};
+use voidfleet_core::cards::DeckCard;
 
-use super::{Fonts, UiIcons, theme};
+use super::{Fonts, theme};
 use crate::{
     audio::{PlayUiSound, UiSound},
-    data::{
-        admirals::{AdmiralPortraits, flagship_admiral},
-        card_art::{Card, CardArt},
-    },
+    data::card_art::{Card, CardArt},
     i18n::Locale,
     palette,
 };
 
-/// Größe einer Karte im Maßstab 1 und Höhe der Fähigkeitskarte.
+/// Größe einer Karte im Maßstab 1.
 pub const CARD_WIDTH: f32 = 140.0;
 pub const CARD_HEIGHT: f32 = 196.0;
-pub const POWER_CARD_HEIGHT: f32 = 150.0;
-/// Zoom der Karten auf der Hand und im Nachschub.
+/// Zoom der Karten auf der Hand.
 pub const HAND_ZOOM: f32 = 1.3;
 /// Seitenverhältnis der Illustrationen und Porträts (736 × 1024).
 pub const ART_ASPECT: f32 = 736.0 / 1024.0;
@@ -51,8 +39,6 @@ pub const ART_ASPECT: f32 = 736.0 / 1024.0;
 pub struct CardAssets<'w> {
     pub fonts: Res<'w, Fonts>,
     pub art: Res<'w, CardArt>,
-    pub portraits: Res<'w, AdmiralPortraits>,
-    pub icons: Res<'w, UiIcons>,
     pub locale: Res<'w, Locale>,
 }
 
@@ -60,19 +46,11 @@ pub struct CardAssets<'w> {
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 #[require(HoverProgress)]
 pub struct CardView {
-    pub card: CardFace,
+    pub card: DeckCard,
     pub scale: f32,
 }
 
-/// Was auf der Karte steht.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CardFace {
-    Ship(ShipId),
-    Command(CommandId),
-    Power(AdmiralId),
-}
-
-/// Die Karte ist gewählt oder eingeplant: Rahmen in der Auswahlfarbe.
+/// Die Karte ist gewählt: Rahmen in der Auswahlfarbe.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Marked;
 
@@ -83,7 +61,7 @@ pub enum CardHover {
     /// Wächst auf `scale` (Hand: 1,5), damit der Text lesbar wird; `origin` ist der feste Punkt, x von −1 (links) bis
     /// 1 (rechts), y 1 unten — die äußeren Karten der Hand wachsen zur Bildschirmmitte.
     Zoom { scale: f32, origin: Vec2 },
-    /// Hebt sich nur ein wenig an und leuchtet (Nachschub).
+    /// Hebt sich nur ein wenig an und leuchtet.
     Raise,
 }
 
@@ -188,168 +166,24 @@ fn card_text(
     )
 }
 
-/// Ein Wert der Schiffskarte, Bezeichnung oder Zahl.
-fn stat(font: TextFont, content: &str, color: Color, justify: Justify) -> impl Bundle + use<> {
-    (
-        theme::caps(font, content, 0.0, color),
-        theme::text_shadow(0.9),
-        TextLayout::justify(justify),
-        Pickable::IGNORE,
-    )
+/// Farbe des Screens einer Befehlskarte (`--card-rgb`).
+fn screen_color(card: DeckCard) -> Color {
+    palette::darkened(palette::card_type_color(card.id.card_type()), 0.25)
 }
 
-/// Eine Schiffskarte (auch Flaggschiffe und Tokens).
-pub fn ship_card(assets: &CardAssets, ship: ShipId, scale: f32) -> impl Bundle {
+/// Eine Befehlskarte als Datapad.
+pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bundle {
     let s = |value: f32| px(value * scale);
     let fonts = &assets.fonts;
     let locale = &assets.locale;
-    let card = ship.card();
-    let color = palette::ship_class_color(card.class);
-    let background = palette::darkened(color, 0.72);
-    let admiral = flagship_admiral(ship);
-    let accent = admiral.map_or(color, palette::admiral_color);
-    let mut stats = vec![
-        (locale.stats_atk(), card.atk.to_string()),
-        (locale.stats_hp(), card.hp.to_string()),
-    ];
-    if card.shield > 0 {
-        stats.push((locale.stats_shield(), card.shield.to_string()));
-    }
-    let label_font = fonts.body(13.0 * scale);
-    let value_font = fonts.display_bold(16.0 * scale);
-    let stat_cells = stats.into_iter().flat_map(move |(label, value)| {
-        [
-            stat(
-                label_font.clone(),
-                label,
-                theme::rgba(158, 184, 224, 0.9),
-                Justify::Left,
-            ),
-            stat(value_font.clone(), &value, palette::TEXT, Justify::Right),
-        ]
-    });
-    // Flaggschiff: goldener Rahmen innen und Krone oben rechts.
-    let crown = assets.icons.crown.clone();
-    let flagship = admiral.map(move |_| {
-        (
-            Node {
-                border: UiRect::all(px(2.0 * scale)),
-                ..theme::overlay()
-            },
-            BorderColor::all(palette::FLAGSHIP_TRIM.with_alpha(0.85)),
-            Pickable::IGNORE,
-            children![(
-                Node {
-                    position_type: PositionType::Absolute,
-                    top: px(4.0 * scale),
-                    right: px(5.0 * scale),
-                    width: px(20.0 * scale),
-                    height: px(20.0 * scale),
-                    ..default()
-                },
-                ImageNode::new(crown).with_color(palette::FLAGSHIP_TRIM),
-                BoxShadow(vec![theme::glow(Color::BLACK.with_alpha(0.5), 4.0 * scale)]),
-                Pickable::IGNORE,
-            )],
-        )
-    });
-    (
-        CardView {
-            card: CardFace::Ship(ship),
-            scale,
-        },
-        Node {
-            width: s(CARD_WIDTH),
-            height: s(CARD_HEIGHT),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            padding: UiRect::new(s(10.0), s(10.0), s(16.0), s(12.0)),
-            border: UiRect::top(s(7.0)),
-            ..default()
-        },
-        BackgroundColor(background),
-        BorderColor::all(accent),
-        BoxShadow(if admiral.is_some() {
-            vec![theme::glow(
-                palette::FLAGSHIP_TRIM.with_alpha(0.35),
-                16.0 * scale,
-            )]
-        } else {
-            Vec::new()
-        }),
-        Children::spawn((
-            Spawn(halo(0.0)),
-            Spawn(clipped_art(assets.art.get(Card::Ship(ship)), 0.5, 0.0)),
-            Spawn(shade(
-                &[
-                    (background, 0.0),
-                    (Color::NONE, 34.0),
-                    (Color::NONE, 56.0),
-                    (background, 92.0),
-                ],
-                0.0,
-            )),
-            SpawnIter(flagship.into_iter()),
-            Spawn((
-                Node {
-                    padding: UiRect::right(s(if admiral.is_some() { 18.0 } else { 0.0 })),
-                    ..default()
-                },
-                Pickable::IGNORE,
-                children![card_text(
-                    fonts.display_bold(16.0 * scale),
-                    locale.ship(ship).name,
-                    palette::TEXT,
-                    Justify::Left,
-                )],
-            )),
-            Spawn((
-                Node {
-                    margin: UiRect::top(s(4.0)),
-                    ..default()
-                },
-                Pickable::IGNORE,
-                children![stat(
-                    fonts.body(11.0 * scale),
-                    locale.ship_class(card.class),
-                    theme::rgba(168, 199, 242, 0.85),
-                    Justify::Left,
-                )],
-            )),
-            Spawn((
-                Node {
-                    margin: UiRect::top(Val::Auto),
-                    display: Display::Grid,
-                    grid_template_columns: vec![
-                        RepeatedGridTrack::fr(1, 1.0),
-                        RepeatedGridTrack::auto(1),
-                    ],
-                    row_gap: s(4.0),
-                    align_items: AlignItems::Baseline,
-                    ..default()
-                },
-                Pickable::IGNORE,
-                Children::spawn(SpawnIter(stat_cells)),
-            )),
-            Spawn(selection_frame(scale, 0.0)),
-        )),
-    )
-}
-
-/// Farbe des Screens einer Befehlskarte (`--card-rgb`).
-fn screen_color(command: CommandId) -> Color {
-    palette::darkened(palette::command_type_color(command.command_type()), 0.25)
-}
-
-/// Eine Befehlskarte als Datapad (auch die Schrottverwertung mit dem Bild des Scrap Raiders).
-pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl Bundle {
-    let s = |value: f32| px(value * scale);
-    let fonts = &assets.fonts;
-    let text = assets.locale.command(command);
-    let target = text
-        .target
-        .unwrap_or_else(|| assets.locale.target_mode(command.target_mode()));
-    let tint = screen_color(command);
+    let text = locale.card(card);
+    let target = format!(
+        "{} · {}",
+        locale.card_type(card.id.card_type()),
+        locale.card_target(card.id.target())
+    );
+    let tint = screen_color(card);
+    let type_color = palette::card_type_color(card.id.card_type());
     let key = move |width: f32| {
         (
             Node {
@@ -363,10 +197,7 @@ pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl
         )
     };
     (
-        CardView {
-            card: CardFace::Command(command),
-            scale,
-        },
+        CardView { card, scale },
         Node {
             width: s(CARD_WIDTH),
             height: s(CARD_HEIGHT),
@@ -394,7 +225,7 @@ pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl
                 BoxShadow(vec![theme::ring(Color::BLACK.with_alpha(0.35), 1.0)]),
                 Pickable::IGNORE,
                 children![
-                    clipped_art(assets.art.get(Card::Command(command)), 0.5, 2.0 * scale),
+                    clipped_art(assets.art.get(Card::Command(card.id)), 0.5, 2.0 * scale),
                     shade(
                         &[
                             (tint.with_alpha(0.92), 0.0),
@@ -406,7 +237,7 @@ pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl
                     ),
                     card_text(
                         fonts.display_bold(15.0 * scale),
-                        text.name,
+                        text.name.clone(),
                         theme::rgb(247, 252, 255),
                         Justify::Center
                     ),
@@ -444,101 +275,38 @@ pub fn command_card(assets: &CardAssets, command: CommandId, scale: f32) -> impl
                 Pickable::IGNORE,
                 children![key(14.0), key(14.0), key(24.0), key(14.0)],
             )),
-            Spawn(selection_frame(scale, 4.0)),
-        )),
-    )
-}
-
-/// Die Karte der Admiralsfähigkeit: Porträt als Hintergrund, Rahmen und Schrift in der Farbe des Admirals.
-pub fn power_card(assets: &CardAssets, admiral: AdmiralId, scale: f32) -> impl Bundle {
-    let s = |value: f32| px(value * scale);
-    let fonts = &assets.fonts;
-    let locale = &assets.locale;
-    let color = palette::admiral_color(admiral);
-    let power = admiral.power();
-    let text = locale.power(power);
-    let ink = theme::rgb(14, 16, 22);
-    (
-        CardView {
-            card: CardFace::Power(admiral),
-            scale,
-        },
-        Node {
-            width: s(CARD_WIDTH),
-            height: s(POWER_CARD_HEIGHT),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Stretch,
-            row_gap: s(3.0),
-            padding: UiRect::new(s(8.0), s(8.0), s(8.0), s(7.0)),
-            border: UiRect::new(px(1), px(1), s(5.0), px(1)),
-            border_radius: BorderRadius::all(s(4.0)),
-            ..default()
-        },
-        BackgroundColor(ink),
-        BorderColor {
-            top: color,
-            ..BorderColor::all(color.with_alpha(0.75))
-        },
-        BoxShadow(vec![theme::glow(color.with_alpha(0.35), 14.0 * scale)]),
-        Children::spawn((
-            Spawn(halo(4.0 * scale)),
-            Spawn(clipped_art(assets.portraits.get(admiral), 0.22, 0.0)),
-            Spawn(shade(
-                &[
-                    (ink.with_alpha(0.9), 0.0),
-                    (ink.with_alpha(0.35), 34.0),
-                    (ink.with_alpha(0.55), 55.0),
-                    (ink.with_alpha(0.95), 80.0),
-                ],
-                0.0,
-            )),
-            Spawn((
-                theme::caps(fonts.display(9.5 * scale), locale.hud_power(), 0.1, color),
-                theme::text_shadow(0.9),
-                TextLayout::justify(Justify::Center),
-                Pickable::IGNORE,
-            )),
-            Spawn(card_text(
-                fonts.display_bold(15.0 * scale),
-                text.name,
-                palette::TEXT,
-                Justify::Center,
-            )),
-            Spawn(card_text(
-                fonts.body(9.0 * scale),
-                locale.power_target(power.target()),
-                theme::rgba(191, 224, 255, 0.9),
-                Justify::Center,
-            )),
+            // Die Kosten als Zahl oben links.
             Spawn((
                 Node {
-                    margin: UiRect::top(Val::Auto),
+                    position_type: PositionType::Absolute,
+                    top: s(-8.0),
+                    left: s(-8.0),
+                    width: s(26.0),
+                    height: s(26.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border: UiRect::all(s(2.0)),
+                    border_radius: BorderRadius::MAX,
                     ..default()
                 },
+                BackgroundColor(theme::SHADE),
+                BorderColor::all(type_color),
                 Pickable::IGNORE,
                 children![(
-                    card_text(
-                        fonts.body(8.5 * scale),
-                        text.effect,
-                        theme::rgb(235, 242, 255),
-                        Justify::Center
+                    theme::text(
+                        fonts.display_bold(15.0 * scale),
+                        card.cost().to_string(),
+                        palette::TEXT
                     ),
-                    LineHeight::RelativeToFont(1.3),
+                    Pickable::IGNORE,
                 )],
-            )),
-            Spawn(card_text(
-                fonts.body(8.0 * scale),
-                locale.hud_power_hint(),
-                color,
-                Justify::Center,
             )),
             Spawn(selection_frame(scale, 4.0)),
         )),
     )
 }
 
-/// Zeigt den Rahmen, sobald eine Karte gewählt oder eingeplant ist ([`Marked`] kommt immer erst nach dem Bau der
+/// Zeigt den Rahmen, sobald eine Karte gewählt ist ([`Marked`] kommt immer erst nach dem Bau der
 /// Karte dazu, ihre Kinder stehen also schon).
 fn show_mark(
     add: On<Add<Marked>>,

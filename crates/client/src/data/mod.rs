@@ -1,6 +1,6 @@
 //! Kataloge der Assets: welche Datei zu welcher Id gehört, und je Katalog eine Ressource mit den geladenen Handles.
 //!
-//! Karten-, Schiffs- und Admirals-Ids sind die Enums aus `voidfleet_core`; ihr Dateiname ist [`FileKey::file_key`].
+//! Karten-, Gegner-, Flaggschiff- und Admirals-Ids sind die Enums aus `voidfleet_core`; ihr Dateiname ist [`FileKey::file_key`].
 //! Sounds, Musik und Bordfunk gehören nur dem Client und haben eigene Enums. Alle Kataloge laden beim Start und melden
 //! ihre Handles bei [`crate::assets::Preload`] an; der Ladebildschirm wartet auf sie.
 
@@ -13,8 +13,9 @@ pub mod sounds;
 
 use bevy::prelude::*;
 use voidfleet_core::{
-    admirals::AdmiralId,
-    cards::{CommandId, ShipId},
+    admirals::{AdmiralId, FlagshipId},
+    cards::CardId,
+    enemies::EnemyId,
 };
 
 /// Der Name einer Id in Dateinamen der Assets, wie im Regelwerk (`snake_case`).
@@ -27,71 +28,70 @@ impl FileKey for AdmiralId {
         match self {
             Self::Osei => "osei",
             Self::Vance => "vance",
-            Self::Halvorsen => "halvorsen",
-            Self::Moreau => "moreau",
             Self::Kerr => "kerr",
+            Self::Reyes => "reyes",
         }
     }
 }
 
-impl FileKey for ShipId {
+impl FileKey for FlagshipId {
     fn file_key(self) -> &'static str {
         match self {
-            Self::HorizonCruiser => "horizon_cruiser",
-            Self::IronDreadnought => "iron_dreadnought",
-            Self::PlasmaFrigate => "plasma_frigate",
-            Self::RepairDrone => "repair_drone",
-            Self::ScrapRaider => "scrap_raider",
-            Self::SignalBooster => "signal_booster",
-            Self::TitanCarrier => "titan_carrier",
-            Self::VoidInterceptor => "void_interceptor",
-            Self::Drone => "drone",
-            Self::Decoy => "decoy",
             Self::Bastion => "bastion",
             Self::Vanguard => "vanguard",
-            Self::Hive => "hive",
-            Self::Mirage => "mirage",
             Self::Pendulum => "pendulum",
+            Self::Pyre => "pyre",
         }
     }
 }
 
-impl FileKey for CommandId {
+impl FileKey for EnemyId {
     fn file_key(self) -> &'static str {
         match self {
-            Self::EmergencyShields => "emergency_shields",
-            Self::EmpBlast => "emp_blast",
-            Self::FlankingManeuver => "flanking_maneuver",
-            Self::Intercept => "intercept",
-            Self::OrbitalStrike => "orbital_strike",
-            Self::Overcharge => "overcharge",
-            Self::PowerSurge => "power_surge",
-            Self::Recall => "recall",
-            Self::Scavenge => "scavenge",
-            Self::TargetingJammer => "targeting_jammer",
-            Self::VolleyFire => "volley_fire",
+            Self::Raiders => "raiders",
+            Self::Fireship => "fireship",
+            Self::TorpedoWing => "torpedo_wing",
+            Self::GuardCruiser => "guard_cruiser",
+            Self::PlasmaCruiser => "plasma_cruiser",
+            Self::Spotter => "spotter",
+            Self::Besieger => "besieger",
+            Self::Carrier => "carrier",
+            Self::ScrapKing => "scrap_king",
+            Self::Warden => "warden",
+            Self::Seal => "seal",
+        }
+    }
+}
+
+impl FileKey for CardId {
+    fn file_key(self) -> &'static str {
+        match self {
             Self::Torpedo => "torpedo",
+            Self::OrbitalStrike => "orbital_strike",
+            Self::VolleyFire => "volley_fire",
             Self::Barrage => "barrage",
-            Self::EvasiveAction => "evasive_action",
-            Self::MicroJump => "micro_jump",
-            Self::RapidDeployment => "rapid_deployment",
-            Self::DrawFire => "draw_fire",
-            Self::ShieldGrid => "shield_grid",
-            Self::AblativeArmor => "ablative_armor",
-            Self::CoveringFire => "covering_fire",
-            Self::DroneSquadron => "drone_squadron",
-            Self::CollisionCourse => "collision_course",
-            Self::Countermeasures => "countermeasures",
-            Self::CarteBlanche => "carte_blanche",
-            Self::RadioSilence => "radio_silence",
-            Self::Minefield => "minefield",
-            Self::TractorBeam => "tractor_beam",
             Self::HeatSeeker => "heat_seeker",
             Self::CoupDeGrace => "coup_de_grace",
-            Self::PiercingShot => "piercing_shot",
             Self::Bombardment => "bombardment",
-            Self::Crossfire => "crossfire",
-            Self::ScrapSalvage => "scrap_salvage",
+            Self::CollisionCourse => "collision_course",
+            Self::Firebomb => "firebomb",
+            Self::EmergencyShields => "emergency_shields",
+            Self::HoldTheLine => "hold_the_line",
+            Self::AblativeArmor => "ablative_armor",
+            Self::Overcharge => "overcharge",
+            Self::PowerSurge => "power_surge",
+            Self::RepairCrew => "repair_crew",
+            Self::EmpBlast => "emp_blast",
+            Self::TargetingJammer => "targeting_jammer",
+            Self::RadioSilence => "radio_silence",
+            Self::TractorBeam => "tractor_beam",
+            Self::MicroJump => "micro_jump",
+            Self::EvasiveAction => "evasive_action",
+            Self::Countermeasures => "countermeasures",
+            Self::Scavenge => "scavenge",
+            Self::RedAlert => "red_alert",
+            Self::FireControlDoctrine => "fire_control_doctrine",
+            Self::BattleStations => "battle_stations",
         }
     }
 }
@@ -127,10 +127,11 @@ mod tests {
         voidfleet_core::admirals::ADMIRAL_IDS
             .into_iter()
             .for_each(same_as_serde);
-        ship_models::ships().for_each(same_as_serde);
-        voidfleet_core::cards::COMMANDS
+        voidfleet_core::cards::LOOT_POOL
             .into_iter()
             .for_each(same_as_serde);
+        ship_models::ENEMIES.into_iter().for_each(same_as_serde);
+        ship_models::FLAGSHIPS.into_iter().for_each(same_as_serde);
     }
 
     fn exists(path: &str) -> bool {

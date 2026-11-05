@@ -12,7 +12,10 @@ use bevy::{
     picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
     prelude::*,
 };
-use voidfleet_core::{admirals::AdmiralId, cards::ShipId};
+use voidfleet_core::{
+    admirals::{AdmiralId, FlagshipId},
+    enemies::EnemyId,
+};
 
 use super::{
     animation::{Animation, AnimationSystems, random_between, random_in_cone},
@@ -26,7 +29,8 @@ use super::{
 };
 use crate::{
     audio::{LoopingSound, SoundId},
-    palette::admiral_color,
+    data::ship_models::ShipKind,
+    palette::{self, admiral_color},
 };
 
 /// Wie ein Schiff untergeht.
@@ -50,11 +54,10 @@ pub struct DestructionProfile {
 const FIGHTER_ENERGY: Color = Color::srgb(1.0, 0.45, 0.15);
 const CRUISER_ENERGY: Color = Color::srgb(0.3, 0.6, 1.0);
 const PLASMA: Color = Color::srgb(0.6, 0.3, 1.0);
-const SUPPORT_ENERGY: Color = Color::srgb(0.3, 1.0, 0.6);
 const CYAN: Color = Color::srgb(0.2, 0.9, 1.0);
 
 impl DestructionProfile {
-    pub fn of(ship: ShipId) -> Self {
+    pub fn of(kind: ShipKind) -> Self {
         use BlastStyle::{Energy, Fire};
         let profile = |energy, style, size, agony: f32, pops, force, shake, linger: f32| Self {
             energy,
@@ -66,92 +69,59 @@ impl DestructionProfile {
             shake,
             linger: linger / 1000.0,
         };
-        match ship {
-            // Jäger: zu klein für einen langen Todeskampf, ein scharfer Knall reißt ihn auseinander.
-            ShipId::VoidInterceptor => {
-                profile(FIGHTER_ENERGY, Fire, 0.9, 350.0, 1, 5.0, 0.12, 1400.0)
-            }
-            // Träger-Drohne: verpufft fast ohne Todeskampf.
-            ShipId::Drone => profile(FIGHTER_ENERGY, Fire, 0.6, 200.0, 0, 5.0, 0.06, 1000.0),
-            // Schrott: fällt schon vor der Detonation an mehreren Stellen auseinander.
-            ShipId::ScrapRaider => profile(FIGHTER_ENERGY, Fire, 1.0, 650.0, 3, 4.0, 0.14, 1600.0),
-            // Kreuzer: eine Kette von Explosionen läuft den Rumpf entlang.
-            ShipId::HorizonCruiser => {
-                profile(CRUISER_ENERGY, Fire, 1.4, 1000.0, 4, 3.5, 0.22, 2000.0)
-            }
-            // Plasmafregatte: Die Kondensatoren entladen sich, der Reaktor geht violett hoch.
-            ShipId::PlasmaFrigate => profile(PLASMA, Energy, 1.5, 800.0, 3, 4.5, 0.25, 1800.0),
-            // Schlachtschiff: langer Todeskampf, dann die größte Detonation.
-            ShipId::IronDreadnought => {
-                profile(CRUISER_ENERGY, Fire, 2.0, 1600.0, 7, 3.0, 0.4, 2600.0)
-            }
-            // Träger: Hangars brennen, dann reißt der Kern im Bug alles mit.
-            ShipId::TitanCarrier => profile(PLASMA, Energy, 2.0, 1500.0, 6, 3.0, 0.38, 2600.0),
-            // Reparaturdrohne: kleiner Knall, Arme und Kapseln fliegen davon.
-            ShipId::RepairDrone => profile(SUPPORT_ENERGY, Fire, 0.9, 450.0, 2, 4.0, 0.1, 1400.0),
-            // Relais: Die Sender entladen sich in Blitzen.
-            ShipId::SignalBooster => profile(CYAN, Energy, 1.0, 500.0, 2, 4.0, 0.12, 1500.0),
-            // Trugbild: zersplittert ohne Todeskampf in einem kurzen Lichtblitz.
-            ShipId::Decoy => profile(
-                admiral_color(AdmiralId::Moreau),
-                Energy,
-                0.8,
-                150.0,
-                0,
-                4.5,
-                0.05,
-                900.0,
-            ),
-            ShipId::Bastion => profile(
-                admiral_color(AdmiralId::Osei),
-                Fire,
-                2.6,
-                2100.0,
-                9,
-                3.0,
-                0.6,
-                3200.0,
-            ),
-            ShipId::Vanguard => profile(
-                admiral_color(AdmiralId::Vance),
-                Fire,
-                2.3,
-                1700.0,
-                8,
-                3.5,
-                0.5,
-                2900.0,
-            ),
-            ShipId::Hive => profile(
-                admiral_color(AdmiralId::Halvorsen),
-                Energy,
+        let flagship = |admiral, style| {
+            profile(
+                admiral_color(admiral),
+                style,
                 2.5,
                 1900.0,
                 9,
                 3.0,
                 0.55,
                 3100.0,
-            ),
-            ShipId::Mirage => profile(
-                admiral_color(AdmiralId::Moreau),
-                Energy,
-                2.1,
-                1300.0,
-                6,
-                4.5,
-                0.45,
-                2500.0,
-            ),
-            ShipId::Pendulum => profile(
-                admiral_color(AdmiralId::Kerr),
-                Energy,
-                2.6,
-                2000.0,
-                9,
-                3.0,
-                0.6,
-                3200.0,
-            ),
+            )
+        };
+        match kind {
+            ShipKind::Enemy(enemy) => match enemy {
+                // Jäger: zu klein für einen langen Todeskampf, ein scharfer Knall reißt ihn auseinander.
+                EnemyId::Raiders => profile(FIGHTER_ENERGY, Fire, 0.9, 350.0, 1, 5.0, 0.12, 1400.0),
+                // Brander: Schrott, fällt schon vor der Detonation an mehreren Stellen auseinander.
+                EnemyId::Fireship => {
+                    profile(FIGHTER_ENERGY, Fire, 1.0, 650.0, 3, 4.0, 0.14, 1600.0)
+                }
+                // Torpedo-Staffel: kleiner Knall, die Lanzen fliegen davon.
+                EnemyId::TorpedoWing => {
+                    profile(FIGHTER_ENERGY, Fire, 0.9, 450.0, 2, 4.0, 0.1, 1400.0)
+                }
+                // Kreuzer: eine Kette von Explosionen läuft den Rumpf entlang.
+                EnemyId::GuardCruiser => {
+                    profile(CRUISER_ENERGY, Fire, 1.4, 1000.0, 4, 3.5, 0.22, 2000.0)
+                }
+                // Plasmakreuzer: Die Kondensatoren entladen sich, der Reaktor geht violett hoch.
+                EnemyId::PlasmaCruiser => profile(PLASMA, Energy, 1.5, 800.0, 3, 4.5, 0.25, 1800.0),
+                // Spotter: Die Sender entladen sich in Blitzen.
+                EnemyId::Spotter => profile(CYAN, Energy, 1.0, 500.0, 2, 4.0, 0.12, 1500.0),
+                // Belagerer: langer Todeskampf, dann die größte Detonation.
+                EnemyId::Besieger => {
+                    profile(CRUISER_ENERGY, Fire, 2.0, 1600.0, 7, 3.0, 0.4, 2600.0)
+                }
+                // Träger: Hangars brennen, dann reißt der Kern im Bug alles mit.
+                EnemyId::Carrier => profile(PLASMA, Energy, 2.0, 1500.0, 6, 3.0, 0.38, 2600.0),
+                // Schrottkönig: geflickt, bricht an allen Nähten.
+                EnemyId::ScrapKing => {
+                    profile(FIGHTER_ENERGY, Fire, 2.5, 1900.0, 9, 3.0, 0.55, 3100.0)
+                }
+                // Wächter: Die Station entlädt ihr Hauptgeschütz.
+                EnemyId::Warden => profile(CYAN, Energy, 2.6, 2100.0, 9, 3.0, 0.6, 3200.0),
+                // Siegel: das gegnerische Flaggschiff.
+                EnemyId::Seal => profile(palette::ENEMY, Energy, 2.3, 1700.0, 8, 3.5, 0.5, 2900.0),
+            },
+            ShipKind::Flagship(flagship_id) => match flagship_id {
+                FlagshipId::Bastion => flagship(AdmiralId::Osei, Fire),
+                FlagshipId::Vanguard => flagship(AdmiralId::Vance, Fire),
+                FlagshipId::Pendulum => flagship(AdmiralId::Kerr, Energy),
+                FlagshipId::Pyre => flagship(AdmiralId::Reyes, Fire),
+            },
         }
     }
 }
@@ -289,7 +259,7 @@ fn begin(
     let Ok((ship, global, bounds, mut status, ship_children)) = ships.get_mut(job.ship) else {
         return;
     };
-    let profile = DestructionProfile::of(ship.id);
+    let profile = DestructionProfile::of(ship.kind);
     status.hidden = true;
     commands.entity(job.ship).remove::<OnSlot>();
     let center = bounds.map_or(global.translation(), |bounds| bounds.world_center(global));

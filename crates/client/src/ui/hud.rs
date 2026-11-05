@@ -1,20 +1,16 @@
-//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Overdrive ab Runde 8 und Status, der Aktionsknopf (Zug
-//! beenden, Überspringen, Computergegner, Mitspieler einladen — je nach [`HudState::action`]) mit der Checkliste des
-//! Zugs darunter (aus [`Match::turn_progress`]), das Log hinter dem Icon-Knopf oben rechts, das Banner für Befehle und
-//! Fähigkeiten und die Ankündigung einer neuen Runde.
+//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8 und der Hülle des Flaggschiffs, das
+//! Log hinter dem Icon-Knopf oben rechts, das Banner für kurze Ansagen (etwa abgelehnte Aktionen) und die Ankündigung
+//! einer neuen Runde.
 
 use bevy::{
     prelude::*,
-    text::{LineHeight, Strikethrough},
-    ui::InteractionDisabled,
+    text::LineHeight,
     ui_widgets::{Activate, ScrollArea, observe},
 };
-use voidfleet_core::board::{Side, overdrive_bonus};
 
 use super::{
-    ActionPressed, AppendLog, Fonts, HideBanner, HudAction, HudState, ShowBanner, ShowRoundBanner,
-    UiIcons,
-    button::{self, Key, Lit},
+    AppendLog, ClearLog, Fonts, HideBanner, ShowBanner, ShowRoundBanner, UiIcons,
+    button::{self, Lit},
     theme::{self, UiOpacity},
     tooltip::Tooltip,
 };
@@ -22,7 +18,7 @@ use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
     data::admirals::AdmiralPortraits,
-    game::{Match, TurnPartState, TurnProgress},
+    game::Battle,
     i18n::Locale,
     palette,
     scene::animation::AnimationScope,
@@ -33,17 +29,10 @@ use crate::{
 struct RoundLabel;
 
 #[derive(Component)]
-struct OverdriveLabel;
-
-/// Aktionsknopf und Checkliste in der Mitte der Hand; die Hand richtet sich nach seiner Breite.
-#[derive(Component)]
-pub(super) struct ActionArea;
+struct ClockLabel;
 
 #[derive(Component)]
-struct ActionButton;
-
-#[derive(Component)]
-struct Checklist;
+struct HullLabel;
 
 /// Der Icon-Knopf des Logs.
 #[derive(Component)]
@@ -55,7 +44,7 @@ struct LogPanel;
 #[derive(Component)]
 struct LogText;
 
-/// Das Banner für Befehle und Fähigkeiten und die Ankündigung einer neuen Runde, mit der Uhr seines Auftritts.
+/// Das Banner für kurze Ansagen und die Ankündigung einer neuen Runde, mit der Uhr seines Auftritts.
 #[derive(Component, Default)]
 struct Banner(Timer);
 
@@ -89,7 +78,12 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
                 Pickable::IGNORE,
             ),
             (
-                OverdriveLabel,
+                HullLabel,
+                theme::caps(fonts.display_bold(22.0), "", theme::TRACKING, palette::TEXT),
+                Pickable::IGNORE,
+            ),
+            (
+                ClockLabel,
                 Node {
                     display: Display::None,
                     padding: UiRect::axes(px(10), px(4)),
@@ -193,48 +187,6 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
     ));
 }
 
-/// Aktionsknopf und Checkliste; steht in der Mitte der Hand ([`super::hand`]).
-pub(super) fn action_area(fonts: &Fonts) -> impl Bundle {
-    (
-        ActionArea,
-        Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            align_self: AlignSelf::Center,
-            row_gap: px(10),
-            margin: UiRect::horizontal(px(20)),
-            ..default()
-        },
-        Pickable::IGNORE,
-        children![
-            (
-                ActionButton,
-                button::text_button(
-                    fonts.display_bold(24.0),
-                    "",
-                    Key::PRIMARY,
-                    Node {
-                        width: px(240),
-                        height: px(64),
-                        ..default()
-                    },
-                ),
-                observe(press_action),
-            ),
-            (
-                Checklist,
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(3),
-                    ..default()
-                },
-                Visibility::Hidden,
-                Pickable::IGNORE,
-            ),
-        ],
-    )
-}
-
 /// Der Icon-Knopf des Logs in der Leiste oben rechts.
 pub(super) fn log_button(icons: &UiIcons, locale: &Locale) -> impl Bundle {
     (
@@ -242,10 +194,6 @@ pub(super) fn log_button(icons: &UiIcons, locale: &Locale) -> impl Bundle {
         button::icon_button(icons.log.clone(), locale.hud_show_log()),
         observe(toggle_log),
     )
-}
-
-fn press_action(_: On<Activate>, hud: Res<HudState>, mut pressed: MessageWriter<ActionPressed>) {
-    pressed.write(ActionPressed(hud.action));
 }
 
 /// Klappt das Log auf und zu.
@@ -276,12 +224,16 @@ fn toggle_log(
     .into();
 }
 
-/// Hängt Zeilen ans Log und scrollt ans Ende.
+/// Hängt Zeilen ans Log und scrollt ans Ende; ein neues Gefecht leert es vorher.
 fn append_log(
     mut messages: MessageReader<AppendLog>,
+    mut clear: MessageReader<ClearLog>,
     mut text: Single<&mut Text, With<LogText>>,
     mut panel: Single<(&mut ScrollPosition, &ComputedNode), With<LogPanel>>,
 ) {
+    if clear.read().last().is_some() {
+        text.0.clear();
+    }
     let mut appended = false;
     for AppendLog(lines) in messages.read() {
         for line in lines {
@@ -299,205 +251,45 @@ fn append_log(
     }
 }
 
-/// Runde und Overdrive.
+/// Runde, Gefechtsuhr und Hülle; ohne Gefecht bleibt die Kopfzeile leer.
 fn update_top_bar(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     locale: Res<Locale>,
-    mut round: Single<&mut Text, With<RoundLabel>>,
-    overdrive: Single<(&mut Node, &mut Tooltip, &Children), With<OverdriveLabel>>,
-    mut texts: Query<&mut Text, Without<RoundLabel>>,
+    mut round: Single<&mut Text, (With<RoundLabel>, Without<HullLabel>)>,
+    mut hull: Single<&mut Text, (With<HullLabel>, Without<RoundLabel>)>,
+    clock: Single<(&mut Node, &mut Tooltip, &Children), With<ClockLabel>>,
+    mut texts: Query<&mut Text, (Without<RoundLabel>, Without<HullLabel>)>,
 ) {
-    if !game.is_changed() && !locale.is_changed() {
+    let changed = battle.as_ref().is_none_or(|battle| battle.is_changed());
+    if !changed && !locale.is_changed() {
         return;
     }
-    round.0 = locale.hud_round(game.round).to_uppercase();
-    let bonus = overdrive_bonus(game.round);
-    let (mut node, mut tooltip, children) = overdrive.into_inner();
+    let (mut node, mut tooltip, children) = clock.into_inner();
+    let Some(battle) = battle else {
+        round.0.clear();
+        hull.0.clear();
+        node.display = Display::None;
+        return;
+    };
+    round.0 = locale.hud_round(battle.round).to_uppercase();
+    hull.0 = locale
+        .hud_hull(battle.flagship.hull, battle.flagship.max_hull)
+        .to_uppercase();
+    let bonus = battle.clock();
     node.display = if bonus == 0 {
         Display::None
     } else {
         Display::Flex
     };
-    tooltip.0 = locale.hud_overdrive_hint(bonus);
+    tooltip.0 = locale.hud_clock_hint(bonus);
     for &child in children {
         if let Ok(mut text) = texts.get_mut(child) {
-            text.0 = locale.hud_overdrive(bonus).to_uppercase();
+            text.0 = locale.hud_clock(bonus).to_uppercase();
         }
     }
 }
 
-/// Beschriftung und Sperre des Aktionsknopfs.
-fn update_action(
-    mut commands: Commands,
-    game: Res<Match>,
-    hud: Res<HudState>,
-    locale: Res<Locale>,
-    button: Single<(Entity, &Children, Has<InteractionDisabled>), With<ActionButton>>,
-    mut labels: Query<&mut Text>,
-) {
-    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
-        return;
-    }
-    let (entity, children, disabled) = *button;
-    let label = match hud.action {
-        HudAction::EndTurn if game.submitted => locale.hud_waiting(),
-        HudAction::EndTurn => locale.hud_end_turn(),
-        HudAction::Skip => locale.hud_skip(),
-        HudAction::PlayComputer => locale.hud_play_computer(),
-        HudAction::InvitePlayer => locale.hud_invite_player(),
-    }
-    .to_uppercase();
-    for &child in children {
-        if let Ok(mut text) = labels.get_mut(child)
-            && text.0 != label
-        {
-            text.0.clone_from(&label);
-        }
-    }
-    if disabled == hud.action_enabled {
-        button::set_enabled(&mut commands, entity, hud.action_enabled);
-    }
-}
-
-/// Eine Zeile der Checkliste: Kästchen (erledigt mit Haken) und Text; nicht möglich ist sie blass und durchgestrichen.
-fn spawn_checklist_item(
-    list: &mut ChildSpawnerCommands,
-    fonts: &Fonts,
-    check: &Handle<Image>,
-    text: &str,
-    state: TurnPartState,
-) {
-    let color = match state {
-        TurnPartState::Done => theme::ACCENT,
-        TurnPartState::Open => palette::TEXT_DIM,
-        TurnPartState::Blocked => palette::TEXT_DIM.with_alpha(0.37),
-    };
-    let tick = (state == TurnPartState::Done).then(|| {
-        (
-            Node {
-                width: px(10),
-                height: px(10),
-                ..default()
-            },
-            ImageNode::new(check.clone()).with_color(color),
-            Pickable::IGNORE,
-        )
-    });
-    list.spawn((
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: px(8),
-            ..default()
-        },
-        Pickable::IGNORE,
-    ))
-    .with_children(|row| {
-        row.spawn((
-            Node {
-                width: px(12),
-                height: px(12),
-                border: UiRect::all(px(1.5)),
-                border_radius: BorderRadius::all(px(3)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BorderColor::all(color),
-            Pickable::IGNORE,
-            Children::spawn(SpawnIter(tick.into_iter())),
-        ));
-        row.spawn((
-            theme::text(fonts.display(18.0), text, color),
-            LineHeight::RelativeToFont(1.1),
-            Pickable::IGNORE,
-        ))
-        .insert_if(Strikethrough, || state == TurnPartState::Blocked);
-    });
-}
-
-/// Die Zeilen der Checkliste: in Runde 1 zuerst das Flaggschiff, nach Grundmanöver und Fähigkeit die Feuerbefehle,
-/// für Admiral Kerr zuletzt die Zielerfassung.
-fn checklist_lines(
-    locale: &Locale,
-    progress: &TurnProgress,
-    planned: usize,
-    max: usize,
-) -> Vec<(String, TurnPartState)> {
-    let maneuver = if progress.power.is_none() {
-        locale.hud_checklist_maneuver()
-    } else {
-        locale.hud_checklist_maneuver_only()
-    };
-    [
-        (
-            locale.hud_checklist_flagship().to_owned(),
-            progress.flagship,
-        ),
-        (
-            locale.hud_checklist_ships(planned, max),
-            Some(progress.ships),
-        ),
-        (
-            locale.hud_checklist_command().to_owned(),
-            Some(progress.command),
-        ),
-        (maneuver.to_owned(), Some(progress.maneuver)),
-        (locale.hud_checklist_power().to_owned(), progress.power),
-        (
-            locale.hud_checklist_fire(progress.fire_orders.assigned, progress.fire_orders.shooters),
-            Some(progress.fire),
-        ),
-        (locale.hud_checklist_mark().to_owned(), progress.mark),
-    ]
-    .into_iter()
-    .filter_map(|(text, state)| state.map(|state| (text, state)))
-    .collect()
-}
-
-/// Füllt die Checkliste; außerhalb des Planens bleibt sie unsichtbar stehen, damit der Knopf darüber nicht springt.
-fn update_checklist(
-    mut commands: Commands,
-    mut shown: Local<Vec<(String, TurnPartState)>>,
-    game: Res<Match>,
-    hud: Res<HudState>,
-    locale: Res<Locale>,
-    fonts: Res<Fonts>,
-    icons: Res<UiIcons>,
-    checklist: Single<(Entity, &mut Visibility), With<Checklist>>,
-) {
-    if !game.is_changed() && !hud.is_changed() && !locale.is_changed() {
-        return;
-    }
-    let (entity, mut visibility) = checklist.into_inner();
-    visibility.set_if_neq(if hud.planning {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
-    });
-    if !hud.planning {
-        return;
-    }
-    let lines = checklist_lines(
-        &locale,
-        &game.turn_progress(),
-        game.plan().ships.len(),
-        game.deploy_limit(),
-    );
-    if *shown == lines {
-        return;
-    }
-    commands
-        .entity(entity)
-        .despawn_related::<Children>()
-        .with_children(|list| {
-            for (text, state) in &lines {
-                spawn_checklist_item(list, &fonts, &icons.check, text, *state);
-            }
-        });
-    *shown = lines;
-}
-
-/// Kündigt einen Befehl oder eine Fähigkeit an.
+/// Zeigt eine kurze Ansage.
 fn show_banner(
     mut commands: Commands,
     mut messages: MessageReader<ShowBanner>,
@@ -510,10 +302,7 @@ fn show_banner(
         return;
     };
     let (entity, mut state, mut border, mut visibility) = banner.into_inner();
-    let color = match message.side {
-        Side::Player => theme::ACCENT,
-        Side::Enemy => palette::ENEMY,
-    };
+    let color = theme::ACCENT;
     border.set_all(color);
     *state = Banner(Timer::from_seconds(
         REVEAL_TIME * settings.time_scale(AnimationScope::General),
@@ -576,7 +365,7 @@ fn hide_banner(
     }
 }
 
-/// Kündigt eine neue Runde an, samt steigendem Overdrive.
+/// Kündigt eine neue Runde an, ab Runde 8 mit der Gefechtsuhr.
 fn show_round_banner(
     mut commands: Commands,
     mut messages: MessageReader<ShowRoundBanner>,
@@ -595,12 +384,12 @@ fn show_round_banner(
         TimerMode::Once,
     ));
     *visibility = Visibility::Inherited;
-    let bonus = overdrive_bonus(round);
-    let rising = (bonus > overdrive_bonus(round.saturating_sub(1))).then(|| {
+    let bonus = round.saturating_sub(voidfleet_core::battle::CLOCK_START - 1) as i32;
+    let rising = (bonus > 0).then(|| {
         (
             theme::text(
                 fonts.display(18.0),
-                locale.hud_overdrive_hint(bonus),
+                locale.hud_clock_hint(bonus),
                 palette::BUFF,
             ),
             Pickable::IGNORE,
@@ -679,8 +468,6 @@ impl Plugin for HudPlugin {
                 Update,
                 (
                     update_top_bar,
-                    update_action,
-                    update_checklist,
                     append_log,
                     show_banner,
                     hide_banner,
@@ -690,40 +477,5 @@ impl Plugin for HudPlugin {
                     .chain()
                     .run_if(in_state(AppState::Match)),
             );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{game::FireOrderCount, settings::Language};
-
-    #[test]
-    fn checklist_skips_parts_of_other_rounds() {
-        let locale = Locale::new(Language::De);
-        let progress = TurnProgress {
-            flagship: None,
-            ships: TurnPartState::Done,
-            command: TurnPartState::Open,
-            maneuver: TurnPartState::Blocked,
-            power: None,
-            mark: None,
-            fire: TurnPartState::Open,
-            fire_orders: FireOrderCount {
-                assigned: 1,
-                shooters: 3,
-            },
-        };
-        let lines = checklist_lines(&locale, &progress, 1, 1);
-        let texts: Vec<&str> = lines.iter().map(|(text, _)| text.as_str()).collect();
-        assert_eq!(
-            texts,
-            [
-                "Schiff legen",
-                "Befehl spielen",
-                "Grundmanöver oder Fähigkeit",
-                "Ziele zuweisen (1/3)"
-            ]
-        );
     }
 }

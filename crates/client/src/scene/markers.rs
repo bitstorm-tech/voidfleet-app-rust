@@ -1,9 +1,7 @@
-//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`), in der Farbe ihres Admirals: der Ring
-//! unter jedem Flaggschiff, die Zielerfassung der Pendulum (Fadenkreuz mit Rauten), die Marken der
-//! Admiralsfähigkeiten — Stacheln beim Gegenfeuer, Zielklammern beim Fokusfeuer, kreisende Drohnen beim
-//! Schwarmangriff, eine Uhr beim Taktvorsprung — und die Ablenkung (pulsierender Leuchtring mit Winkeln nach innen).
-//! Beim Planen der Feuerbefehle zeigt ein gestrichelter Ring mit drei Kerben die Bereitschaft, das Visier aus Ring und
-//! vier Spitzen den gewählten Schützen.
+//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): der Ring unter dem Flaggschiff in der
+//! Farbe seines Admirals und das Visier aus Ring und vier Spitzen unter dem Ziel der Station. Die übrigen Glyphen
+//! (Fadenkreuz mit Rauten, Stacheln, Zielklammern, kreisende Drohnen, Uhr, Leuchtring, Bereitschaft) stehen für die
+//! erzählte Wiedergabe bereit.
 //!
 //! Welche Marken ein Schiff trägt, steht in [`ShipMarkers`] (der Ring der Flaggschiffe kommt von selbst dazu); eine Marke,
 //! die schon liegt, bleibt liegen, damit ihre Drehung nicht springt. In der Wiedergabe fällt eine neue Marke mit
@@ -13,7 +11,6 @@
 use std::f32::consts::{FRAC_PI_4, TAU};
 
 use bevy::{platform::collections::HashMap, prelude::*};
-use voidfleet_core::admirals::PowerId;
 
 use super::{
     animation::{Animation, AnimationSystems},
@@ -22,7 +19,10 @@ use super::{
     ship::Ship,
     status::{ShipBounds, ShipParts},
 };
-use crate::{data::admirals::flagship_admiral, palette::admiral_color};
+use crate::{
+    data::{admirals::flagship_admiral, ship_models::ShipKind},
+    palette::admiral_color,
+};
 
 /// Die Marken.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -33,9 +33,9 @@ pub enum MarkerKind {
     Lock,
     /// Ablenkung: Hierher zielt das Feuer.
     Taunt,
-    /// Feuerbefehle: Das Schiff kann noch ein Ziel bekommen.
+    /// Bereitschaft.
     Ready,
-    /// Feuerbefehle: der gewählte Schütze.
+    /// Das Ziel der Station.
     Aim,
     Counterfire,
     FocusFire,
@@ -44,17 +44,6 @@ pub enum MarkerKind {
 }
 
 impl MarkerKind {
-    /// Die Marke einer Admiralsfähigkeit; das Trugbild hat keine.
-    pub fn of_power(power: PowerId) -> Option<Self> {
-        match power {
-            PowerId::Counterfire => Some(Self::Counterfire),
-            PowerId::FocusFire => Some(Self::FocusFire),
-            PowerId::SwarmStrike => Some(Self::SwarmStrike),
-            PowerId::HeadStart => Some(Self::HeadStart),
-            PowerId::Decoy => None,
-        }
-    }
-
     /// Zugabe zur Grundfläche, Deckkraft und Ebenen (Glyphe, Drehung in rad/s, Pulsieren in Hz und Ausschlag).
     fn look(self) -> (f32, f32, &'static [Layer]) {
         use Glyph::*;
@@ -412,8 +401,9 @@ fn reconcile(
 ) {
     for (ship_entity, ship, specs, parts) in &ships {
         let mut wanted = specs.0.clone();
-        if let Some(admiral) = flagship_admiral(ship.id) {
-            wanted.push(MarkerSpec::new(MarkerKind::Halo, admiral_color(admiral)));
+        if let ShipKind::Flagship(flagship) = ship.kind {
+            let color = admiral_color(flagship_admiral(flagship));
+            wanted.push(MarkerSpec::new(MarkerKind::Halo, color));
         }
         let lying: Vec<(Entity, MarkerSpec)> = markers
             .iter_many(children.relationship_sources::<Children>(parts.floor))

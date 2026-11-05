@@ -8,7 +8,7 @@
 //! ist, legt seine Klasse fest; vom Traktorstrahl gezogen gleitet es langsamer, flacher und fast ohne Schräglage.
 
 use bevy::prelude::*;
-use voidfleet_core::cards::ShipClass;
+use voidfleet_core::enemies::EnemyClass;
 
 #[derive(Clone, Copy, Debug)]
 struct Handling {
@@ -22,12 +22,11 @@ struct Handling {
     bank: f32,
 }
 
-const fn handling(class: ShipClass) -> Handling {
+const fn handling(class: EnemyClass) -> Handling {
     let (speed, turn_radius, acceleration, bank) = match class {
-        ShipClass::Fighter => (9.0, 0.9, 0.2, 60.0),
-        ShipClass::Support => (6.5, 1.2, 0.28, 32.0),
-        ShipClass::Cruiser => (5.5, 1.5, 0.32, 22.0),
-        ShipClass::Battleship => (4.0, 1.7, 0.42, 10.0),
+        EnemyClass::Fighter => (9.0, 0.9, 0.2, 60.0),
+        EnemyClass::Cruiser => (5.5, 1.5, 0.32, 22.0),
+        EnemyClass::Battleship | EnemyClass::Flagship => (4.0, 1.7, 0.42, 10.0),
     };
     Handling {
         speed,
@@ -89,7 +88,7 @@ pub struct Flight {
 
 impl Flight {
     /// Bahn von `from` (Lage im Raum des Ziel-Ankers, Bevy-Koordinaten) in den Ursprung.
-    pub fn new(from: Vec3, class: ShipClass, towed: bool) -> Self {
+    pub fn new(from: Vec3, class: EnemyClass, towed: bool) -> Self {
         let base = handling(class);
         let handling = if towed {
             Handling {
@@ -338,7 +337,7 @@ mod tests {
             Vec3::new(-2.2, 0.0, 3.4),
             Vec3::new(2.2, 0.0, -3.4),
         ] {
-            let flight = Flight::new(from, ShipClass::Cruiser, false);
+            let flight = Flight::new(from, EnemyClass::Cruiser, false);
             assert!(flight.duration > 0.0);
             assert!(flight.pose(0.0).translation.distance(from) < 1e-3);
             let end = flight.pose(1.0);
@@ -354,10 +353,10 @@ mod tests {
     /// Nach hinten (der Start liegt vor dem Ziel, also bei −Z) fliegt die Schleife höher als eine S-Kurve nach vorn.
     #[test]
     fn loop_flies_higher() {
-        let back = Flight::new(Vec3::new(0.0, 0.0, -3.4), ShipClass::Fighter, false);
-        let forward = Flight::new(Vec3::new(0.0, 0.0, 3.4), ShipClass::Fighter, false);
+        let back = Flight::new(Vec3::new(0.0, 0.0, -3.4), EnemyClass::Fighter, false);
+        let forward = Flight::new(Vec3::new(0.0, 0.0, 3.4), EnemyClass::Fighter, false);
         assert!(back.height > forward.height);
-        let towed = Flight::new(Vec3::new(0.0, 0.0, 3.4), ShipClass::Fighter, true);
+        let towed = Flight::new(Vec3::new(0.0, 0.0, 3.4), EnemyClass::Fighter, true);
         assert!(towed.duration > forward.duration);
     }
 }

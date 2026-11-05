@@ -1,39 +1,33 @@
-//! Dialoge und Overlays (Port von `admiralSelect.ts`, `draftSelect.ts`, `resultScreen.ts`, `iconDialog.ts`,
-//! `settingsDialog.ts`, `rulesDialog.ts` samt `rulesFigures.ts` und `surrenderDialog.ts`).
+//! Dialoge und Overlays (Port von `admiralSelect.ts`, `resultScreen.ts`, `iconDialog.ts`, `settingsDialog.ts` und
+//! `rulesDialog.ts`).
 //!
 //! Zwei Arten:
-//! - Overlays, die der Spielzustand verlangt und die sich selbst aus [`Match`] ableiten: die Admiralswahl
-//!   ([`admiral_select`]) solange der eigene Admiral fehlt, der Nachschub ([`draft_select`]) solange
-//!   [`Match::draft`] offen ist, das Ergebnis ([`result_screen`]) sobald [`Match::result`] feststeht. Die Hand darunter
-//!   bleibt bei Admiralswahl und Nachschub frei.
+//! - Overlays, die das Gefecht verlangt und die sich selbst aus [`Battle`](crate::game::Battle) ableiten: die
+//!   Admiralswahl ([`admiral_select`]) solange kein Gefecht läuft, das Ergebnis ([`result_screen`]) sobald es
+//!   entschieden ist.
 //! - Dialoge hinter den Icon-Knöpfen oben rechts ([`Dialog`]): ein Steuerpult über abgedunkeltem Hintergrund, als
 //!   [`Modal`] markiert. Sie öffnen per Knopf oder [`OpenDialog`]; „Schließen“ oder Escape schließt sie, ein Klick auf
 //!   den Hintergrund nicht. Höchstens einer ist offen.
 //!
 //! Schnittstelle zum Controller:
-//! - rein: [`OpenDialog`] (etwa Escape ohne etwas zurückzunehmen → Einstellungen), [`ServerError`] und [`NewMatch`]
-//!   heben eine wartende Wahl auf.
-//! - raus: [`AdmiralChosen`], [`DraftChosen`] (je mit Bestätigungsklang; bis der Server bestätigt oder ablehnt, bleibt
-//!   die Wahl gesperrt), [`SurrenderConfirmed`], [`NewMatch`]. Die Einstellungen schreibt der Dialog direkt in
-//!   [`Settings`](crate::settings::Settings).
+//! - rein: [`OpenDialog`] (etwa Escape ohne Auswahl → Einstellungen).
+//! - raus: [`AdmiralChosen`] (mit Bestätigungsklang; bis das Gefecht steht, bleibt die Wahl gesperrt), [`NextBattle`],
+//!   [`NewRun`]. Die Einstellungen schreibt der Dialog direkt in [`Settings`](crate::settings::Settings).
 //!
 //! Escape schließt einen offenen Dialog in [`DialogSystems`]; wer Escape selbst auswertet, läuft davor und prüft, ob
 //! ein [`Modal`] offen ist.
 
 pub mod admiral_select;
-pub mod draft_select;
 pub mod result_screen;
 pub mod rules;
-pub mod rules_figures;
 pub mod settings_dialog;
-pub mod surrender;
 
 use bevy::{
     ecs::spawn::SpawnableList,
     prelude::*,
     ui_widgets::{Activate, observe},
 };
-use voidfleet_core::{admirals::AdmiralId, protocol::DraftPick};
+use voidfleet_core::admirals::AdmiralId;
 
 use super::{
     Fonts, UiIcons,
@@ -41,14 +35,13 @@ use super::{
     theme::{self, Modal, UiOpacity},
     tooltip::Tooltip,
 };
-use crate::{assets::AppState, game::ServerError, i18n::Locale, palette};
+use crate::{assets::AppState, i18n::Locale, palette};
 
 /// Die Dialoge hinter den Icon-Knöpfen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Dialog {
     Settings,
     Rules,
-    Surrender,
 }
 
 /// Öffnet einen Dialog (ein offener anderer schließt dabei).
@@ -59,17 +52,13 @@ pub struct OpenDialog(pub Dialog);
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AdmiralChosen(pub AdmiralId);
 
-/// Der Spieler hat aus dem Nachschub gewählt.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DraftChosen(pub DraftPick);
-
-/// Der Spieler hat das Aufgeben bestätigt.
+/// „Weiter“ nach einem Sieg: das nächste Gefecht.
 #[derive(Message, Clone, Copy, Debug, Default)]
-pub struct SurrenderConfirmed;
+pub struct NextBattle;
 
-/// „Neues Match“ im Ergebnis; hebt auch eine wartende Admiralswahl auf.
+/// „Neuer Run“ nach einer Niederlage: zurück zur Admiralswahl.
 #[derive(Message, Clone, Copy, Debug, Default)]
-pub struct NewMatch;
+pub struct NewRun;
 
 /// Hier schließt Escape einen offenen Dialog.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,7 +82,6 @@ impl Dialog {
         match self {
             Self::Settings => locale.settings_title(),
             Self::Rules => locale.rules_title(),
-            Self::Surrender => locale.surrender_title(),
         }
     }
 
@@ -101,7 +89,6 @@ impl Dialog {
         match self {
             Self::Settings => icons.settings.clone(),
             Self::Rules => icons.rules.clone(),
-            Self::Surrender => icons.surrender.clone(),
         }
     }
 
@@ -109,7 +96,6 @@ impl Dialog {
         match self {
             Self::Settings => commands.run_system_cached(settings_dialog::spawn),
             Self::Rules => commands.run_system_cached(rules::spawn),
-            Self::Surrender => commands.run_system_cached(surrender::spawn),
         }
     }
 }
@@ -264,8 +250,8 @@ fn follow_locale(
 
 // --- Gemeinsames der Overlays über dem Brett ---
 
-/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Admiralswahl und Nachschub müssen zwischen Kopfzeile
-/// und Hand passen.
+/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Die Admiralswahl muss zwischen Kopfzeile und Hand
+/// passen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Density {
     Regular,
@@ -286,7 +272,7 @@ impl Density {
     }
 }
 
-/// Ein Overlay über dem Brett zwischen Kopfzeile und Hand (`.admiral-overlay`, `.draft-overlay`); als erstes Kind
+/// Ein Overlay über dem Brett zwischen Kopfzeile und Hand (`.admiral-overlay`); als erstes Kind
 /// gehört [`overlay_backdrop`] hinein.
 fn board_overlay() -> impl Bundle {
     (
@@ -417,16 +403,13 @@ impl Plugin for DialogsPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<OpenDialog>()
             .add_message::<AdmiralChosen>()
-            .add_message::<DraftChosen>()
-            .add_message::<SurrenderConfirmed>()
-            .add_message::<NewMatch>()
+            .add_message::<NextBattle>()
+            .add_message::<NewRun>()
             .add_plugins((
                 admiral_select::AdmiralSelectPlugin,
-                draft_select::DraftSelectPlugin,
                 result_screen::ResultScreenPlugin,
                 settings_dialog::SettingsDialogPlugin,
                 rules::RulesPlugin,
-                surrender::SurrenderPlugin,
             ))
             .add_systems(
                 Update,
@@ -440,13 +423,4 @@ impl Plugin for DialogsPlugin {
                     .run_if(in_state(AppState::Match)),
             );
     }
-}
-
-/// Ob eine Wahl aufgehoben werden muss: Der Server hat abgelehnt oder ein neues Match beginnt.
-fn choice_cancelled(
-    errors: &mut MessageReader<ServerError>,
-    new_match: &mut MessageReader<NewMatch>,
-) -> bool {
-    let cancelled = errors.read().count() + new_match.read().count();
-    cancelled > 0
 }

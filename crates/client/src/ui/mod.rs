@@ -5,27 +5,25 @@
 //! - [`button`] — HUD-Schaltflächen mit Eckklammern ([`button::button`], [`button::text_button`],
 //!   [`button::icon_button`]).
 //! - [`tooltip`] — [`tooltip::Tooltip`] statt des `title`-Attributs.
-//! - [`card`] — Schiffs-, Befehls- und Fähigkeitskarten ([`card::ship_card`], [`card::command_card`],
-//!   [`card::power_card`]).
+//! - [`card`] — Befehlskarten ([`card::command_card`]) und Flaggschiff-Karten.
 //!
-//! Das Match-HUD:
-//! - [`hand`] — beide Hände, Stapel, Auswahl, Hover-Zoom, Einflug neu gezogener Karten.
-//! - [`hud`] — Runde, Overdrive, Status, Aktionsknopf mit Checkliste, Log, Banner.
-//! - [`power_card`] — Admiralsfähigkeit und Zielerfassung über der Hand.
-//! - [`opponent_panel`] — was man vom Gegner weiß.
-//! - [`round_log`] — Rundenereignisse als Log-Zeilen.
+//! Das HUD des Gefechts:
+//! - [`hand`] — die Hand mit Kosten, Stapeln, Auswahl, Hover-Zoom, Einflug neu gezogener Karten.
+//! - [`stations`] — Befehlspunkte, die fünf Stationen mit Ziel bzw. Spalte, „Auslösen“ und „Zug beenden“ mit
+//!   Checkliste.
+//! - [`hud`] — Kopfzeile (Runde, Gefechtsuhr, Hülle), Log, Banner.
+//! - [`round_log`] — je Ereignis des Gefechts eine Log-Zeile.
 //! - [`radio_subtitle`] — Untertitel des Bordfunks.
 //! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
-//! - [`dialogs`] — Admiralswahl, Nachschub, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln,
-//!   Aufgeben); Schnittstelle dort.
+//! - [`dialogs`] — Admiralswahl, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln);
+//!   Schnittstelle dort.
 //! - [`cursor`] — der gewählte Mauszeiger in der gewählten Größe als Systemzeiger.
-//! - [`preview`] — Dev-Ansicht mit Beispiel-Hand (`VOIDFLEET_UI_PREVIEW`).
 //!
-//! Schnittstelle zum Controller: Die Widgets lesen [`Match`](crate::game::Match), [`Locale`] und [`HudState`]
-//! (was der Controller festlegt: Status, Aktionsknopf, ob geplant wird, was gewählt ist) und melden Absichten als
-//! Messages ([`HandCardPressed`], [`PowerPressed`], [`MarkPressed`], [`ActionPressed`]); was sie bedeuten,
-//! entscheidet der Controller. Log und Banner füllt er mit [`AppendLog`], [`ShowBanner`], [`HideBanner`] und
-//! [`ShowRoundBanner`].
+//! Schnittstelle zum Controller: Die Widgets lesen [`Battle`](crate::game::Battle), [`Locale`] und [`HudState`] (was
+//! der Controller festlegt: ob gehandelt werden darf, ob eine Wiedergabe läuft, welche Karte gewählt ist) und melden
+//! Absichten als Messages ([`HandCardPressed`], [`StationPressed`], [`ActionPressed`]); was sie bedeuten, entscheidet
+//! der Controller. Log und Banner füllen Controller und Wiedergabe mit [`AppendLog`], [`ClearLog`], [`ShowBanner`],
+//! [`HideBanner`] und [`ShowRoundBanner`].
 
 pub mod button;
 pub mod card;
@@ -36,21 +34,18 @@ pub mod fullscreen;
 pub mod hand;
 pub mod hud;
 pub mod loading_screen;
-pub mod opponent_panel;
-pub mod power_card;
-pub mod preview;
 pub mod radio_subtitle;
 pub mod round_log;
+pub mod stations;
 pub mod theme;
 pub mod tooltip;
 pub mod view_toggle;
 
 use bevy::{ecs::system::NonSendMarker, prelude::*, window::PrimaryWindow, winit::WINIT_WINDOWS};
-use voidfleet_core::{admirals::AdmiralId, board::Side};
+use voidfleet_core::admirals::{AdmiralId, Station};
 
 use crate::{
     assets::{AppState, LoadingPhase, Preload},
-    game::ShipPick,
     i18n::Locale,
 };
 
@@ -103,7 +98,6 @@ pub struct UiIcons {
     pub crown: Handle<Image>,
     pub settings: Handle<Image>,
     pub rules: Handle<Image>,
-    pub surrender: Handle<Image>,
 }
 
 impl FromWorld for UiIcons {
@@ -120,7 +114,6 @@ impl FromWorld for UiIcons {
                 crown: icon("crown"),
                 settings: icon("settings"),
                 rules: icon("rules"),
-                surrender: icon("surrender"),
             }
         })
     }
@@ -134,64 +127,35 @@ fn preloaded<T>(world: &mut World, load: impl FnOnce(&AssetServer, &mut Preload)
     })
 }
 
-/// Was an der Stelle des Aktionsknopfs steht.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum HudAction {
-    /// „Zug beenden“ (nach dem Abgeben „Warte auf den Gegner …“).
-    #[default]
-    EndTurn,
-    /// „Animation überspringen“, während eine Runde abgespielt wird.
-    Skip,
-    /// „Gegen Computer spielen“, solange kein Gegner da ist.
-    PlayComputer,
-    /// „Mitspieler einladen“: macht den Platz des Computergegners frei.
-    InvitePlayer,
-}
-
-/// Was gerade gewählt ist, laut Controller.
+/// Die Aktionsknöpfe neben den Stationen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Selected {
-    Ship(ShipPick),
-    /// Hand-Index der Befehlskarte.
-    Command(usize),
-    /// Die Admiralsfähigkeit wartet auf ihr Ziel.
-    Power,
-    /// Die Zielerfassung der Pendulum wartet auf ihr Ziel.
-    Mark,
+pub enum HudAction {
+    /// „Auslösen“: die eingestellte Station jetzt.
+    Trigger,
+    /// „Zug beenden“ (während einer Wiedergabe „Überspringen“).
+    EndTurn,
+    Skip,
 }
 
-/// Was der Controller für das HUD festlegt; Hand, HUD und Fähigkeitskarte zeigen es zusammen mit dem Spielzustand.
+/// Was der Controller für das HUD festlegt; Hand und Stationen zeigen es zusammen mit dem Gefecht.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct HudState {
-    pub action: HudAction,
-    /// Der Aktionsknopf ist frei (etwa: geplant werden darf, ein Gegner ist da, das Flaggschiff liegt).
-    pub action_enabled: bool,
-    /// Es wird geplant: Checkliste sichtbar, Fähigkeit und Zielerfassung wählbar.
+    /// Der Spieler darf handeln: Checkliste sichtbar, Karten und Stationen wählbar.
     pub planning: bool,
-    pub selected: Option<Selected>,
+    pub playing_back: bool,
+    /// Hand-Index der Karte, die auf ihr Ziel wartet.
+    pub selected: Option<usize>,
 }
 
-/// Eine Karte der Hand: Schiff (Hand-Index oder Flaggschiff) bzw. Befehl (Hand-Index). Bei Stapeln ist es das
-/// Exemplar, das ein Klick meint: das gewählte, sonst das nächste freie, sonst das zuletzt eingeplante.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum HandCard {
-    Ship(ShipPick),
-    Command(usize),
-}
-
-/// Eine Karte der Hand wurde angeklickt.
+/// Eine Karte der Hand (Hand-Index) wurde angeklickt.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct HandCardPressed(pub HandCard);
+pub struct HandCardPressed(pub usize);
 
-/// Die Karte der Admiralsfähigkeit wurde angeklickt.
-#[derive(Message, Clone, Copy, Debug, Default)]
-pub struct PowerPressed;
+/// Eine Station im Stationen-Feld wurde angeklickt.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StationPressed(pub Station);
 
-/// Der Knopf der Zielerfassung (Pendulum) wurde angeklickt.
-#[derive(Message, Clone, Copy, Debug, Default)]
-pub struct MarkPressed;
-
-/// Der Aktionsknopf wurde angeklickt; `HudAction` ist, was er dabei zeigte.
+/// Ein Aktionsknopf wurde angeklickt.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ActionPressed(pub HudAction);
 
@@ -199,13 +163,15 @@ pub struct ActionPressed(pub HudAction);
 #[derive(Message, Clone, Debug, Default)]
 pub struct AppendLog(pub Vec<String>);
 
-/// Kündigt einen aufgedeckten Befehl oder eine Fähigkeit an; mit `admiral` das Porträt in seiner Farbe. Blendet sich
-/// selbst wieder aus.
+/// Das Log leeren (neues Gefecht).
+#[derive(Message, Clone, Copy, Debug, Default)]
+pub struct ClearLog;
+
+/// Eine kurze Ansage oben in der Mitte; mit `admiral` das Porträt in seiner Farbe. Blendet sich selbst wieder aus.
 #[derive(Message, Clone, Debug)]
 pub struct ShowBanner {
     pub title: String,
     pub subtitle: Option<String>,
-    pub side: Side,
     pub admiral: Option<AdmiralId>,
 }
 
@@ -213,12 +179,11 @@ pub struct ShowBanner {
 #[derive(Message, Clone, Copy, Debug, Default)]
 pub struct HideBanner;
 
-/// Kündigt groß an, dass Runde `0` begonnen hat (samt steigendem Overdrive).
+/// Kündigt groß an, dass Runde `0` begonnen hat.
 #[derive(Message, Clone, Copy, Debug)]
 pub struct ShowRoundBanner(pub u32);
 
-/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht, Einstellungen, Regeln,
-/// Aufgeben.
+/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht, Einstellungen, Regeln.
 #[derive(Component, Debug)]
 pub struct IconBar;
 
@@ -244,10 +209,10 @@ impl Plugin for InterfacePlugin {
             .init_resource::<UiIcons>()
             .init_resource::<AppIcon>()
             .add_message::<HandCardPressed>()
-            .add_message::<PowerPressed>()
-            .add_message::<MarkPressed>()
+            .add_message::<StationPressed>()
             .add_message::<ActionPressed>()
             .add_message::<AppendLog>()
+            .add_message::<ClearLog>()
             .add_message::<ShowBanner>()
             .add_message::<HideBanner>()
             .add_message::<ShowRoundBanner>()
@@ -259,14 +224,12 @@ impl Plugin for InterfacePlugin {
                 card::CardPlugin,
                 hand::HandPlugin,
                 hud::HudPlugin,
-                power_card::PowerCardPlugin,
-                opponent_panel::OpponentPanelPlugin,
+                stations::StationsPlugin,
                 radio_subtitle::RadioSubtitlePlugin,
                 view_toggle::ViewTogglePlugin,
                 fullscreen::FullscreenPlugin,
                 cursor::CursorPlugin,
                 dialogs::DialogsPlugin,
-                preview::PreviewPlugin,
             ))
             .add_plugins(fps::FpsPlugin)
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
@@ -297,7 +260,6 @@ fn spawn_icon_bar(mut commands: Commands, icons: Res<UiIcons>, locale: Res<Local
             view_toggle::view_button(&icons, &locale),
             dialogs::dialog_button(dialogs::Dialog::Settings, &icons, &locale),
             dialogs::dialog_button(dialogs::Dialog::Rules, &icons, &locale),
-            dialogs::dialog_button(dialogs::Dialog::Surrender, &icons, &locale),
         ],
     ));
 }

@@ -1,47 +1,31 @@
-//! Kartenillustrationen (`images/cards/<id>.jpg`, erzeugt mit `tools/generateCardArt.ts`), auch Flaggschiffe, Drohne
-//! und Trugbild.
+//! Kartenillustrationen (`images/cards/<id>.jpg`): die Befehlskarten und die Flaggschiffe für die Admiralswahl.
 
 use bevy::{platform::collections::HashMap, prelude::*};
-use voidfleet_core::cards::{COMMANDS, CommandId, FLAGSHIPS, SHIPS, ShipId, TOKENS};
+use voidfleet_core::{admirals::FlagshipId, cards::CardId};
 
-use super::FileKey;
+use super::{FileKey, ship_models::FLAGSHIPS};
 use crate::assets::Preload;
 
-/// Eine Karte: Schiff (auch Token und Flaggschiff) oder Befehl.
+/// Ein Bild: Befehlskarte oder Flaggschiff.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Card {
-    Ship(ShipId),
-    Command(CommandId),
+    Command(CardId),
+    Flagship(FlagshipId),
 }
 
-/// Alle Karten mit eigenem Bild: Schiffe samt Tokens und Flaggschiffen, Befehle ohne die Schrottverwertung.
+/// Alle Karten mit eigenem Bild.
 pub fn cards() -> impl Iterator<Item = Card> {
-    SHIPS
+    voidfleet_core::cards::LOOT_POOL
         .into_iter()
-        .chain(TOKENS)
-        .chain(FLAGSHIPS)
-        .map(Card::Ship)
-        .chain(
-            COMMANDS
-                .into_iter()
-                .filter(|&command| command != CommandId::ScrapSalvage)
-                .map(Card::Command),
-        )
-}
-
-/// Welches Bild eine Karte zeigt: ihr eigenes, nur die Schrottverwertung zeigt den Scrap Raider, für den sie ist.
-pub fn art_card(card: Card) -> Card {
-    match card {
-        Card::Command(CommandId::ScrapSalvage) => Card::Ship(ShipId::ScrapRaider),
-        card => card,
-    }
+        .map(Card::Command)
+        .chain(FLAGSHIPS.into_iter().map(Card::Flagship))
 }
 
 /// Asset-Pfad der Illustration.
 pub fn card_art_path(card: Card) -> String {
-    let key = match art_card(card) {
-        Card::Ship(ship) => ship.file_key(),
-        Card::Command(command) => command.file_key(),
+    let key = match card {
+        Card::Command(card) => card.file_key(),
+        Card::Flagship(flagship) => flagship.file_key(),
     };
     format!("images/cards/{key}.jpg")
 }
@@ -53,7 +37,7 @@ pub struct CardArt(HashMap<Card, Handle<Image>>);
 impl CardArt {
     /// Das Bild einer Karte.
     pub fn get(&self, card: Card) -> Handle<Image> {
-        self.0[&art_card(card)].clone()
+        self.0[&card].clone()
     }
 }
 

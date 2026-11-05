@@ -1,83 +1,65 @@
-//! Die Hand (Port von `ui/hand.ts`): Schiffskarten links, in Runde 1 vorn das Flaggschiff, Aktionsknopf samt
-//! Checkliste in der Mitte ([`super::hud`]), rechts die Admiralsfähigkeit ([`super::power_card`]) und die
-//! Befehlskarten. Gleiche Karten liegen als ein Stapel mit Anzahl. Passt eine Seite nicht in ihre Hälfte der Leiste,
-//! rücken ihre Karten zusammen und überlappen sich; die Karte unter dem Zeiger wächst und liegt oben.
+//! Die Hand (Port von `ui/hand.ts`): links groß die Befehlspunkte und darunter Nachzieh- und Ablagestapel als Zahlen,
+//! in der Mitte die Karten aus [`Battle::hand`](crate::game::Battle), rechts das Stationen-Feld ([`super::stations`]).
+//! Gleiche Karten liegen als ein Stapel mit Anzahl. Passen die Karten nicht in ihre Reihe, rücken sie zusammen und
+//! überlappen sich; die Karte unter dem Zeiger wächst und liegt oben. Karten, die mehr kosten, als Befehlspunkte
+//! übrig sind, sind gedimmt.
 //!
 //! Karten werden nur neu aufgebaut, wenn sich die Hand ändert; neu gezogene fliegen dabei nacheinander ein. Ein Klick
-//! meldet [`HandCardPressed`] mit dem Exemplar, das er meint; gewählt und eingeplant zeigt der Rahmen ([`Marked`]).
+//! meldet [`HandCardPressed`] mit dem Hand-Index; die gewählte Karte zeigt der Rahmen ([`Marked`]).
 
 use bevy::{
     picking::{events::PointerClick, pointer::PointerButton},
     prelude::*,
 };
-use voidfleet_core::cards::{CommandId, ShipId};
+use voidfleet_core::cards::DeckCard;
 
 use super::{
-    HandCard, HandCardPressed, HudState, Selected,
-    card::{
-        CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card, ship_card,
-    },
-    hud::{self, ActionArea},
-    power_card::{self, AdmiralArea},
-    theme,
+    Fonts, HandCardPressed, HudState,
+    card::{CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card},
+    stations, theme,
+    theme::UiOpacity,
 };
-use crate::{
-    assets::AppState,
-    game::{Match, ShipPick},
-    palette,
-};
+use crate::{assets::AppState, game::Battle, i18n::Locale, palette};
 
-/// Breite einer Karte auf der Hand, Abstand zweier Karten, Abstand zwischen Fähigkeitskarte und Befehlen und
-/// Mindestabstand jeder Hand zum Aktionsknopf (logische Pixel).
+/// Breite einer Karte auf der Hand, Abstand zweier Karten (logische Pixel).
 const CARD: f32 = CARD_WIDTH * HAND_ZOOM;
 const CARD_GAP: f32 = 10.0;
-const SIDE_GAP: f32 = 16.0;
-const CENTER_MARGIN: f32 = 20.0;
 /// Versatz, mit dem neu gezogene Karten nacheinander einfliegen (Sekunden).
 const DRAW_STAGGER: f32 = 0.18;
+/// Deckkraft einer Karte, die gerade nicht spielbar ist.
+const UNPLAYABLE_ALPHA: f32 = 0.45;
 
 /// Die Leiste am unteren Rand.
 #[derive(Component)]
 pub struct HandBar;
 
-/// Die Reihe der Schiffs- bzw. Befehlskarten.
+/// Die Reihe der Karten.
+#[derive(Component)]
+struct HandRow;
+
+/// Befehlspunkte und Stapel links.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
-enum HandRow {
-    Ships,
-    Commands,
+enum PileText {
+    Points,
+    PointsLabel,
+    Draw,
+    Discard,
 }
 
-/// Eine Karte der Hand: das Flaggschiff oder ein Stapel gleicher Karten mit ihren Hand-Indizes.
+/// Eine Karte der Hand: ein Stapel gleicher Karten mit ihren Hand-Indizes.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
-enum HandStack {
-    Flagship,
-    Ships(Vec<usize>),
-    Commands(Vec<usize>),
-}
+struct HandStack(Vec<usize>);
 
-/// Was die Reihen gerade zeigen; nur eine Änderung baut sie neu.
+/// Was die Reihe gerade zeigt; nur eine Änderung baut sie neu.
 #[derive(Resource, Default, PartialEq)]
-struct ShownHand {
-    ships: Vec<ShipId>,
-    flagship: Option<ShipId>,
-    commands: Vec<CommandId>,
-}
+struct ShownHand(Vec<DeckCard>);
 
-fn spawn(mut commands: Commands, assets: CardAssets) {
-    let half = || Node {
-        flex_grow: 1.0,
-        flex_basis: Val::ZERO,
-        min_width: Val::ZERO,
-        align_items: AlignItems::FlexEnd,
-        ..default()
-    };
-    let row = |kind: HandRow| {
+fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
+    let pile = |kind: PileText, font: TextFont, color: Color| {
         (
             kind,
-            Node {
-                align_items: AlignItems::FlexEnd,
-                ..default()
-            },
+            theme::text(font, "", color),
+            TextLayout::justify(Justify::Center),
             Pickable::IGNORE,
         )
     };
@@ -87,30 +69,80 @@ fn spawn(mut commands: Commands, assets: CardAssets) {
         Node {
             position_type: PositionType::Absolute,
             left: px(28),
-            right: px(28),
+            right: px(20),
             bottom: px(12),
             height: px(266),
             align_items: AlignItems::FlexEnd,
+            column_gap: px(20),
             ..default()
         },
         Pickable::IGNORE,
         children![
-            (half(), Pickable::IGNORE, children![row(HandRow::Ships)]),
-            hud::action_area(&assets.fonts),
             (
                 Node {
-                    justify_content: JustifyContent::FlexEnd,
-                    column_gap: px(SIDE_GAP),
-                    ..half()
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    row_gap: px(6),
+                    width: px(120),
+                    flex_shrink: 0.0,
+                    ..default()
                 },
                 Pickable::IGNORE,
                 children![
-                    power_card::admiral_area(&assets.fonts, &assets.icons, &assets.locale),
-                    row(HandRow::Commands),
+                    pile(PileText::Points, fonts.display_bold(72.0), theme::ACCENT),
+                    pile(
+                        PileText::PointsLabel,
+                        fonts.display(16.0),
+                        palette::TEXT_DIM
+                    ),
+                    pile(PileText::Draw, fonts.body(14.0), palette::TEXT_DIM),
+                    pile(PileText::Discard, fonts.body(14.0), palette::TEXT_DIM),
                 ],
             ),
+            (
+                HandRow,
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: Val::ZERO,
+                    min_width: Val::ZERO,
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::FlexEnd,
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ),
+            stations::stations_panel(&fonts),
         ],
     ));
+}
+
+/// Befehlspunkte und Stapel.
+fn update_piles(
+    battle: Option<Res<Battle>>,
+    locale: Res<Locale>,
+    mut texts: Query<(&PileText, &mut Text)>,
+) {
+    for (kind, mut text) in &mut texts {
+        let content = match (kind, battle.as_deref()) {
+            (_, None) => String::new(),
+            (PileText::Points, Some(battle)) => battle.points.to_string(),
+            (PileText::PointsLabel, Some(_)) => locale.hud_points().to_uppercase(),
+            (PileText::Draw, Some(battle)) => {
+                format!("{} {}", locale.hud_draw_pile(), battle.draw_pile.len())
+            }
+            (PileText::Discard, Some(battle)) => {
+                format!(
+                    "{} {}",
+                    locale.hud_discard_pile(),
+                    battle.discard_pile.len()
+                )
+            }
+        };
+        if text.0 != content {
+            text.0 = content;
+        }
+    }
 }
 
 /// Gleiche Karten der Hand als Stapel an der Stelle der ersten, mit den Hand-Indizes aller Exemplare.
@@ -152,15 +184,15 @@ fn draw_delay(indices: &[usize], drawn: &[usize]) -> Option<f32> {
 }
 
 /// Zähler und Kanten eines Stapels ab zwei Exemplaren.
-fn stack_marks(fonts: &super::Fonts, count: usize) -> (BoxShadow, impl Bundle) {
+fn stack_marks(fonts: &Fonts, count: usize) -> (BoxShadow, impl Bundle) {
     let s = |value: f32| value * HAND_ZOOM;
     let edge = |offset: f32, alpha: f32| {
         [
             ShadowStyle {
                 spread_radius: px(1),
-                ..theme::drop(Color::WHITE.with_alpha(alpha), -s(offset), -s(offset), 0.0)
+                ..theme::drop(Color::WHITE.with_alpha(alpha), s(offset), -s(offset), 0.0)
             },
-            theme::drop(theme::SHADE, -s(offset), -s(offset), 0.0),
+            theme::drop(theme::SHADE, s(offset), -s(offset), 0.0),
         ]
     };
     let mut shadow = Vec::new();
@@ -171,8 +203,8 @@ fn stack_marks(fonts: &super::Fonts, count: usize) -> (BoxShadow, impl Bundle) {
     let badge = (
         Node {
             position_type: PositionType::Absolute,
-            top: px(-s(12.0)),
-            left: px(-s(12.0)),
+            bottom: px(-s(10.0)),
+            right: px(-s(10.0)),
             min_width: px(s(26.0)),
             height: px(s(26.0)),
             padding: UiRect::horizontal(px(s(6.0))),
@@ -197,143 +229,52 @@ fn stack_marks(fonts: &super::Fonts, count: usize) -> (BoxShadow, impl Bundle) {
     (BoxShadow(shadow), badge)
 }
 
-/// Baut eine Reihe neu, sobald sich ihre Karten ändern; läuft, wenn sich der Spielzustand ändert.
-fn rebuild_rows(
+/// Baut die Reihe neu, sobald sich die Hand ändert.
+fn rebuild_row(
     mut commands: Commands,
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     mut shown: ResMut<ShownHand>,
     assets: CardAssets,
-    rows: Query<(Entity, &HandRow)>,
+    row: Single<Entity, With<HandRow>>,
 ) {
-    let flagship = game.flagship().filter(|_| game.needs_flagship());
-    let next = ShownHand {
-        ships: game.ship_hand.clone(),
-        flagship,
-        commands: game.command_hand.clone(),
-    };
-    if *shown == next {
+    let next = ShownHand(battle.map_or_else(Vec::new, |battle| battle.hand.clone()));
+    if *shown == next && !assets.locale.is_changed() {
         return;
     }
-    for (row, kind) in &rows {
-        match kind {
-            HandRow::Ships if shown.ships != next.ships || shown.flagship != next.flagship => {
-                let drawn = drawn_indices(&shown.ships, &next.ships);
-                commands.entity(row).despawn_related::<Children>();
-                if let Some(flagship) = flagship {
-                    commands.spawn((
-                        ship_card(&assets, flagship, HAND_ZOOM),
-                        HandStack::Flagship,
-                        ChildOf(row),
-                    ));
-                }
-                for (ship, indices) in stacks_of(&next.ships) {
-                    decorate(
-                        &mut commands.spawn((
-                            ship_card(&assets, ship, HAND_ZOOM),
-                            HandStack::Ships(indices.clone()),
-                            ChildOf(row),
-                        )),
-                        &assets.fonts,
-                        &indices,
-                        &drawn,
-                    );
-                }
-            }
-            HandRow::Commands if shown.commands != next.commands => {
-                let drawn = drawn_indices(&shown.commands, &next.commands);
-                commands.entity(row).despawn_related::<Children>();
-                for (command, indices) in stacks_of(&next.commands) {
-                    decorate(
-                        &mut commands.spawn((
-                            command_card(&assets, command, HAND_ZOOM),
-                            HandStack::Commands(indices.clone()),
-                            ChildOf(row),
-                        )),
-                        &assets.fonts,
-                        &indices,
-                        &drawn,
-                    );
-                }
-            }
-            _ => {}
+    let drawn = drawn_indices(&shown.0, &next.0);
+    commands.entity(*row).despawn_related::<Children>();
+    for (card, indices) in stacks_of(&next.0) {
+        let mut entity = commands.spawn((
+            command_card(&assets, card, HAND_ZOOM),
+            HandStack(indices.clone()),
+            UiOpacity(1.0),
+            CardHover::Zoom {
+                scale: 1.5,
+                origin: Vec2::new(0.0, 1.0),
+            },
+            ChildOf(*row),
+        ));
+        if indices.len() > 1 {
+            let (shadow, badge) = stack_marks(&assets.fonts, indices.len());
+            entity.insert(shadow).with_child(badge);
+        }
+        if let Some(delay) = draw_delay(&indices, &drawn) {
+            entity.insert(CardDraw::after(delay));
         }
     }
     *shown = next;
 }
 
-/// Stapel-Kanten (statt des Scheins der Karte), Zähler und Einflug einer Karte.
-fn decorate(card: &mut EntityCommands, fonts: &super::Fonts, indices: &[usize], drawn: &[usize]) {
-    if indices.len() > 1 {
-        let (shadow, badge) = stack_marks(fonts, indices.len());
-        card.insert(shadow).with_child(badge);
-    }
-    if let Some(delay) = draw_delay(indices, drawn) {
-        card.insert(CardDraw::after(delay));
-    }
-}
-
-/// Hover-Zoom zur Bildschirmmitte: die erste Schiffskarte wächst nach rechts, die letzte Befehlskarte nach links.
-fn set_hover_origins(
-    mut commands: Commands,
-    rows: Query<(&HandRow, &Children), Changed<Children>>,
-) {
-    for (row, cards) in &rows {
-        let last = cards.len().saturating_sub(1);
-        for (index, card) in cards.iter().enumerate() {
-            let x = match row {
-                HandRow::Ships if index == 0 => -1.0,
-                HandRow::Commands if index == last => 1.0,
-                _ => 0.0,
-            };
-            commands.entity(card).insert(CardHover::Zoom {
-                scale: 1.5,
-                origin: Vec2::new(x, 1.0),
-            });
-        }
-    }
-}
-
-/// Welches Exemplar ein Klick auf einen Stapel meint. Schiffe: das gewählte, sonst das nächste freie, sonst das
-/// zuletzt eingeplante. Befehle: der eingeplante, sonst der gewählte, sonst das erste Exemplar.
-fn pick(stack: &HandStack, game: &Match, hud: &HudState) -> HandCard {
-    match stack {
-        HandStack::Flagship => HandCard::Ship(ShipPick::Flagship),
-        HandStack::Ships(indices) => {
-            let planned: Vec<ShipPick> =
-                game.arrivals().iter().map(|arrival| arrival.pick).collect();
-            let picks = indices.iter().map(|&index| ShipPick::Hand(index));
-            let selected = picks
-                .clone()
-                .find(|&pick| hud.selected == Some(Selected::Ship(pick)));
-            let free = picks.clone().find(|pick| !planned.contains(pick));
-            let last_planned = picks.clone().rfind(|pick| planned.contains(pick));
-            HandCard::Ship(
-                selected
-                    .or(free)
-                    .or(last_planned)
-                    .unwrap_or(ShipPick::Hand(indices[0])),
-            )
-        }
-        HandStack::Commands(indices) => {
-            let planned = game.plan().command.map(|command| command.hand_index);
-            let selected = match hud.selected {
-                Some(Selected::Command(index)) => Some(index),
-                _ => None,
-            };
-            let index = [planned, selected]
-                .into_iter()
-                .flatten()
-                .find(|index| indices.contains(index))
-                .unwrap_or(indices[0]);
-            HandCard::Command(index)
-        }
-    }
+/// Welches Exemplar ein Klick auf einen Stapel meint: das gewählte, sonst das erste.
+fn pick(stack: &HandStack, hud: &HudState) -> usize {
+    hud.selected
+        .filter(|index| stack.0.contains(index))
+        .unwrap_or(stack.0[0])
 }
 
 fn click_card(
     click: On<PointerClick>,
     stacks: Query<&HandStack>,
-    game: Res<Match>,
     hud: Res<HudState>,
     mut pressed: MessageWriter<HandCardPressed>,
 ) {
@@ -341,91 +282,60 @@ fn click_card(
         return;
     }
     if let Ok(stack) = stacks.get(click.entity) {
-        pressed.write(HandCardPressed(pick(stack, &game, &hud)));
+        pressed.write(HandCardPressed(pick(stack, &hud)));
     }
 }
 
-/// Rahmen um gewählte und eingeplante Karten.
+/// Rahmen um die gewählte Karte; gedimmt, was gerade nicht spielbar ist.
 fn mark_cards(
     mut commands: Commands,
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     hud: Res<HudState>,
-    stacks: Query<(Entity, &HandStack, Has<Marked>)>,
+    mut stacks: Query<(Entity, &HandStack, Has<Marked>, &mut UiOpacity)>,
 ) {
-    let planned_ships: Vec<ShipPick> = game.arrivals().iter().map(|arrival| arrival.pick).collect();
-    let planned_command = game.plan().command.map(|command| command.hand_index);
-    let ship_marked = |pick: ShipPick| {
-        planned_ships.contains(&pick) || hud.selected == Some(Selected::Ship(pick))
+    let Some(battle) = battle else {
+        return;
     };
-    for (card, stack, was) in &stacks {
-        let marked = match stack {
-            HandStack::Flagship => ship_marked(ShipPick::Flagship),
-            HandStack::Ships(indices) => indices
-                .iter()
-                .any(|&index| ship_marked(ShipPick::Hand(index))),
-            HandStack::Commands(indices) => indices.iter().any(|&index| {
-                planned_command == Some(index) || hud.selected == Some(Selected::Command(index))
-            }),
-        };
+    for (card, stack, was, mut opacity) in &mut stacks {
+        let marked = hud.selected.is_some_and(|index| stack.0.contains(&index));
         if marked && !was {
             commands.entity(card).insert(Marked);
         } else if !marked && was {
             commands.entity(card).remove::<Marked>();
         }
+        let affordable = battle
+            .hand
+            .get(stack.0[0])
+            .is_some_and(|card| card.cost() <= battle.points);
+        let alpha = if hud.planning && affordable {
+            1.0
+        } else {
+            UNPLAYABLE_ALPHA
+        };
+        opacity.set_if_neq(UiOpacity(alpha));
     }
 }
 
-/// Die Spalte der Fähigkeit, getrennt von den Reihen.
-type AdmiralOnly = (With<AdmiralArea>, Without<HandRow>);
-
-/// Was [`fit_rows`] misst, hat sich geändert: die Breite der Leiste, des Aktionsknopfs oder der Fähigkeit, ob die
-/// Fähigkeit steht, oder die Karten einer Reihe.
-type HandResized = Or<(
-    (
-        Changed<ComputedNode>,
-        Or<(With<HandBar>, With<ActionArea>, With<AdmiralArea>)>,
-    ),
-    (Changed<Node>, With<AdmiralArea>),
-    (Changed<Children>, With<HandRow>),
-)>;
-
-/// Die Hände teilen sich die Leiste neben dem Aktionsknopf: Jede bekommt genau die Hälfte, damit der Knopf in der
-/// Mitte bleibt. Reicht der Platz nicht, rücken die Karten der Hand zusammen und überlappen sich.
-fn fit_rows(
-    bar: Single<&ComputedNode, With<HandBar>>,
-    action: Single<&ComputedNode, With<ActionArea>>,
-    admiral: Single<(&ComputedNode, &Node), AdmiralOnly>,
-    rows: Query<(&HandRow, &Children)>,
-    mut cards: Query<&mut Node, (Without<HandRow>, Without<AdmiralArea>)>,
+/// Passen die Karten nicht in die Reihe, rücken sie zusammen und überlappen sich.
+fn fit_row(
+    row: Single<(&ComputedNode, &Children), With<HandRow>>,
+    mut cards: Query<&mut Node, Without<HandRow>>,
 ) {
-    let logical = |node: &ComputedNode| node.size().x * node.inverse_scale_factor();
-    let room = logical(&bar) - logical(&action) - 2.0 * CENTER_MARGIN;
-    let (admiral_node, admiral_style) = *admiral;
-    let admiral_width = if admiral_style.display == Display::None {
-        0.0
+    let (node, children) = *row;
+    let space = node.size().x * node.inverse_scale_factor();
+    let count = children.len();
+    let width = count as f32 * CARD + count.saturating_sub(1) as f32 * CARD_GAP;
+    let gap = if count > 1 && width > space {
+        CARD_GAP - (width - space) / (count - 1) as f32
     } else {
-        logical(admiral_node) + SIDE_GAP
+        CARD_GAP
     };
-    for (row, children) in &rows {
-        let count = children.len();
-        let space = room / 2.0
-            - match row {
-                HandRow::Ships => 0.0,
-                HandRow::Commands => admiral_width,
-            };
-        let width = count as f32 * CARD + count.saturating_sub(1) as f32 * CARD_GAP;
-        let gap = if count > 1 && width > space {
-            CARD_GAP - (width - space) / (count - 1) as f32
-        } else {
-            CARD_GAP
-        };
-        for (index, card) in children.iter().enumerate() {
-            let margin = if index == 0 { Val::ZERO } else { px(gap) };
-            if let Ok(mut node) = cards.get_mut(card)
-                && node.margin.left != margin
-            {
-                node.margin.left = margin;
-            }
+    for (index, card) in children.iter().enumerate() {
+        let margin = if index == 0 { Val::ZERO } else { px(gap) };
+        if let Ok(mut node) = cards.get_mut(card)
+            && node.margin.left != margin
+        {
+            node.margin.left = margin;
         }
     }
 }
@@ -439,12 +349,7 @@ impl Plugin for HandPlugin {
             .add_observer(click_card)
             .add_systems(
                 Update,
-                (
-                    rebuild_rows.run_if(resource_changed::<Match>),
-                    set_hover_origins,
-                    mark_cards,
-                    fit_rows.run_if(any_match_filter::<HandResized>),
-                )
+                (rebuild_row, update_piles, mark_cards, fit_row)
                     .chain()
                     .run_if(in_state(AppState::Match)),
             );
@@ -453,21 +358,28 @@ impl Plugin for HandPlugin {
 
 #[cfg(test)]
 mod tests {
+    use voidfleet_core::cards::CardId;
+
     use super::*;
 
     #[test]
     fn stacks_keep_first_position() {
-        let hand = [ShipId::Drone, ShipId::Hive, ShipId::Drone, ShipId::Drone];
+        let hand = [CardId::Torpedo, CardId::Scavenge, CardId::Torpedo].map(DeckCard::new);
         assert_eq!(
             stacks_of(&hand),
-            vec![(ShipId::Drone, vec![0, 2, 3]), (ShipId::Hive, vec![1])]
+            vec![(hand[0], vec![0, 2]), (hand[1], vec![1])]
         );
     }
 
     #[test]
     fn drawn_counts_copies() {
-        let before = [ShipId::Drone, ShipId::Hive];
-        let after = [ShipId::Drone, ShipId::Drone, ShipId::Hive, ShipId::Mirage];
+        let before = [CardId::Torpedo, CardId::Scavenge];
+        let after = [
+            CardId::Torpedo,
+            CardId::Torpedo,
+            CardId::Scavenge,
+            CardId::RedAlert,
+        ];
         assert_eq!(drawn_indices(&before, &after), vec![1, 3]);
         assert_eq!(draw_delay(&[0, 1], &[1, 3]), Some(0.0));
         assert_eq!(draw_delay(&[3], &[1, 3]), Some(DRAW_STAGGER));

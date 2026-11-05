@@ -1,12 +1,8 @@
-//! Die Admirale im Client: ihre Porträts (`images/admirals/<id>.jpg`) für Auswahlkarten, Fähigkeitskarte, Banner und
-//! Gegner-Feld, und welcher Admiral zu einem Flaggschiff bzw. einer Fähigkeit gehört. Regeln und Zahlen stehen im
+//! Die Admirale im Client: ihre Porträts (`images/admirals/<id>.jpg`) für Admiralswahl, Kopfzeile und Banner. Regeln und Zahlen stehen im
 //! Regelwerk, die Akzentfarben in [`crate::palette`].
 
 use bevy::{platform::collections::HashMap, prelude::*};
-use voidfleet_core::{
-    admirals::{ADMIRAL_IDS, AdmiralId, PowerId},
-    cards::ShipId,
-};
+use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId, FlagshipId};
 
 use super::FileKey;
 use crate::assets::Preload;
@@ -16,19 +12,12 @@ pub fn portrait_path(admiral: AdmiralId) -> String {
     format!("images/admirals/{}.jpg", admiral.file_key())
 }
 
-/// Der Admiral, dem das Flaggschiff gehört; `None` für alle anderen Schiffe.
-pub fn flagship_admiral(ship: ShipId) -> Option<AdmiralId> {
+/// Der Admiral, dem das Flaggschiff gehört.
+pub fn flagship_admiral(flagship: FlagshipId) -> AdmiralId {
     ADMIRAL_IDS
         .into_iter()
-        .find(|admiral| admiral.flagship() == ship)
-}
-
-/// Der Admiral mit dieser Fähigkeit.
-pub fn power_admiral(power: PowerId) -> AdmiralId {
-    ADMIRAL_IDS
-        .into_iter()
-        .find(|admiral| admiral.power() == power)
-        .expect("jede Fähigkeit gehört einem Admiral")
+        .find(|admiral| admiral.flagship() == flagship)
+        .expect("jedes Flaggschiff gehört einem Admiral")
 }
 
 /// Die Porträts aller Admirale, beim Start geladen.

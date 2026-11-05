@@ -1,4 +1,4 @@
-//! Voidfleet-Client in Bevy: Port des TypeScript-Clients (Babylon.js, DOM-UI, Web Audio).
+//! Voidfleet-Client in Bevy: das PvE-Gefecht aus `voidfleet_core` mit 3D-Szene, Oberfläche und Ton.
 //!
 //! Aufbau: je Bereich ein Plugin, zusammengefasst in [`ClientPlugin`].
 //!
@@ -6,15 +6,14 @@
 //! - [`assets`] — Ladeliste aller Assets, Fortschritt und die Zustände [`AppState`] und [`LoadingPhase`].
 //! - [`data`] — Kataloge der Assets (Schiffsmodelle, Kartenbilder, Porträts, Hintergründe, Sounds, Bordfunk).
 //! - [`palette`] — alle Farben mit Bedeutung.
-//! - [`scene`] — die 3D-Szene: Kamera mit ihren zwei Ansichten, Brett, Schiffe, Planungs-Overlays, Picking, Abgleich
-//!   mit dem Spielzustand, Effekte und Animationen der Wiedergabe.
+//! - [`scene`] — die 3D-Szene: Kamera mit ihren zwei Ansichten, Brett, Schiffe, Statusanzeigen, Picking, Abgleich
+//!   mit dem Gefecht, Effekte und Animationen der Wiedergabe.
 //! - [`audio`] — Mixer, Effekte, Musik, synthetisierte UI-Klänge und Bordfunk über Kira.
-//! - [`ui`] — Oberfläche in `bevy_ui`: Karten, Hand, HUD, Gegnerpanel, Rundenlog, Dialoge, Ladebildschirm.
+//! - [`ui`] — Oberfläche in `bevy_ui`: Karten, Hand, Stationen, HUD, Rundenlog, Dialoge, Ladebildschirm.
 //! - [`i18n`] — Texte in Englisch und Deutsch ([`i18n::Locale`]).
-//! - [`net`] — Kommandozeile, eingebetteter Server und WebSocket-Verbindung.
-//! - [`game`] — Spielzustand, Zugplanung und Zielvorschau; übernimmt die Nachrichten des Servers.
-//! - [`controller`] — verbindet Server, Zustand, Szene und Oberfläche: Auswahl, Klicks, Hervorhebung, HUD, Bordfunk.
-//! - [`playback`] — Rundenwiedergabe: spielt die aufgedeckten Ereignisse einer Runde auf dem Brett ab.
+//! - [`game`] — das Gefecht als Ressource; führt die Aktionen des Spielers am Regelwerk aus.
+//! - [`controller`] — verbindet Gefecht, Szene und Oberfläche: Auswahl, Klicks, Hervorhebung, Vorschau, Musik.
+//! - [`playback`] — Wiedergabe der Ereignisse einer Aktion (vorerst nur Log und Bordfunk).
 //! - [`dev`] — Rauchtest für Läufe ohne Spieler (`VOIDFLEET_SMOKE_*`) und Vorschau-Szenen (`VOIDFLEET_DEV_SCENE`).
 
 // Bevy-Systeme nehmen ihre Ressourcen und Abfragen als Parameter; viele davon und verschachtelte Abfragetypen sind dort
@@ -28,7 +27,6 @@ pub mod data;
 pub mod dev;
 pub mod game;
 pub mod i18n;
-pub mod net;
 pub mod palette;
 pub mod playback;
 pub mod scene;
@@ -113,7 +111,6 @@ impl Plugin for ClientPlugin {
         .add_plugins((
             settings::SettingsPlugin,
             i18n::I18nPlugin,
-            net::NetPlugin,
             game::GamePlugin,
             assets::AssetsPlugin,
             scene::ScenePlugin,

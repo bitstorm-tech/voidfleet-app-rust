@@ -1,132 +1,77 @@
-//! Der Match-Controller (Port von `matchController.ts`): verbindet Server, Spielzustand, Szene und Oberfläche. Die
-//! Szene spiegelt den Zustand nur ([`crate::scene::sync`]); der Controller legt fest, was gewählt ist, was leuchtet,
-//! was unter dem Zeiger als Vorschau steht und was das HUD sagt.
+//! Der Controller verbindet Gefecht, Szene und Oberfläche. Die Szene spiegelt das Gefecht nur
+//! ([`crate::scene::sync`]); der Controller legt fest, was gewählt ist, was leuchtet, was unter dem Zeiger als Vorschau
+//! steht und was das HUD sagt.
 //!
-//! - [`planner`]: die Auswahl als Zustandsmaschine ([`Selection`]) und was ein Klick je Zustand bedeutet.
+//! - [`selection`]: die Auswahl als Zustandsmaschine ([`Selection`]), gültige Ziele und die Vorschau.
 //!
-//! Ablauf je Bild, nach der Übernahme der Server-Nachricht ([`ApplySet`]) und vor dem Abgleich der Szene
-//! ([`SyncSystems`]):
+//! Ablauf je Bild, nach dem Gefecht ([`GameSystems`]) und vor dem Abgleich der Szene ([`SyncSystems`]):
 //!
-//! 1. [`ControllerSystems::Server`] — ein neuer Zustand setzt die Auswahl zurück, stellt die Musik, kündigt eine neue
-//!    Runde an und lässt den Bordfunk melden (Gefechtsbeginn, Overdrive, letztes Kriegsschiff, Gegner hat abgegeben,
-//!    kurz nach der Fanfare der Ausgang). Eine aufgelöste Runde hält die Warteschlange an und übergibt die Szene der
-//!    Wiedergabe ([`BoardMode::Playback`], [`PlayRound`]); ist sie fertig ([`PlaybackFinished`]), gibt er die
-//!    Warteschlange frei und schaltet auf [`BoardMode::Planning`], sobald der neue Zustand da ist.
-//!    Fehler des Servers landen im Log.
-//! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand, Fähigkeit, Zielerfassung, Slots,
-//!    Spaltenpfeile, Klick daneben (zweimal schnell: Vollbild), Rechtsklick, Escape (vor den Dialogen), Leertaste und
-//!    Aktionsknopf, die Wahl aus Admiralswahl und Nachschub, Aufgeben und neues Match.
-//! 3. [`ControllerSystems::Refresh`] — [`Highlights`], [`BoardFocus`] und [`HudState`] aus Zustand, Auswahl und Zeiger.
+//! 1. [`ControllerSystems::Game`] — ein neues Gefecht setzt Auswahl, Musik und Log zurück und lässt den Bordfunk
+//!    melden. Ereignisse einer Aktion übergeben die Szene der Wiedergabe ([`BoardMode::Playback`], [`PlayEvents`]);
+//!    meldet sie [`PlaybackFinished`], gehört die Szene wieder der Planung. Abgelehnte Aktionen erscheinen als Banner.
+//! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand, Slots, Klick daneben (zweimal schnell:
+//!    Vollbild), Rechtsklick und Escape brechen ab, Escape ohne Auswahl öffnet die Einstellungen, Leertaste
+//!    überspringt, Stationen-Feld und Aktionsknöpfe, Admiralswahl und Ergebnis.
+//! 3. [`ControllerSystems::Refresh`] — [`Highlights`], [`BoardFocus`] und [`HudState`] aus Gefecht, Auswahl und Zeiger.
 //!
 //! Dev-Ansichten, die Brett und HUD selbst stellen, setzen [`Scripted`]; dann ruht der Controller.
 
-pub mod planner;
+pub mod selection;
 
-use std::time::Duration;
+use bevy::prelude::*;
 
-use bevy::{ecs::system::SystemParam, prelude::*};
-use voidfleet_core::{
-    board::overdrive_bonus,
-    protocol::{ClientMessage, MatchResult},
-};
-
-pub use planner::{Escape, Planner, Selection};
+pub use selection::{Outcome, Pick, Selection};
 
 use crate::{
     assets::AppState,
     audio::{Music, MusicMood, PlayUiSound, RadioCue, Say, UiSound},
-    game::{ApplySet, Match, RoundResolved, ServerError, ServerInbox, StateChanged},
+    game::{
+        Battle, BattleEvents, BattleStarted, GameSystems, LeaveBattle, PlayerAction, RuleRejected,
+        StartBattle,
+    },
     i18n::Locale,
-    net::{ConnectionLost, ConnectionStatus, Server, ToServer},
-    playback::{PlayRound, PlaybackFinished, SkipPlayback},
+    playback::{PlayEvents, PlaybackFinished, SkipPlayback},
     scene::{
         background::ChangeBackground,
         board::{BoardHover, Highlights},
-        picking::{BoardMissed, ColumnPressed, SlotPressed},
+        picking::{BoardMissed, SlotPressed},
         sync::{BoardFocus, BoardMode, SyncSystems},
     },
     ui::{
-        ActionPressed, AppendLog, HandCardPressed, HudAction, HudState, MarkPressed, PowerPressed,
-        ShowRoundBanner,
-        dialogs::{
-            AdmiralChosen, Dialog, DialogSystems, DraftChosen, NewMatch, OpenDialog,
-            SurrenderConfirmed,
-        },
+        ActionPressed, AppendLog, ClearLog, HandCardPressed, HudAction, HudState, ShowBanner,
+        StationPressed,
+        dialogs::{AdmiralChosen, Dialog, DialogSystems, NewRun, NextBattle, OpenDialog},
         fullscreen::ToggleFullscreen,
-        hand::HandBar,
         theme::Modal,
     },
 };
 
-/// Den Ausgang meldet der Bordfunk kurz nach dem Einsatz der Fanfare.
-const RESULT_REPORT_DELAY: Duration = Duration::from_millis(1500);
 /// Zwei Klicks daneben innerhalb dieser Zeit sind ein Doppelklick (Vollbild).
 const DOUBLE_CLICK: f64 = 0.3;
 
-/// Dev-Ansichten stellen Spielzustand, Brett und HUD selbst; der Controller ruht.
+/// Dev-Ansichten stellen Gefecht, Brett und HUD selbst; der Controller ruht.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct Scripted;
 
 /// Reihenfolge der Systeme des Controllers.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ControllerSystems {
-    Server,
+    Game,
     Input,
     Refresh,
-}
-
-/// Was beim letzten Zustand galt, für die Meldungen des Bordfunks und die Ankündigung einer neuen Runde.
-#[derive(Resource, Clone, Copy, Debug, Default)]
-struct Reported {
-    round: u32,
-    opponent_admiral: bool,
-    opponent_submitted: bool,
-    result: Option<MatchResult>,
-    /// Eigene Kriegsschiffe auf Brett und Hand, für die Meldung, dass nur noch eines übrig ist.
-    warships: usize,
-}
-
-impl Reported {
-    fn of(game: &Match) -> Self {
-        Self {
-            round: game.round,
-            opponent_admiral: game
-                .opponent
-                .as_ref()
-                .is_some_and(|opponent| opponent.admiral.is_some()),
-            opponent_submitted: game
-                .opponent
-                .as_ref()
-                .is_some_and(|opponent| opponent.submitted),
-            result: game.result,
-            warships: game.warships(),
-        }
-    }
-}
-
-/// Die Wiedergabe ist fertig, die Warteschlange frei; die Szene wartet auf den neuen Zustand.
-#[derive(Resource, Debug, Default)]
-struct AwaitingState;
-
-/// Der Funkspruch zum Ausgang, sobald die Fanfare eingesetzt hat.
-#[derive(Resource, Debug)]
-struct ResultReport {
-    timer: Timer,
-    cue: RadioCue,
 }
 
 pub struct ControllerPlugin;
 
 impl Plugin for ControllerPlugin {
     fn build(&self, app: &mut App) {
-        use ControllerSystems::{Input, Refresh, Server};
+        use ControllerSystems::{Game, Input, Refresh};
         app.init_resource::<Selection>()
-            .init_resource::<Reported>()
             .configure_sets(
                 Update,
-                (Server, Input, Refresh)
+                (Game, Input, Refresh)
                     .chain()
-                    .after(ApplySet)
+                    .after(GameSystems)
                     .before(SyncSystems)
                     .run_if(in_state(AppState::Match))
                     .run_if(not(resource_exists::<Scripted>)),
@@ -135,39 +80,28 @@ impl Plugin for ControllerPlugin {
                 Update,
                 (
                     (
-                        follow_state.run_if(on_message::<StateChanged>),
-                        start_playback.run_if(on_message::<RoundResolved>),
+                        begin_battle.run_if(on_message::<BattleStarted>),
+                        start_playback.run_if(on_message::<BattleEvents>),
                         finish_playback.run_if(on_message::<PlaybackFinished>),
-                        resume_planning
-                            .run_if(resource_exists::<AwaitingState>)
-                            .run_if(
-                                on_message::<StateChanged>.or_eager(on_message::<ConnectionLost>),
-                            ),
-                        lose_connection.run_if(on_message::<ConnectionLost>),
-                        log_errors.run_if(on_message::<ServerError>),
-                        report_result.run_if(resource_exists::<ResultReport>),
+                        report_rejections.run_if(on_message::<RuleRejected>),
                     )
-                        .in_set(Server),
+                        .in_set(Game),
                     (
                         press_hand_cards.run_if(on_message::<HandCardPressed>),
-                        press_power.run_if(on_message::<PowerPressed>),
-                        press_mark.run_if(on_message::<MarkPressed>),
                         press_slots.run_if(on_message::<SlotPressed>),
-                        press_columns.run_if(on_message::<ColumnPressed>),
                         miss_board.run_if(on_message::<BoardMissed>),
+                        press_stations.run_if(on_message::<StationPressed>),
+                        press_action.run_if(on_message::<ActionPressed>),
                         cancel_on_right_click,
                         escape.before(DialogSystems),
                         skip_on_space.run_if(in_state(BoardMode::Playback)),
-                        press_action.run_if(on_message::<ActionPressed>),
                         forward_choices,
-                        start_new_match.run_if(on_message::<NewMatch>),
                     )
                         .in_set(Input),
                     (
                         update_highlights.run_if(planning_changed),
                         update_focus.run_if(focus_changed),
                         update_hud.run_if(planning_changed),
-                        hide_hand.run_if(resource_changed::<Match>),
                     )
                         .chain()
                         .in_set(Refresh),
@@ -176,195 +110,161 @@ impl Plugin for ControllerPlugin {
     }
 }
 
-/// Ob gerade geplant werden darf: verbunden, keine Wiedergabe, beide Admirale gewählt, der Zug dieser Runde offen, der
-/// Nachschub gewählt und das Match nicht entschieden.
-fn can_plan(game: &Match, connection: ConnectionStatus, mode: BoardMode) -> bool {
-    connection == ConnectionStatus::Connected && mode == BoardMode::Planning && game.turn_open()
+/// Ob der Spieler gerade handeln darf: ein Gefecht läuft, keine Wiedergabe, nicht entschieden.
+fn can_act(battle: Option<&Battle>, mode: BoardMode) -> bool {
+    mode == BoardMode::Planning && battle.is_some_and(|battle| battle.result.is_none())
 }
 
-/// Was ein Klick zum Planen braucht.
-#[derive(SystemParam)]
-struct Desk<'w> {
-    game: ResMut<'w, Match>,
-    selection: ResMut<'w, Selection>,
-    connection: Res<'w, ConnectionStatus>,
-    mode: Res<'w, State<BoardMode>>,
-    sounds: MessageWriter<'w, PlayUiSound>,
-}
+// --- Gefecht ---
 
-impl Desk<'_> {
-    /// Lässt den Planer einen Klick verarbeiten und spielt den Klang dazu.
-    fn act(&mut self, click: impl FnOnce(&mut Planner) -> Option<UiSound>) {
-        let can_plan = can_plan(&self.game, *self.connection, *self.mode.get());
-        let mut planner = Planner {
-            game: &mut self.game,
-            selection: &mut self.selection,
-            can_plan,
-        };
-        if let Some(sound) = click(&mut planner) {
-            self.sounds.write(PlayUiSound(sound));
-        }
-    }
-}
-
-// --- Server ---
-
-/// Ein neuer Zustand: die Auswahl geht, die Musik folgt der Phase, eine neue Runde wird angekündigt, und der
-/// Bordfunk meldet, was sich zwischen den Runden getan hat.
-fn follow_state(
-    mut commands: Commands,
-    game: Res<Match>,
-    mut reported: ResMut<Reported>,
+/// Ein neues Gefecht: Auswahl und Log leer, Musik an, der Bordfunk meldet.
+fn begin_battle(
+    battle: Res<Battle>,
+    locale: Res<Locale>,
     mut selection: ResMut<Selection>,
     mut music: ResMut<Music>,
-    mut round_banner: MessageWriter<ShowRoundBanner>,
+    mut mode: ResMut<NextState<BoardMode>>,
+    mut clear: MessageWriter<ClearLog>,
+    mut log: MessageWriter<AppendLog>,
     mut say: MessageWriter<Say>,
+    mut background: MessageWriter<ChangeBackground>,
 ) {
-    let before = *reported;
-    *reported = Reported::of(&game);
     selection.set_if_neq(Selection::Idle);
-    music.set_if_neq(Music(game.result.is_none().then_some(MusicMood::Calm)));
-    if let Some(result) = game.result {
-        if before.result.is_none() {
-            commands.insert_resource(ResultReport {
-                timer: Timer::new(RESULT_REPORT_DELAY, TimerMode::Once),
-                cue: result_cue(result, game.surrendered),
-            });
-        }
-        return;
-    }
-    // Runde 1 versteht sich von selbst, ebenso der erste Zustand nach dem Start.
-    let new_round = before.round > 0 && game.round > before.round;
-    if new_round {
-        round_banner.write(ShowRoundBanner(game.round));
-    }
-    let now = *reported;
-    if !before.opponent_admiral && now.opponent_admiral && game.round == 1 {
-        say.write(Say::new(RadioCue::BattleStart));
-    }
-    let overdrive = overdrive_bonus(game.round);
-    if new_round && overdrive > overdrive_bonus(game.round - 1) {
-        say.write(Say::new(if overdrive == 1 {
-            RadioCue::Overdrive
-        } else {
-            RadioCue::OverdriveUp
-        }));
-    }
-    if now.warships == 1 && before.warships > 1 {
-        say.write(Say::new(RadioCue::LastShip));
-    }
-    if !before.opponent_submitted && now.opponent_submitted && !game.submitted {
-        say.write(Say::new(RadioCue::EnemyReady));
-    }
+    music.set_if_neq(Music(Some(MusicMood::Battle)));
+    mode.set(BoardMode::Planning);
+    clear.write(ClearLog);
+    log.write(AppendLog(vec![
+        locale.log_battle_started(&locale.admiral_title(battle.flagship.admiral)),
+        locale.log_round_header(battle.round),
+    ]));
+    say.write(Say::new(RadioCue::BattleStart));
+    background.write(ChangeBackground);
 }
 
-/// Der Funkspruch zum Ausgang; nach einer Aufgabe meldet er den Rückzug.
-fn result_cue(result: MatchResult, surrendered: bool) -> RadioCue {
-    match (result, surrendered) {
-        (MatchResult::Draw, _) => RadioCue::Draw,
-        (MatchResult::Won, false) => RadioCue::Victory,
-        (MatchResult::Won, true) => RadioCue::EnemySurrender,
-        (MatchResult::Lost, false) => RadioCue::Defeat,
-        (MatchResult::Lost, true) => RadioCue::Retreat,
-    }
-}
-
-fn report_result(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut report: ResMut<ResultReport>,
-    mut say: MessageWriter<Say>,
-) {
-    if report.timer.tick(time.delta()).just_finished() {
-        say.write(Say::new(report.cue));
-        commands.remove_resource::<ResultReport>();
-    }
-}
-
-/// Die Runde ist aufgelöst: Die Warteschlange wartet, bis sie abgespielt ist; eine offene Auswahl muss weichen (wer als
-/// Zweiter abgibt, bekommt die Runde ohne Zwischenstand).
+/// Eine Aktion hat Ereignisse: Die Szene gehört der Wiedergabe, bis sie fertig ist. Nach Gefechtsende verstummt die
+/// Musik.
 fn start_playback(
-    mut resolved: MessageReader<RoundResolved>,
-    mut inbox: ResMut<ServerInbox>,
+    mut events: MessageReader<BattleEvents>,
+    battle: Res<Battle>,
     mut mode: ResMut<NextState<BoardMode>>,
     mut selection: ResMut<Selection>,
     mut music: ResMut<Music>,
-    mut play: MessageWriter<PlayRound>,
+    mut play: MessageWriter<PlayEvents>,
 ) {
-    for RoundResolved { round, events } in resolved.read() {
-        inbox.hold();
+    for BattleEvents(events) in events.read() {
         mode.set(BoardMode::Playback);
-        selection.set_if_neq(Selection::Idle);
-        music.set_if_neq(Music(Some(MusicMood::Battle)));
-        play.write(PlayRound {
-            round: *round,
-            events: events.clone(),
-        });
+        play.write(PlayEvents(events.clone()));
+    }
+    selection.set_if_neq(Selection::Idle);
+    if battle.result.is_some() {
+        music.set_if_neq(Music(None));
     }
 }
 
-/// Die Wiedergabe ist fertig: Der neue Zustand darf kommen. Die Szene gehört erst der Planung, wenn er da ist
-/// ([`resume_planning`]); sonst gliche sie sich noch dem Brett von vor der Runde an.
 fn finish_playback(
-    mut commands: Commands,
     mut finished: MessageReader<PlaybackFinished>,
-    mut inbox: ResMut<ServerInbox>,
+    mut mode: ResMut<NextState<BoardMode>>,
 ) {
     finished.clear();
-    inbox.release();
-    commands.init_resource::<AwaitingState>();
-}
-
-/// Der Zustand nach der Wiedergabe ist da (oder die Verbindung weg, dann kommt keiner mehr): zurück zur Planung.
-fn resume_planning(mut commands: Commands, mut mode: ResMut<NextState<BoardMode>>) {
-    commands.remove_resource::<AwaitingState>();
     mode.set(BoardMode::Planning);
 }
 
-fn lose_connection(mut lost: MessageReader<ConnectionLost>, mut selection: ResMut<Selection>) {
-    lost.clear();
-    selection.set_if_neq(Selection::Idle);
-}
-
-fn log_errors(
-    mut errors: MessageReader<ServerError>,
+/// Abgelehnte Aktionen: kurz als Banner, dazu ein Fehlerklang.
+fn report_rejections(
+    mut rejected: MessageReader<RuleRejected>,
     locale: Res<Locale>,
-    mut log: MessageWriter<AppendLog>,
+    mut banner: MessageWriter<ShowBanner>,
+    mut sounds: MessageWriter<PlayUiSound>,
 ) {
-    for ServerError(code) in errors.read() {
-        log.write(AppendLog(vec![format!("Server: {}", locale.error(*code))]));
+    if let Some(&RuleRejected(error)) = rejected.read().last() {
+        banner.write(ShowBanner {
+            title: locale.rule_error(error).to_owned(),
+            subtitle: None,
+            admiral: None,
+        });
+        sounds.write(PlayUiSound(UiSound::Denied));
     }
 }
 
 // --- Eingaben ---
 
-fn press_hand_cards(mut pressed: MessageReader<HandCardPressed>, mut desk: Desk) {
-    for &HandCardPressed(card) in pressed.read() {
-        desk.act(|planner| Some(planner.press_hand_card(card)));
+/// Lässt die Auswahl einen Klick verarbeiten: Aktion ans Gefecht, neue Auswahl oder Ablehnung.
+fn handle_click(
+    pick: Pick,
+    battle: Option<&Battle>,
+    mode: BoardMode,
+    selection: &mut Selection,
+    actions: &mut MessageWriter<PlayerAction>,
+    rejected: &mut MessageWriter<RuleRejected>,
+    sounds: &mut MessageWriter<PlayUiSound>,
+) {
+    let Some(battle) = battle.filter(|_| can_act(battle, mode)) else {
+        return;
+    };
+    match selection::click(battle, *selection, pick) {
+        Outcome::Select(next) => {
+            if next != *selection {
+                sounds.write(PlayUiSound(if next == Selection::Idle {
+                    UiSound::Cancel
+                } else {
+                    UiSound::Select
+                }));
+            }
+            *selection = next;
+        }
+        Outcome::Act(action) => {
+            *selection = Selection::Idle;
+            sounds.write(PlayUiSound(UiSound::Place));
+            actions.write(action);
+        }
+        Outcome::Reject(error) => {
+            rejected.write(RuleRejected(error));
+        }
+        Outcome::Nothing => {}
     }
 }
 
-fn press_power(mut pressed: MessageReader<PowerPressed>, mut desk: Desk) {
-    for _ in pressed.read() {
-        desk.act(|planner| Some(planner.press_power()));
+fn press_hand_cards(
+    mut pressed: MessageReader<HandCardPressed>,
+    battle: Option<Res<Battle>>,
+    mode: Res<State<BoardMode>>,
+    mut selection: ResMut<Selection>,
+    mut actions: MessageWriter<PlayerAction>,
+    mut rejected: MessageWriter<RuleRejected>,
+    mut sounds: MessageWriter<PlayUiSound>,
+) {
+    for &HandCardPressed(index) in pressed.read() {
+        handle_click(
+            Pick::Card(index),
+            battle.as_deref(),
+            *mode.get(),
+            &mut selection,
+            &mut actions,
+            &mut rejected,
+            &mut sounds,
+        );
     }
 }
 
-fn press_mark(mut pressed: MessageReader<MarkPressed>, mut desk: Desk) {
-    for _ in pressed.read() {
-        desk.act(|planner| Some(planner.press_mark()));
-    }
-}
-
-fn press_slots(mut pressed: MessageReader<SlotPressed>, mut desk: Desk) {
+fn press_slots(
+    mut pressed: MessageReader<SlotPressed>,
+    battle: Option<Res<Battle>>,
+    mode: Res<State<BoardMode>>,
+    mut selection: ResMut<Selection>,
+    mut actions: MessageWriter<PlayerAction>,
+    mut rejected: MessageWriter<RuleRejected>,
+    mut sounds: MessageWriter<PlayUiSound>,
+) {
     for &SlotPressed(slot) in pressed.read() {
-        desk.act(|planner| planner.press_slot(slot));
-    }
-}
-
-fn press_columns(mut pressed: MessageReader<ColumnPressed>, mut desk: Desk) {
-    for &ColumnPressed(column) in pressed.read() {
-        desk.act(|planner| planner.press_column(column));
+        handle_click(
+            Pick::Slot(slot),
+            battle.as_deref(),
+            *mode.get(),
+            &mut selection,
+            &mut actions,
+            &mut rejected,
+            &mut sounds,
+        );
     }
 }
 
@@ -373,11 +273,11 @@ fn miss_board(
     mut missed: MessageReader<BoardMissed>,
     time: Res<Time<Real>>,
     mut last: Local<Option<f64>>,
-    mut desk: Desk,
+    mut selection: ResMut<Selection>,
     mut fullscreen: MessageWriter<ToggleFullscreen>,
 ) {
     for _ in missed.read() {
-        desk.act(|planner| planner.miss());
+        selection.set_if_neq(Selection::Idle);
         let now = time.elapsed_secs_f64();
         if last.is_some_and(|then| now - then < DOUBLE_CLICK) {
             fullscreen.write(ToggleFullscreen);
@@ -388,35 +288,83 @@ fn miss_board(
     }
 }
 
+/// Eine Station im Stationen-Feld: Sie wird eingestellt, eine Kartenwahl geht.
+fn press_stations(
+    mut pressed: MessageReader<StationPressed>,
+    battle: Option<Res<Battle>>,
+    mode: Res<State<BoardMode>>,
+    mut selection: ResMut<Selection>,
+    mut actions: MessageWriter<PlayerAction>,
+    mut sounds: MessageWriter<PlayUiSound>,
+) {
+    for &StationPressed(station) in pressed.read() {
+        if can_act(battle.as_deref(), *mode.get()) {
+            selection.set_if_neq(Selection::Idle);
+            sounds.write(PlayUiSound(UiSound::Select));
+            actions.write(PlayerAction::SetStation(station));
+        }
+    }
+}
+
+/// Die Aktionsknöpfe: Station auslösen, Zug beenden, Wiedergabe überspringen.
+fn press_action(
+    mut pressed: MessageReader<ActionPressed>,
+    battle: Option<Res<Battle>>,
+    mode: Res<State<BoardMode>>,
+    mut selection: ResMut<Selection>,
+    mut actions: MessageWriter<PlayerAction>,
+    mut skip: MessageWriter<SkipPlayback>,
+    mut sounds: MessageWriter<PlayUiSound>,
+) {
+    for &ActionPressed(action) in pressed.read() {
+        match action {
+            HudAction::Skip => {
+                skip.write(SkipPlayback);
+            }
+            _ if !can_act(battle.as_deref(), *mode.get()) => {}
+            HudAction::Trigger => {
+                selection.set_if_neq(Selection::Idle);
+                actions.write(PlayerAction::TriggerStation);
+            }
+            HudAction::EndTurn => {
+                selection.set_if_neq(Selection::Idle);
+                sounds.write(PlayUiSound(UiSound::Confirm));
+                actions.write(PlayerAction::EndTurn);
+            }
+        }
+    }
+}
+
 /// Ein Rechtsklick bricht eine angefangene Auswahl ab, außer bei offenem Dialog.
 fn cancel_on_right_click(
     mouse: Res<ButtonInput<MouseButton>>,
     modal: Query<(), With<Modal>>,
-    mut desk: Desk,
+    mut selection: ResMut<Selection>,
+    mut sounds: MessageWriter<PlayUiSound>,
 ) {
-    if mouse.just_pressed(MouseButton::Right) && modal.is_empty() {
-        desk.act(|planner| planner.cancel());
+    if mouse.just_pressed(MouseButton::Right) && modal.is_empty() && *selection != Selection::Idle {
+        *selection = Selection::Idle;
+        sounds.write(PlayUiSound(UiSound::Cancel));
     }
 }
 
-/// Escape nimmt zurück, was zurückzunehmen ist, sonst öffnet es die Einstellungen. Ein offener Dialog geht vor: Den
-/// schließt Escape selbst.
+/// Escape bricht eine Auswahl ab, sonst öffnet es die Einstellungen. Ein offener Dialog geht vor: Den schließt Escape
+/// selbst.
 fn escape(
     keys: Res<ButtonInput<KeyCode>>,
     modal: Query<(), With<Modal>>,
-    mut desk: Desk,
+    mut selection: ResMut<Selection>,
     mut open: MessageWriter<OpenDialog>,
+    mut sounds: MessageWriter<PlayUiSound>,
 ) {
     if !keys.just_pressed(KeyCode::Escape) || !modal.is_empty() {
         return;
     }
-    let mut escaped = Escape::OpenSettings;
-    desk.act(|planner| {
-        escaped = planner.escape();
-        (escaped == Escape::TookBack).then_some(UiSound::Cancel)
-    });
-    if escaped == Escape::OpenSettings {
+    if *selection == Selection::Idle {
         open.write(OpenDialog(Dialog::Settings));
+    } else {
+        *selection = Selection::Idle;
+        sounds.write(PlayUiSound(UiSound::Cancel));
     }
 }
 
@@ -431,176 +379,103 @@ fn skip_on_space(
     }
 }
 
-/// Der Aktionsknopf: Zug beenden, Wiedergabe überspringen, Computergegner holen oder seinen Platz freimachen.
-fn press_action(
-    mut pressed: MessageReader<ActionPressed>,
-    game: Res<Match>,
-    connection: Res<ConnectionStatus>,
-    mode: Res<State<BoardMode>>,
-    mut outgoing: MessageWriter<ToServer>,
-    mut skip: MessageWriter<SkipPlayback>,
-    mut sounds: MessageWriter<PlayUiSound>,
-    mut say: MessageWriter<Say>,
-) {
-    for &ActionPressed(action) in pressed.read() {
-        match action {
-            HudAction::EndTurn => {
-                let ready = can_plan(&game, *connection, *mode.get())
-                    && game.opponent.is_some()
-                    && !game.flagship_missing();
-                if ready {
-                    outgoing.write(ToServer(ClientMessage::Submit {
-                        plan: game.to_turn_plan(),
-                    }));
-                    sounds.write(PlayUiSound(UiSound::Confirm));
-                    say.write(Say::new(RadioCue::OrdersSent));
-                }
-            }
-            HudAction::Skip => {
-                skip.write(SkipPlayback);
-            }
-            HudAction::PlayComputer => {
-                outgoing.write(ToServer(ClientMessage::AddBot));
-            }
-            HudAction::InvitePlayer => {
-                outgoing.write(ToServer(ClientMessage::RemoveBot));
-            }
-        }
-    }
-}
-
-/// Admiralswahl, Nachschub und Aufgabe gehen an den Server.
+/// Admiralswahl und Ergebnis: Ein Admiral beginnt ein Gefecht, „Weiter“ das nächste Test-Gefecht mit demselben,
+/// „Neuer Run“ führt zurück zur Admiralswahl.
 fn forward_choices(
     mut admirals: MessageReader<AdmiralChosen>,
-    mut drafts: MessageReader<DraftChosen>,
-    mut surrenders: MessageReader<SurrenderConfirmed>,
-    mut outgoing: MessageWriter<ToServer>,
+    mut next: MessageReader<NextBattle>,
+    mut new_run: MessageReader<NewRun>,
+    battle: Option<Res<Battle>>,
+    mut start: MessageWriter<StartBattle>,
+    mut leave: MessageWriter<LeaveBattle>,
+    mut music: ResMut<Music>,
 ) {
-    let admirals = admirals
-        .read()
-        .map(|&AdmiralChosen(admiral)| ClientMessage::ChooseAdmiral { admiral });
-    let drafts = drafts
-        .read()
-        .map(|&DraftChosen(pick)| ClientMessage::Draft { pick });
-    let surrenders = surrenders.read().map(|_| ClientMessage::Surrender);
-    outgoing.write_batch(admirals.chain(drafts).chain(surrenders).map(ToServer));
-}
-
-/// „Neues Match“ wechselt nur die Verbindung und den Hintergrund; der erste Zustand des neuen Matches überschreibt
-/// Brett, Hände, Admirale und Ergebnis, die Admiralswahl erscheint wieder.
-fn start_new_match(
-    mut new_match: MessageReader<NewMatch>,
-    mut server: ResMut<Server>,
-    mut connection: ResMut<ConnectionStatus>,
-    mut reported: ResMut<Reported>,
-    mut selection: ResMut<Selection>,
-    mut background: MessageWriter<ChangeBackground>,
-) {
-    new_match.clear();
-    server.start_new_match();
-    *connection = ConnectionStatus::Connecting;
-    *reported = Reported::default();
-    selection.set_if_neq(Selection::Idle);
-    background.write(ChangeBackground);
+    if let Some(&AdmiralChosen(admiral)) = admirals.read().last() {
+        start.write(StartBattle(admiral));
+    }
+    if next.read().last().is_some()
+        && let Some(battle) = &battle
+    {
+        start.write(StartBattle(battle.flagship.admiral));
+    }
+    if new_run.read().last().is_some() {
+        leave.write(LeaveBattle);
+        music.set_if_neq(Music(Some(MusicMood::Calm)));
+    }
 }
 
 // --- Darstellung ---
 
-/// Ob sich etwas geändert hat, wovon Hervorhebung und HUD abhängen.
-/// Bedingungen werden auch außerhalb des Matches ausgewertet; dort fehlt [`BoardMode`].
+/// Ob sich etwas geändert hat, wovon Hervorhebung und HUD abhängen. Bedingungen werden auch außerhalb des Gefechts
+/// ausgewertet; dort fehlen [`Battle`] und [`BoardMode`].
 fn planning_changed(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     selection: Res<Selection>,
-    connection: Res<ConnectionStatus>,
     mode: Option<Res<State<BoardMode>>>,
 ) -> bool {
-    game.is_changed()
+    battle.is_none_or(|battle| battle.is_changed())
         || selection.is_changed()
-        || connection.is_changed()
         || mode.is_some_and(|mode| mode.is_changed())
 }
 
 /// Dazu der Zeiger.
 fn focus_changed(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     selection: Res<Selection>,
-    connection: Res<ConnectionStatus>,
     mode: Option<Res<State<BoardMode>>>,
     hover: Res<BoardHover>,
 ) -> bool {
-    planning_changed(game, selection, connection, mode) || hover.is_changed()
+    planning_changed(battle, selection, mode) || hover.is_changed()
 }
 
 fn update_highlights(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     selection: Res<Selection>,
     mode: Res<State<BoardMode>>,
     mut highlights: ResMut<Highlights>,
 ) {
-    let next = match mode.get() {
-        BoardMode::Planning => planner::highlights(&game, *selection),
-        BoardMode::Playback => Highlights::default(),
+    let next = match battle.as_deref() {
+        Some(battle) if can_act(Some(battle), *mode.get()) => {
+            let slots = selection::highlights(battle, *selection);
+            Highlights {
+                grid: slots
+                    .iter()
+                    .any(|slot| slot.side == crate::scene::coords::Side::Player),
+                slots: slots.into_iter().collect(),
+            }
+        }
+        _ => Highlights::default(),
     };
     highlights.set_if_neq(next);
 }
 
-/// Unter dem Zeiger der Zug nach dem Klick, dazu der gewählte Schütze.
+/// Unter dem Zeiger die Treffer der gewählten Karte bzw. der Zielstation.
 fn update_focus(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     selection: Res<Selection>,
+    mode: Res<State<BoardMode>>,
     hover: Res<BoardHover>,
     mut focus: ResMut<BoardFocus>,
 ) {
-    *focus = BoardFocus {
-        hypothetical: planner::hypothetical(&game, *selection, *hover),
-        shooter: planner::shooter(&game, *selection).map(|slot| slot.target()),
-    };
+    let preview = battle
+        .as_deref()
+        .filter(|battle| can_act(Some(battle), *mode.get()))
+        .and_then(|battle| selection::preview(battle, *selection, hover.slot));
+    focus.set_if_neq(BoardFocus { preview });
 }
 
-/// Aktionsknopf, ob geplant wird und was gewählt ist.
 fn update_hud(
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     selection: Res<Selection>,
-    connection: Res<ConnectionStatus>,
     mode: Res<State<BoardMode>>,
     mut hud: ResMut<HudState>,
 ) {
-    let connected = *connection == ConnectionStatus::Connected;
-    let playing_back = *mode.get() == BoardMode::Playback;
-    let can_plan = can_plan(&game, *connection, *mode.get());
-    // Neue Matches gehen gegen den Computergegner; bis zur Admiralswahl macht der Knopf seinen Platz für einen
-    // Mitspieler frei, und solange keiner da ist, holt er ihn zurück.
-    let open = connected && game.round > 0 && game.result.is_none();
-    let action = if playing_back {
-        HudAction::Skip
-    } else if connected && game.round > 0 && game.opponent.is_none() {
-        HudAction::PlayComputer
-    } else if open
-        && game.admiral.is_none()
-        && game.opponent.as_ref().is_some_and(|opponent| opponent.bot)
-    {
-        HudAction::InvitePlayer
-    } else {
-        HudAction::EndTurn
-    };
-    let has_opponent = game.opponent.is_some();
     hud.set_if_neq(HudState {
-        action,
-        action_enabled: action != HudAction::EndTurn
-            || can_plan && has_opponent && !game.flagship_missing(),
-        planning: can_plan && has_opponent,
-        selected: selection.selected(),
+        planning: can_act(battle.as_deref(), *mode.get()),
+        playing_back: *mode.get() == BoardMode::Playback,
+        selected: match *selection {
+            Selection::Card(index) => Some(index),
+            Selection::Idle => None,
+        },
     });
-}
-
-/// Nach Matchende geht die Hand.
-fn hide_hand(game: Res<Match>, mut hand: Query<&mut Visibility, With<HandBar>>) {
-    let visibility = if game.result.is_some() {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-    for mut shown in &mut hand {
-        shown.set_if_neq(visibility);
-    }
 }

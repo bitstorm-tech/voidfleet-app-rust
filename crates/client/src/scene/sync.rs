@@ -1,43 +1,43 @@
-//! Die Szene spiegelt den Spielzustand (Port von `syncBoard`, `refreshGhosts`, `refreshMarkers`, `showPreview` und
-//! `refreshHoldFire` aus `matchController.ts`), solange keine Runde abgespielt wird ([`BoardMode::Planning`]):
+//! Die Szene spiegelt das Gefecht, solange keine Wiedergabe läuft ([`BoardMode::Planning`]):
 //!
-//! - [`sync_ships`]: je Slot das Schiff aus dem Brett von [`Match`] samt HP und Schild; fehlt eines, entsteht es, steht
-//!   ein anderes da, wird es ersetzt, ist der Slot leer, verschwindet es.
-//! - [`sync_plan`]: was der Zug zeigt — Geister der eingeplanten Schiffe (auch Flaggschiff, verlegte Schiffe samt
-//!   Tauschpartner beim Phasentausch, Trugbild und die Drohnen eingeplanter Träger), Bewegungspfeile, Fadenkreuze auf
-//!   Zielen der Gegnerseite, Marken (Zielerfassung, Fähigkeit, Bereitschaft und Visier der Feuerbefehle), die
-//!   Zielvorschau aus [`preview_round`] (Bögen, drohender Verlust auf den Balken, Totenkopf) und gedämpfte Balken des
-//!   manövrierenden Schiffs.
+//! - je Gegner-Slot die Einheit aus [`Battle`] (Modell nach Katalog, Hülle, Schild) und das Flaggschiff in seiner
+//!   Spalte, im Kurzsprung fehlt es; fehlt ein Schiff, entsteht es, steht es woanders, wechselt es den Slot, ist es
+//!   weg, verschwindet es;
+//! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
+//!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]).
 //!
-//! Der Controller lenkt die Darstellung über [`BoardFocus`]: Unter dem Zeiger zeigt die Szene statt des eingeplanten
-//! Zugs eine Variante davon (`hypothetical`, etwa `game.clone()` mit dem Schiff auf dem Slot unter dem Zeiger), und der
-//! gewählte Schütze trägt das Visier, seine Bögen sind hervorgehoben, vor den gegnerischen Spalten liegen die Pfeile.
-//! Die Wiedergabe schaltet auf [`BoardMode::Playback`]; dann verschwinden Geister, Pfeile, Bögen und Vorschau, und die
-//! Szene gehört ihr. Zurück in der Planung gleicht sich alles dem Zustand an.
+//! Der Controller schaltet nach jeder Aktion auf [`BoardMode::Playback`]; dann gehört die Szene der Wiedergabe, die
+//! Vorschau geht. Zurück in der Planung gleicht sich alles dem Zustand an. Dev-Szenen mit [`Scripted`] stellen ihre
+//! Schiffe selbst; dann ruht der Abgleich.
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use voidfleet_core::{
     admirals::AdmiralId,
-    board::{LaneType, Side, SlotRef, SlotTarget},
-    cards::ShipId,
-    protocol::FireTarget,
+    battle::{Battle as CoreBattle, Enemy},
+    events::{Hit, UnitStats},
 };
 
 use super::{
-    board::{BoardEntities, ColumnMarks, GHOST_LIFT, OnSlot, all_slots},
+    board::{BoardEntities, OnSlot, place},
+    coords::SlotRef,
+    labels::ShipCaption,
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
-    overlays::{MoveArrow, PlanOverlays, TargetLine},
-    ship::{BOARD_SCALE, Ship, spawn_ship},
+    ship::{Ship, spawn_ship},
     status::ShipStatus,
 };
 use crate::{
     assets::AppState,
-    data::{admirals::power_admiral, ship_models::ShipModels},
-    game::{Match, RoundPreview, ShotOutcome, preview_round},
-    palette::{self, admiral_color},
+    controller::{
+        Scripted,
+        selection::{station_needs_target, unit_uid},
+    },
+    data::ship_models::{ShipKind, ShipModels},
+    game::Battle,
+    i18n::{Condition, Locale, Messages},
+    palette,
 };
 
-/// Wem die Szene gehört: der Planung, die sie aus dem Spielzustand stellt, oder der Rundenwiedergabe.
+/// Wem die Szene gehört: der Planung, die sie aus dem Gefecht stellt, oder der Wiedergabe.
 #[derive(SubStates, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[source(AppState = AppState::Match)]
 pub enum BoardMode {
@@ -46,14 +46,10 @@ pub enum BoardMode {
     Playback,
 }
 
-/// Was der Controller beim Planen hervorhebt.
-#[derive(Resource, Clone, Debug, Default)]
+/// Was der Controller unter dem Zeiger zeigt: die Treffer der gewählten Karte bzw. Station auf den Gegner `uid`.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct BoardFocus {
-    /// Der Zug, wie er nach dem Klick unter dem Zeiger aussähe (eine geänderte Kopie von [`Match`]); `None`: der
-    /// eingeplante.
-    pub hypothetical: Option<Match>,
-    /// Das gewählte eigene Schiff, das gerade sein Ziel wählt (Slot beim Planen).
-    pub shooter: Option<SlotTarget>,
+    pub preview: Option<(u32, Vec<Hit>)>,
 }
 
 /// Die Systeme des Abgleichs; wer danach die Szene ändert, ordnet sich dahinter.
@@ -68,394 +64,282 @@ impl Plugin for SyncPlugin {
             .init_resource::<BoardFocus>()
             .add_systems(
                 OnEnter(BoardMode::Planning),
-                (sync_ships, sync_plan).chain(),
+                sync_ships.run_if(not(resource_exists::<Scripted>)),
             )
-            .add_systems(OnEnter(BoardMode::Playback), clear_plan)
+            .add_systems(OnEnter(BoardMode::Playback), clear_preview)
             .add_systems(
                 Update,
-                (
-                    sync_ships.run_if(resource_changed::<Match>),
-                    sync_plan
-                        .run_if(resource_changed::<Match>.or_eager(resource_changed::<BoardFocus>)),
-                )
-                    .chain()
+                sync_ships
+                    .run_if(board_changed)
                     .in_set(SyncSystems)
-                    .run_if(in_state(BoardMode::Planning)),
+                    .run_if(in_state(BoardMode::Planning))
+                    .run_if(not(resource_exists::<Scripted>)),
             );
     }
 }
 
-/// Stellt je Slot das Schiff aus dem Brett hin, mit seinen Werten.
+/// Ob sich Gefecht, Vorschau oder Sprache geändert haben, auch ob das Gefecht gekommen oder gegangen ist.
+fn board_changed(
+    battle: Option<Res<Battle>>,
+    focus: Res<BoardFocus>,
+    locale: Res<Locale>,
+    mut had_battle: Local<bool>,
+) -> bool {
+    let has_battle = battle.is_some();
+    let toggled = std::mem::replace(&mut *had_battle, has_battle) != has_battle;
+    toggled
+        || battle.is_some_and(|battle| battle.is_changed())
+        || focus.is_changed()
+        || locale.is_changed()
+}
+
+/// Ein Schiff, wie es dastehen soll.
+struct Wanted {
+    uid: u32,
+    kind: ShipKind,
+    slot: SlotRef,
+    stats: UnitStats,
+    max_hull: i32,
+    caption: ShipCaption,
+    aimed: bool,
+}
+
+/// Zustände einer gegnerischen Einheit als Textmarken.
+fn enemy_conditions(enemy: &Enemy) -> Vec<Condition> {
+    [
+        (enemy.burning, Condition::Burning),
+        (enemy.emergency(), Condition::Emergency),
+        (enemy.shield > 0, Condition::Shield(enemy.shield)),
+        (enemy.is_evading(), Condition::Evading),
+        (enemy.charged, Condition::Charged),
+        (enemy.stasis, Condition::Stasis),
+        (enemy.silenced, Condition::Silenced),
+    ]
+    .into_iter()
+    .filter_map(|(active, condition)| active.then_some(condition))
+    .collect()
+}
+
+fn conditions_text(locale: &dyn Messages, conditions: &[Condition]) -> String {
+    conditions
+        .iter()
+        .map(|&condition| locale.condition(condition))
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+/// Was auf dem Brett stehen soll.
+fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) -> Vec<Wanted> {
+    let preview_text = |uid: u32| {
+        focus
+            .preview
+            .as_ref()
+            .filter(|(focused, _)| *focused == uid)
+            .and_then(|(_, hits)| hits.iter().find(|hit| unit_uid(hit.target) == uid))
+            .map(|hit| locale.breakdown(&hit.breakdown))
+            .unwrap_or_default()
+    };
+    let aiming = station_needs_target(battle)
+        .then_some(battle.flagship.target)
+        .flatten();
+    // Der Uhrmacher sieht zwei Runden voraus.
+    let clockwork = battle.flagship.admiral == AdmiralId::Kerr;
+    let mut ships: Vec<Wanted> = battle
+        .enemies
+        .iter()
+        .map(|enemy| {
+            let [first, second] = battle.announced(enemy.uid);
+            Wanted {
+                uid: enemy.uid,
+                kind: ShipKind::Enemy(enemy.id),
+                slot: SlotRef::enemy(enemy.slot),
+                stats: enemy.stats(),
+                max_hull: enemy.max_hull,
+                caption: ShipCaption {
+                    intent: locale.intent(first),
+                    next: if clockwork {
+                        locale.intent(second)
+                    } else {
+                        String::new()
+                    },
+                    conditions: conditions_text(locale, &enemy_conditions(enemy)),
+                    preview: preview_text(enemy.uid),
+                },
+                aimed: aiming == Some(enemy.uid),
+            }
+        })
+        .collect();
+    let flagship = &battle.flagship;
+    if !flagship.jumped {
+        let conditions = [
+            (flagship.burning, Condition::Burning),
+            (flagship.emergency(), Condition::Emergency),
+            (flagship.shield > 0, Condition::Shield(flagship.shield)),
+        ]
+        .into_iter()
+        .filter_map(|(active, condition)| active.then_some(condition))
+        .collect::<Vec<_>>();
+        ships.push(Wanted {
+            uid: 0,
+            kind: ShipKind::Flagship(flagship.admiral.flagship()),
+            slot: SlotRef::player(flagship.column),
+            stats: flagship.stats(),
+            max_hull: flagship.max_hull,
+            caption: ShipCaption {
+                conditions: conditions_text(locale, &conditions),
+                preview: preview_text(0),
+                ..default()
+            },
+            aimed: false,
+        });
+    }
+    ships
+}
+
+/// Hülle und Schild einer Einheit nach den Treffern der Vorschau; `None`, wenn sie nicht getroffen wird.
+fn preview_after(hits: &[Hit], uid: u32, now: UnitStats) -> Option<(UnitStats, bool)> {
+    let mut after = None;
+    for hit in hits.iter().filter(|hit| unit_uid(hit.target) == uid) {
+        let (stats, lethal): (UnitStats, bool) = after.unwrap_or((now, false));
+        after = Some((
+            UnitStats {
+                hull: (stats.hull - hit.breakdown.hull).max(0),
+                shield: (stats.shield - hit.breakdown.shielded).max(0),
+            },
+            lethal || hit.breakdown.lethal,
+        ));
+    }
+    after
+}
+
+/// Stellt die Schiffe aus dem Gefecht hin, mit Werten, Vorschau, Marken und Beschriftung.
 pub fn sync_ships(
     mut commands: Commands,
-    game: Res<Match>,
-    models: Res<ShipModels>,
-    board: Res<BoardEntities>,
-    mut ships: Query<(Entity, &Ship, &OnSlot, &mut ShipStatus)>,
-) {
-    let mut standing: HashMap<SlotRef, (Entity, ShipId)> = HashMap::default();
-    for (entity, ship, on, _) in &ships {
-        if !ship.ghost {
-            standing.insert(on.0, (entity, ship.id));
-        }
-    }
-    for slot in all_slots() {
-        let wanted = game.board.state(slot);
-        let here = standing.get(&slot).copied();
-        match (wanted, here) {
-            (Some(state), Some((entity, id))) if id == state.card_id => {
-                if let Ok((_, _, _, mut status)) = ships.get_mut(entity)
-                    && (status.hp, status.shield) != (state.hp, state.shield)
-                {
-                    status.hp = state.hp;
-                    status.shield = state.shield;
-                }
-            }
-            (wanted, here) => {
-                if let Some((entity, _)) = here {
-                    commands.entity(entity).despawn();
-                }
-                if let Some(state) = wanted {
-                    let ship = spawn_ship(&mut commands, &models, state.card_id, false);
-                    commands.entity(ship).insert((
-                        OnSlot(slot),
-                        ChildOf(board.anchor(slot)),
-                        Transform::from_scale(Vec3::splat(BOARD_SCALE)),
-                        ShipStatus {
-                            hp: state.hp,
-                            shield: state.shield,
-                            ..ShipStatus::new(state.card_id)
-                        },
-                    ));
-                }
-            }
-        }
-    }
-}
-
-/// Wo nach dem Zug Geister stehen: zuerst die Drohnen eingeplanter Träger (ein späterer Geist auf ihrem Slot verdrängt
-/// sie), dann die eingeplanten Schiffe, die verlegten (beim Phasentausch auch der Tauschpartner) und das Trugbild.
-fn ghost_targets(shown: &Match, drones: &[SlotRef]) -> Vec<(SlotRef, ShipId)> {
-    let mut ghosts: Vec<(SlotRef, ShipId)> =
-        drones.iter().map(|slot| (*slot, ShipId::Drone)).collect();
-    for arrival in shown.arrivals() {
-        ghosts.push((arrival.target.on(Side::Player), shown.card_of(arrival.pick)));
-    }
-    for planned in [shown.planned_command_move(), shown.planned_maneuver()]
-        .into_iter()
-        .flatten()
-    {
-        if let Some(ship) = shown.ship_at(planned.from) {
-            ghosts.push((planned.to, ship));
-        }
-        if let Some(partner) = shown.board.card(planned.to) {
-            ghosts.push((planned.from, partner));
-        }
-    }
-    if let Some(decoy) = shown.planned_decoy() {
-        ghosts.push((decoy.on(Side::Player), ShipId::Decoy));
-    }
-    // Ein späterer Geist auf demselben Slot ersetzt den früheren.
-    let mut unique: Vec<(SlotRef, ShipId)> = Vec::new();
-    for (slot, ship) in ghosts {
-        unique.retain(|(other, _)| *other != slot);
-        unique.push((slot, ship));
-    }
-    unique
-}
-
-/// Stellt Geister, Pfeile, Fadenkreuze, Marken und die Zielvorschau des gezeigten Zugs.
-pub fn sync_plan(
-    mut commands: Commands,
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     focus: Res<BoardFocus>,
+    locale: Res<Locale>,
     models: Res<ShipModels>,
     board: Res<BoardEntities>,
-    mut ships: Query<(Entity, &Ship, &OnSlot, &mut ShipStatus, &mut ShipMarkers)>,
-    mut overlays: ResMut<PlanOverlays>,
-    mut columns: ResMut<ColumnMarks>,
+    mut ships: Query<(
+        Entity,
+        &Ship,
+        &OnSlot,
+        &mut ShipStatus,
+        &mut ShipMarkers,
+        Option<&mut ShipCaption>,
+    )>,
 ) {
-    let shown = focus.hypothetical.as_ref().unwrap_or(&game);
-    let preview = game
-        .round_running()
-        .then(|| preview_round(shown, shown.plan()));
-    let shooter = if game.turn_open() {
-        focus.shooter
-    } else {
-        None
-    };
-    let losses: &[SlotRef] = preview.as_ref().map_or(&[], |preview| &preview.losses);
-
-    // Geister: bleiben stehen, wenn sie schon richtig stehen.
-    let wanted = if game.round_running() {
-        ghost_targets(
-            shown,
-            preview.as_ref().map_or(&[][..], |preview| &preview.drones),
-        )
-    } else {
-        Vec::new()
-    };
-    let mut standing: Vec<(SlotRef, ShipId, Entity)> = ships
-        .iter()
-        .filter(|(_, ship, ..)| ship.ghost)
-        .map(|(entity, ship, on, ..)| (on.0, ship.id, entity))
-        .collect();
-    let same = standing.len() == wanted.len()
-        && wanted.iter().all(|(slot, id)| {
-            standing
-                .iter()
-                .any(|(on, ghost, _)| on == slot && ghost == id)
-        });
-    let mut ghost_at: HashMap<SlotRef, Entity> = HashMap::default();
-    if same {
-        ghost_at.extend(standing.iter().map(|(slot, _, entity)| (*slot, *entity)));
-    } else {
-        for (_, _, entity) in standing.drain(..) {
-            commands.entity(entity).despawn();
-        }
-        for (slot, id) in &wanted {
-            let ghost = spawn_ship(&mut commands, &models, *id, true);
-            // Steht schon ein Schiff dort (Phasentausch), schwebt der Geist darüber.
-            let lift = if game.board.is_occupied(*slot) {
-                GHOST_LIFT
-            } else {
-                0.0
-            };
-            commands.entity(ghost).insert((
-                OnSlot(*slot),
-                ChildOf(board.anchor(*slot)),
-                Transform::from_xyz(0.0, lift, 0.0).with_scale(Vec3::splat(BOARD_SCALE)),
-                ShipStatus {
-                    doomed: losses.contains(slot),
-                    ..ShipStatus::new(*id)
-                },
-            ));
-            ghost_at.insert(*slot, ghost);
-        }
-    }
-    let real_at: HashMap<SlotRef, Entity> = ships
-        .iter()
-        .filter(|(_, ship, ..)| !ship.ghost)
-        .map(|(entity, _, on, ..)| (on.0, entity))
-        .collect();
-
-    let mut markers = plan_markers(&game, shown, shooter, &real_at, &ghost_at);
-
-    // Zielvorschau und gedämpfte Balken des manövrierenden Schiffs (nicht beim Phasentausch).
-    let maneuvering = shown
-        .planned_maneuver()
-        .filter(|planned| !game.board.is_occupied(planned.to))
-        .map(|planned| planned.from);
-    for (entity, ship, on, mut status, mut ship_markers) in &mut ships {
-        let wanted_markers = markers.remove(&entity).unwrap_or_default();
-        ship_markers.set_if_neq(ShipMarkers(wanted_markers));
-        let next = if ship.ghost {
-            ShipStatus {
-                doomed: losses.contains(&on.0),
-                ..*status
-            }
-        } else {
-            ShipStatus {
-                preview: preview
-                    .as_ref()
-                    .and_then(|preview| preview.outcomes.get(&on.0))
-                    .map(|after| after.unwrap_or_default()),
-                doomed: losses.contains(&on.0) && !ghost_at.contains_key(&on.0),
-                holding_fire: maneuvering == Some(on.0),
-                ..*status
-            }
-        };
-        status.set_if_neq(next);
-    }
-    // Neue Geister sind noch nicht in der Abfrage: Ihre Marken ersetzen die leeren vom Spawnen.
-    if !same {
-        for entity in ghost_at.values() {
-            let specs = markers.remove(entity).unwrap_or_default();
-            commands.entity(*entity).insert(ShipMarkers(specs));
-        }
-    }
-
-    overlays.set_if_neq(plan_overlays(&game, shown, preview.as_ref(), shooter));
-
-    // Die Pfeile vor den Spalten, solange ein eigenes Schiff zielt; gefüllt der seines Spaltenfeuers.
-    columns.set_if_neq(ColumnMarks {
-        shown: shooter.is_some(),
-        chosen: shooter
-            .and_then(|shooter| shown.fire_order_at(shooter))
-            .and_then(|order| match order.target {
-                FireTarget::Column(column) => Some(column),
-                FireTarget::Ship(_) => None,
-            }),
-    });
-}
-
-/// Marken je Schiff oder Geist: die Zielerfassung auf dem Brett (beide Seiten), die eigene Fähigkeit (auf dem Schiff,
-/// das nach den Bewegungen dort steht), die eingeplante Zielerfassung, Visier und Bereitschaft der Feuerbefehle.
-fn plan_markers(
-    game: &Match,
-    shown: &Match,
-    shooter: Option<SlotTarget>,
-    real_at: &HashMap<SlotRef, Entity>,
-    ghost_at: &HashMap<SlotRef, Entity>,
-) -> HashMap<Entity, Vec<MarkerSpec>> {
-    let mut markers: HashMap<Entity, Vec<MarkerSpec>> = HashMap::default();
-    let mut add = |entity: Option<&Entity>, spec: MarkerSpec| {
-        if let Some(&entity) = entity {
-            markers.entry(entity).or_default().push(spec);
-        }
-    };
-    let kerr = admiral_color(AdmiralId::Kerr);
-    for slot in all_slots() {
-        if game.board.state(slot).is_some_and(|state| state.marked) {
-            add(real_at.get(&slot), MarkerSpec::new(MarkerKind::Lock, kerr));
-        }
-    }
-    if game.round_running() {
-        if let Some(power) = shown.power()
-            && let Some(kind) = MarkerKind::of_power(power)
-            && let Some(target) = shown.planned_power_target()
-        {
-            let holder = match shown.planned_command_move() {
-                Some(planned) if planned.from == target => ghost_at.get(&planned.to),
-                _ => ghost_at.get(&target).or(real_at.get(&target)),
-            };
-            add(
-                holder,
-                MarkerSpec::new(kind, admiral_color(power_admiral(power))),
-            );
-        }
-        if let Some(mark) = shown.plan().mark {
-            add(
-                real_at.get(&mark.on(Side::Enemy)),
-                MarkerSpec {
-                    planned: true,
-                    ..MarkerSpec::new(MarkerKind::Lock, kerr)
-                },
-            );
-        }
-    }
-    if game.turn_open() {
-        for slot in shown.shooters() {
-            let at = slot.on(Side::Player);
-            let holder = real_at.get(&at).or(ghost_at.get(&at));
-            if Some(slot) == shooter {
-                add(holder, MarkerSpec::new(MarkerKind::Aim, palette::SELECT));
-            } else if !shown.is_armed(slot) {
-                add(holder, MarkerSpec::new(MarkerKind::Ready, palette::PLAYER));
-            }
-        }
-    }
-    markers
-}
-
-/// Bewegungspfeile, Fadenkreuze auf Zielen der Gegnerseite und die Bögen der Zielvorschau.
-fn plan_overlays(
-    game: &Match,
-    shown: &Match,
-    preview: Option<&RoundPreview>,
-    shooter: Option<SlotTarget>,
-) -> PlanOverlays {
-    let mut next = PlanOverlays::default();
-    if !game.round_running() {
-        return next;
-    }
-    let maneuver = shown.planned_maneuver();
-    for planned in [shown.planned_command_move(), maneuver]
-        .into_iter()
-        .flatten()
-    {
-        next.arrows.push(MoveArrow {
-            from: planned.from,
-            to: planned.to,
-            lifted: game.board.is_occupied(planned.to),
-        });
-    }
-    // Phasentausch: der Rückweg des Tauschpartners.
-    if let Some(swap) = maneuver.filter(|planned| game.board.is_occupied(planned.to)) {
-        next.arrows.push(MoveArrow {
-            from: swap.to,
-            to: swap.from,
-            lifted: true,
-        });
-    }
-    if let (Some(card), Some(target)) = (shown.planned_command(), shown.planned_enemy_target()) {
-        next.reticles = if card.targets_enemy_column() {
-            LaneType::ALL
-                .map(|lane| SlotRef::new(Side::Enemy, lane, target.slot_index))
-                .to_vec()
-        } else {
-            vec![target.on(Side::Enemy)]
-        };
-    }
-    if let Some(preview) = preview {
-        next.lines = preview
-            .shots
+    let wanted = battle.map_or_else(Vec::new, |battle| wanted_ships(&battle, &**locale, &focus));
+    let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
+    let mut kept = Vec::new();
+    for (entity, ship, on, mut status, mut markers, caption) in &mut ships {
+        let Some(want) = wanted
             .iter()
-            .map(|shot| TargetLine {
-                from: shot.attacker,
-                to: shot.target,
-                side: shot.attacker.side,
-                fizzle: matches!(shot.outcome, ShotOutcome::Miss(_)),
-                tracking: shot.tracking,
-                selected: shooter.is_some() && shot.shooter.map(|slot| slot.target()) == shooter,
-            })
-            .collect();
-    }
-    next
-}
-
-/// Die Wiedergabe übernimmt: Geister, Pfeile, Bögen, Vorschau und die Marken der Feuerbefehle gehen.
-fn clear_plan(
-    mut commands: Commands,
-    mut ships: Query<(Entity, &Ship, &mut ShipStatus, &mut ShipMarkers)>,
-    mut overlays: ResMut<PlanOverlays>,
-    mut columns: ResMut<ColumnMarks>,
-) {
-    for (entity, ship, mut status, mut markers) in &mut ships {
-        if ship.ghost {
+            .find(|want| want.uid == ship.uid && want.kind == ship.kind)
+        else {
             commands.entity(entity).despawn();
             continue;
+        };
+        kept.push(want.uid);
+        if on.0 != want.slot {
+            place(&mut commands, &board, entity, want.slot);
         }
+        let preview = preview_after(hits, want.uid, want.stats);
+        status.set_if_neq(ShipStatus {
+            hull: want.stats.hull,
+            max_hull: want.max_hull,
+            shield: want.stats.shield,
+            preview: preview.map(|(stats, _)| stats),
+            doomed: preview.is_some_and(|(_, lethal)| lethal),
+            ..*status
+        });
+        markers.set_if_neq(ship_markers(want.aimed));
+        match caption {
+            Some(mut caption) => {
+                caption.set_if_neq(want.caption.clone());
+            }
+            None => {
+                commands.entity(entity).insert(want.caption.clone());
+            }
+        }
+    }
+    for want in wanted.iter().filter(|want| !kept.contains(&want.uid)) {
+        let ship = spawn_ship(&mut commands, &models, want.kind);
+        place(&mut commands, &board, ship, want.slot);
+        commands.entity(ship).insert((
+            Ship {
+                kind: want.kind,
+                uid: want.uid,
+            },
+            ShipStatus::new(want.stats.hull, want.max_hull, want.stats.shield),
+            ship_markers(want.aimed),
+            want.caption.clone(),
+        ));
+    }
+}
+
+/// Das Visier unter dem Ziel der Station.
+fn ship_markers(aimed: bool) -> ShipMarkers {
+    ShipMarkers(if aimed {
+        vec![MarkerSpec::new(MarkerKind::Aim, palette::SELECT)]
+    } else {
+        Vec::new()
+    })
+}
+
+/// Die Wiedergabe übernimmt: Die Vorschau geht.
+fn clear_preview(mut ships: Query<(&mut ShipStatus, &mut ShipCaption)>) {
+    for (mut status, mut caption) in &mut ships {
         status.preview = None;
         status.doomed = false;
-        status.holding_fire = false;
-        markers.remove(MarkerKind::Ready);
-        markers.remove(MarkerKind::Aim);
+        if !caption.preview.is_empty() {
+            caption.preview.clear();
+        }
     }
-    *overlays = PlanOverlays::default();
-    *columns = ColumnMarks::default();
 }
 
 #[cfg(test)]
 mod tests {
-    use voidfleet_core::protocol::Maneuver;
+    use voidfleet_core::events::{Breakdown, UnitRef};
 
     use super::*;
-    use crate::game::ShipPick;
+    use crate::{game::start_test_battle, settings::Language};
 
-    /// Ein eingeplantes Schiff steht als Geist auf seinem Slot; beim Phasentausch stehen beide Schiffe als Geister im
-    /// Slot des jeweils anderen.
+    /// Drei Gegner und das Flaggschiff; im Kurzsprung fehlt es. Der Uhrmacher sieht zwei Absichten.
     #[test]
-    fn ghosts_follow_the_plan() {
-        let mut game = Match::default();
-        game.round = 2;
-        game.admiral = Some(AdmiralId::Moreau);
-        game.ship_hand = vec![ShipId::VoidInterceptor];
-        let mirage = SlotRef::new(Side::Player, LaneType::Strike, 1);
-        let partner = SlotRef::new(Side::Player, LaneType::Command, 1);
-        game.board.put(mirage, ShipId::Mirage);
-        game.board.put(partner, ShipId::RepairDrone);
-        game.plan_ship(ShipPick::Hand(0), SlotTarget::new(LaneType::Strike, 3));
-        game.set_maneuver(Some(Maneuver {
-            ship: mirage.target(),
-            destination: partner.target(),
-        }));
-        let ghosts = ghost_targets(&game, &[]);
-        assert!(ghosts.contains(&(
-            SlotRef::new(Side::Player, LaneType::Strike, 3),
-            ShipId::VoidInterceptor
-        )));
-        assert!(ghosts.contains(&(partner, ShipId::Mirage)));
-        assert!(ghosts.contains(&(mirage, ShipId::RepairDrone)));
+    fn wanted_follows_battle() {
+        let locale = Locale::new(Language::De);
+        let mut battle = start_test_battle(AdmiralId::Kerr).0;
+        let ships = wanted_ships(&battle, &*locale, &BoardFocus::default());
+        assert_eq!(ships.len(), 4);
+        assert!(ships[..3].iter().all(|ship| !ship.caption.next.is_empty()));
+        assert_eq!(ships[3].slot, SlotRef::player(1));
+        battle.flagship.jumped = true;
+        assert_eq!(
+            wanted_ships(&battle, &*locale, &BoardFocus::default()).len(),
+            3
+        );
+    }
+
+    #[test]
+    fn preview_sums_hits() {
+        let hit = |hull, shielded, lethal| Hit {
+            target: UnitRef::Flagship,
+            breakdown: Breakdown {
+                hull,
+                shielded,
+                lethal,
+                ..Breakdown::default()
+            },
+        };
+        let now = UnitStats {
+            hull: 10,
+            shield: 4,
+        };
+        assert_eq!(preview_after(&[], 0, now), None);
+        assert_eq!(
+            preview_after(&[hit(3, 4, false), hit(7, 0, true)], 0, now),
+            Some((UnitStats { hull: 0, shield: 0 }, true))
+        );
     }
 }

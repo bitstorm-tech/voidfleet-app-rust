@@ -4,12 +4,9 @@
 //! - [`Arrive`] — Deploy: Das Schiff fällt direkt im Slot aus dem Hyperraum, lang gezogen und hell glühend, schnappt
 //!   auf seine Form zurück und gleitet bremsend nach vorn; Portal, Blitz und Lichtstreifen kommen aus
 //!   [`crate::scene::effects::Warp`]. Balken und Marken erscheinen erst danach. Wartet, bis das Modell geladen ist.
-//! - [`MoveShip`] — Slot-Wechsel (Grundmanöver, Bewegungsbefehl, Traktorstrahl): hängt das Schiff an den neuen Slot und
+//! - [`MoveShip`] — Slot-Wechsel (Manöver, Ausweichmanöver, Traktorstrahl): hängt das Schiff an den neuen Slot und
 //!   fliegt es auf der Bahn aus [`crate::scene::maneuver`] hinein, mit Kurs, Steigung und Schräglage.
-//! - [`PhaseOut`], [`PhaseIn`] — Phasentausch: Schrumpfen zu einem Lichtpunkt, Wachsen am neuen Ort.
 //! - [`Charge`], [`Withdraw`] — Rammkurs: Anflug auf einen Punkt und, wer den Aufprall übersteht, Rückflug.
-//! - [`Materialize`], [`Dematerialize`] — das Trugbild baut sich flackernd auf bzw. sinkt in sich zusammen (danach
-//!   verschwindet es).
 //! - [`HitFlash`] — Treffer: Die Hülle blitzt hell auf; der Einschlag selbst ist [`crate::scene::effects::Impact`].
 //!
 //! Flüge laufen im Takt der Bewegungen ([`AnimationScope::Movement`]); das Triebwerk der Schiffsklasse klingt solange
@@ -18,15 +15,16 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
-use voidfleet_core::{board::SlotRef, cards::ShipClass};
+use voidfleet_core::enemies::EnemyClass;
 
 use super::{
     animation::{Animation, AnimationScope, AnimationSystems},
     board::{BoardEntities, attach},
+    coords::SlotRef,
     effects::Warp,
     maneuver::Flight,
-    ship::{BOARD_SCALE, Ship, ShipModel, ToonState},
-    status::{Hologram, ShipBounds, ShipParts, ShipStatus},
+    ship::{Ship, ShipModel, ToonState},
+    status::{ShipBounds, ShipParts, ShipStatus},
 };
 use crate::audio::{LoopingSound, SoundId};
 
@@ -44,11 +42,6 @@ const WARP_GLOW_FADE: f32 = 0.55;
 const HIT_FLASH_COLOR: Color = Color::srgb(1.0, 0.93, 0.8);
 pub const HIT_FLASH_ALPHA: f32 = 0.75;
 const HIT_FLASH_DURATION: f32 = 0.22;
-/// Aufbau und Auflösen des Trugbilds.
-const MATERIALIZE_DURATION: f32 = 0.75;
-const DEMATERIALIZE_DURATION: f32 = 0.65;
-/// Phasentausch.
-const PHASE_DURATION: f32 = 0.32;
 /// Rammkurs: Anflug mit Beschleunigung und leichtem Bogen, Rückflug in den Slot.
 const RAM_DURATION: f32 = 0.62;
 const RAM_ARC: f32 = 0.5;
@@ -69,20 +62,6 @@ pub struct MoveShip {
     pub towed: bool,
 }
 
-/// Phasentausch, erste Hälfte: Das Schiff schrumpft zu einem Lichtpunkt.
-#[derive(Component, Clone, Copy, Debug)]
-#[require(Animation::new(PHASE_DURATION))]
-pub struct PhaseOut {
-    pub ship: Entity,
-}
-
-/// Phasentausch, zweite Hälfte: Am neuen Slot wächst es wieder auf seine Größe.
-#[derive(Component, Clone, Copy, Debug)]
-#[require(Animation::new(PHASE_DURATION))]
-pub struct PhaseIn {
-    pub ship: Entity,
-}
-
 /// Rammkurs, Anflug: Das Schiff dreht die Nase auf `point` (Welt, auf Höhe des Ankers) und beschleunigt bis dorthin, in
 /// einem flachen Bogen und mit gesenkter Nase. Es bleibt dort, bis [`Withdraw`] es zurückholt oder es fällt.
 #[derive(Component, Clone, Copy, Debug)]
@@ -94,20 +73,6 @@ pub struct Charge {
 /// Rammkurs, Rückkehr: Abgeprallt treibt das Schiff rückwärts in seinen Slot und richtet sich wieder aus.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Withdraw {
-    pub ship: Entity,
-}
-
-/// Das Trugbild baut sich auf: Es wächst von der Platte nach oben und flackert dabei ins Bild.
-#[derive(Component, Clone, Copy, Debug)]
-#[require(Animation::new(MATERIALIZE_DURATION))]
-pub struct Materialize {
-    pub ship: Entity,
-}
-
-/// Das Trugbild löst sich auf: Es sinkt flackernd in sich zusammen und verschwindet dann.
-#[derive(Component, Clone, Copy, Debug)]
-#[require(Animation::new(DEMATERIALIZE_DURATION))]
-pub struct Dematerialize {
     pub ship: Entity,
 }
 
@@ -154,11 +119,11 @@ struct ReturnFrom {
 }
 
 /// Triebwerk je Schiffsklasse während eines Flugs.
-fn engine(class: ShipClass) -> SoundId {
+fn engine(class: EnemyClass) -> SoundId {
     match class {
-        ShipClass::Fighter => SoundId::EngineLight,
-        ShipClass::Support | ShipClass::Cruiser => SoundId::EngineMedium,
-        ShipClass::Battleship => SoundId::EngineHeavy,
+        EnemyClass::Fighter => SoundId::EngineLight,
+        EnemyClass::Cruiser => SoundId::EngineMedium,
+        EnemyClass::Battleship | EnemyClass::Flagship => SoundId::EngineHeavy,
     }
 }
 
@@ -181,19 +146,7 @@ impl Plugin for MotionPlugin {
                 Update,
                 (
                     (begin_arrivals, begin_flights).before(AnimationSystems::Advance),
-                    (
-                        (
-                            warp_in,
-                            fly,
-                            phase,
-                            charge,
-                            withdraw,
-                            materialize,
-                            dematerialize,
-                            flash_hull,
-                        ),
-                        land,
-                    )
+                    ((warp_in, fly, charge, withdraw, flash_hull), land)
                         .chain()
                         .in_set(AnimationSystems::Apply),
                 ),
@@ -245,7 +198,7 @@ fn begin_arrivals(
         ));
         commands
             .entity(arrive.ship)
-            .insert(LoopingSound::new(engine(ship.id.card().class)));
+            .insert(LoopingSound::new(engine(ship.kind.class())));
     }
 }
 
@@ -306,7 +259,7 @@ fn begin_flights(
         if child_of.parent() != board.anchor(flight.to) {
             continue;
         }
-        let path = Flight::new(transform.translation, ship.id.card().class, flight.towed);
+        let path = Flight::new(transform.translation, ship.kind.class(), flight.towed);
         commands.entity(job).insert((
             Animation::new(path.duration).in_scope(AnimationScope::Movement),
             FlightPath(path),
@@ -314,7 +267,7 @@ fn begin_flights(
         if !flight.towed {
             commands
                 .entity(flight.ship)
-                .insert(LoopingSound::new(engine(ship.id.card().class)));
+                .insert(LoopingSound::new(engine(ship.kind.class())));
         }
     }
 }
@@ -335,27 +288,6 @@ fn fly(
             && let Ok(mut model) = models.get_mut(model)
         {
             model.rotation = pose.attitude;
-        }
-    }
-}
-
-fn phase(
-    outs: Query<(&PhaseOut, &Animation)>,
-    ins: Query<(&PhaseIn, &Animation)>,
-    mut ships: Query<&mut Transform, With<Ship>>,
-) {
-    for (job, animation) in &outs {
-        if let Ok(mut transform) = ships.get_mut(job.ship) {
-            let size = (1.0 - EaseFunction::CubicIn.sample_clamped(animation.progress())).max(0.01);
-            transform.scale = Vec3::splat(BOARD_SCALE * size);
-        }
-    }
-    for (job, animation) in &ins {
-        if let Ok(mut transform) = ships.get_mut(job.ship) {
-            let size = EaseFunction::CubicOut
-                .sample_clamped(animation.progress())
-                .max(0.01);
-            transform.scale = Vec3::splat(BOARD_SCALE * size);
         }
     }
 }
@@ -385,7 +317,7 @@ fn start_charge(
     ));
     commands
         .entity(job.ship)
-        .insert(LoopingSound::new(engine(ship.id.card().class)));
+        .insert(LoopingSound::new(engine(ship.kind.class())));
 }
 
 fn charge(
@@ -435,7 +367,7 @@ fn start_withdraw(
     ));
     commands
         .entity(job.ship)
-        .insert(LoopingSound::new(engine(ship.id.card().class)));
+        .insert(LoopingSound::new(engine(ship.kind.class())));
 }
 
 fn withdraw(
@@ -447,76 +379,6 @@ fn withdraw(
             let back = EaseFunction::SineInOut.sample_clamped(animation.progress());
             transform.translation = from.translation.lerp(Vec3::ZERO, back);
             transform.rotation = from.rotation.slerp(Quat::IDENTITY, back);
-        }
-    }
-}
-
-fn materialize(
-    jobs: Query<(&Materialize, &Animation)>,
-    mut ships: Query<(&Children, &mut Hologram, &mut ShipStatus)>,
-    mut models: Query<&mut Transform, With<ShipModel>>,
-) {
-    for (job, animation) in &jobs {
-        let Ok((children, mut hologram, mut status)) = ships.get_mut(job.ship) else {
-            continue;
-        };
-        let progress = animation.progress();
-        status.hidden = progress < 1.0;
-        hologram.fade = if progress < 1.0 {
-            progress
-                * if rand::random::<f32>() < 0.3 {
-                    0.3
-                } else {
-                    1.0
-                }
-        } else {
-            1.0
-        };
-        if let Some(model) = model_of(children, &models)
-            && let Ok(mut model) = models.get_mut(model)
-        {
-            model.scale.y =
-                model.scale.x * EaseFunction::CubicOut.sample_clamped(progress).max(0.01);
-        }
-    }
-}
-
-fn dematerialize(
-    mut commands: Commands,
-    jobs: Query<(&Dematerialize, &Animation)>,
-    mut ships: Query<(&Ship, &Children, &mut Hologram, &mut ShipStatus)>,
-    mut models: Query<&mut Transform, With<ShipModel>>,
-) {
-    for (job, animation) in &jobs {
-        let Ok((ship, children, mut hologram, mut status)) = ships.get_mut(job.ship) else {
-            continue;
-        };
-        let progress = animation.progress();
-        status.hidden = true;
-        hologram.fade = (1.0 - progress)
-            * if rand::random::<f32>() < 0.35 {
-                0.2
-            } else {
-                1.0
-            };
-        if let Some(model) = model_of(children, &models)
-            && let Ok(mut model) = models.get_mut(model)
-        {
-            let base = super::ship::MODEL_SCALE
-                * if ship.id.is_flagship() {
-                    super::ship::FLAGSHIP_SCALE
-                } else {
-                    1.0
-                };
-            let wide = base * (1.0 + 0.3 * progress);
-            model.scale = Vec3::new(
-                wide,
-                base * (1.0 - EaseFunction::CubicIn.sample_clamped(progress)).max(0.01),
-                wide,
-            );
-        }
-        if animation.is_done() {
-            commands.entity(job.ship).despawn();
         }
     }
 }

@@ -1,12 +1,12 @@
-//! Übersetzungen (Port von `src/i18n/`). [`Messages`] legt je sichtbarem Text eine Methode fest, benannt nach
-//! Gruppe und Schlüssel der Web-Fassung (`hud.endTurn` → [`Messages::hud_end_turn`]); Texte mit Parametern nehmen sie
-//! als Argumente und regeln Plural und Vorzeichen selbst. Gruppen, die in TypeScript ein `Record` über Ids waren
-//! (Karten, Admirale, Fehlercodes, Lanes …), sind je eine Methode mit dem Enum aus `voidfleet_core` bzw. den
-//! Einstellungen als Parameter. [`En`] ist die Ausgangssprache, [`De`] die zweite.
+//! Übersetzungen. [`Messages`] legt je sichtbarem Text eine Methode fest (`hud_end_turn`, `card_effect` …); Texte mit
+//! Parametern nehmen sie als Argumente und regeln Plural und Vorzeichen selbst. Gruppen über Ids (Karten, Admirale,
+//! Gegner, Stationen, Fehler …) sind je eine Methode mit dem Enum aus `voidfleet_core` als Parameter; die Zahlen kommen
+//! aus dem Regelwerk. [`En`] ist die Ausgangssprache, [`De`] die zweite.
 //!
 //! Die Ressource [`Locale`] trägt die gewählte Sprache und dereferenziert auf ihre [`Messages`]:
-//! `locale.hud_round(3)`, `locale.ship(ShipId::Hive).name`. Gewählt wird beim Start: die Sprache aus den
-//! Einstellungen, sonst die erste passende Systemsprache, sonst Englisch; ein Wechsel in den Einstellungen gilt sofort.
+//! `locale.hud_round(3)`, `locale.card(DeckCard::new(CardId::Torpedo)).name`. Gewählt wird beim Start: die Sprache aus
+//! den Einstellungen, sonst die erste passende Systemsprache, sonst Englisch; ein Wechsel in den Einstellungen gilt
+//! sofort.
 //!
 //! Die Funksprüche ([`Messages::radio_lines`]) sind die Ausnahme: Die Aufnahmen sind englisch, der englische Text ist
 //! zugleich das Gesprochene; andere Sprachen übersetzen nur den Untertitel, mit gleich vielen Varianten je Spruch.
@@ -18,10 +18,13 @@ use std::{borrow::Cow, ops::Deref};
 
 use bevy::prelude::*;
 use voidfleet_core::{
-    admirals::{AdmiralId, PowerId, PowerTarget},
-    board::{LaneType, Side},
-    cards::{CommandId, CommandType, ShipClass, ShipId, TargetMode},
-    protocol::{ErrorCode, MatchResult},
+    admirals::{AdmiralId, FlagshipId, Station},
+    battle::{BattleResult, RuleError},
+    board::{EnemySlot, Row},
+    cards::{CardId, CardTarget, CardType, DeckCard},
+    enemies::{Action, EnemyClass, EnemyId},
+    events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
+    modules::ModuleId,
 };
 
 pub use de::De;
@@ -35,112 +38,58 @@ use crate::{
 /// Alle Sprachen in der Reihenfolge der Sprachwahl.
 pub const LANGUAGES: [Language; 2] = [Language::En, Language::De];
 
-/// Name und Effekttext einer Karte (auch Admiralsfähigkeiten).
+/// Name und Effekttext einer Karte; aufgewertet mit „+“ am Namen und den erhöhten Werten im Text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CardText {
-    pub name: &'static str,
-    pub effect: Cow<'static, str>,
-    /// Statt der Zielart ([`Messages::target_mode`]), wenn der Befehl nur bestimmte Schiffe zum Ziel haben darf.
-    pub target: Option<&'static str>,
+    pub name: String,
+    pub effect: String,
 }
 
-impl CardText {
-    const fn new(name: &'static str, effect: &'static str) -> Self {
-        Self {
-            name,
-            effect: Cow::Borrowed(effect),
-            target: None,
-        }
-    }
-
-    fn formatted(name: &'static str, effect: String) -> Self {
-        Self {
-            name,
-            effect: Cow::Owned(effect),
-            target: None,
-        }
-    }
-}
-
-/// Name und Beiname eines Admirals und der Name der Fähigkeit seines Flaggschiffs; deren Text steht beim Schiff.
+/// Was die Admiralswahl über einen Admiral sagt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AdmiralText {
     pub name: &'static str,
     pub epithet: &'static str,
-    pub ability: &'static str,
+    pub weapon: &'static str,
+    pub passive: &'static str,
+    /// Name der Admiralsstation.
+    pub station: &'static str,
+    pub station_text: &'static str,
 }
 
-/// Ein Kapitel der Spielregeln; `caption` beschriftet seine Illustration.
+/// Ein Kapitel der Spielregeln.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RulesSection {
     pub heading: &'static str,
     pub paragraphs: Vec<Cow<'static, str>>,
-    pub caption: Option<&'static str>,
-}
-
-/// Name und Beschreibung einer Phase der Rundenauflösung.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PhaseText {
-    pub name: &'static str,
-    pub text: &'static str,
 }
 
 /// Die Kapitel der Spielregeln.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RulesChapter {
-    Goal,
-    Turn,
-    Admirals,
-    Roster,
     Board,
-    Movement,
-    Resolution,
-    Combat,
-    Ships,
-    Commands,
-    Hand,
+    Round,
+    Stations,
+    Damage,
+    Conditions,
+    Admirals,
+    Cards,
+    Enemies,
     Controls,
 }
 
 impl RulesChapter {
     /// In der Reihenfolge der Navigation.
-    pub const ALL: [Self; 12] = [
-        Self::Goal,
-        Self::Turn,
-        Self::Admirals,
-        Self::Roster,
+    pub const ALL: [Self; 9] = [
         Self::Board,
-        Self::Movement,
-        Self::Resolution,
-        Self::Combat,
-        Self::Ships,
-        Self::Commands,
-        Self::Hand,
+        Self::Round,
+        Self::Stations,
+        Self::Damage,
+        Self::Conditions,
+        Self::Admirals,
+        Self::Cards,
+        Self::Enemies,
         Self::Controls,
-    ];
-}
-
-/// Die Phasen einer Runde, wie der Regel-Dialog sie zeigt.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Phase {
-    Deploy,
-    Maneuver,
-    Effects,
-    Combat,
-    Cleanup,
-    Draw,
-    Check,
-}
-
-impl Phase {
-    pub const ALL: [Self; 7] = [
-        Self::Deploy,
-        Self::Maneuver,
-        Self::Effects,
-        Self::Combat,
-        Self::Cleanup,
-        Self::Draw,
-        Self::Check,
     ];
 }
 
@@ -156,32 +105,18 @@ impl SettingsTab {
     pub const ALL: [Self; 3] = [Self::Game, Self::Video, Self::Sound];
 }
 
-/// Betrag und Vermerke eines Schusses im Log: „3, Fokusfeuer“.
-fn amount_notes(amount: i32, notes: &[&str]) -> String {
-    std::iter::once(amount.to_string())
-        .chain(notes.iter().map(|note| (*note).to_owned()))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// Ein Rundenbonus mit Vorzeichen, nur das Plus ergänzt („+2“, „-1“).
-fn signed(delta: i32) -> String {
-    if delta > 0 {
-        format!("+{delta}")
-    } else {
-        delta.to_string()
-    }
-}
-
-/// Eine ATK-Änderung als Schwebetext mit echtem Minuszeichen („+2“, „−1“).
-fn float_signed(delta: i32) -> String {
-    let sign = if delta > 0 { '+' } else { '−' };
-    format!("{sign}{}", delta.abs())
-}
-
-/// HP und ATK eines Flaggschiffs aus den Kartendaten, für die Regeln.
-fn stats(ship: ShipId) -> String {
-    format!("{} HP, {} ATK", ship.hp(), ship.atk())
+/// Ein Zustand an einer Einheit, als kurze Textmarke über ihr.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Condition {
+    Burning,
+    Emergency,
+    Shield(i32),
+    Evading,
+    Charged,
+    Stasis,
+    Silenced,
+    /// Das Flaggschiff ist im Kurzsprung.
+    Jumped,
 }
 
 /// Alle sichtbaren Texte einer Sprache.
@@ -189,58 +124,44 @@ pub trait Messages: Sync {
     /// Name der Sprache in ihr selbst, für die Sprachwahl.
     fn language_name(&self) -> &'static str;
 
-    // --- hud ---
+    // --- HUD ---
     fn hud_round(&self, round: u32) -> String;
     fn hud_new_round(&self) -> &'static str;
     fn hud_end_turn(&self) -> &'static str;
-    fn hud_waiting(&self) -> &'static str;
+    fn hud_trigger(&self) -> &'static str;
     fn hud_skip(&self) -> &'static str;
-    fn hud_play_computer(&self) -> &'static str;
-    fn hud_invite_player(&self) -> &'static str;
     fn hud_show_log(&self) -> &'static str;
     fn hud_hide_log(&self) -> &'static str;
-    fn hud_overdrive(&self, bonus: i32) -> String;
-    fn hud_overdrive_hint(&self, bonus: i32) -> String;
-    fn hud_checklist_flagship(&self) -> &'static str;
-    fn hud_checklist_ships(&self, planned: usize, max: usize) -> String;
-    fn hud_checklist_command(&self) -> &'static str;
-    fn hud_checklist_maneuver(&self) -> &'static str;
-    /// Freie Hand: Grundmanöver und Fähigkeit getrennt.
-    fn hud_checklist_maneuver_only(&self) -> &'static str;
-    fn hud_checklist_power(&self) -> &'static str;
-    fn hud_checklist_fire(&self, assigned: usize, shooters: usize) -> String;
-    fn hud_checklist_mark(&self) -> &'static str;
-    /// Die Fähigkeitskarte neben den Befehlen.
-    fn hud_power(&self) -> &'static str;
-    fn hud_power_hint(&self) -> &'static str;
-    /// Der Knopf der Pendulum über der Fähigkeitskarte und was er in der Feuerrunde zeigt.
-    fn hud_mark_button(&self) -> &'static str;
-    fn hud_mark_hint(&self) -> &'static str;
-    fn hud_marked(&self, ship: &str) -> String;
-    fn hud_railgun(&self, ship: &str) -> String;
-    fn hud_railgun_hint(&self, amount: i32) -> String;
-    fn hud_shot_lost(&self) -> &'static str;
-    fn hud_lock_lost(&self) -> &'static str;
-    fn hud_under_fire(&self, ship: &str) -> String;
+    /// Gefechtsuhr ab Runde 8: Marke in der Kopfzeile und ihr Tooltip.
+    fn hud_clock(&self, bonus: i32) -> String;
+    fn hud_clock_hint(&self, bonus: i32) -> String;
+    fn hud_hull(&self, hull: i32, max_hull: i32) -> String;
+    fn hud_points(&self) -> &'static str;
+    fn hud_draw_pile(&self) -> &'static str;
+    fn hud_discard_pile(&self) -> &'static str;
+    fn hud_stations(&self) -> &'static str;
+    fn hud_target(&self, target: &str) -> String;
+    fn hud_no_target(&self) -> &'static str;
+    fn hud_column(&self, column: usize) -> String;
+    /// Die Station dieser Runde ist gelaufen.
+    fn hud_station_done(&self) -> &'static str;
+    fn checklist_place(&self) -> &'static str;
+    fn checklist_station(&self, station: &str) -> String;
+    fn checklist_target(&self) -> &'static str;
+    fn checklist_column(&self) -> &'static str;
+    fn checklist_points(&self, points: u32) -> String;
 
-    // --- admiralSelect ---
+    // --- Admiralswahl ---
     fn admiral_select_title(&self) -> &'static str;
     fn admiral_select_hint(&self) -> &'static str;
-    fn admiral_select_flagship(&self) -> &'static str;
-    fn admiral_select_power(&self) -> &'static str;
     fn admiral_select_choose(&self) -> &'static str;
+    fn label_flagship(&self) -> &'static str;
+    fn label_weapon(&self) -> &'static str;
+    fn label_passive(&self) -> &'static str;
+    fn label_station(&self) -> &'static str;
+    fn label_signature(&self) -> &'static str;
 
-    // --- draft ---
-    fn draft_title(&self) -> &'static str;
-    fn draft_hint(&self) -> &'static str;
-    fn draft_ships(&self) -> &'static str;
-    fn draft_commands(&self) -> &'static str;
-    fn draft_none(&self) -> &'static str;
-    fn draft_confirm(&self) -> &'static str;
-    fn draft_peek(&self) -> &'static str;
-    fn draft_show(&self) -> &'static str;
-
-    // --- settings ---
+    // --- Einstellungen ---
     fn settings_title(&self) -> &'static str;
     fn settings_tab(&self, tab: SettingsTab) -> &'static str;
     fn settings_window_mode(&self) -> &'static str;
@@ -254,196 +175,97 @@ pub trait Messages: Sync {
     fn settings_movement_speed(&self) -> &'static str;
     fn settings_animation_speed(&self) -> &'static str;
     fn settings_language(&self) -> &'static str;
-    fn settings_install(&self) -> &'static str;
-    fn settings_install_button(&self) -> &'static str;
     fn speed(&self, speed: AnimationSpeed) -> &'static str;
     fn settings_cursor(&self) -> &'static str;
     fn settings_cursor_size(&self) -> &'static str;
     fn cursor(&self, cursor: CursorId) -> &'static str;
 
-    // --- rules ---
+    // --- Regeln ---
     fn rules_title(&self) -> &'static str;
     fn rules_section(&self, chapter: RulesChapter) -> RulesSection;
-    fn phase(&self, phase: Phase) -> PhaseText;
-    fn figures_you(&self) -> &'static str;
-    fn figures_enemy(&self) -> &'static str;
-    fn figures_slot(&self, index: usize) -> String;
-    fn figures_covered(&self) -> &'static str;
-    fn figures_exposed(&self) -> &'static str;
-    fn figures_lane_limit(&self) -> &'static str;
-    /// Die beiden Arten der Feuerbefehle mit je zwei Fällen.
-    fn figures_column_fire(&self) -> &'static str;
-    fn figures_tracking_fire(&self) -> &'static str;
-    fn figures_column_through(&self) -> &'static str;
-    fn figures_column_dodge(&self) -> &'static str;
-    fn figures_tracking_follows(&self) -> &'static str;
-    fn figures_tracking_covered(&self) -> &'static str;
-    fn figures_round(&self, round: u32) -> String;
-    fn figures_overdrive(&self, bonus: i32) -> String;
-    fn figures_rounds(&self, from: u32, to: Option<u32>) -> String;
-    fn figures_maneuver(&self) -> &'static str;
-    fn figures_turn_parts(&self) -> [&'static str; 4];
-    fn figures_or(&self) -> &'static str;
-    fn figures_round_one(&self) -> &'static str;
-    fn command_type(&self, command_type: CommandType) -> &'static str;
-    fn rules_copies(&self, count: usize) -> String;
-    fn rules_flagship(&self, admiral: &str) -> String;
-    fn rules_token(&self) -> &'static str;
 
     // --- Dialoge und Knöpfe ---
     fn dialog_close(&self) -> &'static str;
     fn fullscreen_enter(&self) -> &'static str;
     fn fullscreen_exit(&self) -> &'static str;
     fn camera_view_toggle(&self) -> &'static str;
-    fn surrender_title(&self) -> &'static str;
-    fn surrender_question(&self) -> &'static str;
-    fn surrender_confirm(&self) -> &'static str;
 
-    // --- loading ---
+    // --- Laden ---
     fn loading_assets(&self, percent: u32) -> String;
     fn loading_failed(&self) -> &'static str;
 
-    // --- opponent ---
-    fn opponent_title(&self) -> &'static str;
-    fn opponent_choosing(&self) -> &'static str;
-    /// Solange man selbst noch wählt, bleibt die Wahl des Gegners verdeckt, auch ob er schon gewählt hat.
-    fn opponent_hidden(&self) -> &'static str;
-    fn opponent_planning(&self) -> &'static str;
-    fn opponent_ready(&self) -> &'static str;
-    fn opponent_ships(&self) -> &'static str;
-    fn opponent_commands(&self) -> &'static str;
-    fn opponent_hand(&self) -> &'static str;
-    fn opponent_deck(&self) -> &'static str;
-
-    // --- radio ---
+    // --- Bordfunk ---
     /// Absender im Untertitel.
     fn radio_speaker(&self) -> &'static str;
     /// Je Funkspruch so viele Untertitel wie Aufnahmen ([`RadioCue::variants`]).
     fn radio_lines(&self, cue: RadioCue) -> &'static [&'static str];
 
-    // --- result ---
-    fn result_title(&self, result: MatchResult) -> &'static str;
-    fn result_won_subtitle(&self, flagship: &str) -> String;
+    // --- Ergebnis ---
+    fn result_title(&self, result: BattleResult) -> &'static str;
+    fn result_won_subtitle(&self, kills: u32, rounds: u32) -> String;
     fn result_lost_subtitle(&self, flagship: &str) -> String;
-    fn result_draw_subtitle(&self, own: &str, enemy: &str) -> String;
-    /// Das Match endete durch Aufgabe: `won`, wenn der Gegner aufgegeben hat.
-    fn result_surrendered(&self, won: bool) -> &'static str;
-    fn result_rounds(&self, round: u32) -> String;
     fn result_view_board(&self) -> &'static str;
-    fn result_new_match(&self) -> &'static str;
-
-    // --- log ---
-    fn log_round_header(&self, round: u32) -> String;
-    fn log_who(&self, side: Side) -> &'static str;
-    fn log_slot(&self, side: Side, lane: &str, slot: usize) -> String;
-    /// Eine Spalte: beide Slots mit dieser Nummer.
-    fn log_column(&self, side: Side, column: usize) -> String;
-    fn log_ship(&self, ship: &str, slot: &str) -> String;
-    fn log_deploy(&self, who: &str, ship: &str, slot: &str) -> String;
-    fn log_deploy_flagship(&self, who: &str, ship: &str, slot: &str) -> String;
-    fn log_power(&self, who: &str, power: &str, target: &str) -> String;
-    fn log_decoy(&self, ship: &str) -> String;
-    fn log_mark(&self, who: &str, ship: &str) -> String;
-    fn log_swap(&self, who: &str, ship: &str, partner: &str) -> String;
-    fn log_pass(&self, who: &str) -> String;
-    fn log_maneuver(&self, who: &str, ship: &str, slot: &str) -> String;
-    fn log_command(&self, who: &str, command: &str) -> String;
-    fn log_command_on(&self, who: &str, command: &str, slot: &str) -> String;
-    fn log_damage(&self, command: &str, ship: &str, amount: i32) -> String;
-    fn log_attack_bonus(&self, command: &str, ship: &str, delta: i32) -> String;
-    fn log_shield(&self, command: &str, ship: &str, amount: i32) -> String;
-    fn log_disable(&self, command: &str, ship: &str) -> String;
-    fn log_heal(&self, command: &str, ship: &str, amount: i32) -> String;
-    fn log_move(&self, command: &str, ship: &str, slot: &str) -> String;
-    fn log_shield_permanent(&self, command: &str, ship: &str, amount: i32) -> String;
-    fn log_tow(&self, command: &str, ship: &str, slot: &str) -> String;
-    fn log_jump(&self, command: &str, ship: &str) -> String;
-    fn log_taunt(&self, command: &str, ship: &str) -> String;
-    fn log_launch(&self, command: &str, ship: &str) -> String;
-    fn log_ram(&self, command: &str, ship: &str, target: &str, dealt: i32, taken: i32) -> String;
-    fn log_jam(&self, command: &str, ship: &str, power: &str) -> String;
-    fn log_jam_decoy(&self, command: &str, ship: &str) -> String;
-    fn log_countered(&self, command: &str, who: &str, countered: &str) -> String;
-    fn log_rule(&self, command: &str, who: &str, detail: &str) -> String;
-    fn log_rejoin(&self, ship: &str) -> String;
-    fn log_repair(&self, source: &str, ship: &str, amount: i32) -> String;
-    fn log_ability_damage(&self, source: &str, ship: &str, amount: i32) -> String;
-    fn log_guardian_shield(&self, source: &str, ship: &str, amount: i32) -> String;
-    fn log_spawn(&self, source: &str, ship: &str) -> String;
-    fn log_brood(&self, source: &str, ship: &str) -> String;
-    fn log_salvage(&self, ship: &str) -> String;
-    fn log_draw(&self, command: &str, who: &str, ships: u32, commands: u32) -> String;
-    fn log_no_effect(&self, command: &str, who: &str) -> String;
-    fn log_miss(&self, command: &str, slot: &str) -> String;
-    fn log_railgun(&self, source: &str, target: &str, amount: i32) -> String;
-    fn log_railgun_blocked(&self, source: &str, target: &str) -> String;
-    /// Ein Schuss im Kampf; `notes` nennt, was ihn verstärkt, gelenkt oder beschleunigt hat.
-    fn log_attack(&self, attacker: &str, target: &str, amount: i32, notes: &[&str]) -> String;
-    /// Spaltenfeuer, das durchging: Das vordere Schiff der Spalte ist in diesem Kampf gefallen.
-    fn log_through(&self, attacker: &str, target: &str, amount: i32, notes: &[&str]) -> String;
-    /// Spaltenfeuer verpufft: In der Spalte stand kein Schiff …
-    fn log_fizzle_empty(&self, attacker: &str, column: &str) -> String;
-    /// … bzw. die Schiffe dort sind in dieser Runde schon gefallen.
-    fn log_fizzle_cleared(&self, attacker: &str, column: &str) -> String;
-    /// Schiffsfeuer verpufft: Sein Ziel ist schon zerstört …
-    fn log_fizzle(&self, attacker: &str, target: &str) -> String;
-    /// … gedeckt …
-    fn log_fizzle_covered(&self, attacker: &str, target: &str) -> String;
-    /// … oder steht nicht mehr auf dem Brett (vor dem Kampf zerstört, Kurzsprung).
-    fn log_fizzle_gone(&self, attacker: &str) -> String;
-    fn log_silenced(&self, ship: &str) -> String;
-    fn log_counterfire(&self, ship: &str, source: &str, amount: i32) -> String;
-    fn log_self_damage(&self, ship: &str, amount: i32) -> String;
-    fn log_destroyed(&self, ship: &str) -> String;
-    fn log_flagship_destroyed(&self, ship: &str) -> String;
-    fn log_vanish(&self, ship: &str) -> String;
-
-    // --- banner ---
-    fn banner_command(&self, who: &str, command: &str) -> String;
-    fn banner_mark_target(&self, ship: &str) -> String;
-    fn banner_blocked(&self) -> &'static str;
-    fn banner_no_effect(&self) -> &'static str;
-    fn banner_miss(&self, slot: &str) -> String;
-    fn banner_draw(&self, ships: u32, commands: u32) -> String;
-    fn banner_countered(&self, command: &str) -> String;
-    fn banner_extra_ship(&self) -> &'static str;
-    fn banner_maneuver_and_power(&self) -> &'static str;
-
-    // --- float ---
-    fn float_damage(&self, amount: i32) -> String;
-    fn float_heal(&self, amount: i32) -> String;
-    fn float_shield(&self, amount: i32) -> String;
-    fn float_attack(&self, delta: i32) -> String;
-    fn float_salvage(&self) -> &'static str;
-    fn float_disabled(&self) -> &'static str;
-    fn float_hold_fire(&self) -> &'static str;
-    fn float_miss(&self) -> &'static str;
-    fn float_silenced(&self) -> &'static str;
-    fn float_locked(&self) -> &'static str;
-    fn float_blocked(&self) -> &'static str;
-    fn float_decoy(&self) -> &'static str;
-    fn float_shield_permanent(&self, amount: i32) -> String;
-    fn float_taunt(&self) -> &'static str;
-    fn float_jammed(&self) -> &'static str;
-    fn float_jump(&self) -> &'static str;
-    /// Ein Schuss im Kampf verpufft.
-    fn float_fizzle(&self) -> &'static str;
-    /// Am Ziel von Schiffsfeuer, das an der Deckung davor verpufft.
-    fn float_covered(&self) -> &'static str;
+    fn result_continue(&self) -> &'static str;
+    fn result_new_run(&self) -> &'static str;
 
     // --- Ids aus dem Regelwerk ---
-    fn error(&self, code: ErrorCode) -> &'static str;
-    fn lane(&self, lane: LaneType) -> &'static str;
-    fn stats_hp(&self) -> &'static str;
+    fn rule_error(&self, error: RuleError) -> &'static str;
+    fn stats_hull(&self) -> &'static str;
     fn stats_atk(&self) -> &'static str;
-    fn stats_shield(&self) -> &'static str;
-    fn ship_class(&self, class: ShipClass) -> &'static str;
-    fn target_mode(&self, mode: TargetMode) -> &'static str;
-    fn ship(&self, ship: ShipId) -> CardText;
+    /// Die Stationen; die Admiralsstation heißt je Admiral anders.
+    fn station(&self, station: Station, admiral: AdmiralId) -> &'static str;
+    fn station_text(&self, station: Station, admiral: AdmiralId) -> String;
+    fn column_name(&self, column: usize) -> &'static str;
+    fn row_name(&self, row: Row) -> &'static str;
+    fn card_name(&self, card: CardId) -> &'static str;
+    /// Effekttext mit den Zahlen der (aufgewerteten) Karte.
+    fn card_effect(&self, card: DeckCard) -> String;
+    fn card_type(&self, card_type: CardType) -> &'static str;
+    fn card_target(&self, target: CardTarget) -> &'static str;
     fn admiral(&self, admiral: AdmiralId) -> AdmiralText;
-    fn power(&self, power: PowerId) -> CardText;
-    fn power_target(&self, target: PowerTarget) -> &'static str;
-    fn command(&self, command: CommandId) -> CardText;
+    fn flagship(&self, flagship: FlagshipId) -> &'static str;
+    fn enemy(&self, enemy: EnemyId) -> &'static str;
+    fn enemy_class(&self, class: EnemyClass) -> &'static str;
+    /// Eine angesagte Aktion ohne Schaden: „Zielfeuer“, „Spaltenfeuer Mitte“, „Schilde 6“.
+    fn action(&self, action: Action) -> String;
+    fn condition(&self, condition: Condition) -> String;
+    fn module(&self, module: ModuleId) -> (&'static str, &'static str);
+    /// Die Wörter der Schadensrechnung: Ausweichen, Gegenmaßnahmen, Panzerung, gedeckt, Schild, tödlich.
+    fn breakdown_words(&self) -> [&'static str; 6];
+
+    // --- Log, je Ereignis eine Zeile; Einheiten kommen schon benannt ---
+    fn log_round_header(&self, round: u32) -> String;
+    fn log_battle_started(&self, admiral: &str) -> String;
+    fn log_card(&self, card: &str, target: Option<&str>) -> String;
+    fn log_station(&self, station: &str) -> String;
+    fn log_hit(&self, source: &str, target: &str, breakdown: &str) -> String;
+    fn log_missed(&self, source: &str, reason: MissReason) -> String;
+    fn log_shielded(&self, target: &str, amount: i32) -> String;
+    fn log_healed(&self, target: &str, amount: i32) -> String;
+    fn log_ignited(&self, target: &str) -> String;
+    fn log_extinguished(&self, target: &str) -> String;
+    fn log_emergency(&self, target: &str, active: bool) -> String;
+    fn log_destroyed(&self, target: &str, cause: DestroyCause) -> String;
+    fn log_fireship_spent(&self, unit: &str) -> String;
+    fn log_rammed(&self, target: &str) -> String;
+    fn log_jumped(&self) -> &'static str;
+    fn log_returned(&self) -> &'static str;
+    fn log_maneuvered(&self, from: &str, to: &str) -> String;
+    fn log_tractored(&self, unit: &str, from: &str) -> String;
+    fn log_arrived(&self, unit: &str) -> String;
+    fn log_enemy_action(&self, unit: &str, action: &str) -> String;
+    fn log_idle(&self, unit: &str, reason: IdleReason) -> String;
+    fn log_counterfire(&self, target: &str, amount: i32) -> String;
+    fn log_hold_the_line(&self, target: &str, amount: i32) -> String;
+    fn log_self_damage(&self, amount: i32) -> String;
+    fn log_burn(&self, target: &str, amount: i32) -> String;
+    fn log_cannibalized(&self, unit: &str, amount: i32) -> String;
+    fn log_emergency_generator(&self) -> &'static str;
+    fn log_shuffled(&self) -> &'static str;
+    fn log_drawn(&self, count: usize) -> String;
+    fn log_intents(&self, unit: &str, intents: &str) -> String;
+    fn log_clock(&self, bonus: i32) -> String;
+    fn log_battle_ended(&self, result: BattleResult) -> &'static str;
 
     /// Name und Beiname, etwa „Admiral Osei – Die Mauer“.
     fn admiral_title(&self, admiral: AdmiralId) -> String {
@@ -451,12 +273,61 @@ pub trait Messages: Sync {
         format!("{name} – {epithet}")
     }
 
-    fn card_name(&self, ship: ShipId) -> &'static str {
-        self.ship(ship).name
+    /// Name und Effekt einer Karte; aufgewertet mit „+“.
+    fn card(&self, card: DeckCard) -> CardText {
+        let name = self.card_name(card.id);
+        CardText {
+            name: if card.upgraded {
+                format!("{name}+")
+            } else {
+                name.to_owned()
+            },
+            effect: self.card_effect(card),
+        }
     }
 
-    fn command_name(&self, command: CommandId) -> &'static str {
-        self.command(command).name
+    /// Eine Ansage samt Schaden: „Zielfeuer 4“, „Spaltenfeuer Mitte 16“.
+    fn intent(&self, intent: Intent) -> String {
+        let action = self.action(intent.action);
+        if intent.damage > 0 {
+            format!("{action} {}", intent.damage)
+        } else {
+            action
+        }
+    }
+
+    /// Ein Slot der Gegnerseite: „Front Mitte“.
+    fn slot_name(&self, slot: EnemySlot) -> String {
+        format!(
+            "{} {}",
+            self.row_name(slot.row),
+            self.column_name(slot.column)
+        )
+    }
+
+    /// Die Rechnung eines Treffers in Kurzform: „18 · Panzerung −2 · gedeckt −4 · Schild −3 → 9“.
+    fn breakdown(&self, breakdown: &Breakdown) -> String {
+        let [evaded, countermeasures, armor, covered, shield, lethal] = self.breakdown_words();
+        let mut parts = vec![breakdown.base.to_string()];
+        for (word, amount) in [
+            (evaded, breakdown.evaded),
+            (countermeasures, breakdown.countermeasures),
+            (armor, breakdown.armor),
+            (covered, breakdown.covered.map_or(0, |(_, amount)| amount)),
+            (shield, breakdown.shielded),
+        ] {
+            if amount > 0 {
+                parts.push(format!("{word} −{amount}"));
+            }
+        }
+        let mut text = parts.join(" · ");
+        if parts.len() > 1 {
+            text.push_str(&format!(" → {}", breakdown.hull));
+        }
+        if breakdown.lethal {
+            text.push_str(&format!(" · {lethal}"));
+        }
+        text
     }
 }
 
@@ -571,40 +442,69 @@ mod tests {
     }
 
     #[test]
-    fn plurals_and_signs() {
-        let en = Locale::new(Language::En);
+    fn numbers_and_upgrades() {
         let de = Locale::new(Language::De);
-        assert_eq!(en.hud_checklist_ships(1, 1), "Deploy a ship");
-        assert_eq!(de.hud_checklist_ships(1, 2), "Schiffe legen (1/2)");
-        assert_eq!(en.float_attack(-1), "−1 ATK");
-        assert_eq!(de.float_attack(2), "+2 ATK");
+        let en = Locale::new(Language::En);
+        assert_eq!(de.admiral_title(AdmiralId::Osei), "Osei – Die Mauer");
+        let torpedo = DeckCard::new(CardId::Torpedo);
+        assert!(de.card(torpedo).effect.contains('6'));
+        let upgraded = DeckCard {
+            upgraded: true,
+            ..torpedo
+        };
+        assert_eq!(en.card(upgraded).name, "Torpedo+");
+        assert!(en.card(upgraded).effect.contains('8'));
+        let breakdown = Breakdown {
+            base: 18,
+            armor: 2,
+            covered: Some((1, 4)),
+            shielded: 3,
+            hull: 9,
+            ..Breakdown::default()
+        };
         assert_eq!(
-            en.log_attack_bonus("X", "Y", -1),
-            "Effect: X — Y -1 ATK this round"
+            de.breakdown(&breakdown),
+            "18 · Panzerung −2 · gedeckt −4 · Schild −3 → 9"
         );
         assert_eq!(
-            en.log_attack("A", "B", 3, &["Focus Fire"]),
-            "Combat: A fires at B (3, Focus Fire)"
+            en.breakdown(&Breakdown {
+                base: 7,
+                hull: 7,
+                ..Breakdown::default()
+            }),
+            "7"
         );
-        assert_eq!(de.banner_draw(0, 1), "+1 Befehl");
-        assert_eq!(en.figures_rounds(8, None), "from round 8");
     }
 
+    /// Jede Karte, jeder Admiral, Gegner und Fehler hat in beiden Sprachen einen Text.
     #[test]
-    fn titles_and_numbers() {
-        let de = Locale::new(Language::De);
-        assert_eq!(
-            de.admiral_title(AdmiralId::Osei),
-            "Admiral Osei – Die Mauer"
-        );
-        assert_eq!(de.card_name(ShipId::TitanCarrier), "Titan-Träger");
-        assert!(de.ship(ShipId::Hive).effect.contains("höchstens 2 Drohnen"));
-        assert_eq!(
-            Locale::new(Language::En)
-                .command(CommandId::ScrapSalvage)
-                .target,
-            Some("Allied Scrap Raider")
-        );
-        assert_eq!(de.rules_section(RulesChapter::Roster).paragraphs.len(), 5);
+    fn every_id_has_text() {
+        use voidfleet_core::admirals::ADMIRAL_IDS;
+        for locale in all() {
+            for card in voidfleet_core::cards::LOOT_POOL {
+                for upgraded in [false, true] {
+                    let text = locale.card(DeckCard { id: card, upgraded });
+                    assert!(!text.name.is_empty() && !text.effect.is_empty(), "{card:?}");
+                }
+            }
+            for admiral in ADMIRAL_IDS {
+                assert!(!locale.admiral(admiral).station_text.is_empty());
+                for station in [
+                    Station::Weapons,
+                    Station::Shields,
+                    Station::DamageControl,
+                    Station::Maneuver,
+                    Station::Admiral,
+                ] {
+                    assert!(!locale.station_text(station, admiral).is_empty());
+                }
+            }
+            for enemy in crate::data::ship_models::ENEMIES {
+                assert!(!locale.enemy(enemy).is_empty());
+            }
+            for chapter in RulesChapter::ALL {
+                assert!(!locale.rules_section(chapter).paragraphs.is_empty());
+            }
+        }
     }
 }

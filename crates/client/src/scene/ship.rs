@@ -3,12 +3,11 @@
 //!
 //! Ein Schiff ist eine Entity mit [`Ship`]; seine Nase zeigt nach `Transform::forward` (−Z), gedreht wird allein diese
 //! Wurzel. Darunter hängt das Modell ([`ShipModel`]) als glTF-Szene. Sobald sie steht, bekommt das Schiff eigene Kopien
-//! seiner Toon-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff; Geister zeigen keine
-//! Konturen. [`BreakApart`] tauscht das Modell gegen die Bruchstücke, die exakt an seiner Stelle liegen, und meldet
+//! seiner Toon-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff. [`BreakApart`] tauscht das Modell gegen die Bruchstücke, die exakt an seiner Stelle liegen, und meldet
 //! sie mit [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
 //!
 //! ```ignore
-//! let ship = spawn_ship(&mut commands, &models, ShipId::PlasmaFrigate, false);
+//! let ship = spawn_ship(&mut commands, &models, ShipKind::Enemy(EnemyId::PlasmaCruiser));
 //! commands.entity(ship).insert((
 //!     Transform::from_translation(pad).looking_to(Vec3::X, Vec3::Y).with_scale(Vec3::splat(BOARD_SCALE)),
 //!     ToonState::facing(Side::Player),
@@ -22,14 +21,12 @@ use bevy::{
     world_serialization::{WorldAsset, WorldAssetRoot, WorldInstanceReady},
 };
 
-use voidfleet_core::{board::Side, cards::ShipId};
-
 use super::{
-    coords::facing,
+    coords::{Side, facing},
     markers::ShipMarkers,
-    toon::{ToonMaterial, ToonOutline},
+    toon::ToonMaterial,
 };
-use crate::data::ship_models::ShipModels;
+use crate::data::ship_models::{ShipKind, ShipModels};
 
 /// Schiffe sind für den Hangar modelliert und auf dem Brett zu groß: Maßstab der Wurzel …
 pub const BOARD_SCALE: f32 = 0.6;
@@ -39,7 +36,7 @@ pub const MODEL_SCALE: f32 = 0.5;
 /// Faktor. Die Bastion, das breiteste, bleibt so knapp 2 breit (Slots liegen 2,2 auseinander).
 pub const FLAGSHIP_SCALE: f32 = 1.1;
 
-/// Ein Schiff auf dem Brett (oder der Geist eines eingeplanten).
+/// Ein Schiff auf dem Brett: ein Gegner (`uid` aus dem Gefecht) oder das Flaggschiff des Spielers (`uid` 0).
 #[derive(Component, Clone, Debug)]
 #[require(
     Transform::from_scale(Vec3::splat(BOARD_SCALE)),
@@ -49,10 +46,8 @@ pub const FLAGSHIP_SCALE: f32 = 1.1;
     ShipMarkers
 )]
 pub struct Ship {
-    /// Karte des Schiffs.
-    pub id: ShipId,
-    /// Geist eines eingeplanten Schiffs: bläuliches Hologramm ohne Konturen.
-    pub ghost: bool,
+    pub kind: ShipKind,
+    pub uid: u32,
 }
 
 /// Was Modell und Wrack eines Schiffs beim Zeichnen lesen: die Seite für das Hauptlicht (setzt der Landeplatz), die
@@ -135,37 +130,29 @@ pub struct WreckReady {
 }
 
 /// Maßstab des Modells unter der Wurzel.
-fn model_scale(ship: ShipId) -> f32 {
+fn model_scale(kind: ShipKind) -> f32 {
     MODEL_SCALE
-        * if ship.is_flagship() {
+        * if matches!(kind, ShipKind::Flagship(_)) {
             FLAGSHIP_SCALE
         } else {
             1.0
         }
 }
 
-fn model(scene: Handle<WorldAsset>, ship: ShipId) -> impl Bundle {
+fn model(scene: Handle<WorldAsset>, kind: ShipKind) -> impl Bundle {
     (
         Name::new("Modell"),
         ShipModel,
         WorldAssetRoot(scene),
-        Transform::from_scale(Vec3::splat(model_scale(ship))),
+        Transform::from_scale(Vec3::splat(model_scale(kind))),
     )
 }
 
-/// Spawnt ein Schiff samt Modell; Lage, Seite ([`ToonState::facing`]) und Eltern setzt der Aufrufer.
-pub fn spawn_ship(
-    commands: &mut Commands,
-    models: &ShipModels,
-    ship: ShipId,
-    ghost: bool,
-) -> Entity {
+/// Spawnt ein Schiff samt Modell; Lage, Seite ([`ToonState::facing`]), Eltern und `uid` setzt der Aufrufer.
+pub fn spawn_ship(commands: &mut Commands, models: &ShipModels, kind: ShipKind) -> Entity {
     commands
-        .spawn((
-            Name::new(format!("Schiff {ship:?}")),
-            Ship { id: ship, ghost },
-        ))
-        .with_child(model(models.get(ship).ship.clone(), ship))
+        .spawn((Name::new(format!("Schiff {kind:?}")), Ship { kind, uid: 0 }))
+        .with_child(model(models.get(kind).ship.clone(), kind))
         .id()
 }
 
@@ -195,7 +182,7 @@ fn break_apart(
     // Die Materialien des Modells gehen mit ihm; das Wrack bekommt eigene.
     own.0.clear();
     commands.entity(event.entity).with_child((
-        model(ship_models.get(ship.id).wreck.clone(), ship.id),
+        model(ship_models.get(ship.kind).wreck.clone(), ship.kind),
         Wreck,
     ));
 }
@@ -205,29 +192,25 @@ fn prepare_instance(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
     roots: Query<(&ChildOf, Has<Wreck>), With<ShipModel>>,
-    mut ships: Query<(&Ship, &ToonState, &mut ShipMaterials)>,
+    mut ships: Query<(&ToonState, &mut ShipMaterials), With<Ship>>,
     children: Query<&Children>,
     parts: Query<&MeshMaterial3d<ToonMaterial>>,
-    outlines: Query<(), With<ToonOutline>>,
     mut materials: ResMut<Assets<ToonMaterial>>,
 ) {
     let Ok((child_of, is_wreck)) = roots.get(ready.entity) else {
         return;
     };
     let ship_entity = child_of.parent();
-    let Ok((ship, state, mut own)) = ships.get_mut(ship_entity) else {
+    let Ok((state, mut own)) = ships.get_mut(ship_entity) else {
         return;
     };
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
     commands.entity(ready.entity).insert(ModelReady);
     for part in children.iter_descendants(ready.entity) {
-        if ship.ghost && outlines.contains(part) {
-            commands.entity(part).insert(Visibility::Hidden);
-        }
         let Ok(template) = parts.get(part) else {
             continue;
         };
-        // Schiffe und Geister lassen sich anklicken (`crate::scene::picking`), Trümmer nicht.
+        // Schiffe lassen sich anklicken (`crate::scene::picking`), Trümmer nicht.
         if !is_wreck {
             commands.entity(part).insert(Pickable::default());
         }
@@ -236,7 +219,6 @@ fn prepare_instance(
                 .get(template.id())
                 .expect("Toon-Material der Vorlage")
                 .clone();
-            material.ghost = ship.ghost;
             state.apply(&mut material);
             let handle = materials.add(material);
             own.0.push(handle.clone());

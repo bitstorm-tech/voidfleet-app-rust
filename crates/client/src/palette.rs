@@ -1,13 +1,10 @@
 //! Alle Farben, die eine Bedeutung tragen (Spieler, Gegner, Schaden, Schild …), für Szene und UI gleichermaßen; dazu
-//! die Akzentfarbe je Admiral, der Zierton der Flaggschiffe und die Kartenfarben nach Schiffsklasse bzw. Befehlstyp
+//! die Akzentfarbe je Admiral, der Zierton der Flaggschiffe und die Farben nach Gegnerklasse und Kartentyp
 //! (Port von `data/palette.ts` und `data/cardColors.ts`). Die Werte sind sRGB wie im Original.
 
 use bevy::prelude::*;
 
-use voidfleet_core::{
-    admirals::AdmiralId,
-    cards::{CommandType, ShipClass},
-};
+use voidfleet_core::{admirals::AdmiralId, cards::CardType, enemies::EnemyClass};
 
 /// Farbe aus einer Hex-Angabe wie `0xE8A33A`.
 const fn hex(rgb: u32) -> Color {
@@ -51,31 +48,29 @@ pub const fn admiral_color(admiral: AdmiralId) -> Color {
     match admiral {
         AdmiralId::Osei => hex(0xE8A33A),
         AdmiralId::Vance => hex(0xE2483D),
-        AdmiralId::Halvorsen => hex(0x9D5CF2),
-        AdmiralId::Moreau => hex(0x33D1C6),
         AdmiralId::Kerr => hex(0x5B8DFF),
+        AdmiralId::Reyes => hex(0xFF7A2A),
     }
 }
 
-/// Kartenfarbe einer Schiffsklasse.
-pub const fn ship_class_color(class: ShipClass) -> Color {
+/// Farbe einer gegnerischen Klasse.
+pub const fn enemy_class_color(class: EnemyClass) -> Color {
     match class {
-        ShipClass::Fighter => Color::srgb(0.9, 0.3, 0.2),
-        ShipClass::Cruiser => Color::srgb(0.3, 0.5, 0.9),
-        ShipClass::Battleship => Color::srgb(0.5, 0.5, 0.6),
-        ShipClass::Support => Color::srgb(0.2, 0.8, 0.5),
+        EnemyClass::Fighter => Color::srgb(0.9, 0.3, 0.2),
+        EnemyClass::Cruiser => Color::srgb(0.3, 0.5, 0.9),
+        EnemyClass::Battleship => Color::srgb(0.5, 0.5, 0.6),
+        EnemyClass::Flagship => FLAGSHIP_TRIM,
     }
 }
 
-/// Kartenfarbe eines Befehlstyps.
-pub const fn command_type_color(command: CommandType) -> Color {
-    match command {
-        CommandType::Attack => Color::srgb(0.9, 0.2, 0.2),
-        CommandType::Buff => Color::srgb(0.2, 0.7, 0.3),
-        CommandType::Debuff => Color::srgb(0.6, 0.2, 0.8),
-        CommandType::Tactic => Color::srgb(0.2, 0.6, 0.9),
-        CommandType::Reposition => Color::srgb(0.9, 0.7, 0.1),
-        CommandType::Special => Color::srgb(0.9, 0.5, 0.1),
+/// Kartenfarbe eines Kartentyps.
+pub const fn card_type_color(card: CardType) -> Color {
+    match card {
+        CardType::Attack => Color::srgb(0.9, 0.2, 0.2),
+        CardType::Buff => Color::srgb(0.2, 0.7, 0.3),
+        CardType::Debuff => Color::srgb(0.6, 0.2, 0.8),
+        CardType::Tactic => Color::srgb(0.2, 0.6, 0.9),
+        CardType::Doctrine => Color::srgb(0.9, 0.7, 0.1),
     }
 }
 

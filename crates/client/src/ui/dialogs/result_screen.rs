@@ -1,19 +1,20 @@
-//! Ergebnis nach Matchende (Port von `ui/resultScreen.ts`): Sieg, Niederlage oder Unentschieden groß in der Bildmitte,
-//! darunter das zerstörte Flaggschiff, nach einer Aufgabe stattdessen die Aufgabe. „Brett ansehen“ blendet das Overlay
-//! aus und lässt ein Abzeichen oben in der Mitte stehen, über das es wieder aufgeht; „Neues Match“ meldet
-//! [`NewMatch`]. Beim Erscheinen erklingt eine Fanfare, bei Niederlage und Unentschieden eine düstere.
+//! Ergebnis nach Gefechtsende (Port von `ui/resultScreen.ts`): Sieg oder Niederlage groß in der Bildmitte, darunter
+//! die Abschüsse bzw. das verlorene Flaggschiff. „Brett ansehen“ blendet das Overlay aus und lässt ein Abzeichen oben
+//! in der Mitte stehen, über das es wieder aufgeht. Nach einem Sieg meldet „Weiter“ [`NextBattle`] (vorerst ein neues
+//! Test-Gefecht), nach einer Niederlage „Neuer Run“ [`NewRun`] (zurück zur Admiralswahl). Beim Erscheinen erklingt
+//! eine Fanfare, bei Niederlage eine düstere.
 
 use bevy::{
     prelude::*,
     ui_widgets::{Activate, observe},
 };
-use voidfleet_core::{admirals::AdmiralId, protocol::MatchResult};
+use voidfleet_core::battle::BattleResult;
 
-use super::{FadeIn, NewMatch, PopIn, RESULT_LAYER};
+use super::{FadeIn, NewRun, NextBattle, PopIn, RESULT_LAYER};
 use crate::{
     assets::AppState,
     audio::{PlaySound, SoundId},
-    game::Match,
+    game::Battle,
     i18n::Locale,
     palette,
     ui::{
@@ -26,7 +27,7 @@ use crate::{
 /// Das gezeigte Ergebnis und ob das Overlay offen ist (sonst steht das Abzeichen da).
 #[derive(Resource, Default, Debug)]
 struct ResultView {
-    result: Option<MatchResult>,
+    result: Option<BattleResult>,
     open: bool,
 }
 
@@ -47,28 +48,20 @@ struct ResultBadge;
 pub(in crate::ui) struct BoardButton;
 
 /// Farbe des Ausgangs.
-fn result_color(result: MatchResult) -> Color {
+fn result_color(result: BattleResult) -> Color {
     match result {
-        MatchResult::Won => palette::WON,
-        MatchResult::Lost => palette::LOST,
-        MatchResult::Draw => palette::DRAW,
+        BattleResult::Won => palette::WON,
+        BattleResult::Lost => palette::LOST,
     }
 }
 
-/// Der Untertitel nennt die Aufgabe oder das zerstörte Flaggschiff.
-fn subtitle(game: &Match, locale: &Locale, result: MatchResult) -> String {
-    if game.surrendered && result != MatchResult::Draw {
-        return locale.result_surrendered(result == MatchResult::Won).into();
-    }
-    let flagship = |admiral: Option<AdmiralId>| {
-        admiral.map_or("", |admiral| locale.ship(admiral.flagship()).name)
-    };
-    let own = flagship(game.admiral);
-    let enemy = flagship(game.opponent.as_ref().and_then(|opponent| opponent.admiral));
+/// Der Untertitel nennt die Abschüsse oder das verlorene Flaggschiff.
+fn subtitle(battle: &Battle, locale: &Locale, result: BattleResult) -> String {
     match result {
-        MatchResult::Won => locale.result_won_subtitle(enemy),
-        MatchResult::Lost => locale.result_lost_subtitle(own),
-        MatchResult::Draw => locale.result_draw_subtitle(own, enemy),
+        BattleResult::Won => locale.result_won_subtitle(battle.kills, battle.round),
+        BattleResult::Lost => {
+            locale.result_lost_subtitle(locale.flagship(battle.flagship.admiral.flagship()))
+        }
     }
 }
 
@@ -77,8 +70,8 @@ fn spawn_result(
     commands: &mut Commands,
     fonts: &Fonts,
     locale: &Locale,
-    game: &Match,
-    result: MatchResult,
+    battle: &Battle,
+    result: BattleResult,
     open: bool,
 ) {
     let color = result_color(result);
@@ -140,16 +133,8 @@ fn spawn_result(
                     (
                         theme::text(
                             fonts.body(24.0),
-                            subtitle(game, locale, result),
+                            subtitle(battle, locale, result),
                             palette::TEXT
-                        ),
-                        Pickable::IGNORE,
-                    ),
-                    (
-                        theme::text(
-                            fonts.body(16.0),
-                            locale.result_rounds(game.round),
-                            palette::TEXT_DIM
                         ),
                         Pickable::IGNORE,
                     ),
@@ -176,13 +161,25 @@ fn spawn_result(
                             (
                                 button::text_button(
                                     fonts.display_bold(22.0),
-                                    locale.result_new_match(),
+                                    match result {
+                                        BattleResult::Won => locale.result_continue(),
+                                        BattleResult::Lost => locale.result_new_run(),
+                                    },
                                     Key::PRIMARY,
                                     action_node(),
                                 ),
                                 observe(
-                                    |_: On<Activate>, mut new_match: MessageWriter<NewMatch>| {
-                                        new_match.write(NewMatch);
+                                    move |_: On<Activate>,
+                                          mut next: MessageWriter<NextBattle>,
+                                          mut new_run: MessageWriter<NewRun>| {
+                                        match result {
+                                            BattleResult::Won => {
+                                                next.write(NextBattle);
+                                            }
+                                            BattleResult::Lost => {
+                                                new_run.write(NewRun);
+                                            }
+                                        }
                                     }
                                 ),
                             ),
@@ -251,28 +248,29 @@ fn action_node() -> Node {
     }
 }
 
-/// Öffnet das Overlay, sobald ein Ergebnis feststeht (mit Fanfare), und nimmt es weg, wenn ein neues Match beginnt.
-/// Eine andere Sprache baut es neu auf.
-fn follow_match(
+/// Öffnet das Overlay, sobald ein Ergebnis feststeht (mit Fanfare), und nimmt es weg, wenn ein neues Gefecht beginnt
+/// oder der Run endet. Eine andere Sprache baut es neu auf.
+fn follow_battle(
     mut commands: Commands,
-    game: Res<Match>,
+    battle: Option<Res<Battle>>,
     locale: Res<Locale>,
     fonts: Res<Fonts>,
     mut view: ResMut<ResultView>,
     shown: Query<Entity, With<ResultPart>>,
     mut sounds: MessageWriter<PlaySound>,
 ) {
-    let changed = game.result != view.result;
+    let result = battle.as_ref().and_then(|battle| battle.result);
+    let changed = result != view.result;
     if !changed && !locale.is_changed() {
         return;
     }
     if changed {
         *view = ResultView {
-            result: game.result,
-            open: game.result.is_some(),
+            result,
+            open: result.is_some(),
         };
-        if let Some(result) = game.result {
-            let fanfare = if result == MatchResult::Won {
+        if let Some(result) = result {
+            let fanfare = if result == BattleResult::Won {
                 SoundId::Victory
             } else {
                 SoundId::Defeat
@@ -283,8 +281,8 @@ fn follow_match(
     for entity in &shown {
         commands.entity(entity).despawn();
     }
-    if let Some(result) = view.result {
-        spawn_result(&mut commands, &fonts, &locale, &game, result, view.open);
+    if let (Some(result), Some(battle)) = (view.result, &battle) {
+        spawn_result(&mut commands, &fonts, &locale, battle, result, view.open);
     }
 }
 
@@ -309,7 +307,7 @@ impl Plugin for ResultScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ResultView>().add_systems(
             Update,
-            (follow_match, toggle.run_if(resource_changed::<ResultView>))
+            (follow_battle, toggle.run_if(resource_changed::<ResultView>))
                 .chain()
                 .run_if(in_state(AppState::Match)),
         );
