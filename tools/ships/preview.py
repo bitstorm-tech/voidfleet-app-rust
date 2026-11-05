@@ -288,6 +288,9 @@ def make_world(scene):
     background = nodes.new("ShaderNodeBackground")
     links.new(vf._socket(choose.outputs, "Result_Color"), background.inputs["Color"])
     links.new(background.outputs["Background"], nodes.new("ShaderNodeOutputWorld").inputs["Surface"])
+    # Blender 5.2 stürzt sporadisch beim Importance-Sampling des Hintergrundbilds ab; ohne geht es, Rauschen spielt
+    # beim flachen Hintergrund keine Rolle.
+    world.cycles.sampling_method = "NONE"
     scene.world = world
 
 

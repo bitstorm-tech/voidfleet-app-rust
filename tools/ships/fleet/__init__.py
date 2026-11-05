@@ -12,7 +12,8 @@ Jäger ~6, Kreuzer ~6-7.5, Schlachtschiffe ~8.5, Unterstützer ~5, Flaggschiffe 
 import importlib
 
 IDS = ("void_interceptor", "scrap_raider", "horizon_cruiser", "plasma_frigate", "iron_dreadnought", "titan_carrier", "drone",
-       "repair_drone", "signal_booster", "bastion", "vanguard", "hive", "mirage", "pendulum", "decoy")
+       "repair_drone", "signal_booster", "bastion", "vanguard", "hive", "mirage", "pendulum", "decoy",
+       "lance_bomber", "pyre", "warden", "scrap_king", "seal")
 
 
 def module(ship_id):

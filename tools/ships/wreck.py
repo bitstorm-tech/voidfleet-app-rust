@@ -39,6 +39,11 @@ CELLS = {
     "mirage": 14,
     "pendulum": 22,
     "decoy": 12,
+    "lance_bomber": 9,
+    "pyre": 20,
+    "warden": 22,
+    "scrap_king": 20,
+    "seal": 14,
 }
 # Splitter mit weniger Flächen verschwinden; sie wären auf dem Brett ohnehin nur Pixel.
 MIN_FACES = 16
