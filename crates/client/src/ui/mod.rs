@@ -58,6 +58,8 @@ pub struct Fonts {
     pub body: Handle<Font>,
     pub display: Handle<Font>,
     pub display_bold: Handle<Font>,
+    /// Fallback für Zeichen, die den drei Schriften fehlen (Pfeile ← ↑ → ↓): Noto Sans Symbols.
+    pub symbols: Handle<Font>,
 }
 
 impl FromWorld for Fonts {
@@ -66,24 +68,33 @@ impl FromWorld for Fonts {
             body: preload.track(server.load("fonts/exo2-regular.ttf")),
             display: preload.track(server.load("fonts/rajdhani-600.ttf")),
             display_bold: preload.track(server.load("fonts/rajdhani-700.ttf")),
+            symbols: preload.track(server.load("fonts/noto-sans-symbols.ttf")),
         })
     }
 }
 
 impl Fonts {
+    /// `font` in dieser Größe, fehlende Zeichen aus [`Fonts::symbols`].
+    fn font(&self, font: &Handle<Font>, size: f32) -> TextFont {
+        TextFont {
+            font: FontSource::list([font, &self.symbols]),
+            ..TextFont::from_font_size(FontSize::Px(size))
+        }
+    }
+
     /// Fließtext in dieser Größe (logische Pixel).
     pub fn body(&self, size: f32) -> TextFont {
-        TextFont::from_font_size(FontSize::Px(size)).with_font(self.body.clone())
+        self.font(&self.body, size)
     }
 
     /// Display-Schrift (Rajdhani 600).
     pub fn display(&self, size: f32) -> TextFont {
-        TextFont::from_font_size(FontSize::Px(size)).with_font(self.display.clone())
+        self.font(&self.display, size)
     }
 
     /// Display-Schrift fett (Rajdhani 700).
     pub fn display_bold(&self, size: f32) -> TextFont {
-        TextFont::from_font_size(FontSize::Px(size)).with_font(self.display_bold.clone())
+        self.font(&self.display_bold, size)
     }
 }
 
