@@ -139,9 +139,8 @@ fn run_actions(
     }
 }
 
-/// Ein festes Gefecht für die Tests: Startdeck, volle Hülle, Wachkreuzer Front Mitte, Plünderer Back links, Belagerer
-/// Front rechts.
-#[cfg(test)]
+/// Ein festes Gefecht für die Tests und die Dev-Szene `report`: Startdeck, volle Hülle, Wachkreuzer Front Mitte,
+/// Plünderer Back links, Belagerer Front rechts.
 pub fn fixture_battle(admiral: voidfleet_core::admirals::AdmiralId) -> battle::Battle {
     use voidfleet_core::{
         battle::{BattleSetup, Encounter},

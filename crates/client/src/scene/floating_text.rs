@@ -17,10 +17,12 @@ use crate::{palette, ui::Fonts};
 const DURATION: f32 = 1.4;
 const FONT_SIZE: f32 = 30.0;
 const RISE: f32 = 56.0;
+const DETAIL_FONT_SIZE: f32 = 15.0;
 
 /// Wie ein Text wirkt: seine Farbe.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FloatTone {
+    #[default]
     Damage,
     Heal,
     Shield,
@@ -40,12 +42,25 @@ impl FloatTone {
     }
 }
 
-/// Auftrag: `text` steigt über dem Weltpunkt `at` auf (zentriert) und verblasst.
-#[derive(Component, Clone, Debug)]
+/// Auftrag: `text` steigt über dem Weltpunkt `at` auf (zentriert) und verblasst; `detail` steht klein darunter (die
+/// Rechnung eines Treffers: „Panzerung −2 · Schild schluckt 8“).
+#[derive(Component, Clone, Debug, Default)]
 pub struct FloatingText {
     pub at: Vec3,
     pub text: String,
+    pub detail: String,
     pub tone: FloatTone,
+}
+
+impl FloatingText {
+    pub fn new(at: Vec3, text: impl Into<String>, tone: FloatTone) -> Self {
+        Self {
+            at,
+            text: text.into(),
+            detail: String::new(),
+            tone,
+        }
+    }
 }
 
 pub(super) struct FloatingTextPlugin;
@@ -86,9 +101,17 @@ fn show(
             translation: Val2::percent(-50.0, -50.0),
             ..default()
         },
+        TextLayout::justify(Justify::Center),
         Pickable::IGNORE,
         Animation::new(DURATION),
     ));
+    if !text.detail.is_empty() {
+        commands.entity(add.entity).with_child((
+            TextSpan::new(format!("\n{}", text.detail)),
+            fonts.body(DETAIL_FONT_SIZE),
+            TextColor(palette::TEXT.with_alpha(0.0)),
+        ));
+    }
 }
 
 /// `float-up`: erscheint von unten wachsend, federt kurz und steigt dann verblassend auf.
@@ -124,10 +147,12 @@ fn float(
         &mut UiTransform,
         &mut TextColor,
         &mut TextShadow,
+        Option<&Children>,
     )>,
+    mut details: Query<&mut TextColor, (With<TextSpan>, Without<FloatingText>)>,
 ) {
     let (camera, camera_transform) = *camera;
-    for (text, animation, mut node, mut transform, mut color, mut shadow) in &mut texts {
+    for (text, animation, mut node, mut transform, mut color, mut shadow, children) in &mut texts {
         let (opacity, offset, scale) = keyframe(animation.progress());
         if let Ok(position) = camera.world_to_viewport(camera_transform, text.at) {
             node.left = Val::Px(position.x);
@@ -135,6 +160,11 @@ fn float(
         }
         transform.scale = Vec2::splat(scale);
         color.0 = text.tone.color().with_alpha(opacity);
+        for &child in children.into_iter().flatten() {
+            if let Ok(mut detail) = details.get_mut(child) {
+                detail.0 = palette::TEXT.with_alpha(opacity);
+            }
+        }
         shadow.color = Color::BLACK.with_alpha(0.9 * opacity);
     }
 }

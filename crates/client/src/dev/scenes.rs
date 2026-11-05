@@ -8,8 +8,9 @@
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
 //! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildblase, Zielmarke und verpuffender Bolzen im Wechsel.
+//! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
 //!
-//! Außer `board` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
+//! Außer `board` und `report` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
 
 use bevy::{diagnostic::FrameCount, prelude::*, time::Stopwatch};
 use voidfleet_core::{
@@ -50,6 +51,7 @@ pub enum DevScene {
     Arrive,
     Move,
     Effects,
+    Report,
 }
 
 impl DevScene {
@@ -66,6 +68,7 @@ impl DevScene {
             "arrive" => Some(Self::Arrive),
             "move" => Some(Self::Move),
             "effects" => Some(Self::Effects),
+            "report" => Some(Self::Report),
             other => panic!("unbekannte Dev-Szene: {other}"),
         }
     }
@@ -81,7 +84,7 @@ struct Loop {
 /// Abstand zwischen zwei Schritten der Schleife je Szene.
 fn period(scene: DevScene) -> f32 {
     match scene {
-        DevScene::Board => f32::INFINITY,
+        DevScene::Board | DevScene::Report => f32::INFINITY,
         DevScene::Hit(_) => 1.3,
         DevScene::Destroy => 2.6,
         DevScene::Arrive => 2.2,
@@ -91,6 +94,14 @@ fn period(scene: DevScene) -> f32 {
 }
 
 pub(super) fn plugin(app: &mut App, scene: DevScene) {
+    if scene == DevScene::Report {
+        app.add_systems(OnEnter(AppState::Match), super::report::stage)
+            .add_systems(
+                Update,
+                super::report::run.run_if(resource_exists::<crate::game::Battle>),
+            );
+        return;
+    }
     if scene != DevScene::Board {
         app.insert_resource(Scripted);
     }
@@ -160,6 +171,7 @@ fn stage(
         stage_ship(&mut commands, &models, &board, kind, slot, stats);
     };
     match *scene {
+        DevScene::Report => {}
         DevScene::Board => {
             let run = super::dev_run(AdmiralId::Kerr, true);
             let mut battle = Battle(run.start_battle());
@@ -233,7 +245,7 @@ fn run(
             .map(|(entity, ship, _)| (entity, ship.kind))
     };
     match *scene {
-        DevScene::Board => {}
+        DevScene::Board | DevScene::Report => {}
         DevScene::Hit(variant) => {
             let (from, to, color) = if step.is_multiple_of(2) {
                 (own(1), enemy(Row::Front, 1), palette::PLAYER)
@@ -266,11 +278,11 @@ fn run(
                         color,
                         variant,
                     });
-                    commands.spawn(FloatingText {
-                        at: target + Vec3::Y * 0.9,
-                        text: "-3".into(),
-                        tone: FloatTone::Damage,
-                    });
+                    commands.spawn(FloatingText::new(
+                        target + Vec3::Y * 0.9,
+                        "-3",
+                        FloatTone::Damage,
+                    ));
                 });
         }
         DevScene::Destroy => {

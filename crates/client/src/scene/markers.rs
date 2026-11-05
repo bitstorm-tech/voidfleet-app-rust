@@ -39,7 +39,8 @@ pub enum MarkerKind {
     Aim,
     Counterfire,
     FocusFire,
-    SwarmStrike,
+    /// Die Einheit weicht aus.
+    Evading,
     HeadStart,
 }
 
@@ -69,7 +70,7 @@ impl MarkerKind {
             ),
             Self::Counterfire => (0.6, 0.9, const { &[layer(Spikes, 0.35, STILL)] }),
             Self::FocusFire => (0.6, 0.95, const { &[layer(Brackets, 0.0, (1.6, 0.05))] }),
-            Self::SwarmStrike => (0.6, 0.9, const { &[layer(Swarm, 1.3, STILL)] }),
+            Self::Evading => (0.6, 0.9, const { &[layer(Swarm, 1.3, STILL)] }),
             Self::HeadStart => (
                 0.6,
                 0.9,

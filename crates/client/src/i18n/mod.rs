@@ -341,6 +341,20 @@ pub trait Messages: Sync {
     fn log_clock(&self, bonus: i32) -> String;
     fn log_battle_ended(&self, result: BattleResult) -> &'static str;
 
+    // --- Gefechtsbericht (Wiedergabe): Marken unter der Schadenszahl, Ansagen, Tableau ---
+    fn mark_evaded(&self, amount: i32) -> String;
+    fn mark_countermeasures(&self, amount: i32) -> String;
+    fn mark_armor(&self, amount: i32) -> String;
+    fn mark_covered(&self, amount: i32, by: &str) -> String;
+    fn mark_shielded(&self, amount: i32) -> String;
+    /// Ein Schuss geht ins Leere (Kurzsprung, Manöver).
+    fn report_missed(&self) -> &'static str;
+    fn report_burned_out(&self, unit: &str) -> String;
+    fn report_tableau_title(&self, round: u32) -> String;
+    fn report_taken(&self, amount: i32) -> String;
+    fn report_dealt(&self, amount: i32) -> String;
+    fn report_kills(&self, kills: usize) -> String;
+
     /// Name und Beiname, etwa „Admiral Osei – Die Mauer“.
     fn admiral_title(&self, admiral: AdmiralId) -> String {
         let AdmiralText { name, epithet, .. } = self.admiral(admiral);

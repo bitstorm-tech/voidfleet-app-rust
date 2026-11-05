@@ -16,6 +16,7 @@ use crate::{
     game::{Battle, LeaveBattle},
     i18n::Locale,
     palette,
+    playback::PlaybackFinished,
     ui::{
         Fonts,
         button::{self, Key},
@@ -235,10 +236,11 @@ fn action_node() -> Node {
     }
 }
 
-/// Öffnet das Overlay, sobald ein Ergebnis feststeht (mit Fanfare), und nimmt es weg, wenn ein neues Gefecht beginnt
-/// oder der Run endet. Eine andere Sprache baut es neu auf.
+/// Öffnet das Overlay, sobald ein Ergebnis feststeht und die Wiedergabe es gezeigt hat (mit Fanfare), und nimmt es
+/// weg, wenn ein neues Gefecht beginnt oder der Run endet. Eine andere Sprache baut es neu auf.
 fn follow_battle(
     mut commands: Commands,
+    mut played: MessageReader<PlaybackFinished>,
     battle: Option<Res<Battle>>,
     locale: Res<Locale>,
     fonts: Res<Fonts>,
@@ -246,7 +248,11 @@ fn follow_battle(
     shown: Query<Entity, With<ResultPart>>,
     mut sounds: MessageWriter<PlaySound>,
 ) {
+    let played = played.read().count() > 0;
     let result = battle.as_ref().and_then(|battle| battle.result);
+    if result.is_some() && view.result.is_none() && !played {
+        return;
+    }
     let changed = result != view.result;
     if !changed && !locale.is_changed() {
         return;

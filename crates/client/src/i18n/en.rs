@@ -1200,4 +1200,53 @@ impl Messages for En {
     fn run_abandon_back(&self) -> &'static str {
         "Keep flying"
     }
+    // --- Gefechtsbericht ---
+
+    fn mark_evaded(&self, amount: i32) -> String {
+        format!("evades: {amount}")
+    }
+
+    fn mark_countermeasures(&self, amount: i32) -> String {
+        format!("countermeasures −{amount}")
+    }
+
+    fn mark_armor(&self, amount: i32) -> String {
+        format!("armor −{amount}")
+    }
+
+    fn mark_covered(&self, amount: i32, by: &str) -> String {
+        format!("covered: {amount} → {by}")
+    }
+
+    fn mark_shielded(&self, amount: i32) -> String {
+        format!("shield absorbs {amount}")
+    }
+
+    fn report_missed(&self) -> &'static str {
+        "into the void"
+    }
+
+    fn report_burned_out(&self, unit: &str) -> String {
+        format!("{unit} burned out")
+    }
+
+    fn report_tableau_title(&self, round: u32) -> String {
+        format!("Report, round {round}")
+    }
+
+    fn report_taken(&self, amount: i32) -> String {
+        format!("taken {amount}")
+    }
+
+    fn report_dealt(&self, amount: i32) -> String {
+        format!("dealt {amount}")
+    }
+
+    fn report_kills(&self, kills: usize) -> String {
+        if kills == 1 {
+            "1 kill".to_owned()
+        } else {
+            format!("{kills} kills")
+        }
+    }
 }

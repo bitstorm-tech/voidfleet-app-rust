@@ -4,7 +4,9 @@
 //!   Spalte, im Kurzsprung fehlt es; fehlt ein Schiff, entsteht es, steht es woanders, wechselt es den Slot, ist es
 //!   weg, verschwindet es;
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
-//!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]).
+//!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]);
+//! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
+//!   Balken; die übrigen bleiben Textmarken.
 //!
 //! Der Controller schaltet nach jeder Aktion auf [`BoardMode::Playback`]; dann gehört die Szene der Wiedergabe, die
 //! Vorschau geht. Zurück in der Planung gleicht sich alles dem Zustand an. Dev-Szenen mit [`Scripted`] stellen ihre
@@ -18,6 +20,7 @@ use voidfleet_core::{
 };
 
 use super::{
+    aura::ShipAura,
     board::{BoardEntities, OnSlot, place},
     coords::SlotRef,
     labels::ShipCaption,
@@ -102,16 +105,14 @@ struct Wanted {
     max_hull: i32,
     caption: ShipCaption,
     aimed: bool,
+    evading: bool,
+    aura: ShipAura,
 }
 
-/// Zustände einer gegnerischen Einheit als Textmarken.
+/// Zustände einer gegnerischen Einheit als Textmarken (ohne eigenes Bild).
 fn enemy_conditions(enemy: &Enemy) -> Vec<Condition> {
     [
-        (enemy.burning, Condition::Burning),
         (enemy.emergency(), Condition::Emergency),
-        (enemy.shield > 0, Condition::Shield(enemy.shield)),
-        (enemy.is_evading(), Condition::Evading),
-        (enemy.charged, Condition::Charged),
         (enemy.stasis, Condition::Stasis),
         (enemy.silenced, Condition::Silenced),
     ]
@@ -166,19 +167,20 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                     preview: preview_text(enemy.uid),
                 },
                 aimed: aiming == Some(enemy.uid),
+                evading: enemy.is_evading(),
+                aura: ShipAura {
+                    burning: enemy.burning,
+                    charged: enemy.charged,
+                },
             }
         })
         .collect();
     let flagship = &battle.flagship;
     if !flagship.jumped {
-        let conditions = [
-            (flagship.burning, Condition::Burning),
-            (flagship.emergency(), Condition::Emergency),
-            (flagship.shield > 0, Condition::Shield(flagship.shield)),
-        ]
-        .into_iter()
-        .filter_map(|(active, condition)| active.then_some(condition))
-        .collect::<Vec<_>>();
+        let conditions = [(flagship.emergency(), Condition::Emergency)]
+            .into_iter()
+            .filter_map(|(active, condition)| active.then_some(condition))
+            .collect::<Vec<_>>();
         ships.push(Wanted {
             uid: 0,
             kind: ShipKind::Flagship(flagship.admiral.flagship()),
@@ -191,6 +193,11 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 ..default()
             },
             aimed: false,
+            evading: false,
+            aura: ShipAura {
+                burning: flagship.burning,
+                charged: false,
+            },
         });
     }
     ships
@@ -227,12 +234,13 @@ pub fn sync_ships(
         &mut ShipStatus,
         &mut ShipMarkers,
         Option<&mut ShipCaption>,
+        Option<&mut ShipAura>,
     )>,
 ) {
     let wanted = battle.map_or_else(Vec::new, |battle| wanted_ships(&battle, &**locale, &focus));
     let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
     let mut kept = Vec::new();
-    for (entity, ship, on, mut status, mut markers, caption) in &mut ships {
+    for (entity, ship, on, mut status, mut markers, caption, aura) in &mut ships {
         let Some(want) = wanted
             .iter()
             .find(|want| want.uid == ship.uid && want.kind == ship.kind)
@@ -253,7 +261,15 @@ pub fn sync_ships(
             doomed: preview.is_some_and(|(_, lethal)| lethal),
             ..*status
         });
-        markers.set_if_neq(ship_markers(want.aimed));
+        markers.set_if_neq(ship_markers(want));
+        match aura {
+            Some(mut aura) => {
+                aura.set_if_neq(want.aura);
+            }
+            None => {
+                commands.entity(entity).insert(want.aura);
+            }
+        }
         match caption {
             Some(mut caption) => {
                 caption.set_if_neq(want.caption.clone());
@@ -272,19 +288,24 @@ pub fn sync_ships(
                 uid: want.uid,
             },
             ShipStatus::new(want.stats.hull, want.max_hull, want.stats.shield),
-            ship_markers(want.aimed),
+            ship_markers(want),
             want.caption.clone(),
+            want.aura,
         ));
     }
 }
 
-/// Das Visier unter dem Ziel der Station.
-fn ship_markers(aimed: bool) -> ShipMarkers {
-    ShipMarkers(if aimed {
-        vec![MarkerSpec::new(MarkerKind::Aim, palette::SELECT)]
-    } else {
-        Vec::new()
-    })
+/// Das Visier unter dem Ziel der Station, die Marke einer ausweichenden Einheit.
+fn ship_markers(want: &Wanted) -> ShipMarkers {
+    ShipMarkers(
+        [
+            (want.aimed, MarkerKind::Aim, palette::SELECT),
+            (want.evading, MarkerKind::Evading, palette::ENEMY),
+        ]
+        .into_iter()
+        .filter_map(|(on, kind, color)| on.then_some(MarkerSpec::new(kind, color)))
+        .collect(),
+    )
 }
 
 /// Die Wiedergabe übernimmt: Die Vorschau geht.
