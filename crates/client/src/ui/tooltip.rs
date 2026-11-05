@@ -16,7 +16,7 @@ pub struct Tooltip(pub String);
 
 /// So lange (Sekunden) muss der Zeiger ruhen, bis das Feld erscheint, und sein Abstand zum Bild des Zeigers.
 const DELAY: f32 = 0.5;
-const GAP: f32 = 4.0;
+const GAP: f32 = 6.0;
 const MAX_WIDTH: f32 = 300.0;
 
 /// Das eine Feld.
@@ -113,13 +113,14 @@ fn follow_pointer(
     if text.0 != tooltip.0 {
         text.0.clone_from(&tooltip.0);
     }
-    // Das Feld steht unter dem Bild des Zeigers (die Größe ist wählbar), am unteren Rand darüber; am rechten Rand
-    // rückt es nach links, ohne den Zeiger zu überdecken, da es senkrecht neben ihm steht.
+    // Das Feld steht über der Spitze des Zeigers: Das Bild reicht von dort fast nur nach unten, auch wenn das System
+    // den Zeiger vergrößert. Am oberen Rand steht es unter dem Bild; am rechten Rand rückt es nach links, ohne den
+    // Zeiger zu überdecken, da es senkrecht neben ihm steht.
     let size = computed.size() * computed.inverse_scale_factor();
     let (above, below) = cursor::reach(&settings);
-    let mut at = Vec2::new(cursor.x, cursor.y + below.y + GAP);
-    if at.y + size.y > window.height() {
-        at.y = cursor.y + above.y - size.y - GAP;
+    let mut at = Vec2::new(cursor.x, cursor.y + above.y - size.y - GAP);
+    if at.y < 0.0 {
+        at.y = cursor.y + below.y + GAP;
     }
     at.x = at.x.min(window.width() - size.x);
     node.left = px(at.x.max(0.0));
