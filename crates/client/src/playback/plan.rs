@@ -244,8 +244,9 @@ impl Planner<'_> {
                     .collect(),
             )])
         };
+        let say = radio_cue(step, self.admiral).map(Cue::Say);
         Script::default()
-            .then([Cue::Scope(scope), Cue::Log(log)])
+            .then([Cue::Scope(scope), Cue::Log(log)].into_iter().chain(say))
             .and(body)
             .then([Cue::Pause(STEP_PAUSE)])
     }
@@ -840,7 +841,7 @@ impl Planner<'_> {
     /// Eine Folge ohne Geschoss in einem Takt.
     fn consequence(&self, event: &BattleEvent, context: &mut Context) -> Vec<Cue> {
         let locale = self.locale;
-        let mut beat: Vec<Cue> = radio_cue(event).map(Cue::Say).into_iter().collect();
+        let mut beat = Vec::new();
         let flagship = Spot::Unit(UnitRef::Flagship);
         let pulse = |at, color, size| {
             Cue::Fx(Fx::Pulse {
