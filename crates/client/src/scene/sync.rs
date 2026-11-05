@@ -171,6 +171,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 aura: ShipAura {
                     burning: enemy.burning,
                     charged: enemy.charged,
+                    ..default()
                 },
             }
         })
@@ -196,7 +197,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
             evading: false,
             aura: ShipAura {
                 burning: flagship.burning,
-                charged: false,
+                ..default()
             },
         });
     }

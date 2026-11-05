@@ -23,6 +23,7 @@ pub mod coords;
 pub mod destruction;
 pub mod effects;
 pub mod floating_text;
+pub mod formation;
 pub mod fx;
 pub mod labels;
 pub mod maneuver;
@@ -66,6 +67,7 @@ impl Plugin for ScenePlugin {
             floating_text::FloatingTextPlugin,
             sync::SyncPlugin,
             aura::AuraPlugin,
+            formation::FormationPlugin,
         ))
         .add_systems(OnEnter(LoadingPhase::Rehearsal), rehearsal::stage);
     }

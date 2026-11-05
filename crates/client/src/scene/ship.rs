@@ -1,10 +1,13 @@
 //! Schiffe und ihre Wracks (Grundlagen aus `scene/ship.ts`): Modell spawnen, Toon-Zustand je Schiff, Tausch gegen die
 //! Bruchstücke.
 //!
-//! Ein Schiff ist eine Entity mit [`Ship`]; seine Nase zeigt nach `Transform::forward` (−Z), gedreht wird allein diese
-//! Wurzel. Darunter hängt das Modell ([`ShipModel`]) als glTF-Szene. Sobald sie steht, bekommt das Schiff eigene Kopien
-//! seiner Toon-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff. [`BreakApart`] tauscht das Modell gegen die Bruchstücke, die exakt an seiner Stelle liegen, und meldet
-//! sie mit [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
+//! Ein Schiff ist eine Entity mit [`Ship`] (eine Einheit des Gefechts); seine Nase zeigt nach `Transform::forward` (−Z),
+//! gedreht wird allein diese Wurzel. Darunter hängt die Gruppe ([`ShipModel`], die Flüge und Todeskampf bewegen) und in
+//! ihr je Modell der Formation ([`super::formation`]) ein [`Hull`] mit der glTF-Szene. Sobald eine Szene steht, bekommt
+//! sie eigene Kopien ihrer Toon-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff, Verfall und
+//! Treffer-Blitz ([`HullWear`]) je Modell, die Lackierung der Gegner ([`livery`]) je Art. [`BreakApart`] tauscht die
+//! sichtbaren Modelle gegen ihre Bruchstücke, die exakt an ihrer Stelle liegen, und meldet sie je Modell mit
+//! [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
 //!
 //! ```ignore
 //! let ship = spawn_ship(&mut commands, &models, ShipKind::Enemy(EnemyId::PlasmaCruiser));
@@ -23,10 +26,11 @@ use bevy::{
 
 use super::{
     coords::{Side, facing},
+    formation::{Hull, HullWear, formation},
     markers::ShipMarkers,
     toon::ToonMaterial,
 };
-use crate::data::ship_models::{ShipKind, ShipModels};
+use crate::data::ship_models::{ShipKind, ShipModels, livery};
 
 /// Schiffe sind für den Hangar modelliert und auf dem Brett zu groß: Maßstab der Wurzel …
 pub const BOARD_SCALE: f32 = 0.6;
@@ -43,7 +47,8 @@ pub const FLAGSHIP_SCALE: f32 = 1.1;
     Visibility,
     ToonState,
     ShipMaterials,
-    ShipMarkers
+    ShipMarkers,
+    AimedHull
 )]
 pub struct Ship {
     pub kind: ShipKind,
@@ -96,11 +101,15 @@ impl ToonState {
     }
 }
 
-/// Die eigenen Toon-Materialien eines Schiffs, Modell und Wrack zusammen.
+/// Die eigenen Toon-Materialien eines Schiffs, Modelle und Wracks zusammen, je mit dem [`Hull`], dessen Szene sie trägt.
 #[derive(Component, Default, Debug)]
-pub struct ShipMaterials(Vec<Handle<ToonMaterial>>);
+pub struct ShipMaterials(Vec<(Entity, Handle<ToonMaterial>)>);
 
-/// Träger der glTF-Szene unter dem Schiff: erst das Modell, nach [`BreakApart`] das Wrack.
+/// Das Modell der Gruppe, auf das zuletzt geschossen wurde: Dort blitzt der Treffer auf.
+#[derive(Component, Default, Debug)]
+pub struct AimedHull(pub Option<Entity>);
+
+/// Die Gruppe unter dem Schiff, Träger der [`Hull`]s: erst die Modelle, nach [`BreakApart`] die Wracks.
 #[derive(Component, Debug)]
 pub struct ShipModel;
 
@@ -108,8 +117,8 @@ pub struct ShipModel;
 #[derive(Component, Debug)]
 pub struct Wreck;
 
-/// Die Szene unter einem [`ShipModel`] steht und hat ihre Materialien; ab dem nächsten Bild sind Lage und Grenzen
-/// ihrer Teile gerechnet.
+/// Die Szene unter einem [`Hull`] steht und hat ihre Materialien; ab dem nächsten Bild sind Lage und Grenzen ihrer
+/// Teile gerechnet.
 #[derive(Component, Debug)]
 pub struct ModelReady;
 
@@ -120,40 +129,69 @@ pub struct BreakApart {
     pub entity: Entity,
 }
 
-/// Die Bruchstücke eines Schiffs stehen, exakt an der Stelle des Modells; je Stück eine Entity mit dem Ursprung im
-/// Schwerpunkt, frei zu bewegen.
+/// Die Bruchstücke eines Modells stehen, exakt an seiner Stelle; je Stück eine Entity mit dem Ursprung im
+/// Schwerpunkt, frei zu bewegen. Eine Gruppe meldet je Modell.
 #[derive(EntityEvent, Clone, Debug)]
 pub struct WreckReady {
     /// Das Schiff.
     pub entity: Entity,
+    /// Der [`Hull`] des Wracks.
+    pub hull: Entity,
+    /// Wie viele Modelle die Gruppe zerlegt.
+    pub hulls: usize,
     pub pieces: Vec<Entity>,
 }
 
 /// Maßstab des Modells unter der Wurzel.
+/// Flaggschiffe (auch das Siegel) sind um [`FLAGSHIP_SCALE`] größer, wie in der Vorschau von `tools/ships`.
 fn model_scale(kind: ShipKind) -> f32 {
     MODEL_SCALE
-        * if matches!(kind, ShipKind::Flagship(_)) {
+        * if kind.is_flagship() {
             FLAGSHIP_SCALE
         } else {
             1.0
         }
 }
 
-fn model(scene: Handle<WorldAsset>, kind: ShipKind) -> impl Bundle {
-    (
-        Name::new("Modell"),
-        ShipModel,
-        WorldAssetRoot(scene),
-        Transform::from_scale(Vec3::splat(model_scale(kind))),
-    )
+/// Hängt unter `ship` eine Gruppe mit je einem [`Hull`] für die Modelle `hulls` der Formation.
+fn spawn_group(
+    commands: &mut Commands,
+    ship: Entity,
+    scene: &Handle<WorldAsset>,
+    kind: ShipKind,
+    hulls: impl IntoIterator<Item = usize>,
+) -> Entity {
+    let (scale, offsets) = formation(kind.class());
+    let group = commands
+        .spawn((
+            Name::new("Modelle"),
+            ShipModel,
+            Transform::default(),
+            Visibility::default(),
+            ChildOf(ship),
+        ))
+        .id();
+    for index in hulls {
+        commands.spawn((
+            Name::new(format!("Modell {index}")),
+            Hull { index },
+            WorldAssetRoot(scene.clone()),
+            Transform::from_translation(offsets[index])
+                .with_scale(Vec3::splat(model_scale(kind) * scale)),
+            ChildOf(group),
+        ));
+    }
+    group
 }
 
-/// Spawnt ein Schiff samt Modell; Lage, Seite ([`ToonState::facing`]), Eltern und `uid` setzt der Aufrufer.
+/// Spawnt ein Schiff samt Modellen; Lage, Seite ([`ToonState::facing`]), Eltern und `uid` setzt der Aufrufer.
 pub fn spawn_ship(commands: &mut Commands, models: &ShipModels, kind: ShipKind) -> Entity {
-    commands
+    let ship = commands
         .spawn((Name::new(format!("Schiff {kind:?}")), Ship { kind, uid: 0 }))
-        .with_child(model(models.get(kind).ship.clone(), kind))
-        .id()
+        .id();
+    let count = formation(kind.class()).1.len();
+    spawn_group(commands, ship, &models.get(kind).ship, kind, 0..count);
+    ship
 }
 
 pub(super) struct ShipPlugin;
@@ -170,38 +208,52 @@ fn break_apart(
     event: On<BreakApart>,
     mut commands: Commands,
     mut ships: Query<(&Ship, &Children, &mut ShipMaterials)>,
-    models: Query<(), With<ShipModel>>,
+    groups: Query<&Children, With<ShipModel>>,
+    hulls: Query<(&Hull, &Visibility)>,
     ship_models: Res<ShipModels>,
 ) {
     let Ok((ship, children, mut own)) = ships.get_mut(event.entity) else {
         return;
     };
-    for child in children.iter().filter(|child| models.contains(*child)) {
-        commands.entity(child).despawn();
+    let mut standing = Vec::new();
+    for group in children.iter().filter(|child| groups.contains(*child)) {
+        standing.extend(
+            groups
+                .get(group)
+                .into_iter()
+                .flatten()
+                .filter_map(|hull| hulls.get(*hull).ok())
+                .filter(|(_, visibility)| **visibility != Visibility::Hidden)
+                .map(|(hull, _)| hull.index),
+        );
+        commands.entity(group).despawn();
     }
-    // Die Materialien des Modells gehen mit ihm; das Wrack bekommt eigene.
+    // Die Materialien der Modelle gehen mit ihnen; die Wracks bekommen eigene.
     own.0.clear();
-    commands.entity(event.entity).with_child((
-        model(ship_models.get(ship.kind).wreck.clone(), ship.kind),
-        Wreck,
-    ));
+    let wreck = &ship_models.get(ship.kind).wreck;
+    let group = spawn_group(&mut commands, event.entity, wreck, ship.kind, standing);
+    commands.entity(group).insert(Wreck);
 }
 
 /// Gibt einer frisch gespawnten Szene (Modell oder Wrack) die eigenen Materialien ihres Schiffs und meldet Wracks.
 fn prepare_instance(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
-    roots: Query<(&ChildOf, Has<Wreck>), With<ShipModel>>,
-    mut ships: Query<(&ToonState, &mut ShipMaterials), With<Ship>>,
+    hulls: Query<(&ChildOf, Option<&HullWear>), With<Hull>>,
+    groups: Query<(&ChildOf, &Children, Has<Wreck>), With<ShipModel>>,
+    mut ships: Query<(&Ship, &ToonState, &mut ShipMaterials)>,
     children: Query<&Children>,
     parts: Query<&MeshMaterial3d<ToonMaterial>>,
     mut materials: ResMut<Assets<ToonMaterial>>,
 ) {
-    let Ok((child_of, is_wreck)) = roots.get(ready.entity) else {
+    let Ok((hull_of, wear)) = hulls.get(ready.entity) else {
         return;
     };
-    let ship_entity = child_of.parent();
-    let Ok((state, mut own)) = ships.get_mut(ship_entity) else {
+    let Ok((group_of, group_hulls, is_wreck)) = groups.get(hull_of.parent()) else {
+        return;
+    };
+    let ship_entity = group_of.parent();
+    let Ok((ship, state, mut own)) = ships.get_mut(ship_entity) else {
         return;
     };
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
@@ -219,15 +271,19 @@ fn prepare_instance(
                 .get(template.id())
                 .expect("Toon-Material der Vorlage")
                 .clone();
+            material.livery = livery(ship.kind);
             state.apply(&mut material);
+            if let Some(wear) = wear {
+                wear.apply(&mut material);
+            }
             let handle = materials.add(material);
-            own.0.push(handle.clone());
+            own.0.push((ready.entity, handle.clone()));
             handle
         });
         commands.entity(part).insert(MeshMaterial3d(copy.clone()));
     }
     if is_wreck {
-        // Unter dem Träger liegt die Szene, darunter je Bruchstück ein Knoten.
+        // Unter dem Hull liegt die Szene, darunter je Bruchstück ein Knoten.
         let pieces = children
             .get(ready.entity)
             .ok()
@@ -237,20 +293,30 @@ fn prepare_instance(
             .unwrap_or_default();
         commands.trigger(WreckReady {
             entity: ship_entity,
+            hull: ready.entity,
+            hulls: group_hulls.len(),
             pieces,
         });
     }
 }
 
-/// Gibt Änderungen an Seite, Glut und Lichter an die Materialien des Schiffs weiter.
+/// Gibt Änderungen an Seite, Glut und Lichter des Schiffs und am Verfall eines Modells an dessen Materialien weiter.
 fn sync_toon_state(
-    ships: Query<(&ToonState, &ShipMaterials), Changed<ToonState>>,
+    ships: Query<(Ref<ToonState>, &ShipMaterials)>,
+    wear: Query<Ref<HullWear>>,
     mut materials: ResMut<Assets<ToonMaterial>>,
 ) {
     for (state, own) in &ships {
-        for handle in &own.0 {
+        for (hull, handle) in &own.0 {
+            let wear = wear.get(*hull).ok();
+            if !state.is_changed() && !wear.as_ref().is_some_and(Ref::is_changed) {
+                continue;
+            }
             if let Some(mut material) = materials.get_mut(handle) {
                 state.apply(&mut material);
+                if let Some(wear) = &wear {
+                    wear.apply(&mut material);
+                }
             }
         }
     }

@@ -3,8 +3,9 @@
 //! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed), Station Waffen auf den ersten Gegner: Absichten,
 //!   Visier, Hand, Stationen.
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
+//!   daneben ein Belagerer mit Rumpfbrüchen, das Kreuzer-Paar im Notfall (ein Modell ausgebrannt und brennend);
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
-//! - `destroy` — die Schiffe gehen nacheinander unter und landen danach neu.
+//! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu.
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
 //! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildblase, Zielmarke und verpuffender Bolzen im Wechsel.
@@ -148,6 +149,7 @@ fn stage_ship(
 
 const BASTION: ShipKind = ShipKind::Flagship(FlagshipId::Bastion);
 const CRUISER: ShipKind = ShipKind::Enemy(EnemyId::GuardCruiser);
+const BESIEGER: ShipKind = ShipKind::Enemy(EnemyId::Besieger);
 
 /// Die Slots der Szene `destroy`, reihum.
 fn destroy_slots() -> [SlotRef; 6] {
@@ -182,7 +184,9 @@ fn stage(
         }
         DevScene::Hit(_) => {
             put(BASTION, own(1), (52, 70, 6));
-            put(CRUISER, enemy(Row::Front, 1), (9, 16, 0));
+            // Im Notfall: ein Modell des Paars brennt ausgebrannt.
+            put(CRUISER, enemy(Row::Front, 1), (3, 16, 0));
+            put(BESIEGER, enemy(Row::Back, 2), (6, 30, 0));
         }
         DevScene::Destroy => {
             let kinds: Vec<ShipKind> = crate::data::ship_models::ships().collect();

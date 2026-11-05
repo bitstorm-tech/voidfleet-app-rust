@@ -22,6 +22,7 @@ use super::{
     board::OnSlot,
     camera::CameraCommand,
     effects::{BlastStyle, Burn, Detonation, SecondaryExplosion},
+    formation::Hull,
     motion::HitFlash,
     ship::{BreakApart, Ship, ShipModel, ToonState, WreckReady},
     status::{ShipBounds, ShipStatus},
@@ -184,6 +185,8 @@ struct AwaitingWreck {
     profile: DestructionProfile,
     center: Vec3,
     pose: Transform,
+    /// Wie viele Modelle der Gruppe schon zerfallen.
+    scattered: usize,
 }
 
 /// Ein fliegendes Bruchstück: Geschwindigkeit im Raum des Wracks, Taumelachse und Drehrate (rad/s).
@@ -250,6 +253,7 @@ fn begin(
         &Children,
     )>,
     models: Query<(), With<ShipModel>>,
+    hulls: Query<(&Visibility, &GlobalTransform), With<Hull>>,
     children: Query<&Children>,
     meshes: Query<(), (With<Mesh3d>, Without<ToonOutline>)>,
     mut ray_cast: MeshRayCast,
@@ -266,26 +270,42 @@ fn begin(
     let radius = bounds.map_or(1.0, ShipBounds::world_radius);
 
     // Hüllenpunkte per Strahl von außen, weil die Modelle aus überlappenden Teilen bestehen; genommen wird der erste
-    // Treffer auf dem Schiff.
-    let hull: EntityHashSet = ship_children
+    // Treffer auf einem stehenden Modell. In einer Gruppe zielen die Strahlen reihum auf jedes Modell, so bricht jedes
+    // für sich auf.
+    let standing: Vec<(Entity, Vec3)> = ship_children
         .iter()
         .filter(|child| models.contains(*child))
-        .flat_map(|model| children.iter_descendants(model))
+        .flat_map(|group| children.iter_descendants(group))
+        .filter_map(|member| {
+            let (visibility, global) = hulls.get(member).ok()?;
+            (*visibility != Visibility::Hidden).then_some((member, global.translation()))
+        })
+        .collect();
+    let hull: EntityHashSet = standing
+        .iter()
+        .flat_map(|(member, _)| children.iter_descendants(*member))
         .filter(|part| meshes.contains(*part))
         .collect();
+    let aims: Vec<Vec3> = if standing.len() > 1 {
+        standing.iter().map(|(_, at)| *at).collect()
+    } else {
+        vec![center]
+    };
+    let pop_count = profile.pops.max(aims.len());
     let filter = |entity: Entity| hull.contains(&entity);
     let settings = MeshRayCastSettings::default()
         .with_visibility(RayCastVisibility::Any)
         .with_filter(&filter);
     let reach = radius + 1.0;
     let mut points = Vec::new();
-    for _ in 0..profile.pops * 8 {
-        if points.len() >= profile.pops {
+    for attempt in 0..pop_count * 8 {
+        if points.len() >= pop_count {
             break;
         }
+        let aim = aims[(points.len() + attempt) % aims.len()];
         let direction = random_in_cone(Vec3::Y, SURFACE_CONE);
         let ray = Ray3d::new(
-            center + direction * reach,
+            aim + direction * reach,
             Dir3::new(-direction).expect("Richtung"),
         );
         if let Some((_, hit)) = ray_cast.cast_ray(ray, &settings).first() {
@@ -360,8 +380,8 @@ fn agonize(
                 });
                 camera.write(CameraCommand::Shake(profile.shake * 0.25));
                 commands.spawn(HitFlash {
-                    ship: destroy.ship,
                     strength: POP_FLASH,
+                    ..HitFlash::new(destroy.ship)
                 });
             }
         } else if !agony.detonated {
@@ -372,6 +392,7 @@ fn agonize(
                 profile,
                 center,
                 pose: agony.pose,
+                scattered: 0,
             });
             commands.trigger(BreakApart {
                 entity: destroy.ship,
@@ -392,21 +413,26 @@ fn agonize(
 fn scatter_wreck(
     ready: On<WreckReady>,
     mut commands: Commands,
-    ships: Query<(&AwaitingWreck, &GlobalTransform, &Children)>,
+    mut ships: Query<(&mut AwaitingWreck, &GlobalTransform, &Children)>,
     mut models: Query<&mut Transform, With<ShipModel>>,
     nodes: Query<(&Transform, &ChildOf), Without<ShipModel>>,
     children: Query<&Children>,
     parts: Query<&Mesh3d>,
     meshes: Res<Assets<Mesh>>,
 ) {
-    let Ok((awaiting, global, ship_children)) = ships.get(ready.entity) else {
+    let Ok((mut awaiting, global, ship_children)) = ships.get_mut(ready.entity) else {
         return;
     };
+    awaiting.scattered += 1;
+    if awaiting.scattered >= ready.hulls {
+        commands.entity(ready.entity).remove::<AwaitingWreck>();
+    }
     let Some(&first) = ready.pieces.first() else {
         return;
     };
     let profile = awaiting.profile;
-    // Das Wrack übernimmt die Lage des Modells im Todeskampf; die Stücke liegen unter dem Knoten der glTF-Szene.
+    // Das Wrack übernimmt die Lage der Gruppe im Todeskampf; die Stücke liegen unter dem Knoten der glTF-Szene, die
+    // unter ihrem Modell der Gruppe.
     let mut model_transform = Transform::default();
     for child in ship_children.iter() {
         if let Ok(mut model) = models.get_mut(child) {
@@ -420,12 +446,25 @@ fn scatter_wreck(
         .ok()
         .and_then(|(_, child_of)| nodes.get(child_of.parent()).ok())
         .map_or(Transform::default(), |(transform, _)| *transform);
-    let to_world =
-        global.affine() * model_transform.compute_affine() * scene_transform.compute_affine();
+    let hull_transform = nodes
+        .get(ready.hull)
+        .map_or(Transform::default(), |(transform, _)| *transform);
+    let to_world = global.affine()
+        * model_transform.compute_affine()
+        * hull_transform.compute_affine()
+        * scene_transform.compute_affine();
     let world_per_local = to_world.transform_vector3(Vec3::X).length();
-    // Etwas neben der Mitte, damit das Wrack nicht symmetrisch auseinanderfällt.
-    let origin = to_world.inverse().transform_point3(awaiting.center)
-        + random_in_cone(Vec3::Y, std::f32::consts::PI) * 0.6;
+    // Jedes Modell einer Gruppe fällt um seine eigene Mitte auseinander, etwas daneben, damit es nicht symmetrisch
+    // zerfällt.
+    let center = if ready.hulls > 1 {
+        scene_transform
+            .compute_affine()
+            .inverse()
+            .transform_point3(Vec3::ZERO)
+    } else {
+        to_world.inverse().transform_point3(awaiting.center)
+    };
+    let origin = center + random_in_cone(Vec3::Y, std::f32::consts::PI) * 0.6;
 
     let mut bodies: Vec<(Body, f32)> = ready
         .pieces
@@ -462,8 +501,9 @@ fn scatter_wreck(
         })
         .collect();
     bodies.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let burning = (profile.size * 1.5).ceil() as usize;
-    let aftershocks = profile.size.round() as usize;
+    let share = ready.hulls.max(1) as f32;
+    let burning = (profile.size * 1.5 / share).ceil() as usize;
+    let aftershocks = (profile.size / share).round() as usize;
     for (body, extent) in bodies.iter().take(burning) {
         commands.spawn(Burn {
             piece: body.piece,
@@ -477,7 +517,6 @@ fn scatter_wreck(
         .take(burning.min(aftershocks))
         .map(|(body, _)| (body.piece, random_between((0.2, 0.7)) * profile.linger))
         .collect();
-    commands.entity(ready.entity).remove::<AwaitingWreck>();
     commands.spawn((
         Name::new("Trümmer"),
         Scatter {
@@ -548,8 +587,9 @@ fn fly_pieces(
                 }
             }
         }
+        // Eine Gruppe hat je Modell Trümmer; die ersten nehmen das Schiff mit.
         if animation.is_done() {
-            commands.entity(scatter.ship).despawn();
+            commands.entity(scatter.ship).try_despawn();
         }
     }
 }

@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     assets::AppState,
+    controller::Scripted,
     i18n::Locale,
     palette,
     run::{RunFlow, RunSave, Screen},
@@ -103,6 +104,11 @@ pub(super) struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, show.run_if(in_state(AppState::Match)));
+        // Dev-Szenen stellen ihr Bild selbst, ohne Run; das Menü hätte sonst nichts zu tun als es zu verdecken.
+        app.add_systems(
+            Update,
+            show.run_if(in_state(AppState::Match))
+                .run_if(not(resource_exists::<Scripted>)),
+        );
     }
 }

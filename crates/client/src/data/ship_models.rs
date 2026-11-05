@@ -95,6 +95,25 @@ pub fn model_key(kind: ShipKind) -> &'static str {
     }
 }
 
+/// Ob ein Schiff die Lackierung der Gegner trägt ([`crate::scene::toon::material::livery`]): die Gegner mit den alten
+/// Rümpfen, nicht die Bosse mit eigenen und nicht die Flaggschiffe.
+pub fn livery(kind: ShipKind) -> bool {
+    use EnemyId::*;
+    matches!(
+        kind,
+        ShipKind::Enemy(
+            Raiders
+                | Fireship
+                | TorpedoWing
+                | GuardCruiser
+                | PlasmaCruiser
+                | Spotter
+                | Besieger
+                | Carrier
+        )
+    )
+}
+
 /// Asset-Pfad des Modells.
 pub fn ship_model_path(kind: ShipKind) -> String {
     format!("models/ships/{}.glb", model_key(kind))
@@ -144,5 +163,25 @@ impl FromWorld for ShipModels {
                 })
                 .collect(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Die acht alten Rümpfe tragen die Lackierung, Bosse und Flaggschiffe nicht.
+    #[test]
+    fn livery_only_for_old_hulls() {
+        let painted: Vec<ShipKind> = ships().filter(|kind| livery(*kind)).collect();
+        assert_eq!(painted.len(), 8);
+        for boss in [EnemyId::ScrapKing, EnemyId::Warden, EnemyId::Seal] {
+            assert!(!livery(ShipKind::Enemy(boss)));
+        }
+        assert!(
+            FLAGSHIPS
+                .into_iter()
+                .all(|id| !livery(ShipKind::Flagship(id)))
+        );
     }
 }

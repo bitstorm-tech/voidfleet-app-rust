@@ -13,6 +13,7 @@ use voidfleet_core::events::UnitStats;
 use super::{
     animation::AnimationSystems,
     board::SHIP_ANCHOR_HEIGHT,
+    formation::Hull,
     fx::{Billboard, FxAssets, FxMaterial, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
     ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, Wreck},
@@ -397,21 +398,30 @@ fn dress_ship(
     },));
 }
 
-/// Misst das Modell, sobald seine Teile Lage und Grenzen haben, und hebt die Balken knapp darüber.
+/// Misst die Modelle einer Gruppe, sobald alle Teile Lage und Grenzen haben, und hebt die Balken knapp darüber.
 fn measure(
     mut commands: Commands,
-    models: Query<(Entity, &ChildOf), (With<ShipModel>, With<ModelReady>, Without<Wreck>)>,
+    groups: Query<(Entity, &ChildOf, &Children), (With<ShipModel>, Without<Wreck>)>,
+    ready: Query<(), With<ModelReady>>,
+    hulls: Query<(), With<Hull>>,
     ships: Query<(&GlobalTransform, &ShipParts), (With<Ship>, Without<ShipBounds>)>,
     children: Query<&Children>,
     parts: Query<(&GlobalTransform, Option<&Aabb>), With<Mesh3d>>,
     mut transforms: Query<&mut Transform>,
 ) {
-    for (model, child_of) in &models {
+    for (group, child_of, members) in &groups {
         let Ok((ship_transform, ship_parts)) = ships.get(child_of.parent()) else {
             continue;
         };
+        if !members
+            .iter()
+            .filter(|member| hulls.contains(*member))
+            .all(|member| ready.contains(member))
+        {
+            continue;
+        }
         let meshes: Vec<_> = children
-            .iter_descendants(model)
+            .iter_descendants(group)
             .filter_map(|part| parts.get(part).ok())
             .collect();
         if meshes.is_empty() || meshes.iter().any(|(_, aabb)| aabb.is_none()) {

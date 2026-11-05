@@ -1,6 +1,7 @@
 //! Dauerhafte Zustände eines Schiffs als Partikel: Ein brennendes Schiff brennt sichtbar (Flammen und Rauch), ein
-//! aufgeladenes glüht (aufsteigende Funken). Was gilt, steht in [`ShipAura`]; [`crate::scene::sync`] setzt es aus dem
-//! Gefecht, die Wiedergabe beim Ereignis. Die Ströme folgen dem Schiff und verschwinden mit ihm; fehlt einer (etwa
+//! aufgeladenes glüht (aufsteigende Funken), ein Rumpfbruch sprüht Funken. Was gilt, steht in [`ShipAura`];
+//! [`crate::scene::sync`] setzt es aus dem Gefecht, die Wiedergabe beim Ereignis. Auch die Modelle einer Gruppe und ihre
+//! Rumpfbrüche tragen eine ([`crate::scene::formation`]); der Brand eines Kreuzer-Paars brennt an seinem Modell. Die Ströme folgen dem Schiff und verschwinden mit ihm; fehlt einer (etwa
 //! nach dem Überspringen, das alle Partikel räumt), entsteht er im nächsten Bild neu.
 
 use bevy::prelude::*;
@@ -11,12 +12,15 @@ use super::{
     ship::Ship,
 };
 use crate::palette;
+use voidfleet_core::enemies::EnemyClass;
 
 /// Was an einem Schiff dauerhaft zu sehen ist.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ShipAura {
     pub burning: bool,
     pub charged: bool,
+    /// Rumpfbruch: sprühende Funken.
+    pub breached: bool,
 }
 
 /// Die laufenden Ströme eines Schiffs.
@@ -28,6 +32,7 @@ enum AuraKind {
     Flames,
     Smoke,
     Glow,
+    Sparks,
 }
 
 impl AuraKind {
@@ -76,6 +81,20 @@ impl AuraKind {
                 palette::BUFF,
                 30.0,
             ),
+            Self::Sparks => (
+                Burst {
+                    spread: 0.8,
+                    speed: (0.6, 1.6),
+                    life: (0.2, 0.45),
+                    size: (0.06, 0.12),
+                    stretch: 2.5,
+                    gravity: -1.5,
+                    colors: shot,
+                    ..Burst::DEFAULT
+                },
+                FIRE_FLASH,
+                28.0,
+            ),
         };
         Particles::stream(
             burst,
@@ -98,14 +117,18 @@ impl Plugin for AuraPlugin {
 /// Startet fehlende Ströme und lässt nicht mehr gewollte versiegen.
 fn keep_streams(
     mut commands: Commands,
-    ships: Query<(Entity, &ShipAura, Option<&AuraStreams>), With<Ship>>,
+    ships: Query<(Entity, &ShipAura, Option<&AuraStreams>, Option<&Ship>)>,
     mut streams: Query<&mut Particles>,
 ) {
-    for (ship, aura, current) in &ships {
+    for (ship, aura, current, unit) in &ships {
+        // Das Paar brennt an seinem Modell.
+        let burning =
+            aura.burning && unit.is_none_or(|unit| unit.kind.class() != EnemyClass::Cruiser);
         let wanted: Vec<AuraKind> = [
-            (aura.burning, AuraKind::Flames),
-            (aura.burning, AuraKind::Smoke),
+            (burning, AuraKind::Flames),
+            (burning, AuraKind::Smoke),
             (aura.charged, AuraKind::Glow),
+            (aura.breached, AuraKind::Sparks),
         ]
         .into_iter()
         .filter_map(|(on, kind)| on.then_some(kind))

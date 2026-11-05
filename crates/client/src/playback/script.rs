@@ -11,7 +11,10 @@
 use std::collections::VecDeque;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use voidfleet_core::events::{UnitRef, UnitStats};
+use voidfleet_core::{
+    enemies::EnemyClass,
+    events::{UnitRef, UnitStats},
+};
 
 use super::Playback;
 use crate::{
@@ -27,13 +30,14 @@ use crate::{
         destruction::DestroyShip,
         effects::{
             Beam, Bolt, Bubble, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
-            TargetRing, Tether, Warp,
+            SecondaryExplosion, TargetRing, Tether, Warp,
         },
         floating_text::{FloatTone, FloatingText},
+        formation::{Hull, formation, visible_hulls},
         labels::ShipCaption,
         markers::{DropMarker, MarkerKind, MarkerSpec},
         motion::{Arrive, Charge, HitFlash, MoveShip, Withdraw},
-        ship::{Ship, spawn_ship},
+        ship::{AimedHull, Ship, ShipModel, Wreck, spawn_ship},
         status::ShipStatus,
     },
     ui::{AppendLog, ShowBanner, ShowRoundBanner},
@@ -47,6 +51,8 @@ const ABOVE_SHIP: Vec3 = Vec3::new(0.0, 0.9, 0.0);
 const ORBIT: Vec3 = Vec3::new(0.0, 9.0, 0.0);
 /// Schüsse enden nicht in der Mitte, sondern so weit davor auf der Hülle.
 const HULL_RADIUS: f32 = 0.45;
+/// Ein Jäger, der mit der Hülle aus seiner Staffel fällt, explodiert so groß (1 passt zu einem ganzen Jäger).
+const LOST_FIGHTER: f32 = 0.6;
 /// Rammkurs: Der Rammer hält so weit vor der Mitte des Ziels.
 const RAM_STANDOFF: f32 = 1.1;
 /// Der Traktorstrahl greift von so hoch über dem Flaggschiff.
@@ -253,6 +259,10 @@ impl Cue {
 pub(super) struct Stage<'w, 's> {
     commands: Commands<'w, 's>,
     ships: Query<'w, 's, (Entity, &'static Ship, &'static GlobalTransform)>,
+    ship_children: Query<'w, 's, &'static Children, With<Ship>>,
+    groups: Query<'w, 's, &'static Children, (With<ShipModel>, Without<Wreck>)>,
+    hulls: Query<'w, 's, (&'static Hull, &'static Visibility, &'static GlobalTransform)>,
+    aimed: Query<'w, 's, &'static mut AimedHull>,
     statuses: Query<'w, 's, &'static mut ShipStatus>,
     captions: Query<'w, 's, &'static mut ShipCaption>,
     auras: Query<'w, 's, &'static mut ShipAura>,
@@ -338,8 +348,51 @@ impl Stage<'_, '_> {
         }
     }
 
-    /// Wo ein Schuss von `from` die Hülle bei `to` trifft.
-    fn hull_point(&self, from: Vec3, to: Spot) -> Vec3 {
+    /// Die Modelle der Gruppe eines Schiffs mit Platz, Mitte in der Welt und ob sie stehen; dazu ihr Maßstab.
+    fn hulls_of(&self, ship: Entity) -> (f32, Vec<(Entity, usize, Vec3, bool)>) {
+        let scale = self
+            .ships
+            .get(ship)
+            .map_or(1.0, |(_, ship, _)| formation(ship.kind.class()).0);
+        let hulls = self
+            .ship_children
+            .get(ship)
+            .into_iter()
+            .flatten()
+            .filter_map(|child| self.groups.get(*child).ok())
+            .flatten()
+            .filter_map(|member| {
+                let (hull, visibility, global) = self.hulls.get(*member).ok()?;
+                let center = global.translation() + SHIP_CENTER * scale;
+                Some((
+                    *member,
+                    hull.index,
+                    center,
+                    *visibility != Visibility::Hidden,
+                ))
+            })
+            .collect();
+        (scale, hulls)
+    }
+
+    /// Wo ein Schuss von `from` die Hülle bei `to` trifft: bei einer Einheit am vordersten stehenden Modell ihrer
+    /// Gruppe, das sich das Schiff für den Treffer-Blitz merkt.
+    fn hull_point(&mut self, from: Vec3, to: Spot) -> Vec3 {
+        if let Spot::Unit(unit) = to
+            && let Some((ship, _)) = self.ship(unit)
+        {
+            let (scale, hulls) = self.hulls_of(ship);
+            if let Some((hull, _, at, _)) = hulls
+                .into_iter()
+                .filter(|(.., standing)| *standing)
+                .min_by(|a, b| a.2.distance(from).total_cmp(&b.2.distance(from)))
+            {
+                if let Ok(mut aimed) = self.aimed.get_mut(ship) {
+                    aimed.0 = Some(hull);
+                }
+                return at + (from - at).normalize_or_zero() * HULL_RADIUS * scale;
+            }
+        }
         let to = self.point(to);
         to + (from - to).normalize_or_zero() * HULL_RADIUS
     }
@@ -552,12 +605,43 @@ impl Stage<'_, '_> {
     fn act(&mut self, script_entity: Entity, script: &mut Script, ship: Entity, job: Job) {
         match job {
             Job::Stats(stats) => {
-                if let Ok(mut status) = self.statuses.get_mut(ship) {
-                    status.hull = stats.hull;
-                    status.shield = stats.shield;
+                let class = self
+                    .ships
+                    .get(ship)
+                    .map_or(EnemyClass::Flagship, |(_, ship, _)| ship.kind.class());
+                let Ok(mut status) = self.statuses.get_mut(ship) else {
+                    return;
+                };
+                let lost = visible_hulls(class, stats.hull, status.max_hull)
+                    ..visible_hulls(class, status.hull, status.max_hull);
+                status.hull = stats.hull;
+                status.shield = stats.shield;
+                // Wer aus der Staffel fällt, explodiert klein; danach blendet der Verfall ihn aus.
+                if !self.playback.skipped && !lost.is_empty() {
+                    let (_, hulls) = self.hulls_of(ship);
+                    for (_, _, at, _) in hulls.iter().filter(|hull| lost.contains(&hull.1)) {
+                        self.commands.spawn(SecondaryExplosion {
+                            position: *at,
+                            outward: Vec3::Y,
+                            size: LOST_FIGHTER,
+                        });
+                    }
                 }
             }
-            Job::Flash => self.await_job(script_entity, HitFlash::new(ship)),
+            Job::Flash => {
+                let hull = self
+                    .aimed
+                    .get_mut(ship)
+                    .ok()
+                    .and_then(|mut aimed| aimed.0.take());
+                self.await_job(
+                    script_entity,
+                    HitFlash {
+                        hull,
+                        ..HitFlash::new(ship)
+                    },
+                );
+            }
             Job::Move { to, towed } => {
                 self.await_job(script_entity, MoveShip { ship, to, towed });
             }

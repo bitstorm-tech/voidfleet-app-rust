@@ -22,6 +22,7 @@ use super::{
     board::{BoardEntities, attach},
     coords::SlotRef,
     effects::Warp,
+    formation::HullWear,
     maneuver::Flight,
     ship::{Ship, ShipModel, ToonState},
     status::{ShipBounds, ShipParts, ShipStatus},
@@ -82,6 +83,8 @@ pub struct Withdraw {
 pub struct HitFlash {
     pub ship: Entity,
     pub strength: f32,
+    /// Blitzt nur dieses Modell der Gruppe ([`crate::scene::formation::Hull`]); sonst das ganze Schiff.
+    pub hull: Option<Entity>,
 }
 
 impl HitFlash {
@@ -89,6 +92,7 @@ impl HitFlash {
         Self {
             ship,
             strength: HIT_FLASH_ALPHA,
+            hull: None,
         }
     }
 }
@@ -383,11 +387,18 @@ fn withdraw(
     }
 }
 
-fn flash_hull(jobs: Query<(&HitFlash, &Animation)>, mut ships: Query<&mut ToonState>) {
+fn flash_hull(
+    jobs: Query<(&HitFlash, &Animation)>,
+    mut ships: Query<&mut ToonState>,
+    mut hulls: Query<&mut HullWear>,
+) {
     for (job, animation) in &jobs {
-        if let Ok(mut state) = ships.get_mut(job.ship) {
-            let alpha = job.strength * (1.0 - animation.progress()).powi(2);
-            state.overlay = HIT_FLASH_COLOR.to_linear().to_vec3().extend(alpha);
+        let alpha = job.strength * (1.0 - animation.progress()).powi(2);
+        let overlay = HIT_FLASH_COLOR.to_linear().to_vec3().extend(alpha);
+        if let Some(mut wear) = job.hull.and_then(|hull| hulls.get_mut(hull).ok()) {
+            wear.flash = overlay;
+        } else if let Ok(mut state) = ships.get_mut(job.ship) {
+            state.overlay = overlay;
         }
     }
 }

@@ -1,12 +1,13 @@
 //! Generalprobe hinter dem Ladebildschirm (Port von `scene/rehearsal.ts`): Einmal stehen alle Gegner und Flaggschiffe
-//! und ihre Wracks mit glühenden Bruchflächen auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das Gefecht
+//! als Modellgruppen (Gegner in ihrer Lackierung, ein Kreuzermodell brennend und ausgebrannt, Rumpfbrüche) und ihre
+//! Wracks mit glühenden Bruchflächen auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das Gefecht
 //! beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Krone, alle Marken am Boden und die stummen Effekte (Bolzen,
 //! verpuffender Bolzen, Zielmarke, Strahl, Rakete mit Leuchtspur, Schildblase, Impuls, Hyperraum-Austritt mit Blitz
 //! und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.
 
 use bevy::prelude::*;
-use voidfleet_core::events::UnitStats;
+use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 
 use super::{
     aura::ShipAura,
@@ -51,13 +52,23 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
                     heat: wreck.then_some(LinearRgba::rgb(1.0, 0.5, 0.2)),
                     ..ToonState::facing(side)
                 },
+                // Jäger voll (alle fünf Modelle), die übrigen im Notfall: ein Kreuzer brennt, einer ist ausgebrannt,
+                // Schlachtschiffe und Flaggschiffe mit Rumpfbrüchen.
                 ShipStatus {
                     preview: Some(UnitStats {
                         hull: i32::from(index % 3 > 0),
                         shield: 0,
                     }),
                     doomed: true,
-                    ..ShipStatus::new(10, 10, 5)
+                    ..ShipStatus::new(
+                        if ship.class() == EnemyClass::Fighter {
+                            10
+                        } else {
+                            2
+                        },
+                        10,
+                        5,
+                    )
                 },
                 ShipMarkers(vec![MarkerSpec {
                     planned: index % 2 == 0,
@@ -67,6 +78,7 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
                 ShipAura {
                     burning: index == 0,
                     charged: index == 1,
+                    breached: index == 2,
                 },
                 DespawnOnExit(AppState::Loading),
             ));
