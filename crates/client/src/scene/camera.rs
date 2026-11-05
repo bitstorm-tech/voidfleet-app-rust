@@ -22,7 +22,7 @@ use bevy::{
     picking::{hover::HoverMap, mesh_picking::MeshPickingCamera, pointer::PointerId},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
-    render::view::Tonemapping,
+    render::view::{NoIndirectDrawing, Tonemapping},
     window::PrimaryWindow,
 };
 
@@ -536,6 +536,9 @@ fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
             ..Bloom::NATURAL
         },
         Msaa::Sample4,
+        // Fast jedes Schiffsteil hat ein eigenes Toon-Material, Multidraw bündelt also nichts; mit GPU-Culling schriebe
+        // Bevy trotzdem jedes Bild je Material Puffer und Bind-Groups neu (gemessen: ~10 ms Render-Thread je Bild).
+        NoIndirectDrawing,
         MeshPickingCamera,
         rig.transform(),
     ));
