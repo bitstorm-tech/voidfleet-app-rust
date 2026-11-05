@@ -80,6 +80,14 @@ fn chosen_size(settings: &Settings) -> f32 {
     settings.cursor_size.clamp(MIN_SIZE, MAX_SIZE)
 }
 
+/// Wie weit das Bild des gewählten Zeigers von seinem Hotspot aus reicht, in Punkten: nach links oben (negativ) und
+/// nach rechts unten.
+pub fn reach(settings: &Settings) -> (Vec2, Vec2) {
+    let scale = chosen_size(settings) / ART_SIZE;
+    let spot = hotspot(settings.cursor);
+    (-spot * scale, (Vec2::splat(ART_SIZE) - spot) * scale)
+}
+
 /// Rastert einen Zeiger auf `pixels` × `pixels`.
 fn pixmap(cursor: CursorId, pixels: u32) -> tiny_skia::Pixmap {
     let tree = usvg::Tree::from_str(svg(cursor), &usvg::Options::default())
