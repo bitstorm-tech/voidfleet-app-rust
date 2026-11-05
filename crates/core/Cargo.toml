@@ -1,6 +1,6 @@
 [package]
 name = "voidfleet-core"
-description = "Regelwerk von Voidfleet: Karten, Brett, Admirale, Protokoll und die Auflösung einer Runde"
+description = "Regelwerk von Voidfleet: Karten, Admirale, Gegner, Module und das Gefecht"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

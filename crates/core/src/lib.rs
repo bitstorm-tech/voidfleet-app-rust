@@ -1,15 +1,17 @@
-//! Das Regelwerk von Voidfleet, gemeinsam für Server, Computergegner und Client.
+//! Das Regelwerk von Voidfleet: ein Flaggschiff gegen die gegnerische Flotte (`docs/PVE_DESIGN.md`).
 //!
-//! - [`cards`]: Schiffs- und Befehlskarten samt Werten.
-//! - [`admirals`]: Admirale, ihre Flaggschiffe und Fähigkeiten.
-//! - [`board`]: das Spielbrett mit Platzierungsregeln und dem Live-Zustand der Schiffe.
-//! - [`powers`]: Ziele der Admiralsfähigkeiten und der Markierung der Pendulum.
-//! - [`protocol`]: Nachrichten zwischen Client und Server, Ereignisse einer Runde.
-//! - [`resolution`]: die Auflösung einer Runde.
+//! - [`board`]: Reihen, Spalten und Slots.
+//! - [`cards`]: das Befehlsdeck samt Aufwertungen und Startdecks.
+//! - [`admirals`]: Admirale, Flaggschiffe und Stationen.
+//! - [`enemies`]: Gegner, ihre Werte und Muster.
+//! - [`modules`]: die Module des Runs.
+//! - [`battle`]: das Gefecht, die eine Schnittstelle für den Client.
+//! - [`events`]: der Ereignisstrom eines Gefechts.
 
 pub mod admirals;
+pub mod battle;
 pub mod board;
 pub mod cards;
-pub mod powers;
-pub mod protocol;
-pub mod resolution;
+pub mod enemies;
+pub mod events;
+pub mod modules;

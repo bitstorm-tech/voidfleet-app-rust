@@ -1,137 +1,123 @@
-//! Die Admirale: Zu Matchbeginn wählt jeder Spieler verdeckt einen. Jeder bringt sein Flaggschiff mit (eine
-//! Schiffskarte außerhalb der Decks mit eigener Fähigkeit), das er in Runde 1 zusätzlich zu seinen Schiffen legt, und
-//! hat eine Admiralsfähigkeit, die er jede Runde statt des Grundmanövers einsetzen darf. Wessen Flaggschiff fällt, hat
-//! verloren.
+//! Die vier Admirale (Entwurf Abschnitt 7): Flaggschiff mit Hülle und ATK, Waffe, Passiv, Admiralsstation und
+//! Kennkarte. Die Passiva wertet das Gefecht aus: Vorstoß (Vance), Uhrwerk (Kerr, zeigt der Client), Glutkern
+//! (Reyes), dazu die Waffen Railgun (Kerr) und Plasmawerfer (Reyes).
 
 use serde::{Deserialize, Serialize};
 
-use crate::cards::ShipId;
+use crate::cards::CardId;
 
-/// Osei, die Mauer: Bastion (Wächterschild) und Gegenfeuer. Vance, der Hammer: Vanguard (Speerspitze) und
-/// Fokusfeuer. Halvorsen, der Schwarm: Hive (Brutkammer) und Schwarmangriff. Moreau, das Phantom: Mirage
-/// (Phasentausch) und Trugbild. Kerr, der Uhrmacher: Pendulum (Railgun) und Taktvorsprung.
+/// Osei, die Mauer; Vance, der Hammer; Kerr, der Uhrmacher; Reyes, die Glut.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AdmiralId {
     Osei,
     Vance,
-    Halvorsen,
-    Moreau,
     Kerr,
+    Reyes,
 }
 
-pub const ADMIRAL_IDS: [AdmiralId; 5] = [
+pub const ADMIRAL_IDS: [AdmiralId; 4] = [
     AdmiralId::Osei,
     AdmiralId::Vance,
-    AdmiralId::Halvorsen,
-    AdmiralId::Moreau,
     AdmiralId::Kerr,
+    AdmiralId::Reyes,
 ];
 
-/// Die Admiralsfähigkeiten.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PowerId {
+pub enum FlagshipId {
+    Bastion,
+    Vanguard,
+    Pendulum,
+    Pyre,
+}
+
+/// Die Stationen des Flaggschiffs; genau eine je Runde (mit Alarmstufe Rot zwei).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Station {
+    Weapons,
+    Shields,
+    DamageControl,
+    Maneuver,
+    Admiral,
+}
+
+/// Gegenfeuer (Osei), Fokusfeuer (Vance), Stillstand (Kerr), Nachsetzen (Reyes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AdmiralStation {
     Counterfire,
     FocusFire,
-    SwarmStrike,
-    Decoy,
-    HeadStart,
+    Stasis,
+    FollowUp,
 }
 
-/// Wohin eine Admiralsfähigkeit zielt (gültig zur Stellung beim Planen). Die Marke einer Fähigkeit folgt ihrem
-/// Schiff, wenn es sich in der Runde bewegt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PowerTarget {
-    /// Ein eigenes Schiff, auch eines, das in dieser Runde gelegt wird (Gegenfeuer).
-    OwnShip,
-    /// Ebenso, aber nur ein Kampfschiff mit ATK > 0 (Taktvorsprung).
-    OwnCombatShip,
-    /// Ein gegnerisches Schiff, auch ein gedecktes (Fokusfeuer).
-    EnemyShip,
-    /// Ein gegnerisches Schiff außer dem Flaggschiff, auch ein gedecktes (Schwarmangriff).
-    EnemyShipNotFlagship,
-    /// Ein freier eigener Strike-Slot, in dem in dieser Runde nichts anderes landet (Trugbild).
-    FreeOwnStrikeSlot,
-}
+/// Schild-Station: so viel schluckt sie im folgenden Gegnerzug, Osei (Wächterschild) mehr.
+pub const SHIELD_STATION: i32 = 8;
+pub const GUARDIAN_SHIELD: i32 = 12;
+/// Schadenskontrolle: Hülle zurück.
+pub const DAMAGE_CONTROL_REPAIR: i32 = 5;
+/// Vorstoß: höchstens so viel ATK.
+pub const MAX_MOMENTUM: i32 = 4;
+/// Gegenfeuer: Schild und Hülle, die jeder Schütze verliert, der die Bastion trifft.
+pub const COUNTERFIRE_SHIELD: i32 = 6;
+pub const COUNTERFIRE_DAMAGE: i32 = 3;
+/// Fokusfeuer: Mehrschaden je gegnerischem Treffer im folgenden Gegnerzug.
+pub const FOCUS_FIRE_VULNERABILITY: i32 = 2;
+/// Nachsetzen: Zuschlag für Angriffskarten auf brennende Ziele.
+pub const FOLLOW_UP_CARD_BONUS: i32 = 2;
 
 impl AdmiralId {
-    /// Das Flaggschiff, das der Admiral mitbringt.
-    pub const fn flagship(self) -> ShipId {
+    pub fn flagship(self) -> FlagshipId {
         match self {
-            Self::Osei => ShipId::Bastion,
-            Self::Vance => ShipId::Vanguard,
-            Self::Halvorsen => ShipId::Hive,
-            Self::Moreau => ShipId::Mirage,
-            Self::Kerr => ShipId::Pendulum,
+            AdmiralId::Osei => FlagshipId::Bastion,
+            AdmiralId::Vance => FlagshipId::Vanguard,
+            AdmiralId::Kerr => FlagshipId::Pendulum,
+            AdmiralId::Reyes => FlagshipId::Pyre,
         }
     }
 
-    /// Die Admiralsfähigkeit.
-    pub const fn power(self) -> PowerId {
+    pub fn hull(self) -> i32 {
         match self {
-            Self::Osei => PowerId::Counterfire,
-            Self::Vance => PowerId::FocusFire,
-            Self::Halvorsen => PowerId::SwarmStrike,
-            Self::Moreau => PowerId::Decoy,
-            Self::Kerr => PowerId::HeadStart,
-        }
-    }
-}
-
-impl PowerId {
-    /// Wohin die Fähigkeit zielt.
-    pub const fn target(self) -> PowerTarget {
-        match self {
-            Self::Counterfire => PowerTarget::OwnShip,
-            Self::FocusFire => PowerTarget::EnemyShip,
-            Self::SwarmStrike => PowerTarget::EnemyShipNotFlagship,
-            Self::Decoy => PowerTarget::FreeOwnStrikeSlot,
-            Self::HeadStart => PowerTarget::OwnCombatShip,
+            AdmiralId::Osei => 70,
+            AdmiralId::Vance => 50,
+            AdmiralId::Kerr | AdmiralId::Reyes => 56,
         }
     }
 
-    /// Ob die Fähigkeit ein Schiff der Gegenseite zum Ziel hat; sonst liegt ihr Ziel auf der eigenen Seite.
-    pub const fn targets_enemy(self) -> bool {
-        matches!(
-            self.target(),
-            PowerTarget::EnemyShip | PowerTarget::EnemyShipNotFlagship
-        )
+    pub fn attack(self) -> i32 {
+        match self {
+            AdmiralId::Osei => 7,
+            AdmiralId::Vance => 11,
+            AdmiralId::Kerr => 8,
+            AdmiralId::Reyes => 9,
+        }
+    }
+
+    pub fn signature_card(self) -> CardId {
+        match self {
+            AdmiralId::Osei => CardId::HoldTheLine,
+            AdmiralId::Vance => CardId::Overcharge,
+            AdmiralId::Kerr => CardId::MicroJump,
+            AdmiralId::Reyes => CardId::Firebomb,
+        }
+    }
+
+    pub fn station(self) -> AdmiralStation {
+        match self {
+            AdmiralId::Osei => AdmiralStation::Counterfire,
+            AdmiralId::Vance => AdmiralStation::FocusFire,
+            AdmiralId::Kerr => AdmiralStation::Stasis,
+            AdmiralId::Reyes => AdmiralStation::FollowUp,
+        }
+    }
+
+    pub fn shield_station(self) -> i32 {
+        if self == AdmiralId::Osei {
+            GUARDIAN_SHIELD
+        } else {
+            SHIELD_STATION
+        }
     }
 }
-
-/// Die Zahlen der Flaggschiff- und Admiralsfähigkeiten, abgestimmt per Bot-Simulation; der Regel-Dialog nennt sie.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AbilityValues {
-    /// Bastion (Wächterschild): Schild für sie, jede Runde …
-    pub guardian_shield: i32,
-    /// … und für das Schiff im Strike-Slot vor ihr.
-    pub guardian_shield_front: i32,
-    /// Vanguard (Speerspitze): ATK-Bonus des Kampfschiffs im Strike-Slot vor ihr.
-    pub spearhead: i32,
-    /// Hive (Brutkammer): höchstens so viele Drohnen gleichzeitig auf ihrer Seite …
-    pub max_drones: usize,
-    /// … und so viele startet sie im ganzen Match.
-    pub hive_budget: u32,
-    /// Pendulum (Railgun): Schaden auf das markierte Schiff, wenn es zu Kampfbeginn ungedeckt ist.
-    pub railgun: i32,
-    /// Gegenfeuer: Schaden je Treffer am Schützen (Flaggschiffe ausgenommen).
-    pub counterfire: i32,
-    /// Fokusfeuer: zusätzlicher Schaden je Treffer auf das Ziel.
-    pub focus_fire: i32,
-    /// Schwarmangriff: zusätzlicher Schaden je Drohnentreffer auf das Ziel.
-    pub swarm_strike: i32,
-}
-
-pub const ABILITY_VALUES: AbilityValues = AbilityValues {
-    guardian_shield: 2,
-    guardian_shield_front: 1,
-    spearhead: 1,
-    max_drones: 2,
-    hive_budget: 8,
-    railgun: 5,
-    counterfire: 1,
-    focus_fire: 1,
-    swarm_strike: 2,
-};

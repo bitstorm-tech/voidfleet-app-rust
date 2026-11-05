@@ -6,29 +6,13 @@ default:
 
 # --- Spielen ---
 
-# Spiel mit eingebettetem Server gegen den Computer starten (weitere Argumente gehen an den Client)
+# Spiel starten (weitere Argumente gehen an den Client)
 play *args:
     cargo run -p voidfleet-client -- {{ args }}
 
 # Spiel im Release-Build starten
 play-release *args:
     cargo run -p voidfleet-client --release -- {{ args }}
-
-# Eigenständigen Server starten (ws://<host>:<port>/ws)
-server port="3000" host="0.0.0.0":
-    PORT={{ port }} HOST={{ host }} cargo run -p voidfleet-server
-
-# Mit einem eigenständigen Server verbinden und ein neues Match anlegen
-host server="ws://127.0.0.1:3000":
-    cargo run -p voidfleet-client -- --server {{ server }}
-
-# Einem Match auf einem eigenständigen Server beitreten (PvP)
-join match server="ws://127.0.0.1:3000":
-    cargo run -p voidfleet-client -- --server {{ server }} --match {{ match }}
-
-# Auf einem eigenständigen Server ein Match gegen den Computer anlegen
-bot server="ws://127.0.0.1:3000":
-    cargo run -p voidfleet-client -- --server {{ server }} --bot
 
 # --- Prüfen ---
 
@@ -52,10 +36,6 @@ test *args:
     cargo test --workspace {{ args }}
 
 # --- Werkzeuge ---
-
-# Bot gegen Bot über alle Paarungen der Admirale (Partien je Paarung)
-simulate games="2000":
-    cargo run -p voidfleet-server --release --bin simulate -- {{ games }}
 
 # Dev-Szene ohne Server: board, hit, destroy, arrive, move, effects, commands
 scene name="board":
