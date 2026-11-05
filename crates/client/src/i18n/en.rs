@@ -190,8 +190,12 @@ impl Messages for En {
         "Loading failed — restart the game."
     }
 
-    fn radio_speaker(&self) -> &'static str {
-        "Fleet Comms"
+    fn radio_speaker(&self, intercepted: bool) -> &'static str {
+        if intercepted {
+            "Intercepted"
+        } else {
+            "Fleet Comms"
+        }
     }
 
     fn log_round_header(&self, round: u32) -> String {

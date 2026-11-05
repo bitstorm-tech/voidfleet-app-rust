@@ -205,8 +205,8 @@ pub trait Messages: Sync {
     fn loading_failed(&self) -> &'static str;
 
     // --- Bordfunk ---
-    /// Absender im Untertitel.
-    fn radio_speaker(&self) -> &'static str;
+    /// Absender im Untertitel: die eigene Flotte oder der abgehörte Gegnerfunk.
+    fn radio_speaker(&self, intercepted: bool) -> &'static str;
     /// Je Funkspruch so viele Untertitel wie Aufnahmen ([`RadioCue::variants`]).
     fn radio_lines(&self, cue: RadioCue) -> &'static [&'static str];
 

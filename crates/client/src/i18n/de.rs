@@ -189,8 +189,12 @@ impl Messages for De {
         "Laden fehlgeschlagen — starte das Spiel neu."
     }
 
-    fn radio_speaker(&self) -> &'static str {
-        "Flottenfunk"
+    fn radio_speaker(&self, intercepted: bool) -> &'static str {
+        if intercepted {
+            "Abgehört"
+        } else {
+            "Flottenfunk"
+        }
     }
 
     fn log_round_header(&self, round: u32) -> String {

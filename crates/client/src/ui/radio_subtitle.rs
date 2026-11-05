@@ -25,6 +25,10 @@ struct Subtitle;
 #[derive(Component)]
 struct SubtitleText;
 
+/// Der Absender: Flottenfunk oder abgehörter Gegnerfunk, je Spruch.
+#[derive(Component)]
+struct SpeakerText;
+
 #[derive(Component)]
 struct LevelBar(f32);
 
@@ -92,9 +96,10 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, locale: Res<Locale>) {
                         bar(LEVEL_OFFSETS[1], 0.0),
                         bar(LEVEL_OFFSETS[2], 6.0),
                         (
+                            SpeakerText,
                             theme::caps(
                                 fonts.display(13.0),
-                                locale.radio_speaker(),
+                                locale.radio_speaker(false),
                                 0.14,
                                 palette::PLAYER
                             ),
@@ -120,12 +125,21 @@ fn receive(
     locale: Res<Locale>,
     mut on_air: ResMut<OnAir>,
     mut text: Single<&mut Text, With<SubtitleText>>,
+    speaker: Single<(&mut Text, &mut TextColor), (With<SpeakerText>, Without<SubtitleText>)>,
 ) {
+    let (mut speaker, mut speaker_color) = speaker.into_inner();
     for RadioTransmission(transmission) in transmissions.read() {
         match transmission {
             Some(transmission) => {
                 let lines = locale.radio_lines(transmission.cue);
                 text.0 = lines[transmission.variant.min(lines.len() - 1)].into();
+                let intercepted = transmission.cue.intercepted();
+                speaker.0 = locale.radio_speaker(intercepted).to_uppercase();
+                speaker_color.0 = if intercepted {
+                    palette::ENEMY
+                } else {
+                    palette::PLAYER
+                };
                 on_air.standing =
                     Timer::from_seconds(transmission.duration + LINGER, TimerMode::Once);
             }
