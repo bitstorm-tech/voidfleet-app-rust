@@ -240,8 +240,10 @@ fn column(gap: f32) -> impl Bundle {
 /// Eine Tafel (Modul, Werft-Auftrag, Dienst): Name, Text, darunter die Taste.
 fn plate(fonts: &Fonts, name: &str, text: &str) -> impl Bundle {
     (
+        // Das Feld setzt die Breite auf 100 %; Mindest- und Höchstbreite halten die Tafel trotzdem schmal.
         theme::console_inset(Node {
-            width: px(240),
+            min_width: px(240),
+            max_width: px(240),
             min_height: px(150),
             row_gap: px(8),
             align_items: AlignItems::Center,

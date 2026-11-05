@@ -1,11 +1,12 @@
 //! Untertitel des Bordfunks über dem Aktionsknopf (Port von `ui/radioSubtitle.ts`): Absender mit zuckenden
 //! Pegelbalken und der Text des laufenden Funkspruchs in der Sprache des Spielers. Er erscheint mit dem Spruch
-//! ([`RadioTransmission`]) und blendet kurz nach dessen Ende aus.
+//! ([`RadioTransmission`]) und blendet kurz nach dessen Ende aus. Außerhalb des Gefechts bleibt er verborgen; die Overlays
+//! des Runs füllen dort den Bildschirm.
 
 use bevy::prelude::*;
 
 use super::{Fonts, theme, theme::UiOpacity};
-use crate::{assets::AppState, audio::RadioTransmission, i18n::Locale, palette};
+use crate::{assets::AppState, audio::RadioTransmission, i18n::Locale, palette, run::Screen};
 
 /// So lange bleibt der Untertitel nach dem Ende des Spruchs stehen, und so lange blendet er ein bzw. aus (Sekunden).
 const LINGER: f32 = 0.9;
@@ -13,6 +14,10 @@ const FADE: f32 = 0.25;
 /// Halbe Periode der Pegelbalken und ihr Versatz.
 const LEVEL: f32 = 0.45;
 const LEVEL_OFFSETS: [f32; 3] = [0.0, -0.2, -0.35];
+
+/// Die Zeile, die den Untertitel trägt.
+#[derive(Component)]
+struct SubtitleRow;
 
 #[derive(Component)]
 struct Subtitle;
@@ -47,6 +52,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, locale: Res<Locale>) {
     };
     commands.spawn((
         Name::new("Bordfunk"),
+        SubtitleRow,
         Node {
             position_type: PositionType::Absolute,
             left: Val::ZERO,
@@ -128,6 +134,15 @@ fn receive(
     }
 }
 
+/// Nur im Gefecht zu sehen.
+fn follow_screen(screen: Res<Screen>, mut row: Single<&mut Visibility, With<SubtitleRow>>) {
+    row.set_if_neq(if *screen == Screen::Battle {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    });
+}
+
 /// Ein- und Ausblenden samt leichtem Anheben, dazu die Pegelbalken.
 fn animate(
     time: Res<Time>,
@@ -178,7 +193,9 @@ impl Plugin for RadioSubtitlePlugin {
             .add_systems(OnEnter(AppState::Match), spawn)
             .add_systems(
                 Update,
-                (receive, animate).chain().run_if(in_state(AppState::Match)),
+                (follow_screen, receive, animate)
+                    .chain()
+                    .run_if(in_state(AppState::Match)),
             );
     }
 }

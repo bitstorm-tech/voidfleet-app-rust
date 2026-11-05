@@ -45,6 +45,8 @@ pub(super) struct AutoPlay {
     shots: u32,
     step: Step,
     wait: u32,
+    /// Die Station ist schon im Bild; erst im nächsten Schritt wird gehandelt.
+    shot: bool,
     done: bool,
 }
 
@@ -57,6 +59,7 @@ impl AutoPlay {
             shots: 0,
             step: Step::Weapons,
             wait: SETTLE_FRAMES,
+            shot: false,
             done: false,
         }
     }
@@ -75,6 +78,16 @@ impl AutoPlay {
         if last {
             shot.observe(exit_when_captured);
         }
+    }
+
+    /// Fotografiert die Station einmal und meldet `true`; gehandelt wird erst im nächsten Schritt, denn der Screenshot
+    /// entsteht ein paar Bilder später und zeigte sonst schon die Folge der Wahl.
+    fn snap(&mut self, commands: &mut Commands, name: &str) -> bool {
+        self.shot = !self.shot;
+        if self.shot {
+            self.shoot(commands, name, false);
+        }
+        self.shot
     }
 
     fn finish(&mut self, commands: &mut Commands, exit: &mut MessageWriter<AppExit>) {
@@ -132,24 +145,30 @@ pub(super) fn autoplay(
             play.step = Step::Weapons;
             return;
         }
-        if battle.round == 1 && play.step == Step::Weapons {
-            play.shoot(&mut commands, "battle", false);
+        if battle.round == 1 && play.step == Step::Weapons && play.snap(&mut commands, "battle") {
+            return;
         }
         fight(&battle, &mut play, &mut actions);
         return;
     }
     match *screen {
         Screen::Map => {
-            play.shoot(&mut commands, "map", false);
+            if play.snap(&mut commands, "map") {
+                return;
+            }
             run_actions.write(RunAction::Advance(run.choices()[0]));
         }
         Screen::Loot => {
-            play.shoot(&mut commands, "loot", false);
+            if play.snap(&mut commands, "loot") {
+                return;
+            }
             let offers = matches!(&run.stage, Stage::Loot(loot) if !loot.cards.is_empty() || !loot.modules.is_empty());
             run_actions.write(RunAction::TakeLoot(offers.then_some(0)));
         }
         Screen::Event => {
-            play.shoot(&mut commands, "event", false);
+            if play.snap(&mut commands, "event") {
+                return;
+            }
             if let Stage::Event(event) = run.stage {
                 let index = event
                     .options()
@@ -160,15 +179,21 @@ pub(super) fn autoplay(
             }
         }
         Screen::EventOutcome => {
-            play.shoot(&mut commands, "outcome", false);
+            if play.snap(&mut commands, "outcome") {
+                return;
+            }
             flow.write(RunFlow::Dismiss);
         }
         Screen::Shipyard => {
-            play.shoot(&mut commands, "shipyard", false);
+            if play.snap(&mut commands, "shipyard") {
+                return;
+            }
             run_actions.write(RunAction::Repair);
         }
         Screen::Market => {
-            play.shoot(&mut commands, "market", false);
+            if play.snap(&mut commands, "market") {
+                return;
+            }
             run_actions.write(RunAction::LeaveMarket);
         }
         Screen::Ended => {

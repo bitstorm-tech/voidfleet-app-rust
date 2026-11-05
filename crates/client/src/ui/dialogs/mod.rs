@@ -246,7 +246,7 @@ fn follow_locale(
 
 // --- Gemeinsames der Overlays über dem Brett ---
 
-/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Die Admiralswahl muss zwischen Kopfzeile und Hand
+/// Wie viel Höhe das Fenster lässt (`@media (max-height: …)`): Die Admiralswahl muss unter die Kopfzeile
 /// passen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Density {
@@ -268,7 +268,7 @@ impl Density {
     }
 }
 
-/// Ein Overlay über dem Brett zwischen Kopfzeile und Hand (`.admiral-overlay`); als erstes Kind
+/// Ein Overlay unter der Kopfzeile bis zum unteren Rand (`.admiral-overlay`); als erstes Kind
 /// gehört [`overlay_backdrop`] hinein.
 fn board_overlay() -> impl Bundle {
     (
@@ -277,7 +277,7 @@ fn board_overlay() -> impl Bundle {
             top: px(60),
             left: Val::ZERO,
             right: Val::ZERO,
-            bottom: px(290),
+            bottom: Val::ZERO,
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,

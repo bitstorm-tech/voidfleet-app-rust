@@ -12,6 +12,7 @@ use bevy::{
 use super::{
     AppendLog, ClearLog, Fonts, HideBanner, ShowBanner, ShowRoundBanner, UiIcons,
     button::{self, Lit},
+    hand::HandBar,
     theme::{self, UiOpacity},
     tooltip::Tooltip,
 };
@@ -22,6 +23,7 @@ use crate::{
     game::Battle,
     i18n::Locale,
     palette,
+    run::Screen,
     scene::animation::AnimationScope,
     settings::Settings,
 };
@@ -291,6 +293,21 @@ fn update_top_bar(
     }
 }
 
+/// Hand, Stationen und Log gehören zum Gefecht; auf Karte und Knoten liegen sie verborgen.
+fn show_battle_hud(
+    screen: Res<Screen>,
+    mut parts: Query<&mut Visibility, Or<(With<HandBar>, With<LogButton>, With<LogPanel>)>>,
+) {
+    let visibility = if *screen == Screen::Battle {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for mut part in &mut parts {
+        part.set_if_neq(visibility);
+    }
+}
+
 /// Zeigt eine kurze Ansage.
 fn show_banner(
     mut commands: Commands,
@@ -469,6 +486,7 @@ impl Plugin for HudPlugin {
             .add_systems(
                 Update,
                 (
+                    show_battle_hud,
                     update_top_bar,
                     append_log,
                     show_banner,

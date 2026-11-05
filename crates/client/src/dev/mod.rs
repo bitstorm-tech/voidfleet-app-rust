@@ -10,6 +10,10 @@
 //! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
 //! `VOIDFLEET_SMOKE_SCREENSHOT`). Rauchtest und Vorschau-Szenen speichern keinen Run ([`RunSave`] ohne Pfad).
 //!
+//! `VOIDFLEET_DEV_SCREEN=menu|admirals|market|gallery|abandon|won|lost` lässt den Rauchtest statt am ersten Gefecht an
+//! einem Bildschirm um den Run beginnen (Hauptmenü, Admiralswahl, Schwarzmarkt, Deckgalerie, „Run abbrechen“,
+//! Run-Ende), zum Ansehen per Screenshot.
+//!
 //! `VOIDFLEET_DEV_SCENE` startet statt des Gefechts eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne die
 //! Variablen tut das Plugin nichts.
 //!
@@ -30,13 +34,18 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
-use voidfleet_core::admirals::AdmiralId;
+use voidfleet_core::{admirals::AdmiralId, battle::BattleResult, run::NodeKind};
 
 use crate::{
     assets::AppState,
-    run::{ActiveRun, RunSave, new_run},
+    run::{ActiveRun, RunSave, RunView, Screen, new_run},
     scene::camera::CameraCommand,
+    ui::dialogs::run_nodes::{AbandonPrompt, Gallery, Purpose},
 };
+
+/// Der Bildschirm aus `VOIDFLEET_DEV_SCREEN`.
+#[derive(Resource)]
+struct DevScreen(String);
 
 /// Seed der Runs von Rauchtest und Vorschau-Szenen, damit die Bilder vergleichbar bleiben.
 const DEV_SEED: u64 = 7;
@@ -115,7 +124,11 @@ impl Plugin for DevPlugin {
         })
         .add_systems(Update, run_smoke);
         app.add_systems(OnEnter(AppState::Match), toggle_view);
-        if !staged {
+        if let Ok(screen) = std::env::var("VOIDFLEET_DEV_SCREEN") {
+            app.insert_resource(DevScreen(screen))
+                .add_systems(OnEnter(AppState::Match), start_screen)
+                .add_systems(Update, open_gallery);
+        } else if !staged {
             app.add_systems(OnEnter(AppState::Match), start_battle);
         }
     }
@@ -146,6 +159,43 @@ fn start_run(mut commands: Commands) {
 /// Beginnt einen Run mit Admiral Osei am ersten Gefecht.
 fn start_battle(mut commands: Commands) {
     commands.insert_resource(dev_run(AdmiralId::Osei, true));
+}
+
+/// Stellt den Bildschirm aus `VOIDFLEET_DEV_SCREEN` her.
+fn start_screen(mut commands: Commands, screen: Res<DevScreen>, mut view: ResMut<RunView>) {
+    let mut run = dev_run(AdmiralId::Osei, false);
+    match screen.0.as_str() {
+        "menu" => return,
+        "admirals" => {
+            view.choosing = true;
+            return;
+        }
+        "market" => {
+            let column = run.choices()[0];
+            run.map[0][column].kind = NodeKind::Market;
+            run.advance(column).expect("Reihe 1 ist wählbar");
+        }
+        "gallery" => {}
+        "abandon" => commands.insert_resource(AbandonPrompt),
+        "won" => run.result = Some(BattleResult::Won),
+        "lost" => run.result = Some(BattleResult::Lost),
+        other => panic!("unbekannter Bildschirm: {other}"),
+    }
+    commands.insert_resource(run);
+}
+
+/// Die Galerie öffnet erst, wenn die Karte ein Bild lang steht; der Wechsel des Bildschirms schlösse sie sonst gleich
+/// wieder.
+fn open_gallery(
+    mut commands: Commands,
+    dev: Res<DevScreen>,
+    screen: Res<Screen>,
+    mut opened: Local<bool>,
+) {
+    if dev.0 == "gallery" && !*opened && !screen.is_changed() && *screen == Screen::Map {
+        *opened = true;
+        commands.insert_resource(Gallery::open(Purpose::View));
+    }
 }
 
 /// Schreibt jeden Screenshot in seinem Bild; nach dem letzten endet die App, ohne Screenshots nach `frames` Bildern.
