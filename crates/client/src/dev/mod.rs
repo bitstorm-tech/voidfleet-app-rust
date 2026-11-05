@@ -19,6 +19,7 @@
 //! ```
 
 mod autoplay;
+mod report;
 mod scenes;
 
 use std::path::PathBuf;

@@ -885,4 +885,54 @@ impl Messages for De {
             BattleResult::Lost => "Das Flaggschiff ist verloren.",
         }
     }
+
+    // --- Gefechtsbericht ---
+
+    fn mark_evaded(&self, amount: i32) -> String {
+        format!("weicht aus: {amount}")
+    }
+
+    fn mark_countermeasures(&self, amount: i32) -> String {
+        format!("Gegenmaßnahmen −{amount}")
+    }
+
+    fn mark_armor(&self, amount: i32) -> String {
+        format!("Panzerung −{amount}")
+    }
+
+    fn mark_covered(&self, amount: i32, by: &str) -> String {
+        format!("gedeckt: {amount} → {by}")
+    }
+
+    fn mark_shielded(&self, amount: i32) -> String {
+        format!("Schild schluckt {amount}")
+    }
+
+    fn report_missed(&self) -> &'static str {
+        "ins Leere"
+    }
+
+    fn report_burned_out(&self, unit: &str) -> String {
+        format!("{unit} ausgebrannt")
+    }
+
+    fn report_tableau_title(&self, round: u32) -> String {
+        format!("Lagebericht Runde {round}")
+    }
+
+    fn report_taken(&self, amount: i32) -> String {
+        format!("genommen {amount}")
+    }
+
+    fn report_dealt(&self, amount: i32) -> String {
+        format!("ausgeteilt {amount}")
+    }
+
+    fn report_kills(&self, kills: usize) -> String {
+        if kills == 1 {
+            "1 Abschuss".to_owned()
+        } else {
+            format!("{kills} Abschüsse")
+        }
+    }
 }

@@ -64,7 +64,7 @@ const WARP_LIGHT: f32 = 5.0;
 const WARP_PORTAL: f32 = 2.6;
 const WARP_PORTAL_DURATION: f32 = 0.75;
 
-const FIRE_FLASH: Color = Color::srgb(1.0, 0.8, 0.5);
+pub const FIRE_FLASH: Color = Color::srgb(1.0, 0.8, 0.5);
 const WARP_COLOR: Color = Color::srgb(0.45, 0.75, 1.0);
 
 /// Die Einschlag-Varianten; je Treffer wird zufällig eine gespielt, nie zweimal dieselbe hintereinander.

@@ -5,7 +5,8 @@
 //! stufenlos, solange die Richtung nicht 0 ist. Gemischt werden Ausrichtung, Aufteilung ([`BoardLayout`]) und das
 //! Bildband, das die Pads senkrecht füllen; die Kamera stellt `frame_board` daraus in geschlossener Form.
 //!
-//! Dazu Maus-Parallaxe, Kamerawackeln ([`CameraCommand::Shake`]) und Glühen über Bloom: Was heller als 1 leuchtet
+//! Dazu Maus-Parallaxe, Kamerawackeln ([`CameraCommand::Shake`]), eine leichte Neigung zum Handelnden der Wiedergabe
+//! ([`CameraCommand::Lean`]) und Glühen über Bloom: Was heller als 1 leuchtet
 //! (Lichter der Schiffe, Effekte), glüht; alles andere bleibt scharf. Ohne Tone-Mapping, wie im Original.
 //! Stand und Zoom merkt sich die Kamera in den Einstellungen, sobald sie ruht.
 //!
@@ -81,6 +82,11 @@ const SHAKE_FREQUENCIES: (f32, f32, f32) = (83.0, 109.0, 23.0);
 /// Kamera-Parallaxe: Reichweite in Welteinheiten und Nachlauf (Abklingrate pro Sekunde).
 const MAX_SCROLL_OFFSET: Vec2 = Vec2::new(0.75, 0.4);
 const FOLLOW_SPEED: f32 = 4.0;
+/// Neigung zum Handelnden: Anteil seines Abstands von der Brettmitte, um den die Kamera mitgeht, und wie viel näher sie
+/// kommt; Nachlauf (Abklingrate pro Sekunde).
+const LEAN_SHARE: f32 = 0.12;
+const LEAN_CLOSER: f32 = 0.06;
+const LEAN_SPEED: f32 = 2.5;
 /// Zoom: Nachlauf des geglätteten Versatzes (Abklingrate pro Sekunde) und die tiefste Kamerahöhe.
 const ZOOM_FOLLOW_SPEED: f32 = 8.0;
 const ZOOM_MIN_HEIGHT: f32 = 2.6;
@@ -115,6 +121,8 @@ pub enum CameraCommand {
     Zoom(f32),
     /// Stößt die Kamera an: Sie zittert mit so vielen Welteinheiten und beruhigt sich wieder.
     Shake(f32),
+    /// Neigt die Kamera leicht zu einem Weltpunkt hin (der Handelnde der Wiedergabe); `None` kehrt zurück.
+    Lean(Option<Vec3>),
 }
 
 /// Aufteilung des Bretts beim jetzigen Stand zwischen den Ansichten; Lanes, Slots und Beschriftungen folgen ihr.
@@ -190,6 +198,9 @@ pub struct CameraRig {
     shake_strength: f32,
     shake_time: f32,
     shake_offset: Vec2,
+    /// Neigung zum Handelnden: Ziel und geglätteter Versatz.
+    lean_target: Vec3,
+    lean: Vec3,
 }
 
 impl CameraRig {
@@ -233,6 +244,8 @@ impl CameraRig {
             shake_strength: 0.0,
             shake_time: 0.0,
             shake_offset: Vec2::ZERO,
+            lean_target: Vec3::ZERO,
+            lean: Vec3::ZERO,
         };
         let layout = rig.apply_view();
         (rig, layout)
@@ -416,7 +429,7 @@ impl CameraRig {
         let sideways = self.screen_right() * (self.scroll.x + self.shake_offset.x);
         let lift = Vec3::Y * (self.scroll.y + self.shake_offset.y);
         let (forward, up) = self.axes();
-        Transform::from_translation(self.rest + self.zoom_offset + sideways + lift)
+        Transform::from_translation(self.rest + self.zoom_offset + self.lean + sideways + lift)
             .looking_to(forward, up)
     }
 }
@@ -632,6 +645,12 @@ fn handle_commands(mut commands: MessageReader<CameraCommand>, mut rig: ResMut<C
             }
             CameraCommand::Zoom(direction) => rig.zoom_direction = direction,
             CameraCommand::Shake(strength) => rig.shake_strength = rig.shake_strength.max(strength),
+            CameraCommand::Lean(point) => {
+                rig.lean_target = point.map_or(Vec3::ZERO, |point| {
+                    let toward = (point - BOARD_CENTER).with_y(0.0) * LEAN_SHARE;
+                    toward + (point - rig.rest) * LEAN_CLOSER
+                });
+            }
         }
     }
 }
@@ -664,6 +683,8 @@ fn update_rig(
     let zoom_target = rig.zoom_target;
     rig.zoom_offset
         .smooth_nudge(&zoom_target, ZOOM_FOLLOW_SPEED, seconds);
+    let lean_target = rig.lean_target;
+    rig.lean.smooth_nudge(&lean_target, LEAN_SPEED, seconds);
 
     *transform = rig.transform();
     if let Projection::Perspective(perspective) = projection.as_mut() {

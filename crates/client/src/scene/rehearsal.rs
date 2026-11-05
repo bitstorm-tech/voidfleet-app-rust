@@ -2,13 +2,14 @@
 //! und ihre Wracks mit glühenden Bruchflächen auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das Gefecht
 //! beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Krone, alle Marken am Boden und die stummen Effekte (Bolzen,
 //! verpuffender Bolzen, Zielmarke, Strahl, Rakete mit Leuchtspur, Schildblase, Impuls, Hyperraum-Austritt mit Blitz
-//! und Partikeln, Brand mit Rauch). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
+//! und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.
 
 use bevy::prelude::*;
 use voidfleet_core::events::UnitStats;
 
 use super::{
+    aura::ShipAura,
     coords::{BOARD_CENTER, Side, facing},
     effects::{Beam, Bolt, Bubble, Burn, Fizzle, Missile, Pulse, TargetRing, Warp},
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
@@ -25,7 +26,7 @@ const MARKERS: [MarkerKind; 8] = [
     MarkerKind::Aim,
     MarkerKind::Counterfire,
     MarkerKind::FocusFire,
-    MarkerKind::SwarmStrike,
+    MarkerKind::Evading,
     MarkerKind::HeadStart,
 ];
 
@@ -62,6 +63,11 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
                     planned: index % 2 == 0,
                     ..MarkerSpec::new(MARKERS[index % MARKERS.len()], palette::SELECT)
                 }]),
+                // Brand und Aufladung als Dauerzustand.
+                ShipAura {
+                    burning: index == 0,
+                    charged: index == 1,
+                },
                 DespawnOnExit(AppState::Loading),
             ));
             if wreck {

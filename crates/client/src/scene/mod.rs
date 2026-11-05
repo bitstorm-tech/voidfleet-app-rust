@@ -5,7 +5,7 @@
 //!   Texturen ([`paint`]).
 //! - Brett: Pads, Anker, Hervorhebung ([`board`]); Statusbalken, Krone, Totenkopf und Grenzen der Schiffe
 //!   ([`status`]); Marken am Boden ([`markers`]); Absicht, Zustände und Vorschau als Text über den Schiffen
-//!   ([`labels`]).
+//!   ([`labels`]); Brand und Aufladung als Partikel ([`aura`]).
 //! - Zustand: [`sync`] stellt die Szene aus dem Gefecht, solange keine Wiedergabe läuft ([`sync::BoardMode`]);
 //!   [`picking`] meldet Klicks und Zeiger auf Slots und Schiffe.
 //! - Wiedergabe: Animationen als Aufträge mit Fertig-Rückmeldung, gestreckt um die Animationsgeschwindigkeit
@@ -15,6 +15,7 @@
 //! Lichter hat die Szene keine: Die Schiffe rechnen ihr Licht selbst, alles andere leuchtet aus sich.
 
 pub mod animation;
+pub mod aura;
 pub mod background;
 pub mod board;
 pub mod camera;
@@ -64,6 +65,7 @@ impl Plugin for ScenePlugin {
             destruction::DestructionPlugin,
             floating_text::FloatingTextPlugin,
             sync::SyncPlugin,
+            aura::AuraPlugin,
         ))
         .add_systems(OnEnter(LoadingPhase::Rehearsal), rehearsal::stage);
     }
