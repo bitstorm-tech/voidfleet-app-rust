@@ -1,5 +1,6 @@
 //! Tooltips (Ersatz für das `title`-Attribut des Browsers): Eine Entity mit [`Tooltip`] zeigt ihren Text, sobald der
 //! Zeiger eine Weile darüber ruht, in einem kleinen Feld neben dem Zeiger. Es gibt nur ein Feld; es liegt über allem.
+//! Statt Text kann eine Entity [`TooltipGlyphs`] tragen: je Zeile ein [`Glyph`] und seine Erklärung.
 
 use bevy::{
     picking::{hover::HoverMap, pointer::PointerId},
@@ -7,12 +8,27 @@ use bevy::{
     window::PrimaryWindow,
 };
 
+use voidfleet_core::board::COLUMNS;
+
 use super::{Fonts, cursor, theme};
 use crate::{palette, settings::Settings};
 
 /// Der Text, der beim Überfahren erscheint; leer zeigt nichts.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tooltip(pub String);
+
+/// Ein Icon in seiner Farbe, mit Zahl und, beim Spaltenfeuer, den angesagten Spalten.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Glyph {
+    pub icon: Handle<Image>,
+    pub color: Color,
+    pub value: Option<i32>,
+    pub columns: Option<[bool; COLUMNS]>,
+}
+
+/// Zeilen aus Icon und Erklärung statt Text.
+#[derive(Component, Clone, Debug, Default, PartialEq)]
+pub struct TooltipGlyphs(pub Vec<(Glyph, String)>);
 
 /// So lange (Sekunden) muss der Zeiger ruhen, bis das Feld erscheint, und sein Abstand zum Bild des Zeigers.
 const DELAY: f32 = 0.5;
@@ -26,11 +42,16 @@ struct TooltipBox;
 #[derive(Component)]
 struct TooltipText;
 
-/// Welche Entity das Feld zuletzt meinte und seit wann.
+/// Die Zeilen der [`TooltipGlyphs`] im Feld.
+#[derive(Component)]
+struct TooltipRows;
+
+/// Welche Entity das Feld zuletzt meinte und seit wann; dazu die Zeilen, die es zeigt.
 #[derive(Resource, Default)]
 struct TooltipHover {
     entity: Option<Entity>,
     since: f32,
+    glyphs: TooltipGlyphs,
 }
 
 fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
@@ -40,6 +61,8 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
         Node {
             position_type: PositionType::Absolute,
             max_width: px(MAX_WIDTH),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(4),
             padding: UiRect::axes(px(8), px(5)),
             border: UiRect::all(px(1)),
             border_radius: BorderRadius::all(px(3)),
@@ -56,11 +79,22 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
         GlobalZIndex(200),
         Visibility::Hidden,
         Pickable::IGNORE,
-        children![(
-            TooltipText,
-            theme::text(fonts.body(13.0), "", palette::TEXT),
-            Pickable::IGNORE,
-        )],
+        children![
+            (
+                TooltipText,
+                theme::text(fonts.body(13.0), "", palette::TEXT),
+                Pickable::IGNORE,
+            ),
+            (
+                TooltipRows,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(4),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ),
+        ],
     ));
 }
 
@@ -70,11 +104,14 @@ fn follow_pointer(
     mut hover: ResMut<TooltipHover>,
     hover_map: Res<HoverMap>,
     parents: Query<&ChildOf>,
-    tooltips: Query<&Tooltip>,
+    tooltips: Query<(Option<&Tooltip>, Option<&TooltipGlyphs>)>,
     window: Single<&Window, With<PrimaryWindow>>,
     settings: Res<Settings>,
     tooltip_box: Single<(&mut Node, &mut Visibility, &ComputedNode), With<TooltipBox>>,
-    mut text: Single<&mut Text, With<TooltipText>>,
+    text: Single<(&mut Text, &mut Node), (With<TooltipText>, Without<TooltipBox>)>,
+    rows: Single<Entity, With<TooltipRows>>,
+    fonts: Res<Fonts>,
+    mut commands: Commands,
 ) {
     // Der innerste Tooltip mit Text gewinnt: vom vordersten Treffer des Zeigers aus der erste nach außen.
     let hovered = hover_map
@@ -85,24 +122,22 @@ fn follow_pointer(
             std::iter::once(hit)
                 .chain(parents.iter_ancestors(hit))
                 .find_map(|entity| {
-                    tooltips
-                        .get(entity)
-                        .ok()
-                        .filter(|tooltip| !tooltip.0.is_empty())
-                        .map(|tooltip| (data.depth, entity, tooltip))
+                    let (text, glyphs) = tooltips.get(entity).ok()?;
+                    let text = text.filter(|text| !text.0.is_empty());
+                    let glyphs = glyphs.filter(|glyphs| !glyphs.0.is_empty());
+                    (text.is_some() || glyphs.is_some())
+                        .then_some((data.depth, entity, text, glyphs))
                 })
         })
         .min_by(|a, b| a.0.total_cmp(&b.0));
     let now = time.elapsed_secs();
-    let current = hovered.map(|(_, entity, _)| entity);
+    let current = hovered.map(|(_, entity, ..)| entity);
     if current != hover.entity {
-        *hover = TooltipHover {
-            entity: current,
-            since: now,
-        };
+        hover.entity = current;
+        hover.since = now;
     }
     let (mut node, mut visibility, computed) = tooltip_box.into_inner();
-    let (Some((.., tooltip)), Some(cursor)) = (hovered, window.cursor_position()) else {
+    let (Some((_, _, tooltip, glyphs)), Some(cursor)) = (hovered, window.cursor_position()) else {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     };
@@ -110,8 +145,43 @@ fn follow_pointer(
         visibility.set_if_neq(Visibility::Hidden);
         return;
     }
-    if text.0 != tooltip.0 {
-        text.0.clone_from(&tooltip.0);
+    let content = tooltip.map_or("", |tooltip| tooltip.0.as_str());
+    let (mut text, mut text_node) = text.into_inner();
+    if text.0 != content {
+        text.0 = content.to_owned();
+    }
+    let display = if content.is_empty() {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    if text_node.display != display {
+        text_node.display = display;
+    }
+    let glyphs = glyphs.cloned().unwrap_or_default();
+    if hover.glyphs != glyphs {
+        let rows = rows.into_inner();
+        commands.entity(rows).despawn_related::<Children>();
+        commands.entity(rows).with_children(|rows| {
+            for (glyph, line) in &glyphs.0 {
+                rows.spawn((
+                    Node {
+                        column_gap: px(8),
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
+                .with_children(|row| {
+                    spawn_glyph(row, glyph, 18.0, &fonts);
+                    row.spawn((
+                        theme::text(fonts.body(13.0), line.clone(), palette::TEXT),
+                        Pickable::IGNORE,
+                    ));
+                });
+            }
+        });
+        hover.glyphs = glyphs;
     }
     // Das Feld steht über der Spitze des Zeigers: Das Bild reicht von dort fast nur nach unten, auch wenn das System
     // den Zeiger vergrößert. Am oberen Rand steht es unter dem Bild; am rechten Rand rückt es nach links, ohne den
@@ -126,6 +196,68 @@ fn follow_pointer(
     node.left = px(at.x.max(0.0));
     node.top = px(at.y.max(0.0));
     visibility.set_if_neq(Visibility::Inherited);
+}
+
+/// Ein [`Glyph`] in `size` logischen Pixeln: Icon, Zahl daneben, die Spalten als drei Striche von links nach rechts.
+pub fn spawn_glyph(parent: &mut ChildSpawnerCommands, glyph: &Glyph, size: f32, fonts: &Fonts) {
+    parent
+        .spawn((
+            Node {
+                column_gap: px(3),
+                align_items: AlignItems::Center,
+                flex_shrink: 0.0,
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|item| {
+            item.spawn((
+                ImageNode::new(glyph.icon.clone()).with_color(glyph.color),
+                Node {
+                    width: px(size),
+                    height: px(size),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
+            if let Some(value) = glyph.value {
+                item.spawn((
+                    theme::text(
+                        fonts.display_bold(size * 0.9),
+                        value.to_string(),
+                        glyph.color,
+                    ),
+                    theme::text_shadow(0.9),
+                    Pickable::IGNORE,
+                ));
+            }
+            if let Some(columns) = glyph.columns {
+                item.spawn((
+                    Node {
+                        column_gap: px(2),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
+                .with_children(|pips| {
+                    for on in columns {
+                        pips.spawn((
+                            Node {
+                                width: px(size * 0.22),
+                                height: px(size * 0.6),
+                                ..default()
+                            },
+                            BackgroundColor(if on {
+                                glyph.color
+                            } else {
+                                glyph.color.with_alpha(0.25)
+                            }),
+                            Pickable::IGNORE,
+                        ));
+                    }
+                });
+            }
+        });
 }
 
 pub(super) struct TooltipPlugin;

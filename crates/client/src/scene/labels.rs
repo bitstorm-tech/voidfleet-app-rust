@@ -1,6 +1,6 @@
 //! Über jedem Schiff, als Knoten der Oberfläche über seinen Balken: die Rechnung der Vorschau als Text, darunter die
 //! Absicht als Icon mit Zahl (bei Kerr darunter kleiner die zweite) und die Zustände als Icons. Ein Tooltip über den
-//! Icons erklärt jedes von ihnen. Was dort steht, setzt [`crate::scene::sync`] in [`ShipCaption`], während der
+//! Icons erklärt jedes von ihnen, Zeile für Zeile neben demselben Icon. Was dort steht, setzt [`crate::scene::sync`] in [`ShipCaption`], während der
 //! Wiedergabe die Absichten auch [`crate::playback`].
 
 use bevy::{
@@ -10,7 +10,6 @@ use bevy::{
     ui::{UiSystems, UiTransform},
 };
 use voidfleet_core::{
-    board::COLUMNS,
     enemies::{Action, BOLT_SHIELD},
     events::Intent,
 };
@@ -23,11 +22,17 @@ use super::{
 use crate::{
     i18n::{Condition, Locale, Messages},
     palette,
-    ui::{Fonts, UiIcons, tooltip::Tooltip},
+    ui::{
+        Fonts, UiIcons, theme,
+        tooltip::{Glyph, TooltipGlyphs, spawn_glyph},
+    },
 };
 
 /// Abstand über der Mitte der Balken (Welteinheiten).
 const LIFT: f32 = 0.9;
+
+/// Farbe der Zustände.
+const CONDITION: Color = palette::BUFF;
 
 /// Was über einem Schiff steht; Leeres fällt weg.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -46,19 +51,10 @@ pub struct ShipCaption {
 #[derive(Component, Clone, Copy, Debug)]
 struct CaptionOf(Entity);
 
-/// Ein Icon mit Zahl und, beim Spaltenfeuer, den Spalten; `hint` ist seine Zeile im Tooltip.
-struct Glyph {
-    icon: Handle<Image>,
-    value: Option<i32>,
-    columns: Option<[bool; COLUMNS]>,
-    hint: String,
-}
-
-/// Eine Zeile Icons: Größe und Farbe.
+/// Eine Zeile Icons in ihrer Größe, je Icon seine Zeile im Tooltip.
 struct GlyphRow {
     size: f32,
-    color: Color,
-    glyphs: Vec<Glyph>,
+    glyphs: Vec<(Glyph, String)>,
 }
 
 fn action_icon(action: Action, icons: &UiIcons) -> Handle<Image> {
@@ -74,7 +70,13 @@ fn action_icon(action: Action, icons: &UiIcons) -> Handle<Image> {
     }
 }
 
-fn intent_glyph(intent: Intent, locale: &dyn Messages, icons: &UiIcons, next: bool) -> Glyph {
+fn intent_glyph(
+    intent: Intent,
+    color: Color,
+    locale: &dyn Messages,
+    icons: &UiIcons,
+    next: bool,
+) -> (Glyph, String) {
     let value = match intent.action {
         Action::Shields(amount) => Some(amount),
         Action::Bolt => Some(BOLT_SHIELD),
@@ -84,24 +86,23 @@ fn intent_glyph(intent: Intent, locale: &dyn Messages, icons: &UiIcons, next: bo
         Action::ColumnFire { columns } => Some(columns),
         _ => None,
     };
-    let line = format!(
-        "{}: {}",
-        locale.intent(intent),
-        locale.action_hint(intent.action)
-    );
-    Glyph {
-        icon: action_icon(intent.action, icons),
-        value,
-        columns,
-        hint: if next {
-            format!("{} – {line}", locale.caption_next())
-        } else {
-            line
+    let hint = locale.action_hint(intent.action);
+    (
+        Glyph {
+            icon: action_icon(intent.action, icons),
+            color,
+            value,
+            columns,
         },
-    }
+        if next {
+            format!("{}: {hint}", locale.caption_next())
+        } else {
+            hint
+        },
+    )
 }
 
-fn condition_glyph(condition: Condition, locale: &dyn Messages, icons: &UiIcons) -> Glyph {
+fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
     let icon = match condition {
         Condition::Burning => icons.flame.clone(),
         Condition::Emergency => icons.emergency.clone(),
@@ -110,58 +111,51 @@ fn condition_glyph(condition: Condition, locale: &dyn Messages, icons: &UiIcons)
     };
     Glyph {
         icon,
+        color: CONDITION,
         value: None,
         columns: None,
-        hint: format!(
-            "{}: {}",
-            locale.condition(condition),
-            locale.condition_hint(condition)
-        ),
     }
 }
 
 /// Die Zeilen der Icons: Absicht, die nächste, Zustände (Brand zuerst).
 fn glyph_rows(caption: &ShipCaption, locale: &dyn Messages, icons: &UiIcons) -> [GlyphRow; 3] {
-    let burning = caption.burning.map(|amount| Glyph {
-        value: (amount > 0).then_some(amount),
-        hint: format!(
-            "{}: {}",
-            locale.condition(Condition::Burning),
-            locale.burn_hint(amount)
-        ),
-        ..condition_glyph(Condition::Burning, locale, icons)
+    let burning = caption.burning.map(|amount| {
+        (
+            Glyph {
+                value: (amount > 0).then_some(amount),
+                ..condition_glyph(Condition::Burning, icons)
+            },
+            locale.burn_hint(amount),
+        )
+    });
+    let conditions = caption.conditions.iter().map(|&condition| {
+        (
+            condition_glyph(condition, icons),
+            locale.condition_hint(condition).to_owned(),
+        )
     });
     [
         GlyphRow {
             size: 22.0,
-            color: palette::ENEMY,
             glyphs: caption
                 .intent
-                .map(|intent| intent_glyph(intent, locale, icons, false))
+                .map(|intent| intent_glyph(intent, palette::ENEMY, locale, icons, false))
                 .into_iter()
                 .collect(),
         },
         GlyphRow {
             size: 16.0,
-            color: palette::ENEMY.with_alpha(0.65),
             glyphs: caption
                 .next
-                .map(|intent| intent_glyph(intent, locale, icons, true))
+                .map(|intent| {
+                    intent_glyph(intent, palette::ENEMY.with_alpha(0.65), locale, icons, true)
+                })
                 .into_iter()
                 .collect(),
         },
         GlyphRow {
             size: 16.0,
-            color: palette::BUFF,
-            glyphs: burning
-                .into_iter()
-                .chain(
-                    caption
-                        .conditions
-                        .iter()
-                        .map(|&condition| condition_glyph(condition, locale, icons)),
-                )
-                .collect(),
+            glyphs: burning.into_iter().chain(conditions).collect(),
         },
     ]
 }
@@ -219,12 +213,7 @@ fn rebuild_captions(
             continue;
         }
         let rows = glyph_rows(&caption, &**locale, &icons);
-        let tooltip = rows
-            .iter()
-            .flat_map(|row| &row.glyphs)
-            .map(|glyph| glyph.hint.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
+        let tooltip = TooltipGlyphs(rows.iter().flat_map(|row| row.glyphs.clone()).collect());
         let mut entity = commands.entity(node);
         entity.despawn_related::<Children>();
         entity.with_children(|parent| {
@@ -233,12 +222,12 @@ fn rebuild_captions(
                     Text::new(caption.preview.clone()),
                     fonts.display_bold(17.0),
                     TextColor(palette::DAMAGE),
-                    shadow(),
+                    theme::text_shadow(0.9),
                     TextLayout::justify(Justify::Center),
                     Pickable::IGNORE,
                 ));
             }
-            if tooltip.is_empty() {
+            if tooltip.0.is_empty() {
                 return;
             }
             // Nur die Icons tragen den Tooltip; Klicks und das Zielen gehen durch sie hindurch aufs Schiff.
@@ -250,7 +239,7 @@ fn rebuild_captions(
                         row_gap: px(2),
                         ..default()
                     },
-                    Tooltip(tooltip),
+                    tooltip,
                     Pickable {
                         should_block_lower: false,
                         is_hoverable: true,
@@ -268,80 +257,14 @@ fn rebuild_captions(
                                 Pickable::IGNORE,
                             ))
                             .with_children(|line| {
-                                for glyph in &row.glyphs {
-                                    spawn_glyph(line, glyph, row, &fonts);
+                                for (glyph, _) in &row.glyphs {
+                                    spawn_glyph(line, glyph, row.size, &fonts);
                                 }
                             });
                     }
                 });
         });
     }
-}
-
-fn shadow() -> TextShadow {
-    TextShadow {
-        offset: Vec2::new(0.0, 1.0),
-        color: Color::BLACK.with_alpha(0.9),
-    }
-}
-
-fn spawn_glyph(parent: &mut ChildSpawnerCommands, glyph: &Glyph, row: &GlyphRow, fonts: &Fonts) {
-    parent
-        .spawn((
-            Node {
-                column_gap: px(3),
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            Pickable::IGNORE,
-        ))
-        .with_children(|item| {
-            item.spawn((
-                ImageNode::new(glyph.icon.clone()).with_color(row.color),
-                Node {
-                    width: px(row.size),
-                    height: px(row.size),
-                    ..default()
-                },
-                Pickable::IGNORE,
-            ));
-            if let Some(value) = glyph.value {
-                item.spawn((
-                    Text::new(value.to_string()),
-                    fonts.display_bold(row.size * 0.9),
-                    TextColor(row.color),
-                    shadow(),
-                    Pickable::IGNORE,
-                ));
-            }
-            // Die angesagten Spalten als drei Striche, von links nach rechts.
-            if let Some(columns) = glyph.columns {
-                item.spawn((
-                    Node {
-                        column_gap: px(2),
-                        ..default()
-                    },
-                    Pickable::IGNORE,
-                ))
-                .with_children(|pips| {
-                    for on in columns {
-                        pips.spawn((
-                            Node {
-                                width: px(row.size * 0.22),
-                                height: px(row.size * 0.6),
-                                ..default()
-                            },
-                            BackgroundColor(if on {
-                                row.color
-                            } else {
-                                row.color.with_alpha(0.25)
-                            }),
-                            Pickable::IGNORE,
-                        ));
-                    }
-                });
-            }
-        });
 }
 
 /// Stellt jede Beschriftung über die Balken ihres Schiffs; ist das Schiff fort, geht sie mit.
