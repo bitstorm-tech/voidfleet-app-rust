@@ -141,6 +141,32 @@ def seeds(mesh, count, rng):
     return [c + (center - c) * 0.08 for c in chosen]
 
 
+def drop_hollows(bm):
+    """Entfernt Teile, die nur Luft umschließen: `holes_fill` füllt jede Schnittkontur für sich, auch die innere einer
+    Wand mit Wandstärke (die Düsenglocke aus parts.engine). Bleibt von ihr in einer Zelle nur ein Stück Innenwand, schließt
+    der Deckel den Hohlraum ein, und die Hülle stünde innen nach außen (negatives Volumen)."""
+    seen, hollows = set(), []
+    for start in bm.faces:
+        if start in seen:
+            continue
+        seen.add(start)
+        faces, stack = [], [start]
+        while stack:
+            face = stack.pop()
+            faces.append(face)
+            for edge in face.edges:
+                for other in edge.link_faces:
+                    if other not in seen:
+                        seen.add(other)
+                        stack.append(other)
+        o = faces[0].verts[0].co
+        volume = sum((f.verts[0].co - o).dot((f.verts[i].co - o).cross(f.verts[i + 1].co - o)) for f in faces for i in range(1, len(f.verts) - 1))
+        if volume < 0:
+            hollows += faces
+    if hollows:
+        bmesh.ops.delete(bm, geom=hollows, context="FACES")
+
+
 def cut(base, point, others, wreck_index, min_faces=MIN_FACES):
     """Die Voronoi-Zelle von `point`: alles jenseits der Mittelsenkrechten zu `others` wird abgeschnitten,
     die Schnittflächen geschlossen (ohne `wreck_index` bleiben sie offen). Liefert None, wenn nichts übrig bleibt."""
@@ -161,6 +187,8 @@ def cut(base, point, others, wreck_index, min_faces=MIN_FACES):
         if edges and wreck_index is not None:
             for face in bmesh.ops.holes_fill(bm, edges=edges, sides=0)["faces"]:
                 face.material_index = wreck_index
+    if wreck_index is not None:
+        drop_hollows(bm)
     if len(bm.faces) < min_faces:
         bm.free()
         return None
