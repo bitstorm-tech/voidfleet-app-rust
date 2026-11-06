@@ -1,7 +1,7 @@
 //! Generalprobe hinter dem Ladebildschirm (Port von `scene/rehearsal.ts`): Einmal stehen alle Gegner und Flaggschiffe
 //! als Modellgruppen (Gegner in ihrer Lackierung, ein Kreuzermodell brennend und ausgebrannt, Rumpfbrüche) und ihre
-//! Wracks mit glühenden Bruchflächen auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das Gefecht
-//! beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Krone, alle Marken am Boden und die stummen Effekte (Bolzen,
+//! Wracks mit glühenden Bruchflächen und ein Geist auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das
+//! Gefecht beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Krone, alle Marken am Boden und die stummen Effekte (Bolzen,
 //! verpuffender Bolzen, Zielmarke, Strahl, Rakete mit Leuchtspur, Schildblase, Impuls, Hyperraum-Austritt mit Blitz
 //! und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.
@@ -14,7 +14,7 @@ use super::{
     coords::{BOARD_CENTER, Side, facing},
     effects::{Beam, Bolt, Bubble, Burn, Fizzle, Missile, Pulse, TargetRing, Warp},
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
-    ship::{BreakApart, ToonState, spawn_ship},
+    ship::{BreakApart, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
 };
 use crate::{assets::AppState, data::ship_models::ShipModels, palette};
@@ -87,6 +87,16 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
                 wrecks.push(entity);
             }
         }
+    }
+
+    // Ein Geist (durchsichtig, eigene Pipeline).
+    if let Some((kind, _)) = models.iter().find(|(kind, _)| kind.is_flagship()) {
+        let ghost = spawn_ghost(&mut commands, &models, kind);
+        commands.entity(ghost).insert((
+            Transform::from_translation(BOARD_CENTER + Vec3::new(3.0, 0.0, 0.0))
+                .with_scale(Vec3::splat(super::ship::BOARD_SCALE)),
+            DespawnOnExit(AppState::Loading),
+        ));
     }
 
     // Die stummen Effekte; was Klang macht (Einschläge, Explosionen), bleibt der Probe fern.

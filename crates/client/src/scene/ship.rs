@@ -55,6 +55,17 @@ pub struct Ship {
     pub uid: u32,
 }
 
+/// Der Geist eines Schiffs: dasselbe Modell als bläuliches Hologramm, ohne Balken, Marken und Picking (kein
+/// [`Ship`]); zeigt etwa, wohin das Flaggschiff manövrieren wird.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+#[require(
+    Transform::from_scale(Vec3::splat(BOARD_SCALE)),
+    Visibility,
+    ToonState,
+    ShipMaterials
+)]
+pub struct Ghost(pub ShipKind);
+
 /// Was Modell und Wrack eines Schiffs beim Zeichnen lesen: die Seite für das Hauptlicht (setzt der Landeplatz), die
 /// Glut der Bruchflächen und die Helligkeit der Lichter (beides steuert die Zerstörung).
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -194,6 +205,16 @@ pub fn spawn_ship(commands: &mut Commands, models: &ShipModels, kind: ShipKind) 
     ship
 }
 
+/// Spawnt den Geist eines Schiffs; Lage, Seite und Eltern setzt der Aufrufer.
+pub fn spawn_ghost(commands: &mut Commands, models: &ShipModels, kind: ShipKind) -> Entity {
+    let ghost = commands
+        .spawn((Name::new(format!("Geist {kind:?}")), Ghost(kind)))
+        .id();
+    let count = formation(kind.class()).1.len();
+    spawn_group(commands, ghost, &models.get(kind).ship, kind, 0..count);
+    ghost
+}
+
 pub(super) struct ShipPlugin;
 
 impl Plugin for ShipPlugin {
@@ -241,7 +262,7 @@ fn prepare_instance(
     mut commands: Commands,
     hulls: Query<(&ChildOf, Option<&HullWear>), With<Hull>>,
     groups: Query<(&ChildOf, &Children, Has<Wreck>), With<ShipModel>>,
-    mut ships: Query<(&Ship, &ToonState, &mut ShipMaterials)>,
+    mut ships: Query<(Option<&Ship>, Has<Ghost>, &ToonState, &mut ShipMaterials)>,
     children: Query<&Children>,
     parts: Query<&MeshMaterial3d<ToonMaterial>>,
     mut materials: ResMut<Assets<ToonMaterial>>,
@@ -253,7 +274,7 @@ fn prepare_instance(
         return;
     };
     let ship_entity = group_of.parent();
-    let Ok((ship, state, mut own)) = ships.get_mut(ship_entity) else {
+    let Ok((ship, ghost, state, mut own)) = ships.get_mut(ship_entity) else {
         return;
     };
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
@@ -262,8 +283,8 @@ fn prepare_instance(
         let Ok(template) = parts.get(part) else {
             continue;
         };
-        // Schiffe lassen sich anklicken (`crate::scene::picking`), Trümmer nicht.
-        if !is_wreck {
+        // Schiffe lassen sich anklicken (`crate::scene::picking`), Trümmer und Geister nicht.
+        if !is_wreck && !ghost {
             commands.entity(part).insert(Pickable::default());
         }
         let copy = copies.entry(template.id()).or_insert_with(|| {
@@ -271,7 +292,8 @@ fn prepare_instance(
                 .get(template.id())
                 .expect("Toon-Material der Vorlage")
                 .clone();
-            material.livery = livery(ship.kind);
+            material.livery = ship.is_some_and(|ship| livery(ship.kind));
+            material.ghost = ghost;
             state.apply(&mut material);
             if let Some(wear) = wear {
                 wear.apply(&mut material);

@@ -5,6 +5,7 @@
 //!   weg, verschwindet es;
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
 //!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]);
+//! - der Geist des Flaggschiffs ([`Ghost`]) in der Zielspalte, solange die Manöver-Station besetzt ist;
 //! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
 //!   Balken; Brand, Notfall, Stillstand und Funkstille dazu als Icons in der Beschriftung.
 //!
@@ -14,7 +15,7 @@
 
 use bevy::prelude::*;
 use voidfleet_core::{
-    admirals::AdmiralId,
+    admirals::{AdmiralId, Station},
     battle::{Battle as CoreBattle, Enemy},
     events::{Hit, UnitRef, UnitStats},
 };
@@ -22,10 +23,10 @@ use voidfleet_core::{
 use super::{
     aura::ShipAura,
     board::{BoardEntities, OnSlot, place},
-    coords::SlotRef,
+    coords::{Side, SlotRef},
     labels::ShipCaption,
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
-    ship::{Ship, spawn_ship},
+    ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
 };
 use crate::{
@@ -68,12 +69,12 @@ impl Plugin for SyncPlugin {
             .init_resource::<BoardFocus>()
             .add_systems(
                 OnEnter(BoardMode::Planning),
-                sync_ships.run_if(not(resource_exists::<Scripted>)),
+                (sync_ships, sync_ghost).run_if(not(resource_exists::<Scripted>)),
             )
-            .add_systems(OnEnter(BoardMode::Playback), clear_preview)
+            .add_systems(OnEnter(BoardMode::Playback), (clear_preview, clear_ghost))
             .add_systems(
                 Update,
-                sync_ships
+                (sync_ships, sync_ghost)
                     .run_if(board_changed)
                     .in_set(SyncSystems)
                     .run_if(in_state(BoardMode::Planning))
@@ -290,6 +291,55 @@ pub fn sync_ships(
     }
 }
 
+/// Wohin das Flaggschiff manövrieren wird: die Zielspalte, solange die Manöver-Station besetzt ist und sie woanders
+/// liegt.
+fn ghost_slot(battle: &CoreBattle) -> Option<SlotRef> {
+    let flagship = &battle.flagship;
+    (!flagship.jumped
+        && flagship.stations.contains(&Station::Maneuver)
+        && flagship.maneuver_column != flagship.column)
+        .then_some(SlotRef::player(flagship.maneuver_column))
+}
+
+/// Stellt den Geist des Flaggschiffs in die Zielspalte des Manövers oder nimmt ihn weg.
+fn sync_ghost(
+    mut commands: Commands,
+    battle: Option<Res<Battle>>,
+    models: Res<ShipModels>,
+    board: Res<BoardEntities>,
+    ghosts: Query<(Entity, &Ghost, &ChildOf)>,
+) {
+    let wanted = battle.and_then(|battle| {
+        let kind = ShipKind::Flagship(battle.flagship.admiral.flagship());
+        ghost_slot(&battle).map(|slot| (kind, board.anchor(slot)))
+    });
+    let mut kept = false;
+    for (entity, ghost, child_of) in &ghosts {
+        match wanted {
+            Some((kind, anchor)) if ghost.0 == kind && !kept => {
+                kept = true;
+                if child_of.parent() != anchor {
+                    commands.entity(entity).insert(ChildOf(anchor));
+                }
+            }
+            _ => commands.entity(entity).despawn(),
+        }
+    }
+    if let Some((kind, anchor)) = wanted.filter(|_| !kept) {
+        let ghost = spawn_ghost(&mut commands, &models, kind);
+        commands
+            .entity(ghost)
+            .insert((ChildOf(anchor), ToonState::facing(Side::Player)));
+    }
+}
+
+/// Die Wiedergabe übernimmt: Der Geist geht, das Flaggschiff fliegt selbst hin.
+fn clear_ghost(mut commands: Commands, ghosts: Query<Entity, With<Ghost>>) {
+    for ghost in &ghosts {
+        commands.entity(ghost).despawn();
+    }
+}
+
 /// Das Visier unter dem Ziel der Station, die Marke einer ausweichenden Einheit.
 fn ship_markers(want: &Wanted) -> ShipMarkers {
     ShipMarkers(
@@ -335,6 +385,18 @@ mod tests {
             wanted_ships(&battle, &*locale, &BoardFocus::default()).len(),
             3
         );
+    }
+
+    /// Der Geist steht nur bei besetzter Manöver-Station und nur in einer anderen Spalte.
+    #[test]
+    fn ghost_marks_the_maneuver() {
+        let mut battle = fixture_battle(AdmiralId::Kerr);
+        battle.flagship.maneuver_column = 2;
+        assert_eq!(ghost_slot(&battle), None);
+        battle.flagship.stations = vec![Station::Maneuver];
+        assert_eq!(ghost_slot(&battle), Some(SlotRef::player(2)));
+        battle.flagship.maneuver_column = battle.flagship.column;
+        assert_eq!(ghost_slot(&battle), None);
     }
 
     #[test]
