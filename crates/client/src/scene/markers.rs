@@ -1,12 +1,11 @@
-//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): der Ring unter dem Flaggschiff in der
-//! Farbe seines Admirals und das Visier aus Ring und vier Spitzen unter dem Ziel der Station. Die übrigen Glyphen
-//! (Fadenkreuz mit Rauten, Stacheln, Zielklammern, kreisende Drohnen, Uhr, Leuchtring, Bereitschaft) stehen für die
-//! erzählte Wiedergabe bereit.
+//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): das Visier aus Ring und vier Spitzen
+//! unter dem Ziel der Station. Die übrigen Glyphen (Fadenkreuz mit Rauten, Stacheln, Zielklammern, kreisende Drohnen,
+//! Uhr, Leuchtring, Bereitschaft) stehen für die erzählte Wiedergabe bereit.
 //!
-//! Welche Marken ein Schiff trägt, steht in [`ShipMarkers`] (der Ring der Flaggschiffe kommt von selbst dazu); eine Marke,
-//! die schon liegt, bleibt liegen, damit ihre Drehung nicht springt. In der Wiedergabe fällt eine neue Marke mit
-//! [`DropMarker`] auf das Schiff herab. Jede Marke besteht aus flachen Scheiben mit gezeichneter Textur, die sich drehen
-//! oder pulsieren; ihr Halter ist auf die Grundfläche des Schiffs gestreckt und hängt an dessen Boden.
+//! Welche Marken ein Schiff trägt, steht in [`ShipMarkers`]; eine Marke, die schon liegt, bleibt liegen, damit ihre
+//! Drehung nicht springt. In der Wiedergabe fällt eine neue Marke mit [`DropMarker`] auf das Schiff herab. Jede Marke
+//! besteht aus flachen Scheiben mit gezeichneter Textur, die sich drehen oder pulsieren; ihr Halter ist auf die
+//! Grundfläche des Schiffs gestreckt und hängt an dessen Boden.
 
 use std::f32::consts::{FRAC_PI_4, TAU};
 
@@ -16,19 +15,12 @@ use super::{
     animation::{Animation, AnimationSystems},
     fx::{FxAssets, FxMaterial, glowing},
     paint::{Canvas, around, dashed_ring, disc, polygon, rect, ring, unrotate},
-    ship::Ship,
     status::{ShipBounds, ShipParts},
-};
-use crate::{
-    data::{admirals::flagship_admiral, ship_models::ShipKind},
-    palette::admiral_color,
 };
 
 /// Die Marken.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MarkerKind {
-    /// Ring unter einem Flaggschiff.
-    Halo,
     /// Zielerfassung der Pendulum.
     Lock,
     /// Ablenkung: Hierher zielt das Feuer.
@@ -53,16 +45,6 @@ impl MarkerKind {
         }
         const STILL: (f32, f32) = (0.0, 0.0);
         match self {
-            Self::Halo => (
-                0.8,
-                0.8,
-                const {
-                    &[
-                        layer(Halo, 0.0, (0.45, 0.02)),
-                        layer(HaloDashes, 0.18, STILL),
-                    ]
-                },
-            ),
             Self::Lock => (
                 0.6,
                 0.95,
@@ -147,8 +129,6 @@ struct Layer {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Glyph {
-    Halo,
-    HaloDashes,
     Lock,
     LockRing,
     Spikes,
@@ -164,9 +144,7 @@ enum Glyph {
 }
 
 impl Glyph {
-    const ALL: [Self; 14] = [
-        Self::Halo,
-        Self::HaloDashes,
+    const ALL: [Self; 12] = [
         Self::Lock,
         Self::LockRing,
         Self::Spikes,
@@ -270,20 +248,6 @@ fn draw(glyph: Glyph) -> Image {
     let p = Vec2::new;
     let spin = |index: usize, count: usize| index as f32 / count as f32 * TAU;
     match glyph {
-        Glyph::Halo => {
-            canvas.fill_with(radial(
-                0.5,
-                1.0,
-                &[(0.0, 0.0), (0.62, 0.55), (0.7, 0.25), (1.0, 0.0)],
-            ));
-            canvas.fill(white, ring(0.86, 0.025));
-        }
-        Glyph::HaloDashes => canvas.fill(white, |point| {
-            (0..24).any(|index| {
-                let length = if index % 3 == 0 { 0.08 } else { 0.04 };
-                rect(-0.012, -0.97, 0.024, length)(unrotate(point, spin(index, 24)))
-            })
-        }),
         Glyph::Lock => {
             canvas.fill(white, ring(0.8, 0.035));
             let bar = rect(-0.022, -0.99, 0.044, 0.34);
@@ -390,22 +354,15 @@ fn draw(glyph: Glyph) -> Image {
 /// Legt genau die Marken, die das Schiff tragen soll; liegende gleiche bleiben.
 fn reconcile(
     mut commands: Commands,
-    ships: Query<
-        (Entity, &Ship, &ShipMarkers, &ShipParts),
-        Or<(Changed<ShipMarkers>, Added<ShipParts>)>,
-    >,
+    ships: Query<(Entity, &ShipMarkers, &ShipParts), Or<(Changed<ShipMarkers>, Added<ShipParts>)>>,
     children: Query<&Children>,
     markers: Query<(Entity, &FloorMarker)>,
     fx: Res<FxAssets>,
     textures: Res<GlyphTextures>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
-    for (ship_entity, ship, specs, parts) in &ships {
-        let mut wanted = specs.0.clone();
-        if let ShipKind::Flagship(flagship) = ship.kind {
-            let color = admiral_color(flagship_admiral(flagship));
-            wanted.push(MarkerSpec::new(MarkerKind::Halo, color));
-        }
+    for (ship_entity, specs, parts) in &ships {
+        let wanted = &specs.0;
         let lying: Vec<(Entity, MarkerSpec)> = markers
             .iter_many(children.relationship_sources::<Children>(parts.floor))
             .matched()
@@ -416,7 +373,7 @@ fn reconcile(
                 commands.entity(*entity).despawn();
             }
         }
-        for spec in wanted {
+        for &spec in wanted {
             if lying.iter().any(|(_, lying)| *lying == spec) {
                 continue;
             }

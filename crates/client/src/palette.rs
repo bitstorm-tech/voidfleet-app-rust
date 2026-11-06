@@ -42,8 +42,8 @@ pub const FLAGSHIP_TRIM: Color = hex(0xF4D68C);
 pub const TEXT: Color = Color::srgb(242.0 / 255.0, 247.0 / 255.0, 1.0);
 pub const TEXT_DIM: Color = Color::srgba(199.0 / 255.0, 219.0 / 255.0, 250.0 / 255.0, 0.92);
 
-/// Akzentfarbe eines Admirals: Auswahlkarte, Fähigkeitskarte, Banner, die Marken seiner Fähigkeit und der Ring unter
-/// seinem Flaggschiff. Die Modelle der Flaggschiffe tragen dieselben Töne.
+/// Akzentfarbe eines Admirals: Auswahlkarte, Fähigkeitskarte, Banner und die Marken seiner Fähigkeit. Die Modelle der
+/// Flaggschiffe tragen dieselben Töne.
 pub const fn admiral_color(admiral: AdmiralId) -> Color {
     match admiral {
         AdmiralId::Osei => hex(0xE8A33A),
