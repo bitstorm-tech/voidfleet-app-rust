@@ -20,15 +20,14 @@ pub struct Battle(pub battle::Battle);
 /// Was der Spieler im Spielerzug tun kann.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerAction {
-    /// Startspalte vor der ersten Aktion in Runde 1.
     PlayCard {
         hand_index: usize,
         target: Target,
     },
-    SetStation(Station),
+    /// Besetzt eine Station oder gibt sie frei; die besetzten laufen beim Zugende.
+    ToggleStation(Station),
     SetTarget(u32),
     SetColumn(usize),
-    TriggerStation,
     EndTurn,
 }
 
@@ -63,13 +62,12 @@ pub fn apply(
 ) -> Result<Vec<BattleEvent>, RuleError> {
     match action {
         PlayerAction::PlayCard { hand_index, target } => battle.play_card(hand_index, target),
-        PlayerAction::SetStation(station) => battle.set_station(station).map(|()| Vec::new()),
+        PlayerAction::ToggleStation(station) => battle.toggle_station(station).map(|()| Vec::new()),
         PlayerAction::SetTarget(uid) => battle.set_target(uid).map(|()| Vec::new()),
         PlayerAction::SetColumn(column) => {
             battle.set_column(column);
             Ok(Vec::new())
         }
-        PlayerAction::TriggerStation => battle.trigger_station(),
         PlayerAction::EndTurn => Ok(battle.end_turn()),
     }
 }
@@ -173,7 +171,7 @@ mod tests {
 
     use super::*;
 
-    /// Das Gefecht beginnt mit drei Gegnern und voller Hand; Waffen auf den Wachkreuzer lösen aus und treffen.
+    /// Das Gefecht beginnt mit drei Gegnern und voller Hand; Waffen auf den Wachkreuzer treffen beim Zugende.
     #[test]
     fn test_battle_plays() {
         let mut battle = fixture_battle(AdmiralId::Osei);
@@ -181,17 +179,12 @@ mod tests {
         assert_eq!(battle.hand.len(), 5);
         let uid = battle.enemies[0].uid;
         apply(&mut battle, PlayerAction::SetTarget(uid)).unwrap();
-        let events = apply(&mut battle, PlayerAction::TriggerStation).unwrap();
+        let events = apply(&mut battle, PlayerAction::EndTurn).unwrap();
         assert!(
             events
                 .iter()
                 .any(|event| matches!(event, BattleEvent::Hit { .. }))
         );
-        assert_eq!(
-            apply(&mut battle, PlayerAction::TriggerStation),
-            Err(RuleError::NoStationLeft)
-        );
-        let events = apply(&mut battle, PlayerAction::EndTurn).unwrap();
         assert!(
             events
                 .iter()

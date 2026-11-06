@@ -133,10 +133,10 @@ fn example_round_hammer() {
     assert_eq!((torpedo.base, torpedo.armor, torpedo.hull), (6, 2, 4));
     assert_eq!(b.enemy(besieger).unwrap().hull, 18);
 
-    b.set_station(Station::Admiral).unwrap();
+    b.toggle_station(Station::Admiral).unwrap();
     b.set_target(besieger).unwrap();
-    let preview = b.preview_station().unwrap();
-    let events = b.trigger_station().unwrap();
+    let preview = b.preview_stations();
+    let events = b.end_turn();
     let focus = hits_on(&events, enemy_ref(besieger));
     assert_eq!(
         preview.iter().map(|h| h.breakdown).collect::<Vec<_>>(),
@@ -152,9 +152,7 @@ fn example_round_hammer() {
         (20, 2, 18, true)
     );
     assert!(b.enemy(besieger).is_none());
-    assert_eq!((b.kills, b.flagship.target, b.points), (1, None, 0));
-
-    let events = b.end_turn();
+    assert_eq!((b.kills, b.flagship.target), (1, None));
     assert!(events.contains(&BattleEvent::SelfDamage {
         amount: 3,
         after: voidfleet_core::events::UnitStats {
@@ -176,7 +174,7 @@ fn example_round_safe() {
     let besieger = uid(&b, EnemyId::Besieger);
     play(&mut b, CardId::Torpedo, Target::Enemy(besieger));
     play(&mut b, CardId::EmergencyShields, Target::None);
-    b.set_station(Station::Maneuver).unwrap();
+    b.toggle_station(Station::Maneuver).unwrap();
     b.set_column(0);
     let events = b.end_turn();
     assert!(events.contains(&BattleEvent::Maneuvered { from: 1, to: 0 }));
@@ -217,8 +215,8 @@ fn damage_order_with_evade_armor_cover_and_shield() {
     unit(&mut b, EnemyId::GuardCruiser).shield = 2;
     assert!(b.covered(besieger));
     b.set_target(besieger).unwrap();
-    let preview = b.preview_station().unwrap();
-    let events = b.trigger_station().unwrap();
+    let preview = b.preview_stations();
+    let events = b.end_turn();
     // 11, ausgewichen −5, Panzerung −2, gedeckt: 2 an den Wachkreuzer, Schild 1, Hülle 1.
     let expected = Breakdown {
         base: 11,
@@ -244,18 +242,17 @@ fn burn_and_burned_out() {
     let mut b = battle(AdmiralId::Vance, &[(EnemyId::GuardCruiser, Row::Front, 0)]);
     let cruiser = uid(&b, EnemyId::GuardCruiser);
     b.set_target(cruiser).unwrap();
-    let events = b.trigger_station().unwrap();
+    b.flagship.burning = true;
+    let events = b.end_turn();
     assert!(
         events
             .iter()
             .any(|e| matches!(e, BattleEvent::Ignited { .. }))
     );
-    b.flagship.burning = true;
-    b.end_turn();
     assert_eq!(b.enemy(cruiser).unwrap().hull, 16 - 11 - 2);
     assert_eq!(b.flagship.hull, 50 - 4 - 2);
 
-    b.set_station(Station::DamageControl).unwrap();
+    b.toggle_station(Station::DamageControl).unwrap();
     unit(&mut b, EnemyId::GuardCruiser).hull = 2;
     let events = b.end_turn();
     assert!(events.contains(&BattleEvent::Extinguished {
@@ -276,10 +273,8 @@ fn reyes_plasma_and_ember() {
     let mut b = battle(AdmiralId::Reyes, &[(EnemyId::Besieger, Row::Front, 0)]);
     let besieger = uid(&b, EnemyId::Besieger);
     b.set_target(besieger).unwrap();
-    b.trigger_station().unwrap();
-    assert!(b.enemy(besieger).unwrap().burning);
-    b.set_station(Station::Shields).unwrap();
     b.end_turn();
+    assert!(b.enemy(besieger).unwrap().burning);
     assert_eq!(b.enemy(besieger).unwrap().hull, 30 - 7 - 3);
 }
 
@@ -298,11 +293,11 @@ fn emergency_halves_attack_and_ends_evade() {
     b.flagship.hull = 12;
     assert_eq!(b.flagship_attack(), 6);
     assert_eq!(
-        b.set_station(Station::Admiral),
+        b.toggle_station(Station::Admiral),
         Err(RuleError::AdmiralStationInEmergency)
     );
     b.set_target(cruiser).unwrap();
-    let hit = b.preview_station().unwrap()[0].breakdown;
+    let hit = b.preview_stations()[0].breakdown;
     assert_eq!((hit.base, hit.evaded, hit.lethal), (6, 0, true));
 }
 
@@ -311,10 +306,8 @@ fn counterfire_and_hold_the_line() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::GuardCruiser, Row::Front, 1)]);
     let cruiser = uid(&b, EnemyId::GuardCruiser);
     give(&mut b, &[CardId::HoldTheLine]);
-    b.set_station(Station::Admiral).unwrap();
-    b.trigger_station().unwrap();
+    b.toggle_station(Station::Admiral).unwrap();
     play(&mut b, CardId::HoldTheLine, Target::None);
-    assert_eq!(b.flagship.shield, 11);
     let events = b.end_turn();
     assert_eq!(hits_on(&events, UnitRef::Flagship)[0].shielded, 4);
     assert!(
@@ -344,7 +337,7 @@ fn micro_jump() {
     let events = play(&mut b, CardId::MicroJump, Target::None);
     assert!(events.contains(&BattleEvent::Jumped));
     b.set_target(uid(&b, EnemyId::GuardCruiser)).unwrap();
-    assert_eq!(b.trigger_station(), Err(RuleError::Jumped));
+    assert_eq!(b.can_run(Station::Weapons), Err(RuleError::Jumped));
     let events = b.end_turn();
     let misses = events
         .iter()
@@ -369,15 +362,32 @@ fn red_alert_two_stations() {
     give(&mut b, &[CardId::RedAlert]);
     play(&mut b, CardId::RedAlert, Target::None);
     b.set_target(uid(&b, EnemyId::Besieger)).unwrap();
-    b.trigger_station().unwrap();
-    assert_eq!(b.can_trigger(), Err(RuleError::StationUsed));
-    b.set_station(Station::Shields).unwrap();
-    b.trigger_station().unwrap();
-    b.set_station(Station::DamageControl).unwrap();
-    assert_eq!(b.can_trigger(), Err(RuleError::NoStationLeft));
-    assert_eq!(b.flagship.shield, 8);
-    b.end_turn();
+    b.toggle_station(Station::Shields).unwrap();
+    assert_eq!(b.flagship.stations, [Station::Weapons, Station::Shields]);
+    // Voll: Die zuerst gewählte weicht; die letzte lässt sich nicht freigeben.
+    b.toggle_station(Station::DamageControl).unwrap();
+    assert_eq!(
+        b.flagship.stations,
+        [Station::Shields, Station::DamageControl]
+    );
+    b.toggle_station(Station::DamageControl).unwrap();
+    b.toggle_station(Station::Shields).unwrap();
+    assert_eq!(b.flagship.stations, [Station::Shields]);
+    b.toggle_station(Station::Weapons).unwrap();
+    let events = b.end_turn();
+    let ran: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            BattleEvent::StationTriggered { station } => Some(*station),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ran, [Station::Shields, Station::Weapons]);
     assert_eq!(b.flagship.momentum, 0);
+    assert_eq!(
+        (b.flagship.stations.as_slice(), b.flagship.station_slots),
+        (&[Station::Shields][..], 1)
+    );
 }
 
 #[test]
@@ -388,7 +398,7 @@ fn stasis_delays_intent_and_keeps_charge() {
     enemy.charged = true;
     enemy.intents = [Action::ColumnFire { columns: MID }, Action::Shields(10)];
     enemy.step = 3;
-    b.set_station(Station::Admiral).unwrap();
+    b.toggle_station(Station::Admiral).unwrap();
     b.set_target(besieger).unwrap();
     let events = b.end_turn();
     assert!(events.iter().any(|e| matches!(
@@ -422,19 +432,18 @@ fn follow_up() {
     unit(&mut b, EnemyId::GuardCruiser).burning = true;
     unit(&mut b, EnemyId::Raiders).burning = true;
     give(&mut b, &[CardId::Firebomb]);
-    b.set_station(Station::Admiral).unwrap();
-    b.trigger_station().unwrap();
-    assert_eq!(b.enemy(cruiser).unwrap().hull, 10);
-    assert_eq!(unit(&mut b, EnemyId::Raiders).hull, 2);
-    assert_eq!(unit(&mut b, EnemyId::PlasmaCruiser).hull, 14);
+    b.toggle_station(Station::Admiral).unwrap();
     play(&mut b, CardId::Firebomb, Target::Enemy(cruiser));
-    assert_eq!(b.enemy(cruiser).unwrap().hull, 6);
+    assert_eq!(b.enemy(cruiser).unwrap().hull, 12);
+    let hits = b.preview_stations();
+    assert_eq!(hits.len(), 2);
+    assert_eq!((hits[0].breakdown.hull, hits[1].breakdown.hull), (6, 6));
 }
 
 #[test]
 fn carrier_calls_reinforcement() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::Carrier, Row::Front, 1)]);
-    b.set_station(Station::Shields).unwrap();
+    b.toggle_station(Station::Shields).unwrap();
     b.end_turn();
     let events = b.end_turn();
     assert!(events.iter().any(|e| matches!(
@@ -461,7 +470,7 @@ fn carrier_calls_reinforcement() {
 #[test]
 fn fireship_rams_and_vanishes() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::Fireship, Row::Front, 0)]);
-    b.set_station(Station::DamageControl).unwrap();
+    b.toggle_station(Station::DamageControl).unwrap();
     b.end_turn();
     b.end_turn();
     assert_eq!(b.enemies[0].intents[0], Action::Ram);
@@ -480,7 +489,7 @@ fn fireship_rams_and_vanishes() {
 fn warden_fires_on_two_columns() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::Warden, Row::Back, 1)]);
     let warden = uid(&b, EnemyId::Warden);
-    b.set_station(Station::Shields).unwrap();
+    b.toggle_station(Station::Shields).unwrap();
     b.end_turn();
     let columns = [true, true, false];
     assert_eq!(
@@ -490,7 +499,7 @@ fn warden_fires_on_two_columns() {
     assert_eq!(b.announced(warden)[1].damage, 30);
     b.end_turn();
     assert_eq!(b.announced(warden)[0].damage, 30);
-    b.set_station(Station::Maneuver).unwrap();
+    b.toggle_station(Station::Maneuver).unwrap();
     b.set_column(0);
     let events = b.end_turn();
     assert_eq!(hits_on(&events, UnitRef::Flagship)[0].hull, 30);
@@ -509,13 +518,12 @@ fn scrap_king_cannibalizes() {
     );
     unit(&mut b, EnemyId::ScrapKing).hull = 40;
     b.set_target(uid(&b, EnemyId::Raiders)).unwrap();
-    let events = b.trigger_station().unwrap();
+    let events = b.end_turn();
     assert!(
         events
             .iter()
             .any(|e| matches!(e, BattleEvent::Cannibalized { amount: 8, .. }))
     );
-    assert_eq!(unit(&mut b, EnemyId::ScrapKing).hull, 48);
 }
 
 #[test]
@@ -530,7 +538,7 @@ fn seal_bolt_and_replacements() {
     b.replacements = vec![EnemyId::Raiders];
     unit(&mut b, EnemyId::GuardCruiser).hull = 5;
     b.set_target(uid(&b, EnemyId::GuardCruiser)).unwrap();
-    let events = b.trigger_station().unwrap();
+    let events = b.end_turn();
     assert!(
         events
             .iter()
@@ -542,8 +550,6 @@ fn seal_bolt_and_replacements() {
     );
     assert!(b.replacements.is_empty());
 
-    b.set_station(Station::Shields).unwrap();
-    b.end_turn();
     assert_eq!(b.flagship.hull, 42);
     let events = b.end_turn();
     assert!(events.iter().any(|e| matches!(
@@ -565,7 +571,7 @@ fn seal_bolt_and_replacements() {
 #[test]
 fn deck_cycles_through_discard_and_doctrines_leave() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::Spotter, Row::Back, 0)]);
-    b.set_station(Station::Shields).unwrap();
+    b.toggle_station(Station::Shields).unwrap();
     assert_eq!((b.hand.len(), b.draw_pile.len()), (5, 5));
     b.end_turn();
     assert_eq!(
@@ -596,7 +602,7 @@ fn battle_clock_and_spotter() {
     let cruiser = uid(&b, EnemyId::GuardCruiser);
     assert_eq!(b.announced(cruiser)[0].damage, 5);
     b.round = 7;
-    b.set_station(Station::Shields).unwrap();
+    b.toggle_station(Station::Shields).unwrap();
     let events = b.end_turn();
     assert!(events.contains(&BattleEvent::Clock { bonus: 1 }));
     assert_eq!(b.announced(cruiser)[0].damage, 6);
@@ -662,7 +668,7 @@ fn emergency_generator_and_defeat() {
     let mut b = battle(AdmiralId::Vance, &[(EnemyId::GuardCruiser, Row::Front, 0)]);
     b.emergency_generator_available = true;
     b.flagship.hull = 3;
-    b.set_station(Station::Maneuver).unwrap();
+    b.toggle_station(Station::Maneuver).unwrap();
     b.set_column(0);
     let events = b.end_turn();
     assert!(

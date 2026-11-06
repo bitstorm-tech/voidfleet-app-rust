@@ -205,10 +205,6 @@ impl Messages for De {
         "ATK"
     }
 
-    fn hud_trigger(&self) -> &'static str {
-        "Station auslösen"
-    }
-
     fn hud_clock(&self, bonus: i32) -> String {
         format!("Gefechtsuhr +{bonus} ATK")
     }
@@ -251,8 +247,11 @@ impl Messages for De {
         format!("Nach: {}", self.column_name(column))
     }
 
-    fn hud_station_done(&self) -> &'static str {
-        "Station lief in dieser Runde"
+    fn checklist_free_stations(&self, count: usize) -> String {
+        match count {
+            1 => "1 Station frei".to_owned(),
+            _ => format!("{count} Stationen frei"),
+        }
     }
 
     fn checklist_station(&self, station: &str) -> String {
@@ -519,8 +518,6 @@ impl Messages for De {
             RuleError::NotEnoughPoints => "Nicht genug Befehlspunkte.",
             RuleError::TargetRequired => "Erst ein Ziel wählen.",
             RuleError::TargetInvalid => "Kein gültiges Ziel.",
-            RuleError::NoStationLeft => "Keine Station mehr in dieser Runde.",
-            RuleError::StationUsed => "Diese Station lief in dieser Runde schon.",
             RuleError::AdmiralStationInEmergency => "Brücke getroffen: keine Admiralsstation.",
             RuleError::Jumped => "Das Flaggschiff ist im Kurzsprung.",
             RuleError::SameColumn => "Das Flaggschiff steht schon in dieser Spalte.",

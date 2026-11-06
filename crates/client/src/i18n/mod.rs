@@ -133,7 +133,6 @@ pub trait Messages: Sync {
     fn hud_round(&self, round: u32) -> String;
     fn hud_new_round(&self) -> &'static str;
     fn hud_end_turn(&self) -> &'static str;
-    fn hud_trigger(&self) -> &'static str;
     fn hud_skip(&self) -> &'static str;
     fn hud_show_log(&self) -> &'static str;
     fn hud_hide_log(&self) -> &'static str;
@@ -149,7 +148,7 @@ pub trait Messages: Sync {
     fn hud_no_target(&self) -> &'static str;
     fn hud_column(&self, column: usize) -> String;
     /// Die Station dieser Runde ist gelaufen.
-    fn hud_station_done(&self) -> &'static str;
+    fn checklist_free_stations(&self, count: usize) -> String;
     fn checklist_station(&self, station: &str) -> String;
     fn checklist_target(&self) -> &'static str;
     fn checklist_column(&self) -> &'static str;

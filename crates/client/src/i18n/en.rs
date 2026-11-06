@@ -206,10 +206,6 @@ impl Messages for En {
         "ATK"
     }
 
-    fn hud_trigger(&self) -> &'static str {
-        "Fire station"
-    }
-
     fn hud_clock(&self, bonus: i32) -> String {
         format!("Battle clock +{bonus} ATK")
     }
@@ -252,8 +248,11 @@ impl Messages for En {
         format!("Move to: {}", self.column_name(column))
     }
 
-    fn hud_station_done(&self) -> &'static str {
-        "Station done this round"
+    fn checklist_free_stations(&self, count: usize) -> String {
+        match count {
+            1 => "1 station free".to_owned(),
+            _ => format!("{count} stations free"),
+        }
     }
 
     fn checklist_station(&self, station: &str) -> String {
@@ -510,8 +509,6 @@ impl Messages for En {
             RuleError::NotEnoughPoints => "Not enough command points.",
             RuleError::TargetRequired => "Choose a target first.",
             RuleError::TargetInvalid => "Not a valid target.",
-            RuleError::NoStationLeft => "No station left this round.",
-            RuleError::StationUsed => "This station already ran this round.",
             RuleError::AdmiralStationInEmergency => "Bridge hit: no admiral station.",
             RuleError::Jumped => "The flagship is in micro jump.",
             RuleError::SameColumn => "The flagship is already in this column.",

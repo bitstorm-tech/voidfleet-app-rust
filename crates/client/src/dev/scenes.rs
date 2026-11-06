@@ -177,7 +177,7 @@ fn stage(
         DevScene::Board => {
             let run = super::dev_run(AdmiralId::Kerr, true);
             let mut battle = Battle(run.start_battle());
-            battle.flagship.station = Station::Weapons;
+            battle.flagship.stations = vec![Station::Weapons];
             battle.flagship.target = battle.enemies.first().map(|enemy| enemy.uid);
             commands.insert_resource(run);
             commands.insert_resource(battle);

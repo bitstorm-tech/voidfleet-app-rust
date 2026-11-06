@@ -167,8 +167,6 @@ fn preloaded<T>(world: &mut World, load: impl FnOnce(&AssetServer, &mut Preload)
 /// Die Aktionsknöpfe neben den Stationen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HudAction {
-    /// „Auslösen“: die eingestellte Station jetzt.
-    Trigger,
     /// „Zug beenden“ (während einer Wiedergabe „Überspringen“).
     EndTurn,
     Skip,

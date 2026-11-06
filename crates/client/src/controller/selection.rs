@@ -7,7 +7,7 @@
 //!   sofort beim Klick auf die Hand.
 
 use voidfleet_core::{
-    admirals::{AdmiralStation, Station},
+    admirals::Station,
     battle::{Battle, RuleError, Target},
     cards::CardTarget,
     events::{Hit, UnitRef},
@@ -48,16 +48,13 @@ pub enum Outcome {
     Nothing,
 }
 
-/// Ob die eingestellte Station ein gegnerisches Ziel braucht.
+/// Ob eine besetzte Station ein gegnerisches Ziel braucht.
 pub fn station_needs_target(battle: &Battle) -> bool {
-    match battle.flagship.station {
-        Station::Weapons => true,
-        Station::Admiral => matches!(
-            battle.flagship.admiral.station(),
-            AdmiralStation::FocusFire | AdmiralStation::Stasis
-        ),
-        _ => false,
-    }
+    let flagship = &battle.flagship;
+    flagship
+        .stations
+        .iter()
+        .any(|&station| flagship.needs_target(station))
 }
 
 /// Die Einheit auf einem Slot der Gegnerseite.
@@ -117,7 +114,7 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
             }
             Some(_) => Outcome::Nothing,
             None if slot.side == Side::Enemy => Outcome::Nothing,
-            None if battle.flagship.station == Station::Maneuver => {
+            None if battle.flagship.stations.contains(&Station::Maneuver) => {
                 Outcome::Act(PlayerAction::SetColumn(slot.column))
             }
             None => Outcome::Nothing,
@@ -154,7 +151,7 @@ pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
             if station_needs_target(battle) {
                 slots.extend(enemies().map(|(_, slot)| SlotRef::enemy(slot)));
             }
-            if battle.flagship.station == Station::Maneuver {
+            if battle.flagship.stations.contains(&Station::Maneuver) {
                 slots.extend(columns().map(SlotRef::player));
             }
             slots
@@ -175,7 +172,7 @@ pub fn preview(
         Selection::Idle if station_needs_target(battle) => {
             let mut copy = battle.clone();
             copy.set_target(uid).ok()?;
-            copy.preview_station()?
+            copy.preview_stations()
         }
         Selection::Idle => return None,
     };
@@ -294,7 +291,7 @@ mod tests {
             click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
             Outcome::Nothing
         );
-        battle.flagship.station = Station::Maneuver;
+        battle.flagship.stations = vec![Station::Maneuver];
         assert_eq!(
             click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
             Outcome::Act(PlayerAction::SetColumn(2))

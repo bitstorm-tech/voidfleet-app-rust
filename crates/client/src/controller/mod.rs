@@ -297,12 +297,12 @@ fn press_stations(
         if can_act(battle.as_deref(), *mode.get()) {
             selection.set_if_neq(Selection::Idle);
             sounds.write(PlayUiSound(UiSound::Select));
-            actions.write(PlayerAction::SetStation(station));
+            actions.write(PlayerAction::ToggleStation(station));
         }
     }
 }
 
-/// Die Aktionsknöpfe: Station auslösen, Zug beenden, Wiedergabe überspringen.
+/// Die Aktionsknöpfe: Zug beenden, Wiedergabe überspringen.
 fn press_action(
     mut pressed: MessageReader<ActionPressed>,
     battle: Option<Res<Battle>>,
@@ -318,10 +318,6 @@ fn press_action(
                 skip.write(SkipPlayback);
             }
             _ if !can_act(battle.as_deref(), *mode.get()) => {}
-            HudAction::Trigger => {
-                selection.set_if_neq(Selection::Idle);
-                actions.write(PlayerAction::TriggerStation);
-            }
             HudAction::EndTurn => {
                 selection.set_if_neq(Selection::Idle);
                 sounds.write(PlayUiSound(UiSound::Confirm));
