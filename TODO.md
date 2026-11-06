@@ -23,7 +23,6 @@
 - [ ] **Feine Verwitterung auf hochauflösenden Bildschirmen**: Fugen und Kantenabrieb blenden nach der Mip-Stufe in physischen Pixeln aus (`FINE_LOD` in `toon.wesl`), auf Retina zeigt schon das Brett sie; Flimmern in Bewegung ist ungeprüft. Abhilfe wäre ein Bias nach dem Skalierungsfaktor des Fensters.
 - [ ] **Ruß an Waffen** gibt es nur an kreisrunden Mündungsdeckeln (`weather.py`); Läufe ohne Deckel bleiben sauber.
 - [ ] **Größe der GLBs**: 28 MB statt 8 MB, jedes Wrack bettet seine Maske ein zweites Mal ein, und etwa ein Viertel der Texel liegt auf verdeckten Flächen.
-- [ ] **Signal Booster** trägt die hellen Unterstützer-Farben, ist im Spiel aber ein Kreuzer (Spotter).
 - [ ] **Wappen des Siegels**: In der zweiten Kamera (Gegner von vorn oben) verdeckt der Turm es zum Teil.
 - [ ] **Masken-Loader** (`scene/toon/gltf.rs`) ersetzt das Bild unter demselben Label durch die lineare Fassung mit Mip-Kette; Bevy 0.20 erlaubt das, beim nächsten Bevy-Update prüfen.
 

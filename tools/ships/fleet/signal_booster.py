@@ -1,12 +1,12 @@
-"""Signal Booster (im Spiel der Spotter, ein Kreuzer in den Farben der Unterstützer) im Clean-Toon-Stil, detailreiche
+"""Signal Booster (im Spiel der Spotter, ein Kreuzer) im Clean-Toon-Stil, detailreiche
 Fassung nach der Iron Dreadnought.
 
-Primärformen: kantiger, heller Rumpf mit dunklem Gerätedeck (mintgrüne Deckplatte), mintgrüner Bauchplatte und einem
-Lichtband an jeder Flanke. Darauf eine große Schüssel mit leuchtendem Cyan-Rand, mintgrüner Mitte und Sender, auf einem
-Gabelmast mit mintgrünem Joch nach vorn oben gekippt. Um den Rumpf ein Signalring (Stahlband mit Cyan-Streifen ohne
+Primärformen: kantiger Rumpf mit dunklem Gerätedeck (blaue Deckplatte), blauer Bauchplatte und einem
+Lichtband an jeder Flanke. Darauf eine große Schüssel mit leuchtendem Cyan-Rand, blauer Mitte und Sender, auf einem
+Gabelmast mit blauem Joch nach vorn oben gekippt. Um den Rumpf ein Signalring (Stahlband mit Cyan-Streifen ohne
 Glühen, damit der Rand der Schüssel der Blickfang bleibt), den Bug und Heck über den Gondeln tragen; zwei Relaismasten
 (achtern Backbord hoch, vorn Steuerbord niedrig) mit Relaiskasten und Licht; zwei Solarpaneele als ruhige Flächen an
-Auslegern, nach außen geneigt; Kanzel vorn Backbord, Bugemitter, Seitengondeln an Streben mit mintgrünem Band und je
+Auslegern, nach außen geneigt; Kanzel vorn Backbord, Bugemitter, Seitengondeln an Streben mit blauem Band und je
 einer Düse.
 Detailzonen mit Zweck, grob, weil das Schiff im Spiel als Paar zu 0,72 steht und die Konturen dabei gleich breit
 bleiben; dazwischen ruhige Flächen (Rumpfflanken, Bug, Paneele, Gondeln). Breiter wird es nicht: Das Paar ragt bei 0,72
@@ -38,7 +38,7 @@ def relay_mast(s, m, x, y, z0, z1):
 
 def build():
     s = Ship("signal_booster")
-    m = vf.materials(s.name, "support")
+    m = vf.materials(s.name, "cruiser")
     m["cyan"] = vf.light(f"{s.name}_cyan", palette.CYAN)
     m["ring"] = vf.light(f"{s.name}_ring", palette.CYAN, glow=False)
     m["solar"] = vf.toon(f"{s.name}_solar", palette.GLASS)
@@ -56,7 +56,7 @@ def build():
     def deck(y):
         return profile(y)[1]
 
-    # Dunkles Gerätedeck mit schräger Front und mintgrüner Deckplatte, mintgrüne Bauchplatte
+    # Dunkles Gerätedeck mit schräger Front und blauer Deckplatte, blaue Bauchplatte
     s.add(wedge(1.1, 1.9, 0.34), m["dark"], at=(0, 0.3, deck(0.3) + 0.12))
     s.add(plate([(-0.46, 0.1), (0.46, 0.1), (0.46, 1.16), (-0.46, 1.16)], 0.06, "xy"), m["accent"], at=(0, 0, deck(0.3) + 0.3))
     s.add(plate([(-0.42, -1.4), (0.42, -1.4), (0.5, 1.3), (-0.5, 1.3)], 0.12, "xy"), m["accent"], at=(0, 0, -0.5))
@@ -67,7 +67,7 @@ def build():
     s.add(box(1.0, 0.26, 0.18), m["accent"], at=(0, my, yoke))
     s.add(box(0.15, 0.22, hub - yoke + 0.14), m["accent"], at=(0.44, my, (yoke + hub) / 2 + 0.02), mirror=True)
     s.add(axle(0.13, 0.82), m["dark_round"], at=(0, my, hub))
-    # Große Schüssel mit Cyan-Rand, mintgrüner Mitte und Sender, um die Achse nach vorn oben gekippt
+    # Große Schüssel mit Cyan-Rand, blauer Mitte und Sender, um die Achse nach vorn oben gekippt
     g = Ship("dish")
     r, depth, off = 1.22, 0.4, 0.28
     g.add(dish(r, depth, 24, 4, 0.06), m["hull_round"], at=(0, -off, 0))
@@ -100,7 +100,7 @@ def build():
     s.add(loft(smooth([sec(y, rounded(w, h, 0.08, 1), dx=-0.12, dz=deck(y) + h * 0.3) for y, w, h in canopy], 1)), m["glass"])
     s.add(tube(16, 0.22, 0.2, -2.64, -2.42), m["dark_round"])
     s.add(tube(16, 0.15, 0.11, -2.72, -2.6), m["cyan"])
-    # Seitengondeln an Streben mit mintgrünem Band und Düse
+    # Seitengondeln an Streben mit blauem Band und Düse
     gx, gz = 1.3, -0.25
     nacelle = smooth([tip(-1.0), sec(-0.85, superellipse(0.36, 0.36, 16, 2.4)), sec(-0.6, superellipse(0.54, 0.54, 16, 2.4)),
                       sec(-0.3, superellipse(0.6, 0.6, 16, 2.4)), sec(1.0, superellipse(0.62, 0.62, 16, 2.4)),
