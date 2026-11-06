@@ -1,4 +1,4 @@
-"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), Neubau im Clean-Toon-Stil.
+"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), im Clean-Toon-Stil in der detailreichen Fassung (STYLE.md).
 
 Fliegende Festung: breiter Kastenrumpf auf einem gestuften Sockel mit Kiel, davor ein Keilbug, drei Terrassendecks mit
 goldener Zierlinie und Panzerschürzen in Bernstein. Am Bug eine zurückgeneigte Schildwand im Bogen aus ebenen Facetten
@@ -6,7 +6,16 @@ goldener Zierlinie und Panzerschürzen in Bernstein. Am Bug eine zurückgeneigte
 Ecktürme achtern tragen die vier Schildpylone mit Emitterkristall. Achtern der Bergfried als achteckiger Turm mit Krone,
 umlaufendem Fensterband und Mast, davor die Wappenplatte mit Oseis Bernstein-Schild, am Heck drei schwere Düsen und
 zwei kleine an den Deckecken.
-Etwa 4k Dreiecke (das alte Modell hatte 14,5k).
+Detailzonen mit Zweck (Schildtechnik, Panzerlagen, Wartungszugänge), dazwischen ruhige Flächen (Schildfeld, Rumpfflanken
+mit Schürze und Fensterband, Deck um das Wappen, Flächen des Bergfrieds):
+- Schildwand und Bug: Strebepfeiler unter den äußeren Zinnen an der Rückseite, zweite Panzerlage auf dem Sims davor
+- Tortürme: Emitterbank mit drei Linsen vorn außen, Gurtring unter dem Kranz, Wartungstür zur Terrasse
+- Pylone: Bernstein-Kranz, dunkler Fuß mit vier Kondensatorblöcken, Fokusring
+- Terrassen: Energieleitung vom Eckturm zum Torturm mit Anschlusskästen und zwei Schellen
+- Bergfried: zweiflügeliges Tor nach vorn, Lüfter auf dem Sockel, Mast mit Querträger und Radarplatte
+- Achterdeck und Heck: Maschinenlüfter über den Düsen, RCS an den hinteren Rumpfecken, Gehäusesegment und Düsenkranz je
+  Düse (`parts.engine_details`)
+Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
 """
 
 import math
@@ -14,8 +23,8 @@ import math
 from mathutils import Vector
 
 import vf
-from parts import badge, engine, sym, trim_line, trim_loop
-from vf import Ship, box, crystal, grow, keel, loft, octagon, plate, post, rect, sec, sphere, sweep, wedge
+from parts import badge, engine, engine_details, rcs, sym, trim_line, trim_loop, vent
+from vf import Ship, box, crystal, grow, keel, loft, octagon, plate, post, rect, sec, sphere, sweep, tube, wedge
 
 # Schildwand: ein Bogen vom Radius WALL_R um den Bug, aus ebenen, senkrechten Facetten zwischen den Stützstellen WALL_X;
 # in ihrer Baugruppe liegt die Vorderfläche bei y = wall_y(x), eingebaut wird sie bei WALL_AT, um WALL_LEAN Grad nach
@@ -25,6 +34,9 @@ WALL_X = (0.0, 1.2, 2.1, 2.5)
 WALL_DEPTH = 0.45
 WALL_AT = (0.0, -4.95, 0.0)
 WALL_LEAN = 12.0
+# Türme (Steuerbord): Mitte x, y, Fuß und Oberkante; vorn die hohen Tortürme an den Enden der Wand, achtern die Ecktürme
+GATE = (2.5, -2.75, 0.35, 3.2)
+CORNER = (2.3, 2.8, 1.5, 2.15)
 
 
 def wall_y(x):
@@ -92,10 +104,54 @@ def deck_front(z, half_width, inset=0.08):
     return [(x, wall_back(x, z) - inset) for x in xs]
 
 
+def pylon(s, m, x, y, z):
+    """Schildpylon auf einem Turm mit Oberkante z (Steuerbord, gespiegelt): Bernstein-Kranz, rund mit eckiger
+    Deckscheibe (eine runde Deckfläche überschritt in `behind` mit dem Glanzpunkt als Ganzes die Schwelle und leuchtete
+    weiß), dunkler Fuß mit vier Kondensatorblöcken, darauf der Pylon mit Fokusring und Emitterkristall."""
+    s.add(post(20, 0.635, 0.635, z, z + 0.16), m["accent_round"], at=(x, y, 0), mirror=True)
+    s.add(post(20, 0.64, 0.64, z + 0.13, z + 0.17), m["accent"], at=(x, y, 0), mirror=True)
+    s.add(post(8, 0.47, 0.45, z + 0.14, z + 0.46), m["dark"], at=(x, y, 0), mirror=True)
+    for a in range(0, 360, 90):
+        c, d = math.cos(math.radians(a)), math.sin(math.radians(a))
+        s.add(box(0.2, 0.26, 0.28), m["armor"], at=(x + 0.5 * c, y + 0.5 * d, z + 0.24), rot=(0, 0, a), mirror=True)
+    s.add(post(8, 0.32, 0.13, z + 0.16, z + 1.45), m["accent"], at=(x, y, 0), mirror=True)
+    s.add(post(8, 0.27, 0.27, z + 0.9, z + 1.0), m["dark"], at=(x, y, 0), mirror=True)
+    s.add(crystal(0.2, 0.34), m["glow"], at=(x, y, z + 1.66), mirror=True)
+
+
+def emitter_bank(s, m, x, y, r, angle, z0, z1):
+    """Emitterbank außen an einem runden Turm (Mitte x, y, Radius r; Steuerbord, gespiegelt): dunkles Gehäuse in
+    Richtung `angle` (Grad, 0 = +x) von z0 bis z1, darauf drei Linsen in der Akzentfarbe übereinander."""
+    c, d = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+    s.add(box(0.18, 0.34, z1 - z0), m["dark"], at=(x + (r + 0.02) * c, y + (r + 0.02) * d, (z0 + z1) / 2), rot=(0, 0, angle),
+          mirror=True)
+    for k in (1, 2, 3):
+        s.add(tube(16, 0.1, 0.1, -0.03, 0.03), m["accent_round"], at=(x + (r + 0.11) * c, y + (r + 0.11) * d, z0 + (z1 - z0) * k / 4),
+              rot=(0, 0, angle - 90), mirror=True)
+
+
+def gate(s, m, mat, at, w, h, rot, mirror=False):
+    """Tor in einer Wand, lokal Breite x, Höhe y und +z nach außen, `at` die Mitte auf der Wandfläche: flacher Rahmen
+    aus `mat` (dem Material der Wand), dunkle Vertiefung und zwei Flügel (`armor`) mit 0,06 Spalt dazwischen."""
+    g = Ship("gate")
+    bar, gap = 0.07, 0.06
+    g.add(box(w - bar, h - bar, 0.04), m["dark"], at=(0, 0, -0.01))
+    for sy in (-1, 1):
+        g.add(box(w, bar, 0.08), mat, at=(0, sy * (h - bar) / 2, 0.01))
+    for sx in (-1, 1):
+        g.add(box(bar, h - 2 * bar, 0.08), mat, at=(sx * (w - bar) / 2, 0, 0.01))
+    leaf = (w - 2 * bar - gap) / 2
+    for sx in (-1, 1):
+        g.add(box(leaf - 0.02, h - 2 * bar - 0.04, 0.05), m["armor"], at=(sx * (gap + leaf) / 2, 0, 0))
+    s.place(g, at=at, rot=rot, mirror=mirror)
+    g.bm.free()
+
+
 def build():
     s = Ship("bastion")
     m = vf.materials(s.name, "battleship")
 
+    # ---------------------------------------------------------------- Rumpf, Keilbug, Sockel, Schürzen
     # Kastenrumpf auf einem gestuften Sockel (umgekehrte Stufenpyramide) mit Kiel; vorn ein Keilbug unter der Schildwand
     # mit Sims, goldener Kante und Bugemitter
     s.add(loft([
@@ -108,6 +164,7 @@ def build():
     s.add(loft([sec(y, keel(w, h), dz=0.55 - h / 2) for y, w, h in prow]), m["armor"])
     ledge = grow(sym([(w / 2, y) for y, w, h in prow]), 0.24)
     s.add(plate(ledge, 0.24, "xy"), m["hull"], at=(0, 0, 0.41))
+    s.add(plate(grow(ledge, -0.15), 0.07, "xy"), m["armor"], at=(0, 0, 0.55))
     trim_line(s, m, [(x + 0.02, y, 0.53) for x, y in ledge if x > 0.01 and y < -2.9])
     s.add(box(0.56, 0.06, 0.14), m["glow"], at=(0, prow[0][0] - 0.01, 0.06))
     step1 = sym([(0.0, -3.6), (1.5, -3.4), (2.15, -2.7), (2.15, 2.9), (1.6, 3.9)])
@@ -119,6 +176,7 @@ def build():
     s.add(plate([(2.35, -3.0), (2.8, -2.6), (2.8, 2.7), (2.35, 3.1)], 0.32, "xy"), m["accent"], at=(0, 0, 0.3), mirror=True)
     s.add(sweep([(2.51, -2.6, 0.8), (2.51, 2.6, 0.8)], rect(0.04, 0.08)), m["window"], mirror=True)
 
+    # ---------------------------------------------------------------- Terrassendecks
     # Drei Terrassendecks, das unterste mit goldener Zierlinie
     deck1 = sym(deck_front(1.35, 2.85) + [(2.85, 3.3), (2.4, 4.1), (1.4, 4.45)])
     s.add(plate(deck1, 0.3, "xy"), m["armor"], at=(0, 0, 1.35))
@@ -128,8 +186,9 @@ def build():
     deck3 = sym([(0.0, -2.7), (1.1, -2.55), (1.55, -2.1), (1.55, 3.3), (1.2, 3.85)])
     s.add(plate(deck3, 0.26, "xy"), m["armor"], at=(0, 0, 1.93))
 
-    # Schildwand im Bogen um den Bug zwischen zwei Tortürmen: Rahmen mit Zinnen und goldener Oberkante, Bernstein-
-    # Schildfeld, Emitterband
+    # ---------------------------------------------------------------- Schildwand
+    # Im Bogen um den Bug zwischen zwei Tortürmen: Rahmen mit Zinnen und goldener Oberkante, Bernstein-Schildfeld,
+    # Emitterband; an der Rückseite Strebepfeiler unter den äußeren Zinnen, senkrecht zu ihrer Facette
     frame = [(0.0, 0.3, 3.3), (1.2, 0.36, 3.25), (2.1, 0.46, 3.12), (2.5, 0.55, 3.0)]
     g = Ship("bastion_wall")
     g.add(wall_slab(both(frame), WALL_DEPTH), m["hull"])
@@ -138,34 +197,59 @@ def build():
     for x in (0.0, 0.8, 1.6):
         z1 = between(frame, x)[1]
         g.add(box(0.5, WALL_DEPTH, 0.5), m["hull"], at=(x, wall_y(x) + WALL_DEPTH / 2, z1 + 0.13), rot=(0, 0, facet(x)), mirror=x > 0)
+    g.add(plate([(-0.1, 1.3), (-0.1, 2.75), (0.3, 2.75), (1.05, 1.3)], 0.3, "yz"), m["hull"], at=(1.6, wall_y(1.6) + WALL_DEPTH, 0),
+          rot=(0, 0, facet(1.6)), mirror=True)
     band = 1.45
     g.add(sweep([(x, wall_y(x) - 0.12, band) for x in (-2.35, -2.1, -1.2, 0.0, 1.2, 2.1, 2.35)], rect(0.1, 0.16)), m["signal"])
     s.place(g, at=WALL_AT, rot=(-WALL_LEAN, 0, 0))
     g.bm.free()
 
-    # Vier runde Türme mit Bernstein-Kranz, darauf die Schildpylone mit Emitterkristall: vorn die hohen Tortürme an den
-    # Enden der Schildwand, achtern zwei Ecktürme auf dem Deck
-    for x, y, z0, z1 in ((2.5, -2.75, 0.35, 3.2), (2.3, 2.8, 1.5, 2.15)):
+    # ---------------------------------------------------------------- Türme und Schildpylone
+    # Vier runde Türme, darauf die Pylone; die Tortürme mit Gurtring unter dem Kranz, einer Emitterbank vorn außen und
+    # einer Wartungstür zur Terrasse
+    for x, y, z0, z1 in (GATE, CORNER):
         s.add(post(20, 0.6, 0.57, z0, z1), m["hull_round"], at=(x, y, 0), mirror=True)
-        s.add(post(20, 0.64, 0.64, z1, z1 + 0.16), m["accent_round"], at=(x, y, 0), mirror=True)
-        s.add(post(8, 0.32, 0.13, z1 + 0.16, z1 + 1.45), m["accent"], at=(x, y, 0), mirror=True)
-        s.add(crystal(0.2, 0.34), m["glow"], at=(x, y, z1 + 1.66), mirror=True)
+        pylon(s, m, x, y, z1)
+    x, y, _, _ = GATE
+    s.add(post(20, 0.63, 0.63, 2.62, 2.8), m["armor_round"], at=(x, y, 0), mirror=True)
+    emitter_bank(s, m, x, y, 0.59, 315, 1.05, 2.45)
+    gate(s, m, m["hull"], (x, y + 0.575, 2.15), 0.34, 0.5, (-90, 0, 0), mirror=True)
 
-    # Bergfried: Sockel, achteckiger Turm, auskragende Krone (Brücke) mit umlaufendem Fensterband, Dach, Mast mit Licht
+    # ---------------------------------------------------------------- Energieleitungen über die Terrassen
+    # Vom Eckturm zum Torturm am Fuß des mittleren Decks, mit Anschlusskästen an beiden Türmen und zwei Schellen
+    s.add(box(0.24, 4.5, 0.18), m["dark"], at=(2.52, 0.05, 1.57), mirror=True)
+    for y in (-2.0, 2.06):
+        s.add(box(0.34, 0.32, 0.3), m["armor"], at=(2.52, y, 1.63), mirror=True)
+    for y in (-0.55, 0.65):
+        s.add(box(0.32, 0.12, 0.24), m["armor"], at=(2.52, y, 1.6), mirror=True)
+
+    # ---------------------------------------------------------------- Bergfried
+    # Sockel mit Lüftern, achteckiger Turm mit Tor nach vorn, auskragende Krone (Brücke) mit umlaufendem Fensterband,
+    # Dach, Mast mit Querträger, Radarplatte und Licht
     ky = 2.75
     s.add(wedge(2.5, 2.3, 0.45), m["hull"], at=(0, ky - 0.05, 2.06 + 0.225))
+    vent(s, m, m["hull"], (0.85, 3.55, 2.51), 0.4, 0.42, slats=2, mirror=True)
     s.add(post(8, 0.86, 0.78, 2.5, 3.7), m["armor"], at=(0, ky, 0), rot=(0, 0, 22.5))
+    gate(s, m, m["armor"], (0, ky - (0.795 - 0.0625 * 0.36), 2.86), 0.5, 0.62, (86.4, 0, 0))
     s.add(post(8, 1.12, 1.12, 3.7, 4.15), m["hull"], at=(0, ky, 0), rot=(0, 0, 22.5))
     s.add(post(8, 1.14, 1.14, 3.86, 3.96), m["window"], at=(0, ky, 0), rot=(0, 0, 22.5))
     s.add(post(8, 0.75, 0.6, 4.15, 4.35), m["dark"], at=(0, ky, 0), rot=(0, 0, 22.5))
-    s.add(post(10, 0.09, 0.06, 4.35, 4.75), m["hull_round"], at=(0, ky + 0.2, 0))
-    s.add(sphere(0.1, 1), m["glow"], at=(0, ky + 0.2, 4.82))
+    s.add(post(10, 0.09, 0.06, 4.35, 5.0), m["hull_round"], at=(0, ky + 0.2, 0))
+    s.add(box(0.8, 0.07, 0.07), m["hull"], at=(0, ky + 0.2, 4.8))
+    s.add(box(0.5, 0.05, 0.2), m["armor"], at=(0, ky + 0.11, 4.56), rot=(-15, 0, 0))
+    s.add(sphere(0.1, 1), m["glow"], at=(0, ky + 0.2, 5.07))
 
     # Wappenplatte vor dem Bergfried
     badge(s, m, (0.0, -1.2, 2.06), BADGE, SHIELD, rim=0.09, dy=0.08)
 
-    # Drei schwere Heckdüsen, zwei kleine an den Deckecken
-    engine(s, m, 0.5, 4.15, 5.45, dz=0.45)
-    engine(s, m, 0.5, 4.15, 5.45, dx=1.15, dz=0.45, mirror=True)
+    # ---------------------------------------------------------------- Achterdeck und Heck
+    # Maschinenlüfter über den Düsen, RCS an den hinteren Rumpfecken; drei schwere Heckdüsen, zwei kleine an den
+    # Deckecken, jede mit Gehäusesegment und Düsenkranz
+    vent(s, m, m["armor"], (0, 4.15, 1.5), 0.36, 1.3, slats=3, rot=(0, 0, 90))
+    rcs(s, m, (2.3, 3.55, 0.5), 1)
+    for dx in (0.0, 1.15):
+        engine(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, mirror=dx > 0)
+        engine_details(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, mirror=dx > 0)
     engine(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
+    engine_details(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
     return s.finish()
