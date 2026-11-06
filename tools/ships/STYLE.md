@@ -2,8 +2,9 @@
 
 Referenz ist die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär-
 und Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind; flache Farbflächen in drei Tönen, harte Schlagschatten,
-dunkle Konturen, ein paar leuchtende Akzente. Die übrigen Schiffe stehen noch in der groben Fassung und werden nach
-ihrem Vorbild umgebaut; vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --sheet`).
+dunkle Konturen, ein paar leuchtende Akzente. Alle Schiffe, die das Spiel lädt, sind nach ihrem Vorbild gebaut; nur
+Hive, Mirage, Drohne, Repair Drone und Trugbild (im PvE-Run unbenutzt) stehen noch in der groben Fassung. Vor einem
+Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --sheet`).
 
 ## Arbeitsweise
 
