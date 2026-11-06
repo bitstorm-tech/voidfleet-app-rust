@@ -815,30 +815,37 @@ fn show_gallery(
                     .and_then(|index| Some((index, *run.deck.get(index)?)))
                 {
                     Some((index, card)) => {
-                        console.spawn(row(24.0)).with_children(|pair| {
-                            pair.spawn(command_card(&assets, card, 1.4));
-                            if gallery.purpose == Purpose::Upgrade {
-                                pair.spawn((
-                                    ImageNode::new(icons.arrow_right.clone())
-                                        .with_color(palette::BUFF),
-                                    Node {
-                                        width: px(48),
-                                        height: px(48),
-                                        align_self: AlignSelf::Center,
-                                        ..default()
-                                    },
-                                    Pickable::IGNORE,
-                                ));
-                                pair.spawn(command_card(
-                                    &assets,
-                                    DeckCard {
-                                        upgraded: true,
-                                        ..card
-                                    },
-                                    1.4,
-                                ));
-                            }
-                        });
+                        // Ohne Umbruch: Taffy misst die umbrechende Zeile im Pult zu schmal.
+                        let pair = Node {
+                            column_gap: px(24),
+                            ..default()
+                        };
+                        console
+                            .spawn((pair, Pickable::IGNORE))
+                            .with_children(|pair| {
+                                pair.spawn(command_card(&assets, card, 1.4));
+                                if gallery.purpose == Purpose::Upgrade {
+                                    pair.spawn((
+                                        ImageNode::new(icons.arrow_right.clone())
+                                            .with_color(palette::BUFF),
+                                        Node {
+                                            width: px(48),
+                                            height: px(48),
+                                            align_self: AlignSelf::Center,
+                                            ..default()
+                                        },
+                                        Pickable::IGNORE,
+                                    ));
+                                    pair.spawn(command_card(
+                                        &assets,
+                                        DeckCard {
+                                            upgraded: true,
+                                            ..card
+                                        },
+                                        1.4,
+                                    ));
+                                }
+                            });
                         console.spawn(row(12.0)).with_children(|keys| {
                             if let Some(action) = gallery.action(index) {
                                 keys.spawn((
