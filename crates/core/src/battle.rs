@@ -78,8 +78,6 @@ pub enum BattleResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleError {
     BattleOver,
-    /// Die Spalte darf nur vor der ersten Aktion in Runde 1 frei gewählt werden.
-    PlacementOver,
     NotEnoughPoints,
     TargetRequired,
     TargetInvalid,
@@ -223,8 +221,6 @@ pub struct Battle {
     pub replacements: Vec<EnemyId>,
     pub hull_percent: u32,
     pub result: Option<BattleResult>,
-    /// Vor der ersten Aktion in Runde 1 ist die Spalte frei wählbar.
-    pub placing: bool,
     next_uid: u32,
     rng: StdRng,
 }
@@ -277,7 +273,6 @@ impl Battle {
             replacements: setup.encounter.replacements,
             hull_percent: setup.encounter.hull_percent,
             result: None,
-            placing: true,
             next_uid: 1,
             rng: StdRng::seed_from_u64(seed),
             modules: setup.modules,
@@ -403,15 +398,6 @@ impl Battle {
 
     // --- Spielerzug ---
 
-    /// Wählt vor der ersten Aktion in Runde 1 die Spalte des Flaggschiffs.
-    pub fn place(&mut self, column: usize) -> Result<(), RuleError> {
-        if !self.placing {
-            return Err(RuleError::PlacementOver);
-        }
-        self.flagship.column = column;
-        Ok(())
-    }
-
     pub fn set_station(&mut self, station: Station) -> Result<(), RuleError> {
         if station == Station::Admiral && self.flagship.emergency() {
             return Err(RuleError::AdmiralStationInEmergency);
@@ -465,7 +451,6 @@ impl Battle {
 
     pub fn trigger_station(&mut self) -> Result<Vec<BattleEvent>, RuleError> {
         self.can_trigger()?;
-        self.placing = false;
         let mut events = Vec::new();
         self.run_station(&mut events);
         Ok(events)
@@ -477,7 +462,6 @@ impl Battle {
         target: Target,
     ) -> Result<Vec<BattleEvent>, RuleError> {
         self.check_card(hand_index, target)?;
-        self.placing = false;
         let card = self.hand.remove(hand_index);
         self.points -= card.cost();
         if card.id.card_type() == CardType::Doctrine {
@@ -496,7 +480,6 @@ impl Battle {
         if self.result.is_some() {
             return events;
         }
-        self.placing = false;
         if self.flagship.stations_used.is_empty() && self.can_trigger().is_ok() {
             self.run_station(&mut events);
         }

@@ -255,10 +255,6 @@ impl Messages for De {
         "Station lief in dieser Runde"
     }
 
-    fn checklist_place(&self) -> &'static str {
-        "Spalte wählen (optional)"
-    }
-
     fn checklist_station(&self, station: &str) -> String {
         format!("Station: {station}")
     }
@@ -520,7 +516,6 @@ impl Messages for De {
     fn rule_error(&self, error: RuleError) -> &'static str {
         match error {
             RuleError::BattleOver => "Das Gefecht ist vorbei.",
-            RuleError::PlacementOver => "Die Spalte steht fest, sobald du handelst.",
             RuleError::NotEnoughPoints => "Nicht genug Befehlspunkte.",
             RuleError::TargetRequired => "Erst ein Ziel wählen.",
             RuleError::TargetInvalid => "Kein gültiges Ziel.",

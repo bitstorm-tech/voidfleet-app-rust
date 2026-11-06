@@ -87,7 +87,7 @@ Regeln im Detail:
 
 ## 5. Die Runde: Spielerzug, Gegnerzug, Auflösung
 
-Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Vor Runde 1 sieht der Spieler Formation und Absichten der Gegner und wählt die Spalte seines Flaggschiffs.
+Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Das Flaggschiff beginnt jedes Gefecht in der mittleren Spalte.
 
 | Abschnitt      | Wer handelt                | Was geschieht                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -245,7 +245,7 @@ Die Gegner steuert das Spiel; im Run gibt es keinen zweiten Menschen und keinen 
 
 ### Absichten
 
-In der Auflösung jeder Runde zeigt jede gegnerische Einheit ihre Absicht für die nächste Runde: Aktion, bei Zielfeuer den Schaden, bei Spaltenfeuer die Spalte und den Schaden, bei Aufladen den Zähler. Das ist der Kern des Runs: Der Spieler plant mit offenem Gegner, der Gegner weiß nichts vom Spieler. Vor Runde 1 wählt der Spieler seine Spalte, nachdem er Formation und Absichten gesehen hat; der Uhrmacher sieht zwei Runden. Der Spieler handelt zuerst: Ein Gegner, der im Spielerzug fällt, führt seine Absicht nie aus, einer im Notfall mit halber ATK.
+In der Auflösung jeder Runde zeigt jede gegnerische Einheit ihre Absicht für die nächste Runde: Aktion, bei Zielfeuer den Schaden, bei Spaltenfeuer die Spalte und den Schaden, bei Aufladen den Zähler. Das ist der Kern des Runs: Der Spieler plant mit offenem Gegner, der Gegner weiß nichts vom Spieler. Der Uhrmacher sieht zwei Runden. Der Spieler handelt zuerst: Ein Gegner, der im Spielerzug fällt, führt seine Absicht nie aus, einer im Notfall mit halber ATK.
 
 Absichten werden bei der Ansage bestimmt und nicht mehr geändert. Ein Kurzsprung lässt jedes Feuer ins Leere gehen, ein Manöver nur das Spaltenfeuer: die beiden Fälle, in denen ein Schuss nichts trifft, und beide sind verdient. Damit Schilde und Manöver nicht zur sicheren Antwort werden, feuern Verbände mit mehreren Waffen, Schlachtschiffe laden auf, Spotter erhöhen den Preis jeder Runde, und die Gefechtsuhr bestraft das Zögern.
 

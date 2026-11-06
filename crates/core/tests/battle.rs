@@ -658,16 +658,6 @@ fn raiders_evade_after_hit() {
 }
 
 #[test]
-fn placement_only_before_first_action() {
-    let mut b = battle(AdmiralId::Osei, &[(EnemyId::Raiders, Row::Front, 0)]);
-    b.place(0).unwrap();
-    give(&mut b, &[CardId::Countermeasures]);
-    play(&mut b, CardId::Countermeasures, Target::None);
-    assert_eq!(b.place(2), Err(RuleError::PlacementOver));
-    assert_eq!(b.flagship.column, 0);
-}
-
-#[test]
 fn emergency_generator_and_defeat() {
     let mut b = battle(AdmiralId::Vance, &[(EnemyId::GuardCruiser, Row::Front, 0)]);
     b.emergency_generator_available = true;

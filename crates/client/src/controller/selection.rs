@@ -117,7 +117,6 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
             }
             Some(_) => Outcome::Nothing,
             None if slot.side == Side::Enemy => Outcome::Nothing,
-            None if battle.placing => Outcome::Act(PlayerAction::Place(slot.column)),
             None if battle.flagship.station == Station::Maneuver => {
                 Outcome::Act(PlayerAction::SetColumn(slot.column))
             }
@@ -126,8 +125,8 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
     }
 }
 
-/// Gültige Ziele: Gegner für Karten mit Ziel und für Zielstationen, eigene Spalten für Ausweichmanöver, Platzierung
-/// und Manöver (nie die Spalte, in der das Flaggschiff steht).
+/// Gültige Ziele: Gegner für Karten mit Ziel und für Zielstationen, eigene Spalten für Ausweichmanöver und Manöver
+/// (nie die Spalte, in der das Flaggschiff steht).
 pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
     if battle.result.is_some() {
         return Vec::new();
@@ -155,7 +154,7 @@ pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
             if station_needs_target(battle) {
                 slots.extend(enemies().map(|(_, slot)| SlotRef::enemy(slot)));
             }
-            if battle.placing || battle.flagship.station == Station::Maneuver {
+            if battle.flagship.station == Station::Maneuver {
                 slots.extend(columns().map(SlotRef::player));
             }
             slots
@@ -284,18 +283,13 @@ mod tests {
     }
 
     #[test]
-    fn idle_clicks_set_target_place_and_column() {
+    fn idle_clicks_set_target_and_column() {
         let mut battle = battle();
         let (uid, slot) = enemy_slot(&battle, 1);
         assert_eq!(
             click(&battle, Selection::Idle, Pick::Slot(slot)),
             Outcome::Act(PlayerAction::SetTarget(uid))
         );
-        assert_eq!(
-            click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
-            Outcome::Act(PlayerAction::Place(2))
-        );
-        battle.placing = false;
         assert_eq!(
             click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
             Outcome::Nothing

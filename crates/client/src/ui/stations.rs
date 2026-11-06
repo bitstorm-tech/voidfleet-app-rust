@@ -1,7 +1,7 @@
 //! Das Stationen-Feld rechts in der Hand: die fünf Stationen des Flaggschiffs (die Admiralsstation mit ihrem Namen je
 //! Admiral), die eingestellte leuchtet; darunter Ziel bzw. Spalte als Text. Daneben „Auslösen“
 //! (frei, wenn [`can_trigger`](voidfleet_core::battle::Battle::can_trigger) es erlaubt) und „Zug beenden“ (während
-//! einer Wiedergabe „Überspringen“) mit der Checkliste des Zugs: Platzierung in Runde 1, Station, Ziel bzw. Spalte,
+//! einer Wiedergabe „Überspringen“) mit der Checkliste des Zugs: Station, Ziel bzw. Spalte,
 //! offene Befehlspunkte als Hinweis. Klicks melden [`StationPressed`] und [`ActionPressed`].
 
 use bevy::{
@@ -283,14 +283,11 @@ fn update_actions(
     }
 }
 
-/// Die Zeilen der Checkliste: in Runde 1 die Spaltenwahl, die Station (erledigt, wenn sie lief oder auslösbar ist),
+/// Die Zeilen der Checkliste: die Station (erledigt, wenn sie lief oder auslösbar ist),
 /// fehlendes Ziel bzw. fehlende Spalte, offene Befehlspunkte.
 pub fn checklist_lines(locale: &Locale, battle: &CoreBattle) -> Vec<(String, ChecklistState)> {
     let flagship = &battle.flagship;
     let mut lines = Vec::new();
-    if battle.placing {
-        lines.push((locale.checklist_place().to_owned(), ChecklistState::Hint));
-    }
     let station = locale.station(flagship.station, flagship.admiral);
     let ready = !flagship.stations_used.is_empty() || battle.can_trigger().is_ok();
     lines.push((
@@ -443,14 +440,8 @@ mod tests {
         };
         assert_eq!(
             texts(&battle),
-            [
-                "Spalte wählen (optional)",
-                "Station: Waffen",
-                "Ziel wählen",
-                "3 Befehlspunkte offen"
-            ]
+            ["Station: Waffen", "Ziel wählen", "3 Befehlspunkte offen"]
         );
-        battle.placing = false;
         battle.flagship.station = Station::Maneuver;
         battle.points = 0;
         assert_eq!(texts(&battle), ["Station: Manöver", "Spalte wählen"]);

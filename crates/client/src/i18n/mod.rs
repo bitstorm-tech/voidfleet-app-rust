@@ -155,7 +155,6 @@ pub trait Messages: Sync {
     fn hud_column(&self, column: usize) -> String;
     /// Die Station dieser Runde ist gelaufen.
     fn hud_station_done(&self) -> &'static str;
-    fn checklist_place(&self) -> &'static str;
     fn checklist_station(&self, station: &str) -> String;
     fn checklist_target(&self) -> &'static str;
     fn checklist_column(&self) -> &'static str;

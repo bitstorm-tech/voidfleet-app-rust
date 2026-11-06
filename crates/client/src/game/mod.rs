@@ -21,7 +21,6 @@ pub struct Battle(pub battle::Battle);
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerAction {
     /// Startspalte vor der ersten Aktion in Runde 1.
-    Place(usize),
     PlayCard {
         hand_index: usize,
         target: Target,
@@ -63,7 +62,6 @@ pub fn apply(
     action: PlayerAction,
 ) -> Result<Vec<BattleEvent>, RuleError> {
     match action {
-        PlayerAction::Place(column) => battle.place(column).map(|()| Vec::new()),
         PlayerAction::PlayCard { hand_index, target } => battle.play_card(hand_index, target),
         PlayerAction::SetStation(station) => battle.set_station(station).map(|()| Vec::new()),
         PlayerAction::SetTarget(uid) => battle.set_target(uid).map(|()| Vec::new()),
