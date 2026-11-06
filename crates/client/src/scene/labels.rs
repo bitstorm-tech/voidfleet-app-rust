@@ -29,7 +29,7 @@ use crate::{
 };
 
 /// Abstand über der Mitte der Balken (Welteinheiten).
-const LIFT: f32 = 0.9;
+const LIFT: f32 = 0.8;
 
 /// Farbe der Zustände.
 const CONDITION: Color = palette::BUFF;

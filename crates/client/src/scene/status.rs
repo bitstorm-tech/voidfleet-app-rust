@@ -38,10 +38,10 @@ const TRACK_COLOR: Color = Color::srgb(0.13, 0.15, 0.22);
 const TRACK_ALPHA: f32 = 0.92;
 const FILL_ALPHA: f32 = 0.999;
 /// Höhe der Spuren und Füllungen von Hülle und Schild, Abstand der Mitten (Raum des Schiffs).
-const HP_TRACK_HEIGHT: f32 = 0.62;
-const HP_FILL_HEIGHT: f32 = 0.5;
-const SHIELD_TRACK_HEIGHT: f32 = 0.5;
-const SHIELD_FILL_HEIGHT: f32 = 0.4;
+const HP_TRACK_HEIGHT: f32 = 0.42;
+const HP_FILL_HEIGHT: f32 = 0.34;
+const SHIELD_TRACK_HEIGHT: f32 = 0.34;
+const SHIELD_FILL_HEIGHT: f32 = 0.27;
 const SHIELD_ROW_OFFSET: f32 = (HP_TRACK_HEIGHT + SHIELD_TRACK_HEIGHT) / 2.0 + 0.03;
 /// Schriftgröße der Zahl als Anteil der Spur auf dem Schirm (Ziffern sind etwa zwei Drittel davon hoch).
 const VALUE_SIZE: f32 = 1.05;
