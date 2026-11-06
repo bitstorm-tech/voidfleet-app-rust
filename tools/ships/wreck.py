@@ -4,8 +4,9 @@ aber ohne Abhängigkeit) und exportiert die Stücke als `<id>_wreck.glb` für di
 Jede Zelle ist das, was von allen Teilen des Schiffs übrig bleibt, nachdem die Mittelsenkrechten zu den
 übrigen Zellkernen alles jenseits weggeschnitten haben; die Schnittflächen werden geschlossen und bekommen
 das Wrack-Material `<id>_wreck` (Art "wreck" im Material-Vertrag, siehe vf.py): verkohlte Töne und ein Glutmuster
-als Emissionstextur, das der Client zur Laufzeit abkühlen lässt. Nur die Schnittflächen haben UVs (Box-Projektion),
-sie sind flach schattiert, die übrigen Flächen behalten Material und Normalen des Schiffs. Jedes Stück ist ein
+als Emissionstextur, das der Client zur Laufzeit abkühlen lässt. Die Schnittflächen bekommen Box-UVs fürs Glutmuster
+und sind flach schattiert; die übrigen Flächen behalten Material, Normalen und UVs des Schiffs (die Schnitte
+interpolieren sie), also auch seine Verwitterung, alles in derselben UV-Ebene. Jedes Stück ist ein
 eigenes Objekt mit dem Ursprung in seinem Schwerpunkt, damit es sich darum drehen kann; die Stücke liegen im selben
 Modellraum wie das Schiff und ersetzen es an Ort und Stelle. Ansehen: `preview.py -- <id> --views wreck`.
 """
@@ -196,7 +197,8 @@ def cut(base, point, others, wreck_index, min_faces=MIN_FACES):
 
 
 def finish_cuts(bm, wreck_index):
-    """Schnittflächen flach und mit Box-UVs (Kachel HEAT_TILE) fürs Glutmuster; danach harte Kanten neu nach Winkel."""
+    """Schnittflächen flach und mit Box-UVs (Kachel HEAT_TILE) fürs Glutmuster, in der UV-Ebene des Schiffs (die
+    Verwitterung, sofern es eine hat); danach harte Kanten neu nach Winkel."""
     bm.normal_update()
     uv_layer = bm.loops.layers.uv.verify()
     for face in bm.faces:

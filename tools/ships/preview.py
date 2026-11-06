@@ -22,6 +22,12 @@ Ansichten (Kamera und Ausschnitt wie beim Stilvergleich, damit Neubauten verglei
 Licht, Stufen, Linien und Glühen je Ansicht stehen in look.py, die Farben in palette.py. Als Spielhintergrund dient
 assets/images/backgrounds/01-nebelschlucht.png; er wird vor jedem Render neu von der Platte gelesen.
 
+Verwitterung: Jedes Schiff bekommt vor dem Rendern seine Maske (weather.py; beim ersten Mal nach einer Änderung
+gebacken, bis etwa 20 s, sonst aus dem Cache renders/weather/). Cycles kennt keine Mip-Stufen: Je Ansicht rechnet
+set_lod aus dem Maßstab an der Schiffsmitte die Stufe, die das Spiel nähme (Texel je Pixel), und mischt die zwei
+nächsten vorab verkleinerten Bilder (Box-Filter wie im Client); Fugen und Abrieb blendet `fine` nach derselben Stufe
+aus wie der Shader. `board` und `enemy` zeigen so, was das Spiel auf dem Brett zeigt.
+
 Umgebung: VF_SAMPLES (Samples je Pixel, Standard 24; für Kartenvorlagen gern 64), VF_THREADS (Render-Threads,
 Standard 2, weil mehrere Agents gleichzeitig rendern). Ein `board` rendert damit in etwa 3 s, samt Blender-Start und
 Bau des Schiffs etwa 4 s; `zoom`, `hero` und `wreck` je 4-8 s.
@@ -46,6 +52,7 @@ import fleet  # noqa: E402
 import look  # noqa: E402
 import palette  # noqa: E402
 import vf  # noqa: E402
+import weather  # noqa: E402
 import wreck  # noqa: E402
 
 BACKGROUND = os.path.normpath(os.path.join(ROOT, "..", "..", "assets", "images", "backgrounds", "01-nebelschlucht.png"))
@@ -77,6 +84,8 @@ PAD_SIZE = (1.7 / 0.3, 2.5 / 0.3, 0.08 / 0.3)
 PAD_TONES = ("#4c6ea6", "#426198")
 
 LIT = []  # Knotenbäume, deren Licht- und Kantenlichtrichtung je Ansicht nachgestellt wird
+WEATHERED = []  # (Knotenbaum, Maske) je Material mit Verwitterung: Mip-Stufe und `fine` je Ansicht (set_lod)
+MIPS = {}  # Mip-Stufen je Maske, wie der Client sie rechnet
 
 
 # ---------------------------------------------------------------- Knoten-Helfer
@@ -134,8 +143,72 @@ def _shadow(nodes, links, geo, normal):
     return _math(nodes, links, "SUBTRACT", 1.0, ray.outputs["Is Hit"])
 
 
-def _toon(nodes, links, tones, round_, glint):
-    """Farbe einer toon-Fläche nach look.py: Stufen auf N·L mit Schlagschatten, Kantenlicht, Saum, Glanzpunkt."""
+def _scale(nodes, links, color, factor):
+    """Farbe × Zahl bzw. × lineares Farbtripel."""
+    node = nodes.new("ShaderNodeVectorMath")
+    node.operation = "MULTIPLY"
+    links.new(color, node.inputs[0])
+    if isinstance(factor, tuple):
+        node.inputs[1].default_value = factor
+    else:
+        combine = nodes.new("ShaderNodeCombineXYZ")
+        for socket in combine.inputs:
+            links.new(factor, socket)
+        links.new(combine.outputs["Vector"], node.inputs[1])
+    return node.outputs["Vector"]
+
+
+def _toward_gray(nodes, links, color, amount):
+    gray = nodes.new("ShaderNodeRGBToBW")
+    links.new(color, gray.inputs["Color"])
+    node = nodes.new("ShaderNodeMix")
+    node.data_type = "RGBA"
+    node.inputs["Factor"].default_value = amount
+    links.new(color, vf._socket(node.inputs, "A_Color"))
+    links.new(gray.outputs["Val"], vf._socket(node.inputs, "B_Color"))
+    return vf._socket(node.outputs, "Result_Color")
+
+
+def _weathered(nodes, links, color, light, image):
+    """Verwitterung nach look.py aus der Maske (weather.py): Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb (nur Licht
+    und Halbschatten). Zwei Mip-Stufen gemischt wie das trilineare Filtern im Spiel; Stufe und `fine` setzt set_lod."""
+    uv = nodes.new("ShaderNodeUVMap")
+    near, far = nodes.new("ShaderNodeTexImage"), nodes.new("ShaderNodeTexImage")
+    for node, name in ((near, "Weather Near"), (far, "Weather Far")):
+        node.name, node.image, node.interpolation, node.extension = name, image, "Linear", "EXTEND"
+        links.new(uv.outputs["UV"], node.inputs["Vector"])
+    level = nodes.new("ShaderNodeValue")
+    level.name = "Weather Level"
+    fine = nodes.new("ShaderNodeValue")
+    fine.name = "Weather Fine"
+    rgb = _mix(nodes, links, level.outputs[0], near.outputs["Color"], far.outputs["Color"])
+    alpha = nodes.new("ShaderNodeMix")
+    links.new(level.outputs[0], alpha.inputs["Factor"])
+    links.new(near.outputs["Alpha"], vf._socket(alpha.inputs, "A_Float"))
+    links.new(far.outputs["Alpha"], vf._socket(alpha.inputs, "B_Float"))
+    channels = nodes.new("ShaderNodeSeparateColor")
+    links.new(rgb, channels.inputs["Color"])
+    red, green, blue = channels.outputs["Red"], channels.outputs["Green"], channels.outputs["Blue"]
+    low, high = look.PLATE_STEPS
+    plate = _math(nodes, links, "ADD", _math(nodes, links, "GREATER_THAN", blue, low), _math(nodes, links, "GREATER_THAN", blue, high))
+    # plate zählt die Stufen (0, 1, 2): Faktor 1 − PLATE_TONE, 1, 1 + PLATE_TONE
+    color = _scale(nodes, links, color, _math(nodes, links, "ADD", 1.0 - look.PLATE_TONE, _math(nodes, links, "MULTIPLY", plate, look.PLATE_TONE)))
+    seam = _math(nodes, links, "MULTIPLY", _math(nodes, links, "LESS_THAN", vf._socket(alpha.outputs, "Result_Float"), look.SEAM_STEP),
+                 fine.outputs[0])
+    color = _scale(nodes, links, color, _math(nodes, links, "SUBTRACT", 1.0, _math(nodes, links, "MULTIPLY", seam, 1.0 - look.SEAM_DARK)))
+    grime = _scale(nodes, links, _toward_gray(nodes, links, color, look.DIRT_DESAT), look.DIRT_TINT)
+    color = _mix(nodes, links, _math(nodes, links, "GREATER_THAN", red, look.DIRT_STEP), color, grime)
+    color = _mix(nodes, links, _math(nodes, links, "GREATER_THAN", red, look.SOOT_STEP), color, _scale(nodes, links, grime, look.SOOT_TINT))
+    bare = _scale(nodes, links, _toward_gray(nodes, links, color, look.WEAR_DESAT), (look.WEAR_LIFT,) * 3)
+    wear = _math(nodes, links, "MULTIPLY", _math(nodes, links, "GREATER_THAN", green, look.WEAR_STEP),
+                 _math(nodes, links, "MULTIPLY", _math(nodes, links, "GREATER_THAN", light, look.STEPS[0]), fine.outputs[0]))
+    WEATHERED.append((nodes, image))
+    return _mix(nodes, links, wear, color, bare)
+
+
+def _toon(nodes, links, tones, round_, glint, weather_image=None):
+    """Farbe einer toon-Fläche nach look.py: Stufen auf N·L mit Schlagschatten, Verwitterung (mit Maske), Kantenlicht,
+    Saum, Glanzpunkt."""
     geo = nodes.new("ShaderNodeNewGeometry")
     normal = geo.outputs["Normal"]
     unshadowed = _shadow(nodes, links, geo, normal)
@@ -162,7 +235,10 @@ def _toon(nodes, links, tones, round_, glint):
     seam = _math(nodes, links, "MULTIPLY", _math(nodes, links, "GREATER_THAN", facing, look.SEAM_FACING),
                  _math(nodes, links, "LESS_THAN", light, look.STEPS[0]))
     rim = _math(nodes, links, "MAXIMUM", rim, _math(nodes, links, "MULTIPLY", seam, look.SEAM_MIX))
-    color = _mix(nodes, links, _math(nodes, links, "MULTIPLY", rim, look.RIM_MIX), ramp.outputs["Color"], look.RIM_COLOR)
+    color = ramp.outputs["Color"]
+    if weather_image:
+        color = _weathered(nodes, links, color, light, weather_image)
+    color = _mix(nodes, links, _math(nodes, links, "MULTIPLY", rim, look.RIM_MIX), color, look.RIM_COLOR)
     if glint:
         half = _vmath(nodes, links, "NORMALIZE", _vmath(nodes, links, "ADD", geo.outputs["Incoming"], (0, 0, 1), name="Key Half"))
         hit = _math(nodes, links, "GREATER_THAN", _vmath(nodes, links, "DOT_PRODUCT", normal, half), look.GLINT_THRESHOLD)
@@ -194,12 +270,13 @@ def _emit(nodes, links, color, glow=None):
 def shade(mat):
     """Ersetzt die Export-Knoten eines Materials durch das Toon-Shading seiner Art (vf.spec)."""
     s = vf.spec(mat)
+    mask = weather.image_of(mat)
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     nodes.clear()
     out = nodes.new("ShaderNodeOutputMaterial")
     kind = s["kind"]
     if kind == "toon":
-        surface = _emit(nodes, links, _toon(nodes, links, s["tones"], s["round"], s["glint"]))
+        surface = _emit(nodes, links, _toon(nodes, links, s["tones"], s["round"], s["glint"], mask))
     elif kind == "wreck":
         heat = nodes.new("ShaderNodeTexImage")
         heat.image = wreck.heat_image()
@@ -459,6 +536,39 @@ def frame(scene, objects, spec, scale=1.0):
     larger = max(res)
     camera.data.shift_x = ((max(xs) + min(xs)) / 2 - 0.5) * res[0] / larger
     camera.data.shift_y = ((max(ys) + min(ys)) / 2 - 0.5) * res[1] / larger
+    set_lod(scene, distance)
+
+
+def mip_levels(image):
+    """Die Mip-Kette einer Maske als Bilder (Stufe 0 ist das Bild selbst), Box-Filter wie im Client."""
+    if image.name not in MIPS:
+        levels, pixels = [image], weather.pixels_of(image)
+        while pixels.shape[0] > 1:
+            pixels = weather.downsample(pixels)
+            level = bpy.data.images.new(f"{image.name}_mip{len(levels)}", pixels.shape[1], pixels.shape[0], alpha=True)
+            level.colorspace_settings.name = "Non-Color"
+            level.alpha_mode = "CHANNEL_PACKED"
+            level.pixels.foreach_set((pixels.astype(np.float32) / 255).ravel())
+            levels.append(level)
+        MIPS[image.name] = levels
+    return MIPS[image.name]
+
+
+def set_lod(scene, distance):
+    """Mip-Stufe und Sichtbarkeit der feinen Verwitterung (Fugen, Abrieb) aus dem Maßstab der Ansicht: Texel je Pixel
+    an der Schiffsmitte. Das Spiel nimmt sie je Pixel aus den Ableitungen der UVs; Cycles kennt keine Mip-Stufen."""
+    camera = scene.camera.data
+    pixels = camera.lens / camera.sensor_width * max(scene.render.resolution_x, scene.render.resolution_y) / distance
+    for nodes, image in WEATHERED:
+        lod = math.log2(image["vf_density"] / pixels)
+        levels = mip_levels(image)
+        level = min(max(lod, 0.0), len(levels) - 1)
+        k = int(level)
+        nodes["Weather Near"].image = levels[k]
+        nodes["Weather Far"].image = levels[min(k + 1, len(levels) - 1)]
+        nodes["Weather Level"].outputs[0].default_value = level - k
+        t = min(max((lod - look.FINE_LOD[0]) / (look.FINE_LOD[1] - look.FINE_LOD[0]), 0.0), 1.0)
+        nodes["Weather Fine"].outputs[0].default_value = 1.0 - t * t * (3 - 2 * t)
 
 
 def set_view(scene, name, spec, collection):
@@ -490,6 +600,7 @@ def render(scene, path):
 
 def preview(scene, ship_id, views):
     ship = fleet.build(ship_id)
+    weather.apply(ship)
     prepare([ship])
     scale = vf.FLAGSHIP_SCALE if ship_id in palette.FLAGSHIPS else 1.0
     pad = make_pad(ship, scale)

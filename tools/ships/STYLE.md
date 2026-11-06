@@ -20,7 +20,7 @@ ihrem Vorbild umgebaut; vor einem Umbau die Kontaktbögen ansehen (`preview.py -
   (kantige Strebe), `axle` (Walze entlang X), `ring_at` (Querschnitt eines Lofts, für Bänder, die dem Rumpf folgen),
   `bellows` (Blendenbalg um ein Rohr).
 - Vor einem Umbau die jetzige Fassung rendern und die Bilder wegkopieren (die Vorschau überschreibt `renders/<id>/`).
-- Kreislauf: `build.py -- <id>` (Dreiecke, KB, Warnungen) und `preview.py -- <id> --views board,zoom,behind,hero,wreck`,
+- Kreislauf: `build.py -- <id>` (Dreiecke, KB, Maske, Warnungen) und `preview.py -- <id> --views board,zoom,behind,hero,wreck`,
   bei asymmetrischen Schiffen auch `enemy_zoom`. Fertig ist ein Schiff erst ohne Warnungen und nach dem Blick auf `board`
   in voller Größe (unten).
 
@@ -89,6 +89,21 @@ Referenz sind die Detailzonen der Iron Dreadnought:
   am V-Boden, zweite Lage unter der unteren Schürze.
 - **Ruhig:** Hauptdeck vor den Seitentürmen, Dorsaldeck zwischen den Türmen (nur eine Luke), Schürzenflanken, Flächen
   des Aufbaus.
+
+## Verwitterung
+
+Fugen, Plattenton, Schmutz, Ruß und Kantenabrieb kommen für alle Schiffe gleich aus `weather.py` (nach dem Bau, vor dem
+Wrack; Kanäle, Ablauf und Cache im Modulkommentar), nicht aus dem Schiffsmodul. Auf dem Brett bleiben davon Plattenton,
+Schmutz und Ruß, im Zoom und auf der Karte kommen Fugen und Abrieb dazu.
+
+- Schmutz sammelt sich in Ritzen (wo Teile aufeinandertreffen), läuft als Schlieren hinter allem nach achtern, was
+  mindestens 0,06 hoch ist, und Ruß sitzt an Düsen (`core`) und Mündungen: kreisrunde Deckel ab acht Ecken an runden
+  Materialien, waagrecht und vorn frei (wie `parts.turret`). Eine Waffe ohne solchen Deckel bekommt keinen Ruß.
+- Abrieb sitzt an sichtbaren konvexen Kanten ab 40° lackierter Flächen, Platten liegen an den Schiffsachsen.
+- Grad je Schiff in `look.WEATHER` (Schrott 2,2, Mirage 0,5, Trugbild 0), Anteile je Material in
+  `look.WEATHER_MATERIALS`. Ein neuer Materialschlüssel gilt als lackiert (eckig mit Platten, rund ohne); unlackierte
+  Sonderfarben (Metall, Glas, Rost) dort eintragen.
+- Die erste Vorschau eines geänderten Schiffs backt seine Maske (bis etwa 20 s), danach kommt sie aus dem Cache.
 
 ## Mindestgröße bei Brettgröße
 
