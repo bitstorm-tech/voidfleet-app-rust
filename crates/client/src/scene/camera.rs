@@ -56,8 +56,8 @@ pub const SIDE_VIEW: ViewSpec = ViewSpec {
     yaw: 0.0,
     pitch: 42.0 * PI / 180.0,
     fov: 33.5 * PI / 180.0,
-    frame: (0.2, 0.7),
-    lane_x: [-4.6, 1.4, 4.8],
+    frame: (0.25, 0.65),
+    lane_x: [-6.2, 3.0, 6.4],
     slot_step: 2.9,
 };
 
@@ -67,7 +67,7 @@ pub const TOP_VIEW: ViewSpec = ViewSpec {
     pitch: 50.0 * PI / 180.0,
     fov: 30.0 * PI / 180.0,
     frame: (0.17, 0.66),
-    lane_x: [-4.4, 1.1, 4.5],
+    lane_x: [-6.0, 2.7, 6.1],
     slot_step: 3.2,
 };
 
