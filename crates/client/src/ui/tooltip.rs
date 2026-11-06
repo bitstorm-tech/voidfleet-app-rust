@@ -34,6 +34,9 @@ pub struct TooltipGlyphs(pub Vec<(Glyph, String)>);
 const DELAY: f32 = 0.5;
 const GAP: f32 = 6.0;
 const MAX_WIDTH: f32 = 300.0;
+/// Die Breitengrenze innerhalb von Rand und Polster. Sie steht auch an Text und Zeilen: Taffy misst den Text sonst
+/// ungebrochen, das Feld bekäme die Höhe einer Zeile und der umbrochene Text hinge unten heraus.
+const INNER_WIDTH: f32 = MAX_WIDTH - 2.0 * (8.0 + 1.0);
 
 /// Das eine Feld.
 #[derive(Component)]
@@ -68,7 +71,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             border_radius: BorderRadius::all(px(3)),
             ..default()
         },
-        BackgroundColor(theme::PANEL),
+        BackgroundColor(theme::PANEL.with_alpha(1.0)),
         BorderColor::all(Color::WHITE.with_alpha(0.12)),
         BoxShadow(vec![theme::drop(
             Color::BLACK.with_alpha(0.5),
@@ -83,6 +86,10 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             (
                 TooltipText,
                 theme::text(fonts.body(13.0), "", palette::TEXT),
+                Node {
+                    max_width: px(INNER_WIDTH),
+                    ..default()
+                },
                 Pickable::IGNORE,
             ),
             (
@@ -166,6 +173,7 @@ fn follow_pointer(
             for (glyph, line) in &glyphs.0 {
                 rows.spawn((
                     Node {
+                        max_width: px(INNER_WIDTH),
                         column_gap: px(8),
                         align_items: AlignItems::Center,
                         ..default()
