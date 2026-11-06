@@ -37,7 +37,8 @@ impl<'de> Deserialize<'de> for Hex {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ToonSpec {
-    /// Drei Töne (Licht, Halbschatten, Schatten), harte Stufen; `round` für geglättete Teile, `glint` Glanzpunkt.
+    /// Drei Töne (Licht, Halbschatten, Schatten), harte Stufen; `round` für geglättete Teile, `glint` Glanzpunkt. Dazu
+    /// die Maske der Verwitterung (`baseColorTexture`, ein Bild je Modell), sofern das Schiff eine hat.
     Toon {
         tones: [Hex; 3],
         round: bool,
@@ -47,7 +48,7 @@ pub enum ToonSpec {
     Light { color: Hex, glow: bool },
     /// Durchscheinend und als einzige Art beidseitig.
     Hologram { color: Hex, alpha: f32, glow: bool },
-    /// Bruchflächen der Wracks: eckige Toon-Fläche plus Glutmuster (Textur) × `heat`.
+    /// Bruchflächen der Wracks: eckige Toon-Fläche plus Glutmuster (`emissiveTexture`) × `heat`.
     Wreck { tones: [Hex; 3], heat: Hex },
 }
 
@@ -97,10 +98,19 @@ pub struct ToonMaterial {
     #[texture(1)]
     #[sampler(2)]
     pub heat_texture: Option<Handle<Image>>,
+    /// Maske der Verwitterung (nur `toon`): R Schmutz, G Kantenabrieb, B Plattenton, A Fugen; linear, mit Mip-Kette
+    /// ([`super::gltf`]).
+    #[texture(3)]
+    #[sampler(4)]
+    pub weather_texture: Option<Handle<Image>>,
 }
 
 impl ToonMaterial {
-    pub fn new(spec: ToonSpec, heat_texture: Option<Handle<Image>>) -> Self {
+    pub fn new(
+        spec: ToonSpec,
+        heat_texture: Option<Handle<Image>>,
+        weather_texture: Option<Handle<Image>>,
+    ) -> Self {
         Self {
             spec,
             ghost: false,
@@ -112,6 +122,7 @@ impl ToonMaterial {
             livery: false,
             flash: Vec4::ZERO,
             heat_texture,
+            weather_texture,
         }
     }
 }
@@ -133,6 +144,8 @@ pub struct ToonUniform {
     surface: Vec4,
     /// rgb Farbe der Überlagerung, a ihr Anteil.
     overlay: Vec4,
+    /// x Verwitterung an (1) oder aus (0).
+    weather: Vec4,
 }
 
 fn linear(color: Color) -> Vec4 {
@@ -222,11 +235,16 @@ impl From<&ToonMaterial> for ToonUniform {
         } else {
             opacity
         };
-        let heat = match (&material.spec, material.heat) {
-            (_, Some(heat)) => heat.to_vec4(),
-            (ToonSpec::Wreck { heat, .. }, None) => linear(heat.0),
+        // Glut nur auf Bruchflächen, Verwitterung nur auf toon-Flächen: Beide tragen UVs, die Art entscheidet
+        let heat = match &material.spec {
+            ToonSpec::Wreck { heat, .. } => {
+                material.heat.map_or(linear(heat.0), LinearRgba::to_vec4)
+            }
             _ => Vec4::ZERO,
         };
+        let weathered = matches!(material.spec, ToonSpec::Toon { .. })
+            && material.weather_texture.is_some()
+            && !material.ghost;
         Self {
             tone_lit: tones[0],
             tone_mid: tones[1],
@@ -242,6 +260,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 opacity * material.opacity,
             ),
             overlay: material.overlay,
+            weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0),
         }
     }
 }
@@ -329,10 +348,40 @@ mod tests {
             color: Hex(Color::WHITE),
             glow: false,
         };
-        let mut material = ToonMaterial::new(spec, None);
+        let mut material = ToonMaterial::new(spec, None, None);
         material.facing = -1.0;
         let uniform = ToonUniform::from(&material);
         assert_eq!(uniform.key.x, -KEY.x);
         assert_eq!(uniform.surface.z, 1.0);
+    }
+
+    /// Toon-Flächen und Bruchflächen tragen beide UVs: Die Art entscheidet, wer Glut und wer Verwitterung bekommt,
+    /// auch wenn die Zerstörung die Glut für alle Materialien eines Schiffs setzt. Geister bleiben sauber.
+    #[test]
+    fn heat_and_weather_follow_the_kind() {
+        let toon = ToonSpec::Toon {
+            tones: [Hex(Color::WHITE); 3],
+            round: false,
+            glint: 0.0,
+        };
+        let wreck = ToonSpec::Wreck {
+            tones: [Hex(Color::WHITE); 3],
+            heat: Hex(Color::WHITE),
+        };
+        let mask = Some(Handle::<Image>::default());
+        let mut hull = ToonMaterial::new(toon, None, mask.clone());
+        hull.heat = Some(LinearRgba::RED);
+        let uniform = ToonUniform::from(&hull);
+        assert_eq!((uniform.heat, uniform.weather.x), (Vec4::ZERO, 1.0));
+        hull.ghost = true;
+        assert_eq!(ToonUniform::from(&hull).weather.x, 0.0);
+        let mut fracture = ToonMaterial::new(wreck, Some(Handle::default()), None);
+        assert_eq!(ToonUniform::from(&fracture).heat, Vec4::ONE);
+        fracture.heat = Some(LinearRgba::RED);
+        let uniform = ToonUniform::from(&fracture);
+        assert_eq!(
+            (uniform.heat, uniform.weather.x),
+            (LinearRgba::RED.to_vec4(), 0.0)
+        );
     }
 }

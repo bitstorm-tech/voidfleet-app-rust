@@ -7,6 +7,9 @@
 //!   genau ihrer Farbe; Hologramme durchscheinend und beidseitig; Bruchflächen mit Glutmuster × Glut. Das Hauptlicht
 //!   hängt fest am Brett, je Seite gespiegelt; Drehen und Zoomen ändern keinen Ton. Das Blitzlicht der Explosionen
 //!   ([`ToonFlash`]) hellt die zugewandten Flächen in zwei harten Stufen auf.
+//! - **Verwitterung**: Die toon-Flächen eines Modells teilen eine gebackene Maske (`tools/ships/weather.py`), aus der
+//!   der Shader nach den drei Tönen weitere harte Tonflächen setzt: Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb.
+//!   Fugen und Abrieb verschwinden, wenn ein Texel kleiner als etwa ein Pixel wird, der Rest über die Mip-Kette.
 //! - **Konturen** ([`outline`]): Inverted Hull in fester Pixelbreite.
 //! - **Glühen**: Lichter mit `glow`, glühende Hologramme und heiße Bruchflächen leuchten heller als 1 und glühen im
 //!   Bloom der Kamera ([`crate::scene::camera`]).
