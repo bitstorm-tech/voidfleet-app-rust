@@ -260,10 +260,9 @@ pub fn sync_ships(
         status.set_if_neq(ShipStatus {
             hull: want.stats.hull,
             max_hull: want.max_hull,
-            shield: want.stats.shield,
             preview: preview.map(|(stats, _)| stats),
             doomed: preview.is_some_and(|(_, lethal)| lethal),
-            ..*status
+            ..status.with_shield(want.stats.shield)
         });
         markers.set_if_neq(ship_markers(want));
         match aura {

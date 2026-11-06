@@ -43,6 +43,8 @@ pub struct ShipStatus {
     pub hull: i32,
     pub max_hull: i32,
     pub shield: i32,
+    /// Höchster Schild seit dem letzten Aufbau: Maßstab des Schildbalkens.
+    pub max_shield: i32,
     /// Vorschau: Hülle und Schild nach dem Schuss oder der Karte; `None` ohne Vorschau.
     pub preview: Option<UnitStats>,
     /// Totenkopf: Laut Vorschau fällt das Schiff.
@@ -57,7 +59,22 @@ impl ShipStatus {
             hull,
             max_hull,
             shield,
+            max_shield: shield,
             ..default()
+        }
+    }
+
+    /// Neuer Schildwert; fällt der Schild auf null, beginnt der Maßstab beim nächsten Aufbau neu.
+    pub fn with_shield(self, shield: i32) -> Self {
+        let max_shield = if shield == 0 {
+            0
+        } else {
+            self.max_shield.max(shield)
+        };
+        Self {
+            shield,
+            max_shield,
+            ..self
         }
     }
 }
@@ -508,7 +525,7 @@ fn update_bars(
             ratio(status.hull, status.max_hull),
         );
         // Schilde halten nur einen Gegnerzug: Der Balken zeigt, was davon übrig ist.
-        let shield_max = status.shield;
+        let shield_max = status.max_shield;
         let shield = after.shield.min(status.shield);
         section(ship_parts.shield_fill, 0.0, ratio(shield, shield_max));
         section(
@@ -524,7 +541,7 @@ fn update_bars(
             }
         };
         if let Ok((_, mut visibility)) = parts.get_mut(ship_parts.shield_row) {
-            *visibility = visible(shield_max > 0);
+            *visibility = visible(status.shield > 0);
         }
         for (entity, shown) in [
             (ship_parts.bars, !status.hidden),

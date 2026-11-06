@@ -615,7 +615,7 @@ impl Stage<'_, '_> {
                 let lost = visible_hulls(class, stats.hull, status.max_hull)
                     ..visible_hulls(class, status.hull, status.max_hull);
                 status.hull = stats.hull;
-                status.shield = stats.shield;
+                *status = status.with_shield(stats.shield);
                 // Wer aus der Staffel fällt, explodiert klein; danach blendet der Verfall ihn aus.
                 if !self.playback.skipped && !lost.is_empty() {
                     let (_, hulls) = self.hulls_of(ship);
