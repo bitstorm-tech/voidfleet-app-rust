@@ -18,7 +18,7 @@
 
 pub mod selection;
 
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 
 pub use selection::{Outcome, Pick, Selection};
 
@@ -407,12 +407,14 @@ fn update_highlights(
 ) {
     let next = match battle.as_deref() {
         Some(battle) if can_act(Some(battle), *mode.get()) => {
-            let slots = selection::highlights(battle, *selection);
+            // Pads nur beim Manövrieren des Spielers; Gegner als Ziel zeigen ihre Schiffe.
+            let slots: HashSet<_> = selection::highlights(battle, *selection)
+                .into_iter()
+                .filter(|slot| slot.side == crate::scene::coords::Side::Player)
+                .collect();
             Highlights {
-                grid: slots
-                    .iter()
-                    .any(|slot| slot.side == crate::scene::coords::Side::Player),
-                slots: slots.into_iter().collect(),
+                grid: !slots.is_empty(),
+                slots,
             }
         }
         _ => Highlights::default(),

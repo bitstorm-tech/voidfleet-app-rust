@@ -30,7 +30,8 @@ const RIM: f32 = 0.12;
 const PICK_HEIGHT: f32 = 0.5;
 const PAD_COLOR: Color = Color::srgb(0.17, 0.33, 0.54);
 const HOVER_COLOR: Color = Color::srgb(0.82, 0.98, 1.0);
-/// Welche Slots gültige Ziele sind und ob das Gitter der Pads zu sehen ist; setzt der Controller je nach Auswahl.
+/// Welche eigenen Slots gültige Ziele sind und ob das Gitter der Pads zu sehen ist; setzt der Controller nur, solange
+/// der Spieler manövriert (Gegner als Ziel zeigen keine Pads).
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Highlights {
     /// Slots mit leuchtendem Rahmen; unter dem Zeiger leuchtet zusätzlich die Fläche.
