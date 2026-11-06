@@ -5,21 +5,29 @@
 //!
 //! Vorschau: Die Füllung zeigt, was nach dem Schuss oder der Karte bleibt, der Rest bis zum jetzigen Stand blinkt in
 //! der Schadensfarbe; fällt das Schiff, pulsiert der Totenkopf. Dazu die Grenzen des Modells ([`ShipBounds`]: Höhe der
-//! Balken, Größe der Marken, Mitte und Radius für Effekte).
+//! Balken, Größe der Marken, Mitte und Radius für Effekte). In jedem Balken steht `<aktuell>/<total>`, als Knoten der
+//! Oberfläche über seiner Spur, so groß, wie die Spur auf dem Schirm hoch ist.
 
-use bevy::{camera::primitives::Aabb, prelude::*};
+use bevy::{
+    camera::primitives::Aabb,
+    picking::Pickable,
+    prelude::*,
+    transform::TransformSystems,
+    ui::{UiSystems, UiTransform},
+};
 use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 
 use super::{
     animation::AnimationSystems,
     board::SHIP_ANCHOR_HEIGHT,
+    camera::MainCamera,
     formation::Hull,
     fx::{Billboard, FxAssets, FxMaterial, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
     ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, Wreck},
     sync::SyncSystems,
 };
-use crate::{data::ship_models::ShipKind, palette};
+use crate::{data::ship_models::ShipKind, palette, ui::Fonts};
 
 /// Die Balken schweben mindestens so hoch, bei hohen Aufbauten knapp über dem Modell (Raum des Schiffs).
 const BAR_MIN_HEIGHT: f32 = 1.15;
@@ -29,6 +37,14 @@ const BAR_WIDTH: f32 = 2.56;
 const TRACK_COLOR: Color = Color::srgb(0.13, 0.15, 0.22);
 const TRACK_ALPHA: f32 = 0.92;
 const FILL_ALPHA: f32 = 0.999;
+/// Höhe der Spuren und Füllungen von Hülle und Schild, Abstand der Mitten (Raum des Schiffs).
+const HP_TRACK_HEIGHT: f32 = 0.62;
+const HP_FILL_HEIGHT: f32 = 0.5;
+const SHIELD_TRACK_HEIGHT: f32 = 0.5;
+const SHIELD_FILL_HEIGHT: f32 = 0.4;
+const SHIELD_ROW_OFFSET: f32 = (HP_TRACK_HEIGHT + SHIELD_TRACK_HEIGHT) / 2.0 + 0.03;
+/// Schriftgröße der Zahl als Anteil der Spur auf dem Schirm (Ziffern sind etwa zwei Drittel davon hoch).
+const VALUE_SIZE: f32 = 1.05;
 /// Zielvorschau: Takt (Hz) und schwächste Deckkraft des blinkenden Verlusts.
 const PREVIEW_PULSE: f32 = 1.4;
 const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
@@ -116,6 +132,8 @@ pub struct ShipParts {
     shield_fill: Entity,
     shield_loss: Entity,
     tracks: [Entity; 2],
+    /// Die Zahlen in Hüllen- und Schildbalken (Knoten der Oberfläche).
+    values: [Entity; 2],
     crown: Option<Entity>,
     skull: Entity,
     /// Boden unter dem Schiff in Welteinheiten (Nase −Z): Träger der Marken.
@@ -126,6 +144,13 @@ pub struct ShipParts {
 #[derive(Component, Clone, Copy, Debug)]
 struct Bar {
     alpha: f32,
+}
+
+/// Zahl in einem Balken: Schiff und Spur (0 Hülle, 1 Schild).
+#[derive(Component, Clone, Copy, Debug)]
+struct BarValue {
+    ship: Entity,
+    track: usize,
 }
 
 /// Texturen von Krone und Totenkopf.
@@ -150,6 +175,13 @@ impl Plugin for StatusPlugin {
                         .after(AnimationSystems::Apply)
                         .after(SyncSystems),
                 ),
+            )
+            .add_systems(
+                PostUpdate,
+                // Nach den Lagen dieses Bilds und vor dem UI-Layout: Die Zahl steht im selben Bild im Balken.
+                follow_bars
+                    .after(TransformSystems::Propagate)
+                    .before(UiSystems::Layout),
             );
     }
 }
@@ -247,6 +279,7 @@ fn dress_ship(
     mut commands: Commands,
     fx: Res<FxAssets>,
     badges: Res<Badges>,
+    fonts: Res<Fonts>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
     let ship = ships.get(add.entity).expect("Schiff");
@@ -288,7 +321,7 @@ fn dress_ship(
         &mut commands,
         bars,
         TRACK_WIDTH,
-        0.3,
+        HP_TRACK_HEIGHT,
         TRACK_COLOR,
         TRACK_ALPHA,
         0.0,
@@ -297,7 +330,7 @@ fn dress_ship(
         &mut commands,
         bars,
         BAR_WIDTH,
-        0.19,
+        HP_FILL_HEIGHT,
         palette::HP_FULL,
         FILL_ALPHA,
         0.01,
@@ -306,14 +339,14 @@ fn dress_ship(
         &mut commands,
         bars,
         BAR_WIDTH,
-        0.19,
+        HP_FILL_HEIGHT,
         palette::DAMAGE,
         FILL_ALPHA,
         0.01,
     );
     let shield_row = commands
         .spawn((
-            Transform::from_xyz(0.0, -0.29, 0.0),
+            Transform::from_xyz(0.0, -SHIELD_ROW_OFFSET, 0.0),
             Visibility::default(),
             ChildOf(bars),
         ))
@@ -322,7 +355,7 @@ fn dress_ship(
         &mut commands,
         shield_row,
         TRACK_WIDTH,
-        0.21,
+        SHIELD_TRACK_HEIGHT,
         TRACK_COLOR,
         TRACK_ALPHA,
         0.0,
@@ -331,7 +364,7 @@ fn dress_ship(
         &mut commands,
         shield_row,
         BAR_WIDTH,
-        0.12,
+        SHIELD_FILL_HEIGHT,
         palette::SHIELD,
         FILL_ALPHA,
         0.01,
@@ -340,7 +373,7 @@ fn dress_ship(
         &mut commands,
         shield_row,
         BAR_WIDTH,
-        0.12,
+        SHIELD_FILL_HEIGHT,
         palette::DAMAGE,
         FILL_ALPHA,
         0.01,
@@ -400,6 +433,35 @@ fn dress_ship(
             ChildOf(add.entity),
         ))
         .id();
+    let values = [0, 1].map(|track| {
+        commands
+            .spawn((
+                Name::new("Balkenwert"),
+                BarValue {
+                    ship: add.entity,
+                    track,
+                },
+                Text::default(),
+                fonts.display_bold(12.0),
+                TextColor(Color::WHITE),
+                TextShadow {
+                    offset: Vec2::new(0.0, 1.0),
+                    color: Color::BLACK.with_alpha(0.9),
+                },
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                UiTransform {
+                    translation: Val2::percent(-50.0, -50.0),
+                    ..default()
+                },
+                GlobalZIndex(-6),
+                Pickable::IGNORE,
+                Visibility::Hidden,
+            ))
+            .id()
+    });
     let mut entity = commands.entity(add.entity);
     // Wer das Schiff spawnt, kann seine Werte gleich mitgeben.
     entity.insert_if_new(ShipStatus::default());
@@ -412,6 +474,7 @@ fn dress_ship(
         shield_fill,
         shield_loss,
         tracks: [hp_track, shield_track],
+        values,
         crown,
         skull,
         floor,
@@ -505,9 +568,18 @@ fn update_bars(
     ships: Query<(&ShipStatus, &ShipParts), Changed<ShipStatus>>,
     mut parts: Query<(&mut Transform, &mut Visibility)>,
     bars: Query<(&Bar, &MeshMaterial3d<FxMaterial>)>,
+    mut texts: Query<&mut Text>,
     mut materials: ResMut<Assets<FxMaterial>>,
 ) {
     for (status, ship_parts) in &ships {
+        for (entity, current, total) in [
+            (ship_parts.values[0], status.hull, status.max_hull),
+            (ship_parts.values[1], status.shield, status.max_shield),
+        ] {
+            if let Ok(mut text) = texts.get_mut(entity) {
+                text.0 = format!("{current}/{total}");
+            }
+        }
         let after = status.preview.unwrap_or(UnitStats {
             hull: status.hull,
             shield: status.shield,
@@ -571,6 +643,50 @@ fn update_bars(
                     material.color = linear(fill_color, bar.alpha);
                 }
             }
+        }
+    }
+}
+
+/// Stellt jede Zahl in die Mitte ihrer Spur, so hoch wie die Spur auf dem Schirm; ist das Schiff fort, geht sie mit.
+fn follow_bars(
+    mut commands: Commands,
+    camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
+    ships: Query<(&ShipParts, &ShipStatus), With<Ship>>,
+    tracks: Query<&GlobalTransform>,
+    mut values: Query<(Entity, &BarValue, &mut Node, &mut TextFont, &mut Visibility)>,
+) {
+    let (camera, camera_transform) = *camera;
+    for (entity, value, mut node, mut font, mut visibility) in &mut values {
+        let Ok((parts, status)) = ships.get(value.ship) else {
+            commands.entity(entity).despawn();
+            continue;
+        };
+        let screen = |point: Vec3| camera.world_to_viewport(camera_transform, point).ok();
+        // Die Spur ist ein Einheitsquadrat, auf ihre Größe skaliert.
+        let ends = tracks
+            .get(parts.tracks[value.track])
+            .ok()
+            .and_then(|track| {
+                Some((
+                    screen(track.transform_point(Vec3::Y * 0.5))?,
+                    screen(track.transform_point(Vec3::Y * -0.5))?,
+                ))
+            });
+        let shown = !status.hidden && (value.track == 0 || status.shield > 0);
+        visibility.set_if_neq(if shown && ends.is_some() {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
+        let Some((top, bottom)) = ends else {
+            continue;
+        };
+        let center = (top + bottom) / 2.0;
+        node.left = Val::Px(center.x);
+        node.top = Val::Px(center.y);
+        let size = FontSize::Px(((bottom.y - top.y).abs() * VALUE_SIZE).round().max(1.0));
+        if font.font_size != size {
+            font.font_size = size;
         }
     }
 }

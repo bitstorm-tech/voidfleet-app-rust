@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// Abstand über der Mitte der Balken (Welteinheiten).
-const LIFT: f32 = 0.7;
+const LIFT: f32 = 0.9;
 
 /// Was über einem Schiff steht; Leeres fällt weg.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
