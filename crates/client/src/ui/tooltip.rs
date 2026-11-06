@@ -1,6 +1,7 @@
 //! Tooltips (Ersatz für das `title`-Attribut des Browsers): Eine Entity mit [`Tooltip`] zeigt ihren Text, sobald der
 //! Zeiger eine Weile darüber ruht, in einem kleinen Feld neben dem Zeiger. Es gibt nur ein Feld; es liegt über allem.
-//! Statt Text kann eine Entity [`TooltipGlyphs`] tragen: je Zeile ein [`Glyph`] und seine Erklärung.
+//! Statt Text kann eine Entity [`TooltipGlyphs`] tragen: je Zeile ein [`Glyph`] und seine Erklärung;
+//! solche Felder erscheinen sofort.
 
 use bevy::{
     picking::{hover::HoverMap, pointer::PointerId},
@@ -30,7 +31,7 @@ pub struct Glyph {
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct TooltipGlyphs(pub Vec<(Glyph, String)>);
 
-/// So lange (Sekunden) muss der Zeiger ruhen, bis das Feld erscheint, und sein Abstand zum Bild des Zeigers.
+/// So lange (Sekunden) muss der Zeiger ruhen, bis ein Text-Feld erscheint, und sein Abstand zum Bild des Zeigers.
 const DELAY: f32 = 0.5;
 const GAP: f32 = 6.0;
 const MAX_WIDTH: f32 = 300.0;
@@ -148,7 +149,8 @@ fn follow_pointer(
         visibility.set_if_neq(Visibility::Hidden);
         return;
     };
-    if now - hover.since < DELAY {
+    // Die Icons über den Schiffen (Glyphen) erklären sich sofort.
+    if glyphs.is_none() && now - hover.since < DELAY {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     }
