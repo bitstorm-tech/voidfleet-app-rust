@@ -1,8 +1,9 @@
 # Stilregeln für Neubauten (Clean Toon)
 
-Referenz ist die Iron Dreadnought (`fleet/iron_dreadnought.py`): wenige, große, klare Formen, flache Farbflächen in drei
-Tönen, harte Schlagschatten, dunkle Konturen, ein paar leuchtende Akzente. Alle 15 Schiffe sind in diesem Stil gebaut;
-vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --sheet`).
+Referenz ist die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär-
+und Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind; flache Farbflächen in drei Tönen, harte Schlagschatten,
+dunkle Konturen, ein paar leuchtende Akzente. Die übrigen Schiffe stehen noch in der groben Fassung und werden nach
+ihrem Vorbild umgebaut; vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --sheet`).
 
 ## Arbeitsweise
 
@@ -13,9 +14,11 @@ vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,beh
   als benannte Konstante ins Modul und wird gemeldet.
 - `build()` beginnt mit `m = vf.materials(s.name, "<klasse>")` und endet mit `return s.finish()`.
 - Gemeinsame Helfer in `parts.py`: Baugruppen `turret`, `engine` (`n` Segmente für kleine Düsen), `badge` (Wappenplatte
-  der Flaggschiffe), `trim_loop`, `trim_line`, `on_surface`; Formen `sym` (symmetrischer Umriss aus einer Hälfte),
-  `stealth` (Tarnkappenprofil), `block` (Facettenblock auf Lagen), `beam` (kantige Strebe), `axle` (Walze entlang X),
-  `ring_at` (Querschnitt eines Lofts, für Bänder, die dem Rumpf folgen).
+  der Flaggschiffe), `trim_loop`, `trim_line`, `on_surface`; Kleinteile `turret_details` und `engine_details` (mit
+  denselben Argumenten wie `turret` bzw. `engine` aufrufen), `vent` (Lüftungsgitter), `rcs` (Steuerdüsenblock); Formen
+  `sym` (symmetrischer Umriss aus einer Hälfte), `stealth` (Tarnkappenprofil), `block` (Facettenblock auf Lagen), `beam`
+  (kantige Strebe), `axle` (Walze entlang X), `ring_at` (Querschnitt eines Lofts, für Bänder, die dem Rumpf folgen),
+  `bellows` (Blendenbalg um ein Rohr).
 - Vor einem Umbau die jetzige Fassung rendern und die Bilder wegkopieren (die Vorschau überschreibt `renders/<id>/`).
 - Kreislauf: `build.py -- <id>` (Dreiecke, KB, Warnungen) und `preview.py -- <id> --views board,zoom,behind,hero,wreck`,
   bei asymmetrischen Schiffen auch `enemy_zoom`. Fertig ist ein Schiff erst ohne Warnungen und nach dem Blick auf `board`
@@ -23,31 +26,93 @@ vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,beh
 
 ## Was wegfällt
 
-Alles, was auf dem Brett nur Pixelrauschen ist: Plattenfugen, Bevel, Texturen, Greebles, Lüfter, Rohrleitungen,
-Flak-Türmchen, Raketenwerfer, Radarplatten, Schüsseln, Sensorkuppeln und Bauchsensoren, Radiatoren, Fensterreihen aus
-Einzelkästen, Antennen mit Scheiben, Kühlrippen und Ringe an Düsen und Läufen, Nebentürme. Ausnahme: Ein solches Teil
-ist das Kennzeichen des Schiffs (die Schüssel des Signal Boosters, die Arme der Repair Drone); dann bleibt es, aber groß
-und grob.
+Die grobe Fassung hatte nach einem zu kleinteiligen Vorgänger alles Feine gestrichen; zurück kommen nur Formen mit Zweck
+in Detailzonen (unten). Weiter weg bleibt, was auf dem Brett nur Rauschen ist oder im Spiel zum schwarzen Fleck wird:
 
-## Was größer und gröber wird
+- Plattenfugen, Nieten, Schmutz, Kantenabrieb und Plattentöne als Geometrie: Sie kommen aus der Verwitterungs-Textur
+  (gebackene Maske, im Shader hart gestuft). Die Geometrie liefert die Kanten und Stufen, an denen sie greift.
+- Bevel; Fasen nur über `rbox` an Verschlüssen und Blenden.
+- Zufalls-Greebles: Kleinteile ohne erkennbaren Zweck, gestreut statt gruppiert, und gleich große Teile in gleichen
+  Abständen über das ganze Schiff (gleichmäßiges Rauschen).
+- Fensterreihen aus Einzelkästen (ein durchgehendes Fensterband), Nadel-Antennen, Antennen mit Scheiben, Geländer,
+  Leitern.
+- Abstehende Kleinstteile unter 0,15 (Düsenkegel, Stummel, Bolzen): Im Spiel bekommt jedes erhabene Teil einen
+  Konturring fester Breite, ein Bündel davon wird zum schwarzen Fleck. Die ersten RCS-Blöcke der Dreadnought mit drei
+  Kegeldüsen sahen genau so aus; jetzt liegen die Düsenöffnungen flach auf (`parts.rcs`).
+- Rohrleitungsbündel und lose Leitungen, Radiatoren aus Lamellen, Kühlrippen an Düsen, mehr als zwei Ringe je Lauf.
+- Nebentürme, Flak-Türmchen und Raketenwerfer: Sie konkurrieren mit der Hauptbewaffnung, die die Klasse zeigt.
+- Eigene Lichter an Kleinteilen (Positionslichter, Lampen an Kisten): Ein rotes Positionslicht am Brückenflügel zog auf
+  dem Brett mehr Blick als die Klasse.
 
-- Hauptwaffen: weniger und größer. Bei der Dreadnought drei Zwillingstürme (Radius 0,42 → 0,5 bzw. 0,46) statt vier großer
-  und zwei kleiner, Bugkanonen mit Lauf-Radius 0,24 statt 0,17, ein Kühlmantel statt drei Ringen, große Mündungsbremse.
-- Aufbauten aus zwei bis drei Blöcken (`vf.wedge`, schräge Front), ein durchgehendes Fensterband (`window`) statt
-  Fensterreihen, ein Mast als einfacher Stab mit einem Licht.
-- Emitter als flache Kuppeln am Deckrand statt Kugeln auf Stielen; kleine, hoch stehende Teile werfen fleckige Schatten.
-- Düsen mit `parts.engine` (Gehäuse, Glocke, leuchtende Brennkammer, keine Rippen).
-- Große leere Flächen bekommen einen groben Bruch (Stufe, zweite Plattenlage, Lichtband), keine Kleinteile. Die Unterseite
-  braucht Kiel oder Schürzen, sonst ist die Karte (`hero`, von schräg unten) leer.
+Ausnahme: Ein solches Teil ist das Kennzeichen des Schiffs (die Schüssel des Signal Boosters, die Arme der Repair
+Drone); dann bleibt es, aber groß und grob.
+
+## Was groß bleibt und was dazukommt
+
+Die Primärformen bleiben groß und grob: wenige, große Hauptwaffen (die Dreadnought hat drei Zwillingstürme mit Radius
+0,5 bzw. 0,46 und zwei Bugkanonen mit Lauf-Radius 0,24), Aufbauten aus zwei bis drei Blöcken (`vf.wedge`, schräge Front)
+mit einem durchgehenden Fensterband, Düsen mit `parts.engine`, Emitter als flache Kuppeln am Deckrand statt Kugeln auf
+Stielen, Kiel oder Schürzen unter dem Rumpf. Dazu kommen Sekundär- und Tertiärformen, die zeigen, wie das Schiff gebaut
+ist und benutzt wird:
+
+- **Drei Stufen.** Primärformen (Rumpf, Türme, Aufbau, Kanonen) ab etwa 0,5; Sekundärformen 0,15–0,6 (Plattenlage,
+  Deckel, Ohren, Brückenflügel, Lüfter als Ganzes, RCS-Block, Düsenkranz, Hangarkinn); Tertiärformen unter 0,15, nur
+  für Zoom und Karte (Stege, Linsen, Luken, Balgfalten, Mündungsringe, Düsenöffnungen, Torflügel).
+- **Zweck aus dem Ort.** Lüfter über Maschinenräumen (achtern), RCS an den Rumpfecken, Kabelkanäle an der Flanke
+  zu einer Kasematte, Blendenbälge an Rohrwurzeln, Entfernungsmesser an Türmen, Hangartor unten, Lagerkisten an
+  einer Wand. Was keinen Ort mit Zweck findet, fällt weg.
+- **Zonen statt Streuung.** Kleinteile sammeln sich um eine Sekundärform (eine Zone: eine Sekundärform, zwei bis fünf
+  Tertiärformen). Zwischen den Zonen bleiben ruhige Flächen von mindestens etwa einer Einheit, nur mit Plattenlagen;
+  dort arbeitet die Verwitterungs-Textur. Gleiche Teile höchstens zu dritt oder viert in einer Reihe (Stege, Spanten).
+- **Plattenlagen statt Fugen.** Eine zweite Lage (0,05–0,07 dick, 0,1–0,15 vom Rand der ersten eingezogen), eine
+  Kappe um die Bugspitze, ein Deckel auf einem Block. Die Lage wechselt das Material (`hull`, `armor`, `dark`), damit die
+  Stufe auch ohne Linie als Hell-Dunkel-Wechsel liest; auf dem Brett ist sie die feinere Gliederung der Fläche.
+- **Vertiefungen als Rahmen.** Löcher gibt es nicht (die Teile sind geschlossene, sich überlappende Körper): Eine dunkle
+  Platte in einem flachen Rahmen aus dem Material der Fläche liest als Vertiefung (`parts.vent`, Hangartor).
+- **Kleinteile an Baugruppen.** Wer `turret` oder `engine` benutzt, setzt `turret_details` bzw. `engine_details` mit
+  denselben Argumenten dazu; Lichter bekommen die neuen Teile nicht.
+
+Referenz sind die Detailzonen der Iron Dreadnought:
+
+- **Bug:** Bugpanzer-Kappe (`armor`) um die Spitze; Kanonen mit Blendenbalg vor dem Verschluss, Kühlmantel, Laufschelle
+  und zweiteiliger Mündungsbremse (Stahlkern im Spalt).
+- **Türme:** `parts.turret_details`, also Barbettenring, Entfernungsmesser-Ohren mit Linse, Turmluke, Blendenbälge,
+  Mündungsringe.
+- **Flanke:** zweite Plattenlage auf der Schürze; Kabelkanal (`dark`, 0,1 × 0,1) unter der Deckkante bis zur Kasematte,
+  mit Anschlusskasten; Kasematte mit Deckel, Luke, Lüfter und Lichtband; `parts.rcs` an den vorderen und hinteren
+  Rumpfecken.
+- **Brücke:** Brückenflügel als offene Nocken unter den Seitenfenstern; Mast mit Radarplatte (15° zurückgeneigt),
+  Querträger und Mastlicht.
+- **Achterdeck und Heck:** Maschinenlüfter (`parts.vent`) hinter dem Aufbau und an den Seiten, je eine Lagerkiste an der
+  Wand des Dorsaldecks; `parts.engine_details` an jeder der vier Düsen.
+- **Unterseite:** Kinn unter dem Bug mit zweiflügeligem Hangartor nach vorn (in `hero` sichtbar), vier Spanten je Seite
+  am V-Boden, zweite Lage unter der unteren Schürze.
+- **Ruhig:** Hauptdeck vor den Seitentürmen, Dorsaldeck zwischen den Türmen (nur eine Luke), Schürzenflanken, Flächen
+  des Aufbaus.
 
 ## Mindestgröße bei Brettgröße
 
-Auf dem Brett ist eine Blender-Einheit etwa 22 px (Flaggschiffe 24 px), die Konturen sind 0,7–1,8 px breit.
+Auf dem Brett ist eine Blender-Einheit etwa 22 px (Flaggschiffe 24 px), im Zoom etwa 70 px, auf der Karte 80–90 px. Die
+Vorschau zeichnet Linien von 0,7–1,8 px (Außenkontur, Silhouetten, Knicke über 40°); das Spiel zeichnet keine Knicke,
+aber um jedes erhabene Teil, das vor etwas anderem liegt, einen Konturring von 1,8 px (Inverted Hull je Material,
+`crates/client/src/scene/toon/outline.rs`). Daraus:
 
-- Formteile, die als Fläche mit Tönen gelesen werden sollen: kleinste Abmessung mindestens 0,15 (≈ 3 px), besser 0,2.
-- Rohre und Läufe: Durchmesser mindestens 0,18. Leisten dünner als 0,15 nur, wenn sie mindestens 0,8 lang sind.
+- Flächen mit Tönen (Primär- und Sekundärformen): kleinste Abmessung mindestens 0,15 (≈ 3,3 px, neben der Kontur
+  bleiben etwa 1,5 px Ton), besser 0,2.
+- Flach aufliegend, Relief bis 0,05 (≈ 1 px): ab 0,06, also Stege, Luken, Linsen, Düsenöffnungen, Torflügel. Auf dem
+  Brett verschieben sie nur den Ton ihrer Fläche (ein Gitter wird ein dunkles Rechteck), deshalb nur auf einer
+  Sekundärform von mindestens 0,3, deren Ton als Ganzes liest; im Zoom sind 0,06 gut 4 px.
+- Erhabene Kleinteile unter 0,15 (Relief über 0,05) nur an einer größeren Form, deren Umriss sie verlängern (Ohren,
+  Bälge, Mündungsringe, Querträger), nie freistehend und höchstens zwei oder drei je Teil.
+- Rohre und Läufe: Durchmesser mindestens 0,18. Leisten und Kanäle dünner als 0,15 nur, wenn sie mindestens 0,8 lang
+  sind (Kabelkanal 0,1, Querträger 0,07).
+- Zwischen zwei erhabenen Teilen mindestens 0,1 Luft, sonst verschmelzen ihre Konturringe zu einem schwarzen Fleck.
+  Spalte innerhalb einer Sekundärform (Stege, Torflügel, Bremsscheiben) ab 0,06: Sie schließen sich auf dem Brett
+  absichtlich und öffnen sich im Zoom.
 - Lichter dürfen kleiner sein, weil sie leuchten: Punktlichter ab Radius 0,08, Lichtbänder ab 0,04 dick und 0,5 lang.
-- Zwischen zwei Teilen mindestens 0,1 Luft, sonst verschmelzen ihre Konturen zu einem schwarzen Fleck.
+- Neue Kleinteile einmal im Spiel ansehen, nur dort zeigen sich die Konturringe: Dev-Szenen in
+  `crates/client/src/dev/scenes.rs` (`hit` zeigt den Belagerer, also die Dreadnought), Screenshot mit
+  `VOIDFLEET_SMOKE_FRAMES` und `VOIDFLEET_SMOKE_SCREENSHOT`.
 
 ## Palette und Akzent
 
@@ -77,9 +142,12 @@ die Facetten).
 
 ## Dreiecksbudget
 
-Obergrenzen: Schlachtschiffe 7k, Kreuzer 5k, Jäger und Unterstützer 4k, Drohne 2k, Trugbild 1,5k, Flaggschiffe 8k. Die
-Werft liegt heute bei 0,9k (Trugbild) bis 6,5k (Dreadnought). Das meiste geht in runde Teile: große mit 20–24
-Segmenten, kleine mit 12–16 (`parts.engine(…, n=12)`), `smooth` mit `subdiv` 1–2.
+Obergrenzen: Schlachtschiffe 12k, Flaggschiffe 14k, Kreuzer 9k, Jäger und Unterstützer 7k, Drohne 3k, Trugbild 1,5k
+(bleibt flach). Die Dreadnought liegt bei 11,2k (grobe Fassung 6,5k); von den 4,7k für Details gehen etwa 2k in die vier
+Türme, 0,8k in die Bugkanonen, 0,6k in die Düsen, 0,4k in die Lüfter, 0,4k in die RCS-Blöcke und 0,5k in den Rest. Das
+meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8, `smooth` mit
+`subdiv` 1–2; Kasten, Platten und Stege kosten fast nichts. Die Wracks (wreck.py) entstehen automatisch und haben etwa
+das 1,5-Fache (Dreadnought 16,5k Dreiecke, 0,75 MB); ansehen (`wreck`) muss man sie trotzdem.
 
 ## Silhouette und Wiedererkennbarkeit
 

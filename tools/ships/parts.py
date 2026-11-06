@@ -1,6 +1,7 @@
 """Gemeinsame Helfer der Schiffe im Clean-Toon-Stil: Baugruppen mit dem Materialsatz aus `vf.materials` (Turm, Düse,
-Wappenplatte, Zierlinien) und Formen, die mehrere Schiffe teilen (Profile, Streben, Walzen, Facettenblöcke, Bänder
-auf Lofts).
+Wappenplatte, Zierlinien), Kleinteile nach dem Vorbild der Iron Dreadnought (Turm- und Düsendetails, Lüftungsgitter,
+RCS-Blöcke) und Formen, die mehrere Schiffe teilen (Profile, Streben, Walzen, Facettenblöcke, Bänder auf Lofts,
+Blendenbalg).
 
 Ein Helfer kommt erst hierher, wenn ein zweites Schiff ihn braucht; bis dahin lebt er im Modul seines Schiffs
 (fleet/<id>.py), damit parallel arbeitende Agents sich nicht in die Quere kommen. Wer hier etwas ändert, ändert alle
@@ -12,7 +13,7 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from vf import Ship, grow, loft, plate, post, rbox, rect, revolve, rounded, sec, smooth, sweep, tube
+from vf import Ship, box, grow, loft, plate, post, rbox, rect, revolve, rounded, sec, smooth, sweep, tube
 
 # ---------------------------------------------------------------- Baugruppen
 
@@ -47,6 +48,63 @@ def engine(s, m, r, y0, y1, dx=0.0, dz=0.0, n=20, mirror=False):
     s.add(revolve(bell, n), m["steel"], at=(dx, 0, dz), mirror=mirror)
     s.add(revolve([(r * 0.62, yb + 0.03 * length), (r * 0.62, yb + 0.1 * length), (r * 0.52, y1 + 0.02 * length), (0.0, y1 + 0.22 * length)], n),
           m["core"], at=(dx, 0, dz), mirror=mirror)
+
+
+def turret_details(s, m, at, r=0.5, barrel=1.35, yaw=0.0, mirror=False):
+    """Kleinteile zu einem `turret` mit denselben Argumenten: Barbettenring (`armor_round`) bis knapp unter das Deck,
+    Entfernungsmesser-Ohren hinten an den Seiten mit dunkler Linse, Turmluke auf dem Dach, Blendenbälge an den
+    Rohrwurzeln, je ein Mündungsring hinter der Mündung."""
+    x, y, z = at
+    s.add(post(24, r * 1.2, r * 1.2, -0.1, 0.05), m["armor_round"], at=(x, y, z), mirror=mirror)
+    g = Ship("turret_details")
+    for sx in (-1, 1):
+        g.add(box(0.36 * r, 0.5 * r, 0.3 * r), m["accent"], at=(sx * 0.95 * r, 0.42 * r, 0.14 * r))
+        g.add(box(0.22 * r, 0.06 * r, 0.16 * r), m["dark"], at=(sx * 1.0 * r, 0.16 * r, 0.14 * r))
+    g.add(post(12, 0.2 * r, 0.2 * r, 0.36 * r, 0.5 * r), m["accent_round"], at=(-0.38 * r, 0.42 * r, 0))
+    rb = 0.19 * r
+    for dx in (-0.38 * r, 0.38 * r):
+        g.add(bellows(12, rb * 1.55, -1.14 * r, -1.48 * r), m["armor_round"], at=(dx, 0, 0.04 * r))
+        g.add(tube(12, rb * 1.4, rb * 1.4, -barrel + 0.22, -barrel + 0.28), m["dark_round"], at=(dx, 0, 0.04 * r))
+    s.place(g, at=(x, y, z + 0.14 + 0.44 * r), rot=(0, 0, yaw), mirror=mirror)
+    g.bm.free()
+
+
+def engine_details(s, m, r, y0, y1, dx=0.0, dz=0.0, n=20, mirror=False):
+    """Kleinteile zu einem `engine` mit denselben Argumenten: helles Gehäusesegment (`armor_round`) im vorderen
+    Drittel, dunkler Düsenkranz über dem Übergang vom Gehäuse zur Glocke."""
+    length = y1 - y0
+    ya = y0 + 0.6 * length
+    s.add(tube(n, r * 1.09, r * 1.09, y0 + 0.24 * length, y0 + 0.34 * length, dx, dz), m["armor_round"], mirror=mirror)
+    s.add(tube(n, r * 1.16, r * 1.16, ya - 0.2 * r, ya + 0.1 * r, dx, dz), m["dark_round"], mirror=mirror)
+
+
+def vent(s, m, mat, at, w, l, slats=3, rot=(0, 0, 0), mirror=False):
+    """Lüftungsgitter: dunkle Vertiefung (w quer, l längs) in einem flachen Rahmen aus `mat` (dem Material der Fläche
+    darunter) mit `slats` Stegen quer. Liegt mit der Unterseite auf `at` und steckt 0,03 darin (lokal +z nach außen):
+    Boden 0,01, Stege 0,03, Rahmen 0,05 hoch. `rot` (Grad) legt es auf schräge Flächen und Flanken."""
+    g = Ship("vent")
+    bar = 0.07
+    g.add(box(w - bar, l - bar, 0.04), m["dark"], at=(0, 0, -0.01))
+    for sy in (-1, 1):
+        g.add(box(w, bar, 0.08), mat, at=(0, sy * (l - bar) / 2, 0.01))
+    for sx in (-1, 1):
+        g.add(box(bar, l - 2 * bar, 0.08), mat, at=(sx * (w - bar) / 2, 0, 0.01))
+    for k in range(slats):
+        g.add(box(w - 2 * bar, 0.06, 0.06), mat, at=(0, -l / 2 + bar / 2 + (k + 1) * (l - bar) / (slats + 1), 0.0))
+    s.place(g, at=at, rot=rot, mirror=mirror)
+    g.bm.free()
+
+
+def rcs(s, m, at, along, size=0.28):
+    """RCS-Steuerdüsenblock an einer Rumpfecke, `at` auf Steuerbord, gespiegelt: flacher Kasten (`armor`) mit zwei
+    dunklen Düsenöffnungen nach außen und einer längs (`along` 1 nach achtern, -1 nach vorn). Die Öffnungen liegen flach
+    auf; abstehende Kleinstdüsen werden im Spiel mit ihren Konturen zu schwarzen Flecken."""
+    x, y, z = at
+    h = size / 2
+    s.add(box(size, size, size * 0.6), m["armor"], at=at, mirror=True)
+    for dy in (-0.07, 0.07):
+        s.add(tube(8, 0.05, 0.05, -0.02, 0.02), m["dark_round"], at=(x + h, y + dy, z), rot=(0, 0, -90), mirror=True)
+    s.add(tube(8, 0.05, 0.05, -0.02, 0.02), m["dark_round"], at=(x, y + along * h, z), mirror=True)
 
 
 def badge(s, m, at, outline, symbol, rim=0.08, dy=0.0):
@@ -117,6 +175,11 @@ def axle(r, length, n=12):
     bm = tube(n, r, r, -length / 2, length / 2)
     bmesh.ops.rotate(bm, verts=bm.verts, matrix=Matrix.Rotation(-math.pi / 2, 4, "Z"))
     return bm
+
+
+def bellows(n, r, y0, y1, folds=2):
+    """Blendenbalg um ein Rohr (Achse Y) von y0 nach y1: `folds` Falten zwischen r und 0,86 r."""
+    return revolve([(r if k % 2 == 0 else r * 0.86, y0 + (y1 - y0) * k / (2 * folds)) for k in range(2 * folds + 1)], n)
 
 
 def ring_at(rings, y, offset=0.0):
