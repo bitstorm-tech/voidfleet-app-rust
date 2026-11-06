@@ -2,10 +2,11 @@
 //! (Front und Back), auf der Spielerseite eine, je Slot ein Landeplatz ([`Pad`]), der der Aufteilung der Kamera
 //! ([`BoardLayout`]) folgt.
 //!
-//! Ein Pad zeigt seine Platte nur, solange ein Slot gesucht wird ([`Highlights::grid`]), einen leuchtenden Rahmen, wenn
-//! er ein gültiges Ziel ist ([`Highlights::slots`]), und darüber eine helle Fläche, solange der Zeiger auf einem gültigen
-//! Ziel liegt. Schiffe hängen an seinem Anker ([`PadAnchor`]): Die Nase zeigt zum Gegner, die Seite gibt das Hauptlicht
-//! vor. Welches Schiff auf welchem Slot steht, trägt das Schiff selbst ([`OnSlot`]); [`attach`] setzt es dorthin.
+//! Ein Pad der Spielerseite zeigt seine Platte nur, solange ein Slot gesucht wird ([`Highlights::grid`]); ein Pad
+//! zeigt einen leuchtenden Rahmen, wenn er ein gültiges Ziel ist ([`Highlights::slots`]), und darüber eine helle
+//! Fläche, solange der Zeiger auf einem gültigen Ziel liegt. Schiffe hängen an seinem Anker ([`PadAnchor`]): Die Nase
+//! zeigt zum Gegner, die Seite gibt das Hauptlicht vor. Welches Schiff auf welchem Slot steht, trägt das Schiff
+//! selbst ([`OnSlot`]); [`attach`] setzt es dorthin.
 
 use bevy::{
     picking::Pickable,
@@ -16,7 +17,7 @@ use bevy::{
 
 use super::{
     camera::BoardLayout,
-    coords::{PAD_DEPTH, PAD_WIDTH, SlotRef, facing},
+    coords::{PAD_DEPTH, PAD_WIDTH, Side, SlotRef, facing},
     fx::{FxMaterial, glowing, linear},
     ship::ToonState,
 };
@@ -36,7 +37,7 @@ const HOVER_COLOR: Color = Color::srgb(0.82, 0.98, 1.0);
 pub struct Highlights {
     /// Slots mit leuchtendem Rahmen; unter dem Zeiger leuchtet zusätzlich die Fläche.
     pub slots: HashSet<SlotRef>,
-    /// Die Platten der Pads: zu sehen, solange eine Spalte gesucht wird.
+    /// Die Platten der eigenen Pads: zu sehen, solange eine Spalte gesucht wird (die Gegnerseite bleibt ohne).
     pub grid: bool,
 }
 
@@ -255,7 +256,7 @@ fn show_pads(
         for child in children.iter() {
             if let Ok((part, mut visibility)) = parts.get_mut(child) {
                 let shown = match part {
-                    PadPart::Base => highlights.grid,
+                    PadPart::Base => highlights.grid && pad.slot.side == Side::Player,
                     PadPart::Frame => valid,
                     PadPart::Hover => hovered,
                 };
