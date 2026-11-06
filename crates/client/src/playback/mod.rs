@@ -1,9 +1,9 @@
 //! Die erzählte Wiedergabe des Gefechts (Entwurf Abschnitt 9, „Der Gefechtsbericht“): Jede Aktion läuft sichtbar ab,
 //! bevor die Szene den neuen Zustand übernimmt. Der Spielerzug zeigt Schuss, Einschlag und Zahl und gibt sofort zurück;
-//! `end_turn` erzählt Zugende, Gegnerzug und Auflösung Ereignis für Ereignis und schließt mit dem Tableau der Runde.
+//! `end_turn` erzählt Zugende, Gegnerzug und Auflösung Ereignis für Ereignis.
 //!
 //! - [`steps`]: Ereignisse → Schritte (Kopf und Folgen, Gleichartiges gebündelt).
-//! - [`plan`]: Schritt → [`script::Script`] aus Takten; dazu die Bilanz der Runde ([`plan::Tally`]).
+//! - [`plan`]: Schritt → [`script::Script`] aus Takten.
 //! - [`script`]: Takte als Daten und ihre Bühne; je Bild höchstens ein Takt, erst wenn die Aufträge des vorigen fertig
 //!   sind.
 //! - [`radio`]: welcher Funkspruch zu welchem Ereignis gehört.
@@ -23,14 +23,11 @@ mod steps;
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use voidfleet_core::{
-    admirals::AdmiralId,
-    events::{BattleEvent, UnitRef},
-};
+use voidfleet_core::{admirals::AdmiralId, events::BattleEvent};
 
 pub use self::radio::radio_cue;
 use self::{
-    plan::{Planner, Tally},
+    plan::Planner,
     script::{Script, run_scripts},
     steps::group_steps,
 };
@@ -43,7 +40,7 @@ use crate::{
         camera::CameraCommand,
         floating_text::FloatingText,
     },
-    ui::{AppendLog, HideBanner, ShowBanner, round_log::describe_event},
+    ui::{AppendLog, HideBanner, round_log::describe_event},
 };
 
 /// Spielt die Ereignisse einer Aktion ab (in Ausführungsreihenfolge).
@@ -63,15 +60,12 @@ pub struct SkipPlayback;
 pub(crate) struct Playback {
     /// Die Schritte, die noch nicht begonnen haben.
     steps: VecDeque<Vec<BattleEvent>>,
-    /// Das Tableau am Ende, wenn eine Runde vorüber ist: die beendete Runde und ihre Bilanz.
-    report: Option<(u32, Tally)>,
     skipped: bool,
 }
 
 impl Playback {
-    /// Übersprungen: Die übrigen Schritte kommen nur noch als Log-Zeilen, das Tableau entfällt.
+    /// Übersprungen: Die übrigen Schritte kommen nur noch als Log-Zeilen.
     fn skip_rest(&mut self, locale: &dyn Messages, admiral: AdmiralId) -> Vec<String> {
-        self.report = None;
         self.steps
             .drain(..)
             .flatten()
@@ -80,10 +74,6 @@ impl Playback {
     }
 }
 
-/// Die Bilanz der laufenden Runde über alle Aktionen hinweg.
-#[derive(Resource, Debug, Default)]
-struct RoundTally(Tally);
-
 pub struct PlaybackPlugin;
 
 impl Plugin for PlaybackPlugin {
@@ -91,7 +81,6 @@ impl Plugin for PlaybackPlugin {
         app.add_message::<PlayEvents>()
             .add_message::<PlaybackFinished>()
             .add_message::<SkipPlayback>()
-            .init_resource::<RoundTally>()
             .add_systems(
                 Update,
                 (
@@ -112,26 +101,12 @@ impl Plugin for PlaybackPlugin {
 fn start(
     mut commands: Commands,
     mut plays: MessageReader<PlayEvents>,
-    mut tally: ResMut<RoundTally>,
     mut clock: ResMut<AnimationClock>,
 ) {
     for PlayEvents(events) in plays.read() {
-        tally.0.add(events);
-        let round = events.iter().find_map(|event| match event {
-            BattleEvent::RoundStarted { round } => Some(*round),
-            _ => None,
-        });
-        let ended = events
-            .iter()
-            .any(|event| matches!(event, BattleEvent::BattleEnded { .. }));
-        let report = round.map(|round| (round - 1, std::mem::take(&mut tally.0)));
-        if ended {
-            tally.0 = Tally::default();
-        }
         clock.skip = false;
         commands.insert_resource(Playback {
             steps: group_steps(events).into(),
-            report,
             skipped: false,
         });
     }
@@ -155,7 +130,7 @@ fn skip(
 }
 
 /// Beginnt den nächsten Schritt, sobald keiner mehr läuft; übersprungen kommen die übrigen nur ins Log. Nach dem letzten
-/// das Tableau, dann ist die Wiedergabe fertig.
+/// ist die Wiedergabe fertig.
 fn drive(
     mut commands: Commands,
     mut playback: ResMut<Playback>,
@@ -172,7 +147,6 @@ fn drive(
     }
     let Some(admiral) = battle.map(|battle| battle.flagship.admiral) else {
         playback.steps.clear();
-        playback.report = None;
         return finish(&mut commands, &mut clock, &mut camera, &mut finished);
     };
     if playback.skipped {
@@ -187,8 +161,6 @@ fn drive(
     };
     if let Some(step) = playback.steps.pop_front() {
         commands.spawn((Name::new("Wiedergabe"), planner.step(&step)));
-    } else if let Some((round, tally)) = playback.report.take() {
-        commands.spawn((Name::new("Tableau"), tableau(&planner, round, &tally)));
     } else {
         finish(&mut commands, &mut clock, &mut camera, &mut finished);
     }
@@ -207,32 +179,6 @@ fn finish(
     commands.remove_resource::<Playback>();
 }
 
-/// Das Tableau einer Runde: Schaden genommen und ausgeteilt, Verluste des Gegners, neue Zustände.
-fn tableau(planner: &Planner, round: u32, tally: &Tally) -> Script {
-    let locale: &dyn Messages = planner.locale;
-    let mut parts = vec![
-        locale.report_taken(tally.taken),
-        locale.report_dealt(tally.dealt),
-    ];
-    if tally.kills > 0 {
-        parts.push(locale.report_kills(tally.kills));
-    }
-    parts.extend(tally.conditions.iter().map(|&(unit, condition)| {
-        let name = match unit {
-            UnitRef::Flagship => locale.flagship(planner.admiral.flagship()).to_owned(),
-            UnitRef::Enemy { id, .. } => locale.enemy(id).to_owned(),
-        };
-        format!("{}: {name}", locale.condition(condition))
-    }));
-    Script::default()
-        .then([script::Cue::Banner(ShowBanner {
-            title: locale.report_tableau_title(round),
-            subtitle: Some(parts.join(" · ")),
-            admiral: None,
-        })])
-        .then([script::Cue::Pause(plan::TABLEAU_HOLD)])
-}
-
 #[cfg(test)]
 mod tests {
     use voidfleet_core::events::UnitStats;
@@ -240,7 +186,7 @@ mod tests {
     use super::*;
     use crate::settings::Language;
 
-    /// Überspringen: Die übrigen Schritte landen vollständig im Log, das Tableau entfällt, nichts bleibt offen.
+    /// Überspringen: Die übrigen Schritte landen vollständig im Log, nichts bleibt offen.
     #[test]
     fn skip_logs_the_rest() {
         let events = vec![
@@ -253,12 +199,11 @@ mod tests {
         ];
         let mut playback = Playback {
             steps: group_steps(&events).into(),
-            report: Some((2, Tally::default())),
             skipped: true,
         };
         let locale = Locale::new(Language::En);
         let lines = playback.skip_rest(&*locale, AdmiralId::Osei);
         assert_eq!(lines.len(), events.len());
-        assert!(playback.steps.is_empty() && playback.report.is_none());
+        assert!(playback.steps.is_empty());
     }
 }

@@ -45,8 +45,6 @@ const BANNER_LEAD: f32 = 0.6;
 const SALVO_STAGGER: f32 = 0.18;
 /// Das Rundenbanner steht so lange, bevor Gefechtsuhr und Absichten folgen.
 const ROUND_LEAD: f32 = 0.8;
-/// Das Tableau am Ende einer Runde steht so lange.
-pub(super) const TABLEAU_HOLD: f32 = 1.6;
 /// Traktorstrahl: Er hält kurz, bevor er zieht.
 const TRACTOR_GRIP: f32 = 0.35;
 /// Kamerawackeln bei Treffern am Flaggschiff: Grundwert und je Punkt Hüllenschaden, höchstens.
@@ -124,51 +122,6 @@ struct Context {
     covering: Option<u32>,
     /// Das Flaggschiff rammt und kehrt nach dem Aufprall zurück.
     ramming: bool,
-}
-
-/// Bilanz einer Runde für das Tableau.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Tally {
-    pub taken: i32,
-    pub dealt: i32,
-    pub kills: usize,
-    /// Neue Zustände: Einheit und Zustand.
-    pub conditions: Vec<(UnitRef, Condition)>,
-}
-
-impl Tally {
-    pub fn add(&mut self, events: &[BattleEvent]) {
-        for event in events {
-            match *event {
-                BattleEvent::Hit {
-                    target, breakdown, ..
-                } => self.damage(target, breakdown.hull),
-                BattleEvent::BurnTick { target, amount, .. } => self.damage(target, amount),
-                BattleEvent::SelfDamage { amount, .. } => self.taken += amount,
-                BattleEvent::Counterfire { amount, .. }
-                | BattleEvent::HoldTheLine { amount, .. } => self.dealt += amount,
-                BattleEvent::Destroyed {
-                    target: UnitRef::Enemy { .. },
-                    ..
-                } => self.kills += 1,
-                BattleEvent::Ignited { target } => {
-                    self.conditions.push((target, Condition::Burning))
-                }
-                BattleEvent::Emergency {
-                    target,
-                    active: true,
-                } => self.conditions.push((target, Condition::Emergency)),
-                _ => {}
-            }
-        }
-    }
-
-    fn damage(&mut self, target: UnitRef, amount: i32) {
-        match target {
-            UnitRef::Flagship => self.taken += amount,
-            UnitRef::Enemy { .. } => self.dealt += amount,
-        }
-    }
 }
 
 impl Planner<'_> {
@@ -1390,21 +1343,5 @@ mod tests {
             .collect();
         assert_eq!(bolts, 1);
         assert_eq!(numbers, ["gedeckt: 4 → Wachkreuzer", ""]);
-    }
-
-    #[test]
-    fn tally_counts_both_sides() {
-        let mut tally = Tally::default();
-        tally.add(&all_events());
-        assert_eq!(tally.taken, 3);
-        assert_eq!(tally.dealt, 6 + 3 + 2 + 2);
-        assert_eq!(tally.kills, 1);
-        assert_eq!(
-            tally.conditions,
-            [
-                (GUARD, Condition::Burning),
-                (UnitRef::Flagship, Condition::Emergency)
-            ]
-        );
     }
 }

@@ -175,7 +175,7 @@ Im Spielerzug zeigt das Spiel jede Karte und die Station sofort: Salve, Einschla
 - **Reihenfolge im Gegnerzug.** Verstärkung zuerst, dann die Gegner Front vor Back, links nach rechts. Wer im Spielerzug gefallen ist, hat keinen Auftritt mehr, und der Bericht sagt es: „Der Wachkreuzer bricht auseinander, bevor er feuern kann.“
 - **Jede Zahl erklärt sich.** Am Einschlag steht der Schaden, darunter in Kurzform, wie er entstand: „11“, dazu Marken wie „weicht aus: 6“, „Panzerung −2“, „gedeckt: 4 an den Wachkreuzer“, „Schild schluckt 8“. Dieselbe Rechnung steht als Vorschau am Ziel, bevor der Spieler auslöst: Was die Vorschau zeigt, geschieht. Das Log führt dieselben Zeilen in Klartext.
 - **Zustände sind Auftritte.** Ein neuer Brand, ein Notfall, ein ausgebranntes Schiff bekommen Banner, Funkspruch und Kamerablick. Beim Flaggschiff spricht die Brücke, beim Gegner der abgehörte Funk.
-- **Auflösung.** Nach dem Gegnerzug ein kurzes Tableau: Schaden genommen und ausgeteilt, Verluste des Gegners, neue Zustände, die Absichten der Gegner für die nächste Runde, die neue Hand. Erst dann beginnt die Planung.
+- **Auflösung.** Kein eigenes Tableau: Brände, Zustände und die neuen Absichten laufen als Ereignisse durch, danach stehen Absichten und neue Hand auf dem Brett, und die Planung beginnt.
 - **Funk.** Jeder Zug hat Ankündigung und Reaktion. Die eigene Brücke meldet Schäden, Brände und den Notfall; die Geschützleitung meldet Treffer; der abgehörte Gegnerfunk verrät Angst, Verstärkung und den Moment, in dem ein Verband bricht.
 
 ## 10. Beispielrunde

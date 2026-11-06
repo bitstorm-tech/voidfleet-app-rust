@@ -1319,24 +1319,4 @@ impl Messages for De {
     fn report_burned_out(&self, unit: &str) -> String {
         format!("{unit} ausgebrannt")
     }
-
-    fn report_tableau_title(&self, round: u32) -> String {
-        format!("Lagebericht Runde {round}")
-    }
-
-    fn report_taken(&self, amount: i32) -> String {
-        format!("genommen {amount}")
-    }
-
-    fn report_dealt(&self, amount: i32) -> String {
-        format!("ausgeteilt {amount}")
-    }
-
-    fn report_kills(&self, kills: usize) -> String {
-        if kills == 1 {
-            "1 Abschuss".to_owned()
-        } else {
-            format!("{kills} Abschüsse")
-        }
-    }
 }

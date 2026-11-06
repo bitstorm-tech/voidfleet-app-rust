@@ -1307,24 +1307,4 @@ impl Messages for En {
     fn report_burned_out(&self, unit: &str) -> String {
         format!("{unit} burned out")
     }
-
-    fn report_tableau_title(&self, round: u32) -> String {
-        format!("Report, round {round}")
-    }
-
-    fn report_taken(&self, amount: i32) -> String {
-        format!("taken {amount}")
-    }
-
-    fn report_dealt(&self, amount: i32) -> String {
-        format!("dealt {amount}")
-    }
-
-    fn report_kills(&self, kills: usize) -> String {
-        if kills == 1 {
-            "1 kill".to_owned()
-        } else {
-            format!("{kills} kills")
-        }
-    }
 }
