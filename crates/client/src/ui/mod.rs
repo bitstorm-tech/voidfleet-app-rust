@@ -112,6 +112,17 @@ pub struct UiIcons {
     pub crown: Handle<Image>,
     pub settings: Handle<Image>,
     pub rules: Handle<Image>,
+    pub column_fire: Handle<Image>,
+    pub ram: Handle<Image>,
+    pub shield: Handle<Image>,
+    pub evade: Handle<Image>,
+    pub charge: Handle<Image>,
+    pub target_lock: Handle<Image>,
+    pub call: Handle<Image>,
+    pub flame: Handle<Image>,
+    pub emergency: Handle<Image>,
+    pub stasis: Handle<Image>,
+    pub silenced: Handle<Image>,
 }
 
 impl FromWorld for UiIcons {
@@ -129,6 +140,17 @@ impl FromWorld for UiIcons {
                 crown: icon("crown"),
                 settings: icon("settings"),
                 rules: icon("rules"),
+                column_fire: icon("column_fire"),
+                ram: icon("ram"),
+                shield: icon("shield"),
+                evade: icon("evade"),
+                charge: icon("charge"),
+                target_lock: icon("target_lock"),
+                call: icon("call"),
+                flame: icon("flame"),
+                emergency: icon("emergency"),
+                stasis: icon("stasis"),
+                silenced: icon("silenced"),
             }
         })
     }

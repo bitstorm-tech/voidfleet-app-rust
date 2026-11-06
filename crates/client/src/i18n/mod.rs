@@ -115,18 +115,13 @@ impl SettingsTab {
     pub const ALL: [Self; 3] = [Self::Game, Self::Video, Self::Sound];
 }
 
-/// Ein Zustand an einer Einheit, als kurze Textmarke über ihr.
+/// Ein Zustand an einer Einheit, als Icon über ihr.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Condition {
     Burning,
     Emergency,
-    Shield(i32),
-    Evading,
-    Charged,
     Stasis,
     Silenced,
-    /// Das Flaggschiff ist im Kurzsprung.
-    Jumped,
 }
 
 /// Alle sichtbaren Texte einer Sprache.
@@ -302,6 +297,13 @@ pub trait Messages: Sync {
     /// Eine angesagte Aktion ohne Schaden: „Zielfeuer“, „Spaltenfeuer Mitte“, „Schilde 6“.
     fn action(&self, action: Action) -> String;
     fn condition(&self, condition: Condition) -> String;
+    /// Was eine Absicht bewirkt, für den Tooltip ihres Icons.
+    fn action_hint(&self, action: Action) -> String;
+    /// Was ein Zustand bewirkt, für den Tooltip seines Icons; der Brand mit seiner Zahl über [`Self::burn_hint`].
+    fn condition_hint(&self, condition: Condition) -> &'static str;
+    fn burn_hint(&self, amount: i32) -> String;
+    /// Vor der zweiten Absicht im Tooltip (Uhrwerk).
+    fn caption_next(&self) -> &'static str;
     fn module(&self, module: ModuleId) -> (&'static str, &'static str);
     /// Die Wörter der Schadensrechnung: Ausweichen, Gegenmaßnahmen, Panzerung, gedeckt, Schild, tödlich.
     fn breakdown_words(&self) -> [&'static str; 6];

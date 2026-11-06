@@ -1237,10 +1237,11 @@ impl Battle {
     // --- Auflösung ---
 
     fn resolution(&mut self, events: &mut Vec<BattleEvent>) {
+        let burn = self.burn_damage(UnitRef::Flagship);
         let f = &mut self.flagship;
-        if f.burning && !self.modules.contains(&ModuleId::FireSuppression) {
+        if f.burning && burn > 0 {
             let was = f.emergency();
-            let amount = BURN_DAMAGE.min(f.hull);
+            let amount = burn.min(f.hull);
             f.hull -= amount;
             let target = UnitRef::Flagship;
             events.push(BattleEvent::BurnTick {
@@ -1330,6 +1331,15 @@ impl Battle {
         }
         for uid in self.uids() {
             self.push_intents(uid, events);
+        }
+    }
+
+    /// Was ein Brand der Einheit je Auflösung kostet; 0, wenn er nicht tickt (Brandschutz).
+    pub fn burn_damage(&self, unit: UnitRef) -> i32 {
+        match unit {
+            UnitRef::Flagship if self.modules.contains(&ModuleId::FireSuppression) => 0,
+            UnitRef::Flagship => BURN_DAMAGE,
+            UnitRef::Enemy { .. } => self.enemy_burn_damage(),
         }
     }
 

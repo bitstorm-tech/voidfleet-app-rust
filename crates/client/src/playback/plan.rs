@@ -972,16 +972,12 @@ impl Planner<'_> {
                 Cue::Unit(UnitRef::Flagship, Job::Stats(after)),
             ]),
             BattleEvent::Intents { unit, intents } => {
-                let [first, second] = intents.map(|intent| locale.intent(intent));
+                let [first, second] = intents;
                 beat.push(Cue::Unit(
                     unit,
                     Job::Caption {
-                        intent: first,
-                        next: if self.admiral == AdmiralId::Kerr {
-                            second
-                        } else {
-                            String::new()
-                        },
+                        intent: Some(first),
+                        next: (self.admiral == AdmiralId::Kerr).then_some(second),
                     },
                 ));
             }

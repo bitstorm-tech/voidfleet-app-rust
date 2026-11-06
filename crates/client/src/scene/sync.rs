@@ -6,7 +6,7 @@
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
 //!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]);
 //! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
-//!   Balken; die übrigen bleiben Textmarken.
+//!   Balken; Brand, Notfall, Stillstand und Funkstille dazu als Icons in der Beschriftung.
 //!
 //! Der Controller schaltet nach jeder Aktion auf [`BoardMode::Playback`]; dann gehört die Szene der Wiedergabe, die
 //! Vorschau geht. Zurück in der Planung gleicht sich alles dem Zustand an. Dev-Szenen mit [`Scripted`] stellen ihre
@@ -16,7 +16,7 @@ use bevy::prelude::*;
 use voidfleet_core::{
     admirals::AdmiralId,
     battle::{Battle as CoreBattle, Enemy},
-    events::{Hit, UnitStats},
+    events::{Hit, UnitRef, UnitStats},
 };
 
 use super::{
@@ -112,7 +112,7 @@ struct Wanted {
     aura: ShipAura,
 }
 
-/// Zustände einer gegnerischen Einheit als Textmarken (ohne eigenes Bild).
+/// Zustände einer gegnerischen Einheit als Icons (der Brand kommt mit seiner Zahl eigens).
 fn enemy_conditions(enemy: &Enemy) -> Vec<Condition> {
     [
         (enemy.emergency(), Condition::Emergency),
@@ -122,14 +122,6 @@ fn enemy_conditions(enemy: &Enemy) -> Vec<Condition> {
     .into_iter()
     .filter_map(|(active, condition)| active.then_some(condition))
     .collect()
-}
-
-fn conditions_text(locale: &dyn Messages, conditions: &[Condition]) -> String {
-    conditions
-        .iter()
-        .map(|&condition| locale.condition(condition))
-        .collect::<Vec<_>>()
-        .join(" · ")
 }
 
 /// Was auf dem Brett stehen soll.
@@ -160,13 +152,10 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 stats: enemy.stats(),
                 max_hull: enemy.max_hull,
                 caption: ShipCaption {
-                    intent: locale.intent(first),
-                    next: if clockwork {
-                        locale.intent(second)
-                    } else {
-                        String::new()
-                    },
-                    conditions: conditions_text(locale, &enemy_conditions(enemy)),
+                    intent: Some(first),
+                    next: clockwork.then_some(second),
+                    burning: enemy.burning.then(|| battle.burn_damage(enemy.unit())),
+                    conditions: enemy_conditions(enemy),
                     preview: preview_text(enemy.uid),
                 },
                 aimed: aiming == Some(enemy.uid),
@@ -181,10 +170,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
         .collect();
     let flagship = &battle.flagship;
     if !flagship.jumped {
-        let conditions = [(flagship.emergency(), Condition::Emergency)]
-            .into_iter()
-            .filter_map(|(active, condition)| active.then_some(condition))
-            .collect::<Vec<_>>();
         ships.push(Wanted {
             uid: 0,
             kind: ShipKind::Flagship(flagship.admiral.flagship()),
@@ -192,7 +177,14 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
             stats: flagship.stats(),
             max_hull: flagship.max_hull,
             caption: ShipCaption {
-                conditions: conditions_text(locale, &conditions),
+                burning: flagship
+                    .burning
+                    .then(|| battle.burn_damage(UnitRef::Flagship)),
+                conditions: flagship
+                    .emergency()
+                    .then_some(Condition::Emergency)
+                    .into_iter()
+                    .collect(),
                 preview: preview_text(0),
                 ..default()
             },
@@ -336,7 +328,7 @@ mod tests {
         let mut battle = fixture_battle(AdmiralId::Kerr);
         let ships = wanted_ships(&battle, &*locale, &BoardFocus::default());
         assert_eq!(ships.len(), 4);
-        assert!(ships[..3].iter().all(|ship| !ship.caption.next.is_empty()));
+        assert!(ships[..3].iter().all(|ship| ship.caption.next.is_some()));
         assert_eq!(ships[3].slot, SlotRef::player(1));
         battle.flagship.jumped = true;
         assert_eq!(

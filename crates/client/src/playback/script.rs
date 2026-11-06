@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use voidfleet_core::{
     enemies::EnemyClass,
-    events::{UnitRef, UnitStats},
+    events::{Intent, UnitRef, UnitStats},
 };
 
 use super::Playback;
@@ -190,8 +190,8 @@ pub(super) enum Job {
     Mark(MarkerKind, Color),
     /// Die Absichten über dem Schiff.
     Caption {
-        intent: String,
-        next: String,
+        intent: Option<Intent>,
+        next: Option<Intent>,
     },
     /// Ein Traktorstrahl vom Flaggschiff hält das Schiff, bis [`Cue::Release`] ihn freigibt.
     Tether(Color),

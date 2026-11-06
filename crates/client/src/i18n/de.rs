@@ -11,7 +11,7 @@ use voidfleet_core::{
         HEAT_SEEKER_EVADING_BONUS, HOLD_THE_LINE_RETALIATION, OVERCHARGE_SELF_DAMAGE,
         SCAVENGE_DRAW,
     },
-    enemies::{Action, BOLT_SHIELD, EnemyClass, EnemyId, RAM_DAMAGE},
+    enemies::{Action, BOLT_SHIELD, EnemyClass, EnemyId},
     events::{DestroyCause, IdleReason, MissReason},
     modules::ModuleId,
     run::{EventId, EventOption, NodeKind},
@@ -758,7 +758,7 @@ impl Messages for De {
                     .collect();
                 format!("Spaltenfeuer {}", names.join("+"))
             }
-            Action::Ram => format!("Rammkurs {RAM_DAMAGE}"),
+            Action::Ram => "Rammkurs".to_owned(),
             Action::Shields(amount) => format!("Schilde {amount}"),
             Action::Evade => "Ausweichen".to_owned(),
             Action::Charge => "Aufladen".to_owned(),
@@ -772,13 +772,56 @@ impl Messages for De {
         match condition {
             Condition::Burning => "Brand".to_owned(),
             Condition::Emergency => "Notfall".to_owned(),
-            Condition::Shield(amount) => format!("Schild {amount}"),
-            Condition::Evading => "Ausweichen".to_owned(),
-            Condition::Charged => "Aufgeladen".to_owned(),
             Condition::Stasis => "Stillstand".to_owned(),
             Condition::Silenced => "Funkstille".to_owned(),
-            Condition::Jumped => "Kurzsprung".to_owned(),
         }
+    }
+
+    fn action_hint(&self, action: Action) -> String {
+        match action {
+            Action::Fire => "Feuert auf dein Flaggschiff, wo immer es steht.".to_owned(),
+            Action::ColumnFire { .. } => {
+                "Feuert auf die angesagten Spalten; ein Manöver heraus weicht aus.".to_owned()
+            }
+            Action::Ram => "Rammt dein Flaggschiff und vergeht dabei.".to_owned(),
+            Action::Shields(amount) => format!("Erhält {amount} Schild."),
+            Action::Evade => "Weicht aus: Deine Schüsse richten nur halben Schaden an.".to_owned(),
+            Action::Charge => {
+                "Lädt das Hauptgeschütz auf: Sein nächster Schuss richtet doppelten Schaden an."
+                    .to_owned()
+            }
+            Action::TargetLock => "Alle gegnerischen Schüsse +1 ATK, solange er steht.".to_owned(),
+            Action::Call(enemy) => {
+                format!(
+                    "Ruft {} als Verstärkung für die nächste Runde.",
+                    self.enemy(enemy)
+                )
+            }
+            Action::Bolt => format!("Alle ihre Einheiten erhalten {BOLT_SHIELD} Schild."),
+        }
+    }
+
+    fn condition_hint(&self, condition: Condition) -> &'static str {
+        match condition {
+            Condition::Burning => "Verliert in jeder Auflösung Hülle.",
+            Condition::Emergency => {
+                "Hülle bei 25 % oder weniger: halbe ATK, kein Ausweichen; dein Flaggschiff verliert die Admiralsstation."
+            }
+            Condition::Stasis => "Handelt in dieser Runde nicht.",
+            Condition::Silenced => "Feuert in dieser Runde nicht und setzt seine Sonderaktion aus.",
+        }
+    }
+
+    fn burn_hint(&self, amount: i32) -> String {
+        if amount > 0 {
+            format!("Verliert {amount} Hülle in jeder Auflösung.")
+        } else {
+            "Brandschutz: Der Brand tickt nicht.".to_owned()
+        }
+    }
+
+    fn caption_next(&self) -> &'static str {
+        "Nächste Runde"
     }
 
     fn module(&self, module: ModuleId) -> (&'static str, &'static str) {

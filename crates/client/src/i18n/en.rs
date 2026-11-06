@@ -12,7 +12,7 @@ use voidfleet_core::{
         HEAT_SEEKER_EVADING_BONUS, HOLD_THE_LINE_RETALIATION, OVERCHARGE_SELF_DAMAGE,
         SCAVENGE_DRAW,
     },
-    enemies::{Action, BOLT_SHIELD, EnemyClass, EnemyId, RAM_DAMAGE},
+    enemies::{Action, BOLT_SHIELD, EnemyClass, EnemyId},
     events::{DestroyCause, IdleReason, MissReason},
     modules::ModuleId,
     run::{EventId, EventOption, NodeKind},
@@ -749,7 +749,7 @@ impl Messages for En {
                     .collect();
                 format!("Column fire {}", names.join("+"))
             }
-            Action::Ram => format!("Ram {RAM_DAMAGE}"),
+            Action::Ram => "Ram".to_owned(),
             Action::Shields(amount) => format!("Shields {amount}"),
             Action::Evade => "Evade".to_owned(),
             Action::Charge => "Charge".to_owned(),
@@ -763,13 +763,53 @@ impl Messages for En {
         match condition {
             Condition::Burning => "Burning".to_owned(),
             Condition::Emergency => "Emergency".to_owned(),
-            Condition::Shield(amount) => format!("Shield {amount}"),
-            Condition::Evading => "Evading".to_owned(),
-            Condition::Charged => "Charged".to_owned(),
             Condition::Stasis => "Stasis".to_owned(),
             Condition::Silenced => "Silenced".to_owned(),
-            Condition::Jumped => "Jumped".to_owned(),
         }
+    }
+
+    fn action_hint(&self, action: Action) -> String {
+        match action {
+            Action::Fire => "Fires at your flagship, wherever it flies.".to_owned(),
+            Action::ColumnFire { .. } => {
+                "Fires at the marked columns; maneuver out of them to dodge.".to_owned()
+            }
+            Action::Ram => "Rams your flagship and is destroyed doing so.".to_owned(),
+            Action::Shields(amount) => format!("Gains {amount} shields."),
+            Action::Evade => "Evades: your shots deal half damage to it.".to_owned(),
+            Action::Charge => "Charges its main gun: its next shot deals double damage.".to_owned(),
+            Action::TargetLock => "All enemy shots +1 ATK while it stands.".to_owned(),
+            Action::Call(enemy) => {
+                format!(
+                    "Calls {} as reinforcement for next round.",
+                    self.enemy(enemy)
+                )
+            }
+            Action::Bolt => format!("All her units gain {BOLT_SHIELD} shields."),
+        }
+    }
+
+    fn condition_hint(&self, condition: Condition) -> &'static str {
+        match condition {
+            Condition::Burning => "Loses hull in each resolution.",
+            Condition::Emergency => {
+                "Hull at 25 % or less: half ATK, no evading; your flagship loses its admiral station."
+            }
+            Condition::Stasis => "Does not act this round.",
+            Condition::Silenced => "Holds fire and skips its special action this round.",
+        }
+    }
+
+    fn burn_hint(&self, amount: i32) -> String {
+        if amount > 0 {
+            format!("Loses {amount} hull in each resolution.")
+        } else {
+            "Fire suppression: the fire does not tick.".to_owned()
+        }
+    }
+
+    fn caption_next(&self) -> &'static str {
+        "Next round"
     }
 
     fn module(&self, module: ModuleId) -> (&'static str, &'static str) {
