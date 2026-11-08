@@ -678,7 +678,8 @@ fn follow_bars(
         } else {
             Visibility::Hidden
         });
-        let Some((top, bottom)) = ends else {
+        // Verborgene Zahlen nicht vermessen: Nah an der Kamera wüchse die Schrift sonst ins Riesige (Modellschau).
+        let (true, Some((top, bottom))) = (shown, ends) else {
             continue;
         };
         let center = (top + bottom) / 2.0;
