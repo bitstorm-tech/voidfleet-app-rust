@@ -1,13 +1,14 @@
 // Konturen der Schiffe als „Inverted Hull“ (`OutlineMaterial` in `crates/client/src/scene/toon/outline.rs`): Die Hülle
-// mit geglätteten Normalen wird in fester Pixelbreite nach außen geschoben, nur ihre Rückseiten werden gezeichnet.
+// mit geglätteten Normalen wird nach außen geschoben, nur ihre Rückseiten werden gezeichnet. Die Breite ist in
+// Welt-Einheiten gemessen und auf ein Band in Pixeln geklemmt.
 
 import bevy_pbr::render::mesh_functions::{get_world_from_local, mesh_normal_local_to_world, mesh_position_local_to_clip};
 import bevy_pbr::render::mesh_view_bindings::view;
 
 struct OutlineMaterial {
     color: vec4<f32>,
-    // Breite in physischen Pixeln
-    width: f32,
+    // x Breite in Welt-Einheiten, y und z kleinste und größte Breite in physischen Pixeln
+    width: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> outline: OutlineMaterial;
@@ -26,8 +27,11 @@ fn vertex(vertex: Vertex) -> @builtin(position) vec4<f32> {
     // Richtung der Normale im Bild, in Pixeln gemessen, damit die Linie in jeder Richtung gleich breit ist.
     let screen = (view.clip_from_world * vec4<f32>(world_normal, 0.0)).xy * view.viewport.zw;
     let screen_length = length(screen);
+    // Pixel je Welt-Einheit an dieser Stelle
+    let pixels = view.clip_from_view[1][1] * view.viewport.w / (2.0 * clip.w);
+    let width = clamp(outline.width.x * pixels, outline.width.y, outline.width.z);
     if screen_length > 1e-6 {
-        let offset = screen / screen_length * outline.width * 2.0 / view.viewport.zw;
+        let offset = screen / screen_length * width * 2.0 / view.viewport.zw;
         clip = vec4<f32>(clip.xy + offset * clip.w, clip.zw);
     }
     return clip;

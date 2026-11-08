@@ -15,6 +15,7 @@ use serde::{Deserialize, Deserializer};
 use super::look::{
     GHOST_ALPHA, GHOST_HOLOGRAM_ALPHA, GHOST_LIGHT, GHOST_TONES, GLOW_BOOST, KEY, LIVERY_ACCENT,
     LIVERY_CHROMA, LIVERY_CHROMA_BASE, LIVERY_HUE, LIVERY_LIGHTNESS, RIM_FLAT, RIM_ROUND,
+    TONE_SPREAD,
 };
 use crate::palette;
 
@@ -148,8 +149,19 @@ pub struct ToonUniform {
     weather: Vec4,
 }
 
+/// Linear und auf ≥ 0 begrenzt: Spreizung und Lackierung behalten das Chroma und können aus dem sRGB-Raum fallen.
 fn linear(color: Color) -> Vec4 {
-    color.to_linear().to_vec4()
+    color.to_linear().to_vec4().max(Vec4::ZERO)
+}
+
+/// Rückt Halbschatten und Schatten in Oklch-Lightness um [`TONE_SPREAD`] vom Licht-Ton weg; Farbton und Chroma bleiben.
+fn spread(tones: [Color; 3]) -> [Color; 3] {
+    let lit = Oklcha::from(tones[0]).lightness;
+    tones.map(|tone| {
+        let tone = Oklcha::from(tone);
+        tone.with_lightness((lit - (lit - tone.lightness) * TONE_SPREAD).max(0.0))
+            .into()
+    })
 }
 
 /// Eine Farbe des Vertrags in der Lackierung der Gegner: Rumpf- und Panzertöne gedreht und entsättigt, Lichter im
@@ -178,13 +190,14 @@ impl From<&ToonMaterial> for ToonUniform {
                 round,
                 glint,
             } => (
-                tones.map(|tone| {
-                    linear(if material.livery {
+                spread(tones.map(|tone| {
+                    if material.livery {
                         livery(tone.0, false)
                     } else {
                         tone.0
-                    })
-                }),
+                    }
+                }))
+                .map(linear),
                 true,
                 *glint,
                 1.0,
@@ -192,7 +205,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 if *round { RIM_ROUND } else { RIM_FLAT },
             ),
             ToonSpec::Wreck { tones, .. } => (
-                tones.map(|tone| linear(tone.0)),
+                spread(tones.map(|tone| tone.0)).map(linear),
                 true,
                 0.0,
                 1.0,
@@ -330,16 +343,29 @@ mod tests {
         assert!(ToonSpec::from_extras(r#"{"other": 1}"#).is_none());
     }
 
-    /// Die Lackierung dreht Blaugrau zu einem warmen Ton, wenig gesättigt und kaum heller; Lichter in Gegnerfarbe.
+    /// Die Lackierung dreht Blaugrau zu einem warmen Ton, wenig gesättigt und nicht heller; Lichter in Gegnerfarbe.
     #[test]
     fn livery_shifts_hull_tones() {
         let hull = Oklcha::from(Color::srgb_u8(0x56, 0x65, 0x7a));
         let painted = Oklcha::from(livery(hull.into(), false));
         assert!(painted.hue < 120.0 || painted.hue > 330.0, "{painted:?}");
-        assert!(painted.chroma < 0.06 && painted.lightness <= hull.lightness);
+        assert!(painted.chroma < 0.06 && painted.lightness <= hull.lightness + 1e-4);
         let light = Oklcha::from(livery(Color::srgb(0.3, 0.6, 1.0), true));
         let enemy = Oklcha::from(palette::ENEMY);
         assert!((light.hue - enemy.hue).abs() < 1.0);
+    }
+
+    /// Die Spreizung lässt den Licht-Ton stehen und dunkelt Halbschatten und Schatten ab.
+    #[test]
+    fn spread_darkens_mid_and_dark() {
+        let tones =
+            ["#56657a", "#3a4657", "#222a36"].map(|hex| Color::from(Srgba::hex(hex).unwrap()));
+        let spread = spread(tones).map(Oklcha::from);
+        let tones = tones.map(Oklcha::from);
+        assert!((spread[0].lightness - tones[0].lightness).abs() < 1e-5);
+        assert!(
+            spread[1].lightness < tones[1].lightness && spread[2].lightness < tones[2].lightness
+        );
     }
 
     #[test]

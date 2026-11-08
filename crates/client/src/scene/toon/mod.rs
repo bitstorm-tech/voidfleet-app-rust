@@ -10,7 +10,8 @@
 //! - **Verwitterung**: Die toon-Flächen eines Modells teilen eine gebackene Maske (`tools/ships/weather.py`), aus der
 //!   der Shader nach den drei Tönen weitere harte Tonflächen setzt: Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb.
 //!   Fugen und Abrieb verschwinden, wenn ein Texel kleiner als etwa ein Pixel wird, der Rest über die Mip-Kette.
-//! - **Konturen** ([`outline`]): Inverted Hull in fester Pixelbreite.
+//! - **Konturen** ([`outline`]): Inverted Hull, Breite in Welt-Einheiten auf ein Pixelband geklemmt, Farbe ein
+//!   abgedunkelter Ton der Fläche.
 //! - **Glühen**: Lichter mit `glow`, glühende Hologramme und heiße Bruchflächen leuchten heller als 1 und glühen im
 //!   Bloom der Kamera ([`crate::scene::camera`]).
 //!
@@ -45,7 +46,6 @@ impl Plugin for ToonPlugin {
         ))
         .register_type::<ToonOutline>()
         .init_resource::<ToonFlash>()
-        .add_systems(Startup, outline::setup)
         .add_systems(
             Update,
             (

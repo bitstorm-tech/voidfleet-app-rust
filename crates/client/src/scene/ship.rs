@@ -4,7 +4,7 @@
 //! Ein Schiff ist eine Entity mit [`Ship`] (eine Einheit des Gefechts); seine Nase zeigt nach `Transform::forward` (−Z),
 //! gedreht wird allein diese Wurzel. Darunter hängt die Gruppe ([`ShipModel`], die Flüge und Todeskampf bewegen) und in
 //! ihr je Modell der Formation ([`super::formation`]) ein [`Hull`] mit der glTF-Szene. Sobald eine Szene steht, bekommt
-//! sie eigene Kopien ihrer Toon-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff, Verfall und
+//! sie eigene Kopien ihrer Toon- und Kontur-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff, Verfall und
 //! Treffer-Blitz ([`HullWear`]) je Modell, die Lackierung der Gegner ([`livery`]) je Art. [`BreakApart`] tauscht die
 //! sichtbaren Modelle gegen ihre Bruchstücke, die exakt an ihrer Stelle liegen, und meldet sie je Modell mit
 //! [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
@@ -28,7 +28,7 @@ use super::{
     coords::{Side, facing},
     formation::{Hull, HullWear, formation},
     markers::ShipMarkers,
-    toon::ToonMaterial,
+    toon::{OutlineMaterial, ToonMaterial},
 };
 use crate::data::ship_models::{ShipKind, ShipModels, livery};
 
@@ -265,7 +265,9 @@ fn prepare_instance(
     mut ships: Query<(Option<&Ship>, Has<Ghost>, &ToonState, &mut ShipMaterials)>,
     children: Query<&Children>,
     parts: Query<&MeshMaterial3d<ToonMaterial>>,
+    contours: Query<&MeshMaterial3d<OutlineMaterial>>,
     mut materials: ResMut<Assets<ToonMaterial>>,
+    mut outline_materials: ResMut<Assets<OutlineMaterial>>,
 ) {
     let Ok((hull_of, wear)) = hulls.get(ready.entity) else {
         return;
@@ -277,9 +279,29 @@ fn prepare_instance(
     let Ok((ship, ghost, state, mut own)) = ships.get_mut(ship_entity) else {
         return;
     };
+    let enemy = ship.is_some_and(|ship| livery(ship.kind));
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
+    let mut outline_copies: HashMap<AssetId<OutlineMaterial>, Handle<OutlineMaterial>> =
+        HashMap::default();
     commands.entity(ready.entity).insert(ModelReady);
     for part in children.iter_descendants(ready.entity) {
+        if let Ok(template) = contours.get(part) {
+            // Geister haben keine Konturen.
+            if ghost {
+                commands.entity(part).despawn();
+                continue;
+            }
+            let copy = outline_copies.entry(template.id()).or_insert_with(|| {
+                let mut material = outline_materials
+                    .get(template.id())
+                    .expect("Kontur-Material der Vorlage")
+                    .clone();
+                material.livery = enemy;
+                outline_materials.add(material)
+            });
+            commands.entity(part).insert(MeshMaterial3d(copy.clone()));
+            continue;
+        }
         let Ok(template) = parts.get(part) else {
             continue;
         };
@@ -292,7 +314,7 @@ fn prepare_instance(
                 .get(template.id())
                 .expect("Toon-Material der Vorlage")
                 .clone();
-            material.livery = ship.is_some_and(|ship| livery(ship.kind));
+            material.livery = enemy;
             material.ghost = ghost;
             state.apply(&mut material);
             if let Some(wear) = wear {

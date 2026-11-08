@@ -110,8 +110,9 @@ Schmutz und Ruß, im Zoom und auf der Karte kommen Fugen und Abrieb dazu.
 
 Auf dem Brett ist eine Blender-Einheit etwa 22 px (Flaggschiffe 24 px), im Zoom etwa 70 px, auf der Karte 80–90 px. Die
 Vorschau zeichnet Linien von 0,7–1,8 px (Außenkontur, Silhouetten, Knicke über 40°); das Spiel zeichnet keine Knicke,
-aber um jedes erhabene Teil, das vor etwas anderem liegt, einen Konturring von 1,8 px (Inverted Hull je Material,
-`crates/client/src/scene/toon/outline.rs`). Daraus:
+aber um jedes erhabene Teil, das vor etwas anderem liegt, einen Konturring (Inverted Hull je Material,
+`crates/client/src/scene/toon/outline.rs`) in einem abgedunkelten Ton der Fläche, auf dem Brett etwa 1 px, im Zoom bis
+1,8 px. Daraus:
 
 - Flächen mit Tönen (Primär- und Sekundärformen): kleinste Abmessung mindestens 0,15 (≈ 3,3 px, neben der Kontur
   bleiben etwa 1,5 px Ton), besser 0,2.

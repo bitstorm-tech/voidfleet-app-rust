@@ -1,6 +1,7 @@
 //! glTF-Erweiterung, die den Schiffen beim Laden ihre Toon-Materialien gibt (Port von `loadShipModels` in
-//! `scene/ship.ts`): Aus jedem glTF-Material mit `extras.vf` wird ein [`ToonMaterial`] (Label `<material>/toon`), jedes
-//! Primitiv bekommt es und, außer bei Hologrammen, eine Konturhülle als Kind (Label `<primitive>/outline`). Jedes
+//! `scene/ship.ts`): Aus jedem glTF-Material mit `extras.vf` wird ein [`ToonMaterial`] (Label `<material>/toon`) und,
+//! außer bei Hologrammen, ein [`OutlineMaterial`] (Label `<material>/outline`); jedes Primitiv bekommt das eine und eine
+//! Konturhülle mit dem anderen als Kind (Label `<primitive>/outline`). Jedes
 //! Material der Modelle trägt den Vertrag; Bevys `StandardMaterial` für glTF ist abgeschaltet (`PbrPlugin` in
 //! `lib.rs`). Die Szenen der Modelle sind damit schon fertig, wenn sie geladen sind; gespawnt wird ohne weiteren Umbau.
 //!
@@ -25,7 +26,7 @@ use bevy::{
 
 use super::{
     material::{ToonMaterial, ToonSpec},
-    outline::{OUTLINE_MATERIAL, ToonOutline, outline_mesh},
+    outline::{OutlineMaterial, ToonOutline, outline_mesh},
 };
 
 /// Meldet die Erweiterung beim glTF-Loader an.
@@ -161,6 +162,12 @@ impl GltfExtensionHandler for ToonGltf {
         if let Some(texture) = &weather_texture {
             prepare_weather(load_context, texture);
         }
+        if !spec.is_hologram() {
+            load_context.add_labeled_asset(
+                format!("{material_label}/outline"),
+                OutlineMaterial::new(spec.clone()),
+            );
+        }
         load_context.add_labeled_asset(
             format!("{material_label}/toon"),
             ToonMaterial::new(spec, heat_texture, weather_texture),
@@ -213,11 +220,13 @@ impl GltfExtensionHandler for ToonGltf {
         entity.insert(MeshMaterial3d(toon));
         if !spec.is_hologram() {
             let outline = load_context.get_label_handle::<Mesh>(outline_label(mesh, primitive));
+            let color = load_context
+                .get_label_handle::<OutlineMaterial>(format!("{material_label}/outline"));
             entity.with_child((
                 Name::new("Kontur"),
                 ToonOutline,
                 Mesh3d(outline),
-                MeshMaterial3d(OUTLINE_MATERIAL),
+                MeshMaterial3d(color),
             ));
         }
     }

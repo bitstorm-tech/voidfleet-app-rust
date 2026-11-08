@@ -1,54 +1,92 @@
 //! Konturen der Schiffe und Wracks als „Inverted Hull“: Zu jedem Primitiv gehört ein Zwilling mit geglätteten
-//! Normalen, den `assets/shaders/toon_outline.wesl` in fester Pixelbreite nach außen schiebt und nur mit seinen
-//! Rückseiten in der Konturfarbe zeichnet. Hinter dem Schiff bleibt so ein Rand stehen, an Außenkontur und
-//! Silhouetten, auch dort, wo ein Teil vor einem anderen liegt; was davor liegt, verdeckt ihn. Hologramme und Geister
-//! haben keine Konturen.
+//! Normalen, den `assets/shaders/toon_outline.wesl` nach außen schiebt und nur mit seinen Rückseiten in der Konturfarbe
+//! zeichnet. Hinter dem Schiff bleibt so ein Rand stehen, an Außenkontur und Silhouetten, auch dort, wo ein Teil vor
+//! einem anderen liegt; was davor liegt, verdeckt ihn. Die Breite ist in Welt-Einheiten gemessen und auf ein Band in
+//! Pixeln geklemmt: klein auf dem Brett schmal, damit kleine Teile nicht in Schwarz verschwimmen, herangezoomt breiter.
+//! Die Farbe ist je Material ein abgedunkelter Ton der Fläche selbst (Schatten-Ton, bei Lichtern die Lichtfarbe), in
+//! der Lackierung der Gegner deren Ton. Hologramme und Geister haben keine Konturen.
 //!
 //! Das Original (Babylon) rechnet die Linien aus einem Kantenpuffer im Material selbst und zeichnet so auch Knicke im
 //! Inneren; die Hülle hier zeigt nur Umriss und Silhouetten.
 
 use bevy::{
-    asset::{RenderAssetUsages, uuid_handle},
+    asset::RenderAssetUsages,
     mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology},
     pbr::{MaterialPipeline, MaterialPipelineKey},
     platform::collections::HashMap,
     prelude::*,
     render::render_resource::{
-        AsBindGroup, Face, RenderPipelineDescriptor, SpecializedMeshPipelineError,
+        AsBindGroup, Face, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError,
     },
     shader::ShaderRef,
     window::PrimaryWindow,
 };
 
-use super::look::{CONTOUR_WIDTH, LINE_COLOR};
+use super::{
+    look::{CONTOUR_DARKEN, CONTOUR_MAX, CONTOUR_MIN, CONTOUR_WORLD},
+    material::{ToonSpec, livery},
+};
 
 const SHADER: &str = "shaders/toon_outline.wesl";
-
-/// Das eine Kontur-Material aller Schiffe; die glTF-Erweiterung hängt es beim Laden an.
-pub const OUTLINE_MATERIAL: Handle<OutlineMaterial> =
-    uuid_handle!("6c1f0d0e-9a57-4b52-a7a3-6cfd0f2b8e41");
 
 /// Markiert die Konturhülle eines Primitivs (Kind des Primitivs).
 #[derive(Component, Reflect, Default, Clone, Copy, Debug)]
 #[reflect(Component, Default)]
 pub struct ToonOutline;
 
-/// Material der Konturhüllen.
+/// Material der Konturhüllen, je glTF-Material eine Vorlage (Label `<material>/outline`); jedes Schiff bekommt beim
+/// Spawnen eigene Kopien, denn die Lackierung gilt je Schiff ([`crate::scene::ship`]).
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+#[uniform(0, OutlineUniform)]
 pub struct OutlineMaterial {
-    /// Konturfarbe (linear).
-    #[uniform(0)]
-    pub color: LinearRgba,
-    /// Breite in physischen Pixeln (logische Breite × Skalierung des Fensters).
-    #[uniform(0)]
-    pub width: f32,
+    /// Der Vertrag der Fläche, deren Kontur das ist.
+    pub spec: ToonSpec,
+    /// In der Lackierung der Gegner ([`livery`]).
+    pub livery: bool,
+    /// Skalierung des Fensters (logische → physische Pixel).
+    pub scale: f32,
 }
 
-impl Default for OutlineMaterial {
-    fn default() -> Self {
+impl OutlineMaterial {
+    pub fn new(spec: ToonSpec) -> Self {
         Self {
-            color: LINE_COLOR.into(),
-            width: CONTOUR_WIDTH,
+            spec,
+            livery: false,
+            scale: 1.0,
+        }
+    }
+
+    /// Der Schatten-Ton der Fläche (bei Lichtern ihre Farbe), in Oklch um [`CONTOUR_DARKEN`] abgedunkelt.
+    pub fn color(&self) -> Color {
+        let tone = match &self.spec {
+            ToonSpec::Toon { tones, .. } if self.livery => livery(tones[2].0, false),
+            ToonSpec::Light { color, .. } if self.livery => livery(color.0, true),
+            ToonSpec::Toon { tones, .. } | ToonSpec::Wreck { tones, .. } => tones[2].0,
+            ToonSpec::Light { color, .. } | ToonSpec::Hologram { color, .. } => color.0,
+        };
+        let tone = Oklcha::from(tone);
+        tone.with_lightness(tone.lightness * CONTOUR_DARKEN).into()
+    }
+}
+
+/// Was der Shader je Material liest (`OutlineMaterial` in `toon_outline.wesl`).
+#[derive(Clone, Default, ShaderType)]
+pub struct OutlineUniform {
+    color: Vec4,
+    /// x Breite in Welt-Einheiten, y und z kleinste und größte Breite in physischen Pixeln.
+    width: Vec4,
+}
+
+impl From<&OutlineMaterial> for OutlineUniform {
+    fn from(material: &OutlineMaterial) -> Self {
+        Self {
+            color: material.color().to_linear().to_vec4(),
+            width: Vec4::new(
+                CONTOUR_WORLD,
+                CONTOUR_MIN * material.scale,
+                CONTOUR_MAX * material.scale,
+                0.0,
+            ),
         }
     }
 }
@@ -108,22 +146,22 @@ pub fn outline_mesh(positions: Vec<[f32; 3]>, normals: &[[f32; 3]], indices: Vec
     .with_inserted_indices(Indices::U32(indices))
 }
 
-pub(super) fn setup(mut materials: ResMut<Assets<OutlineMaterial>>) {
-    materials
-        .insert(&OUTLINE_MATERIAL, OutlineMaterial::default())
-        .expect("Kontur-Material");
-}
-
-/// Hält die Breite der Kontur in logischen Pixeln, auch wenn das Fenster auf einen Bildschirm anderer Dichte wandert.
+/// Hält die Breite der Kontur in logischen Pixeln, auch wenn das Fenster auf einen Bildschirm anderer Dichte wandert;
+/// erfasst auch Materialien, die später geladen oder kopiert werden.
 pub(super) fn sync_width(
-    window: Single<&Window, (With<PrimaryWindow>, Changed<Window>)>,
+    window: Single<&Window, With<PrimaryWindow>>,
     mut materials: ResMut<Assets<OutlineMaterial>>,
 ) {
-    let width = CONTOUR_WIDTH * window.scale_factor();
-    if let Some(mut material) = materials.get_mut(&OUTLINE_MATERIAL)
-        && material.width != width
-    {
-        material.width = width;
+    let scale = window.scale_factor();
+    let stale: Vec<_> = materials
+        .iter()
+        .filter(|(_, material)| material.scale != scale)
+        .map(|(id, _)| id)
+        .collect();
+    for id in stale {
+        if let Some(mut material) = materials.get_mut(id) {
+            material.scale = scale;
+        }
     }
 }
 
@@ -132,6 +170,23 @@ mod tests {
     use bevy::mesh::VertexAttributeValues;
 
     use super::*;
+    use crate::scene::toon::material::Hex;
+
+    /// Die Kontur ist dunkler als der Schatten-Ton und folgt der Lackierung.
+    #[test]
+    fn contour_darkens_the_shadow_tone() {
+        let shadow = Color::srgb(0.3, 0.35, 0.45);
+        let tone = Hex(Color::WHITE);
+        let mut material = OutlineMaterial::new(ToonSpec::Toon {
+            tones: [tone, tone, Hex(shadow)],
+            round: false,
+            glint: 0.0,
+        });
+        let plain = material.color();
+        assert!(Oklcha::from(plain).lightness < Oklcha::from(shadow).lightness * 0.7);
+        material.livery = true;
+        assert_ne!(material.color(), plain);
+    }
 
     /// Zwei Flächen eines Würfelecks: Die Ecke an derselben Stelle bekommt in beiden die gemittelte Normale.
     #[test]
