@@ -27,8 +27,9 @@ fn vertex(vertex: Vertex) -> @builtin(position) vec4<f32> {
     // Richtung der Normale im Bild, in Pixeln gemessen, damit die Linie in jeder Richtung gleich breit ist.
     let screen = (view.clip_from_world * vec4<f32>(world_normal, 0.0)).xy * view.viewport.zw;
     let screen_length = length(screen);
-    // Pixel je Welt-Einheit an dieser Stelle
-    let pixels = view.clip_from_view[1][1] * view.viewport.w / (2.0 * clip.w);
+    // Pixel je Welt-Einheit an dieser Stelle; w nahe 0 (an der Kamera-Ebene) ergäbe NaN-Ecken, die auf Asahi das Gerät
+    // mit „Out of Memory“ verlieren lassen.
+    let pixels = view.clip_from_view[1][1] * view.viewport.w / (2.0 * max(clip.w, 1e-3));
     let width = clamp(outline.width.x * pixels, outline.width.y, outline.width.z);
     if screen_length > 1e-6 {
         let offset = screen / screen_length * width * 2.0 / view.viewport.zw;
