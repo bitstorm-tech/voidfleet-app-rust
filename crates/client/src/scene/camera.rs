@@ -92,8 +92,8 @@ const ZOOM_FOLLOW_SPEED: f32 = 8.0;
 const ZOOM_MIN_HEIGHT: f32 = 2.6;
 /// Höhenfaktor pro Pixel Mausrad (exponentiell, damit Trackpads und Rasterräder gleich wirken), Pixel je Zeile, und
 /// pro Sekunde mit ↑ ↓.
-const ZOOM_SPEED: f32 = 0.0018;
-const LINE_PIXELS: f32 = 16.0;
+pub const ZOOM_SPEED: f32 = 0.0018;
+pub const LINE_PIXELS: f32 = 16.0;
 const ZOOM_KEY_SPEED: f32 = 1.4;
 /// Brettbereich, auf den gezoomt und die Kamera ausgerichtet werden kann (Welt-x und Abstand in z von der Brettmitte).
 const ZOOM_FOCUS_X: f32 = 7.5;

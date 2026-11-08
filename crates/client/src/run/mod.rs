@@ -77,6 +77,8 @@ pub struct RunView {
     pub choosing: bool,
     /// Das Ergebnis des letzten Ereignisses, bis es gesehen ist.
     pub outcome: Option<EventOutcome>,
+    /// Die Modellschau ist offen (Einstellungen → Dev); sie liegt über allem, auch über einem laufenden Run.
+    pub models: bool,
 }
 
 /// Was gerade zu sehen ist.
@@ -95,10 +97,15 @@ pub enum Screen {
     Battle,
     /// Der Run ist gewonnen oder verloren.
     Ended,
+    /// Die Modellschau ([`crate::dev::viewer`]).
+    Models,
 }
 
 /// Der Bildschirm zu Run, laufendem Gefecht und Ansicht.
 pub fn screen(run: Option<&Run>, battle: bool, view: &RunView) -> Screen {
+    if view.models {
+        return Screen::Models;
+    }
     let Some(run) = run else {
         return if view.choosing {
             Screen::Admirals
@@ -214,7 +221,7 @@ fn follow_flow(
                 leave.write(LeaveBattle);
                 *view = RunView {
                     choosing: step == RunFlow::NewRun,
-                    outcome: None,
+                    ..RunView::default()
                 };
             }
             RunFlow::Continue => {
@@ -359,6 +366,11 @@ mod tests {
         run.result = Some(BattleResult::Lost);
         assert_eq!(screen(Some(&run), false, &view), Screen::Ended);
         assert_eq!(screen(Some(&run), true, &view), Screen::Battle);
+        let models = RunView {
+            models: true,
+            ..view
+        };
+        assert_eq!(screen(Some(&run), true, &models), Screen::Models);
     }
 
     /// Erste Reihe: immer Gefechte. Sieg → Beute → Karte, die nächste Reihe ist wählbar.

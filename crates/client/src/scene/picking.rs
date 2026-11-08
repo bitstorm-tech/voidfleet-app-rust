@@ -20,6 +20,8 @@ use bevy::{
     window::Window,
 };
 
+use crate::run::Screen;
+
 use super::{
     board::{BoardHover, OnSlot, PickTarget},
     camera::CameraInput,
@@ -46,7 +48,14 @@ impl Plugin for PickingPlugin {
             })
             .add_message::<SlotPressed>()
             .add_message::<BoardMissed>()
-            .add_systems(Update, (track_hover, report_clicks));
+            .add_systems(
+                Update,
+                (
+                    track_hover,
+                    // Die Modellschau nimmt ihre Klicks selbst.
+                    report_clicks.run_if(not(resource_equals(Screen::Models))),
+                ),
+            );
     }
 }
 

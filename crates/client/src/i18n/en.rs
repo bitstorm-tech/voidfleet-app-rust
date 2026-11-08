@@ -79,6 +79,7 @@ impl Messages for En {
             SettingsTab::Game => "Game",
             SettingsTab::Video => "Video",
             SettingsTab::Sound => "Sound",
+            SettingsTab::Dev => "Dev",
         }
     }
 
@@ -92,6 +93,14 @@ impl Messages for En {
             WindowMode::Maximized => "Maximized",
             WindowMode::Fullscreen => "Fullscreen",
         }
+    }
+
+    fn settings_models(&self) -> &'static str {
+        "3D models"
+    }
+
+    fn models_hint(&self) -> &'static str {
+        "Wheel: zoom · Drag left button: pan · Drag right button: rotate · Click a ship: destroy it"
     }
 
     fn settings_show_fps(&self) -> &'static str {

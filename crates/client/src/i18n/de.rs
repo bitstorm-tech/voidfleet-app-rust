@@ -78,6 +78,7 @@ impl Messages for De {
             SettingsTab::Game => "Spiel",
             SettingsTab::Video => "Video",
             SettingsTab::Sound => "Sound",
+            SettingsTab::Dev => "Dev",
         }
     }
 
@@ -91,6 +92,14 @@ impl Messages for De {
             WindowMode::Maximized => "Maximiert",
             WindowMode::Fullscreen => "Vollbild",
         }
+    }
+
+    fn settings_models(&self) -> &'static str {
+        "3D-Modelle"
+    }
+
+    fn models_hint(&self) -> &'static str {
+        "Mausrad: Zoom · Linke Maustaste ziehen: verschieben · Rechte Maustaste ziehen: drehen · Klick auf ein Schiff: Zerstörung"
     }
 
     fn settings_show_fps(&self) -> &'static str {

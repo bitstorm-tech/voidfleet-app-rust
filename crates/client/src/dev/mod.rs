@@ -10,12 +10,12 @@
 //! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
 //! `VOIDFLEET_SMOKE_SCREENSHOT`). Rauchtest und Vorschau-Szenen speichern keinen Run ([`RunSave`] ohne Pfad).
 //!
-//! `VOIDFLEET_DEV_SCREEN=menu|admirals|market|gallery|abandon|won|lost` lässt den Rauchtest statt am ersten Gefecht an
-//! einem Bildschirm um den Run beginnen (Hauptmenü, Admiralswahl, Schwarzmarkt, Deckgalerie, „Run abbrechen“,
-//! Run-Ende), zum Ansehen per Screenshot.
+//! `VOIDFLEET_DEV_SCREEN=menu|admirals|market|gallery|abandon|won|lost|models` lässt den Rauchtest statt am ersten
+//! Gefecht an einem Bildschirm um den Run beginnen (Hauptmenü, Admiralswahl, Schwarzmarkt, Deckgalerie, „Run
+//! abbrechen“, Run-Ende, Modellschau), zum Ansehen per Screenshot.
 //!
 //! `VOIDFLEET_DEV_SCENE` startet statt des Gefechts eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne die
-//! Variablen tut das Plugin nichts.
+//! Variablen tut das Plugin nichts außer der Modellschau ([`viewer`]), die der Tab „Dev“ der Einstellungen öffnet.
 //!
 //! ```sh
 //! VOIDFLEET_SMOKE_FRAMES=300 VOIDFLEET_SMOKE_SCREENSHOT=/tmp/voidfleet.png cargo run -p voidfleet-client
@@ -26,6 +26,7 @@
 mod autoplay;
 mod report;
 mod scenes;
+pub mod viewer;
 
 use std::path::PathBuf;
 
@@ -63,6 +64,7 @@ pub struct DevPlugin;
 
 impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
+        viewer::plugin(app);
         let staged = if let Some(scene) = scenes::DevScene::from_env() {
             scenes::plugin(app, scene);
             app.insert_resource(RunSave(None));
@@ -168,6 +170,10 @@ fn start_screen(mut commands: Commands, screen: Res<DevScreen>, mut view: ResMut
         "menu" => return,
         "admirals" => {
             view.choosing = true;
+            return;
+        }
+        "models" => {
+            view.models = true;
             return;
         }
         "market" => {

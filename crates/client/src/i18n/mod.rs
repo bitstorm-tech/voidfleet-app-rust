@@ -109,10 +109,11 @@ pub enum SettingsTab {
     Game,
     Video,
     Sound,
+    Dev,
 }
 
 impl SettingsTab {
-    pub const ALL: [Self; 3] = [Self::Game, Self::Video, Self::Sound];
+    pub const ALL: [Self; 4] = [Self::Game, Self::Video, Self::Sound, Self::Dev];
 }
 
 /// Ein Zustand an einer Einheit, als Icon über ihr.
@@ -182,6 +183,8 @@ pub trait Messages: Sync {
     fn settings_cursor(&self) -> &'static str;
     fn settings_cursor_size(&self) -> &'static str;
     fn cursor(&self, cursor: CursorId) -> &'static str;
+    fn settings_models(&self) -> &'static str;
+    fn models_hint(&self) -> &'static str;
 
     // --- Regeln ---
     fn rules_title(&self) -> &'static str;

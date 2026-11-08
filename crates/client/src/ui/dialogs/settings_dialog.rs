@@ -1,11 +1,11 @@
 //! Einstellungen (Port von `ui/settingsDialog.ts`): Zahnrad in der Icon-Leiste, ein Pult mit einer Tastenreihe oben,
-//! die eines von drei eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
+//! die eines von vier eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
 //! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern samt Regler für seine
-//! Größe und der Sprache;
-//! „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), VSync und der FPS-Anzeige; „Sound“ mit den Reglern für Musik, Effekte und
-//! Bordfunk. Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den Einstellungen, auch wenn
-//! sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der Dialog beim Wechsel
-//! der Tabs seine Größe behält.
+//! Größe und der Sprache; „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), VSync und der FPS-Anzeige;
+//! „Sound“ mit den Reglern für Musik, Effekte und Bordfunk; „Dev“ mit dem Weg in die Modellschau
+//! ([`crate::dev::viewer`]). Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den
+//! Einstellungen, auch wenn sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der
+//! Dialog beim Wechsel der Tabs seine Größe behält.
 
 use bevy::{
     picking::hover::Hovered,
@@ -25,7 +25,7 @@ use crate::{
     audio::{PlayUiSound, UiSound},
     i18n::{LANGUAGES, Locale, SettingsTab},
     palette,
-    run::ActiveRun,
+    run::{ActiveRun, RunView},
     settings::{AnimationSpeed, CursorId, Language, Settings, WindowMode},
     ui::{
         Fonts,
@@ -741,6 +741,10 @@ pub(super) fn spawn(
                                     panel(SettingsTab::Sound),
                                     Children::spawn(SpawnIter(volumes.into_iter())),
                                 ),
+                                (
+                                    panel(SettingsTab::Dev),
+                                    children![models_button(fonts, locale)]
+                                ),
                             ],
                         ),
                     ],
@@ -781,6 +785,23 @@ fn abandon_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
         observe(|_: On<Activate>, mut commands: Commands| {
             commands.insert_resource(AbandonPrompt);
         }),
+        observe(close_dialogs),
+    )
+}
+
+/// „3D-Modelle“: schließt die Einstellungen und öffnet die Modellschau.
+fn models_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
+    (
+        button::text_button(
+            fonts.display_bold(18.0),
+            locale.settings_models(),
+            Key::PRIMARY,
+            Node {
+                padding: UiRect::axes(px(22), px(9)),
+                ..default()
+            },
+        ),
+        observe(|_: On<Activate>, mut view: ResMut<RunView>| view.models = true),
         observe(close_dialogs),
     )
 }
