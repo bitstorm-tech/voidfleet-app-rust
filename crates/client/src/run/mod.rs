@@ -6,7 +6,8 @@
 //! (alles, was den Run ändert); [`RunSystems`] führt sie aus, vor dem Gefecht ([`GameSystems`]). Steht ein Gefecht an
 //! und läuft keins, geht [`StartBattle`] mit `run.start_battle()` hinaus. Meldet die Wiedergabe nach Gefechtsende
 //! [`PlaybackFinished`], übernimmt `finish_battle` das Gefecht; „Weiter“ im Ergebnis ([`LeaveBattle`]) führt dann zur
-//! Beute oder zum Run-Ende. Nach jeder Änderung von [`ActiveRun`] wird gespeichert, nach dem Ende gelöscht.
+//! Beute oder zum Run-Ende. Nach jeder Änderung von [`ActiveRun`] wird gespeichert, nach dem Ende gelöscht; beim Start
+//! geht es ohne Hauptmenü mit dem Speicherstand weiter.
 
 pub mod save;
 
@@ -183,6 +184,13 @@ impl Plugin for RunPlugin {
             .init_resource::<Screen>()
             .add_message::<RunAction>()
             .add_message::<RunFlow>()
+            // Beim Start geht es mit dem Speicherstand weiter, ohne Hauptmenü; ohne Speicherstand bleibt es.
+            .add_systems(
+                OnEnter(AppState::Match),
+                |mut flow: MessageWriter<RunFlow>| {
+                    flow.write(RunFlow::Continue);
+                },
+            )
             .configure_sets(
                 Update,
                 RunSystems
