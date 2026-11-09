@@ -1,5 +1,6 @@
 //! 3D-Modelle der Gegner und Flaggschiffe, gebaut mit `tools/ships/` in Blender (`models/ships/<datei>.glb`). Die
-//! Gegner tragen vorerst die Rümpfe der alten Schiffskarten ([`model_key`]). Zu jedem Modell gehört ein Wrack aus
+//! Gegner tragen vorerst die Rümpfe der alten Schiffskarten ([`model_key`]); Entwürfe ([`DRAFTS`]) haben noch keine
+//! Rolle im Spiel und stehen nur in der Modellschau (`dev/viewer.rs`). Zu jedem Modell gehört ein Wrack aus
 //! Bruchstücken (`<datei>_wreck.glb`) im selben Modellraum, das bei der Zerstörung an die Stelle des Schiffs tritt.
 //!
 //! Geladen wird die erste Szene jeder Datei; ihre Materialien sind beim Laden schon Toon-Materialien
@@ -16,11 +17,13 @@ use voidfleet_core::{
 
 use crate::assets::Preload;
 
-/// Was auf dem Brett steht: ein Gegner oder ein Flaggschiff des Spielers.
+/// Was auf dem Brett steht: ein Gegner oder ein Flaggschiff des Spielers; dazu Entwürfe für die Modellschau.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShipKind {
     Enemy(EnemyId),
     Flagship(FlagshipId),
+    /// Ein Modell ohne Rolle im Spiel, mit seinem Dateinamen ([`DRAFTS`]).
+    Draft(&'static str),
 }
 
 impl ShipKind {
@@ -29,6 +32,9 @@ impl ShipKind {
         match self {
             ShipKind::Enemy(enemy) => enemy.class(),
             ShipKind::Flagship(_) => EnemyClass::Flagship,
+            // shortcut: Entwürfe zählen als Schlachtschiff (ein Modell, keine Staffel); ein Jäger oder Kreuzer als
+            // Entwurf bräuchte seine Klasse in `DRAFTS`.
+            ShipKind::Draft(_) => EnemyClass::Battleship,
         }
     }
 
@@ -62,12 +68,16 @@ pub const FLAGSHIPS: [FlagshipId; 4] = [
     FlagshipId::Pyre,
 ];
 
-/// Alles mit Modell: Gegner und Flaggschiffe.
+/// Entwürfe: fertige Modelle, die noch keinem Gegner gehören.
+pub const DRAFTS: [&str; 1] = ["broadside"];
+
+/// Alles mit Modell: Gegner, Flaggschiffe und Entwürfe.
 pub fn ships() -> impl Iterator<Item = ShipKind> {
     ENEMIES
         .into_iter()
         .map(ShipKind::Enemy)
         .chain(FLAGSHIPS.into_iter().map(ShipKind::Flagship))
+        .chain(DRAFTS.into_iter().map(ShipKind::Draft))
 }
 
 /// Der Dateiname des Modells.
@@ -92,6 +102,7 @@ pub fn model_key(kind: ShipKind) -> &'static str {
             FlagshipId::Pendulum => "pendulum",
             FlagshipId::Pyre => "pyre",
         },
+        ShipKind::Draft(key) => key,
     }
 }
 

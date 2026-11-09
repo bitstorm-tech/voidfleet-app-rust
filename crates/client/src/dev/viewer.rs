@@ -143,10 +143,14 @@ fn follow_screen(
     }
     *orbit = Orbit::default();
     let kinds: Vec<_> = ships().collect();
-    let rows = kinds.len().div_ceil(COLUMNS);
+    let count = kinds.len();
+    let rows = count.div_ceil(COLUMNS);
     for (index, kind) in kinds.into_iter().enumerate() {
-        let cell = Vec2::new((index % COLUMNS) as f32, (index / COLUMNS) as f32)
-            - Vec2::new(COLUMNS as f32 - 1.0, rows as f32 - 1.0) / 2.0;
+        let row = index / COLUMNS;
+        // Eine angebrochene letzte Reihe steht mittig.
+        let in_row = (count - row * COLUMNS).min(COLUMNS);
+        let cell = Vec2::new((index % COLUMNS) as f32, row as f32)
+            - Vec2::new(in_row as f32 - 1.0, rows as f32 - 1.0) / 2.0;
         let home = Transform::from_translation(ORIGIN + Vec3::new(cell.x, 0.0, cell.y) * SPACING)
             .looking_to(Vec3::X, Vec3::Y)
             .with_scale(Vec3::splat(BOARD_SCALE));

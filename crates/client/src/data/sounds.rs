@@ -17,7 +17,8 @@ pub fn shot_sound(kind: ShipKind) -> SoundId {
             SoundId::PlasmaShot
         }
         ShipKind::Enemy(EnemyId::Besieger | EnemyId::ScrapKing | EnemyId::Warden)
-        | ShipKind::Flagship(FlagshipId::Bastion | FlagshipId::Pendulum) => SoundId::CannonHeavy,
+        | ShipKind::Flagship(FlagshipId::Bastion | FlagshipId::Pendulum)
+        | ShipKind::Draft(_) => SoundId::CannonHeavy,
         ShipKind::Enemy(
             EnemyId::Raiders | EnemyId::Fireship | EnemyId::TorpedoWing | EnemyId::Spotter,
         ) => SoundId::LaserLight,

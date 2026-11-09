@@ -123,6 +123,8 @@ impl DestructionProfile {
                 FlagshipId::Pendulum => flagship(AdmiralId::Kerr, Energy),
                 FlagshipId::Pyre => flagship(AdmiralId::Reyes, Fire),
             },
+            // Entwürfe zählen als Schlachtschiff: wie der Belagerer.
+            ShipKind::Draft(_) => Self::of(ShipKind::Enemy(EnemyId::Besieger)),
         }
     }
 }
