@@ -18,7 +18,10 @@ use bevy::{
 };
 use voidfleet_core::cards::DeckCard;
 
-use super::{Fonts, theme, tooltip::Tooltip};
+use super::{
+    Fonts, theme,
+    tooltip::{Tooltip, TooltipInstant},
+};
 use crate::{
     audio::{PlayUiSound, UiSound},
     data::card_art::{Card, CardArt},
@@ -217,10 +220,10 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
     let fonts = &assets.fonts;
     let locale = &assets.locale;
     let text = locale.card(card);
-    let chunks = keyword_chunks(&text.effect, locale.keywords());
+    let keywords = locale.keywords();
     // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
     let mut explained: Vec<String> = Vec::new();
-    for (word, explanation) in &chunks {
+    for (word, explanation) in keyword_chunks(&text.effect, keywords) {
         if let Some(explanation) = explanation {
             let line = format!("{}: {explanation}", capitalized(word));
             if !explained.contains(&line) {
@@ -228,20 +231,47 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
             }
         }
     }
+    let explained = explained.join("\n");
+    // Je Wort ein Knoten, damit ein Schlüsselwort den Zeiger spürt; es zeigt sofort alle Schlüsselwörter der Karte.
     let effect_font = fonts.body(8.5 * scale);
-    let spans: Vec<_> = chunks
-        .into_iter()
-        .map(|(chunk, explanation)| {
-            let color = if explanation.is_some() {
-                palette::BUFF
-            } else {
-                theme::rgb(235, 242, 255)
-            };
+    let words: Vec<_> = text
+        .effect
+        .split_whitespace()
+        .map(|word| {
+            let chunks = keyword_chunks(word, keywords);
+            let keyword = chunks.iter().any(|(_, explanation)| explanation.is_some());
+            let font = effect_font.clone();
+            let spans: Vec<_> = chunks
+                .into_iter()
+                .map(|(chunk, explanation)| {
+                    let color = if explanation.is_some() {
+                        palette::BUFF
+                    } else {
+                        theme::rgb(235, 242, 255)
+                    };
+                    (
+                        TextSpan::new(chunk),
+                        font.clone(),
+                        TextColor(color),
+                        LineHeight::RelativeToFont(1.35),
+                    )
+                })
+                .collect();
             (
-                TextSpan::new(chunk),
-                effect_font.clone(),
-                TextColor(color),
-                LineHeight::RelativeToFont(1.35),
+                Text::default(),
+                theme::text_shadow(0.9),
+                Tooltip(if keyword {
+                    explained.clone()
+                } else {
+                    String::new()
+                }),
+                TooltipInstant,
+                if keyword {
+                    Pickable::default()
+                } else {
+                    Pickable::IGNORE
+                },
+                Children::spawn(SpawnIter(spans.into_iter())),
             )
         })
         .collect();
@@ -266,7 +296,6 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
     };
     (
         CardView { card, scale },
-        Tooltip(explained.join("\n")),
         Node {
             width: s(CARD_WIDTH),
             height: s(CARD_HEIGHT),
@@ -319,19 +348,14 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
                     (
                         Node {
                             margin: UiRect::top(Val::Auto),
+                            flex_wrap: FlexWrap::Wrap,
+                            justify_content: JustifyContent::Center,
+                            // Der Wortabstand der Schrift.
+                            column_gap: s(8.5 * 0.22),
                             ..default()
                         },
                         Pickable::IGNORE,
-                        children![(
-                            card_text(
-                                fonts.body(8.5 * scale),
-                                "",
-                                theme::rgb(235, 242, 255),
-                                Justify::Center
-                            ),
-                            LineHeight::RelativeToFont(1.35),
-                            Children::spawn(SpawnIter(spans.into_iter())),
-                        )],
+                        Children::spawn(SpawnIter(words.into_iter())),
                     ),
                 ],
             )),

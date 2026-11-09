@@ -1,7 +1,7 @@
 //! Tooltips (Ersatz für das `title`-Attribut des Browsers): Eine Entity mit [`Tooltip`] zeigt ihren Text, sobald der
 //! Zeiger eine Weile darüber ruht, in einem kleinen Feld neben dem Zeiger. Es gibt nur ein Feld; es liegt über allem.
 //! Statt Text kann eine Entity [`TooltipGlyphs`] tragen: je Zeile ein [`Glyph`] und seine Erklärung;
-//! solche Felder erscheinen sofort.
+//! solche Felder erscheinen sofort, ebenso Text mit [`TooltipInstant`].
 
 use bevy::{
     picking::{hover::HoverMap, pointer::PointerId},
@@ -17,6 +17,10 @@ use crate::{palette, settings::Settings};
 /// Der Text, der beim Überfahren erscheint; leer zeigt nichts.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tooltip(pub String);
+
+/// Der [`Tooltip`] dieser Entity erscheint ohne Wartezeit (Schlüsselwörter auf Karten).
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct TooltipInstant;
 
 /// Ein Icon in seiner Farbe, mit Zahl und, beim Spaltenfeuer, den angesagten Spalten.
 #[derive(Clone, Debug, PartialEq)]
@@ -112,7 +116,11 @@ fn follow_pointer(
     mut hover: ResMut<TooltipHover>,
     hover_map: Res<HoverMap>,
     parents: Query<&ChildOf>,
-    tooltips: Query<(Option<&Tooltip>, Option<&TooltipGlyphs>)>,
+    tooltips: Query<(
+        Option<&Tooltip>,
+        Option<&TooltipGlyphs>,
+        Has<TooltipInstant>,
+    )>,
     window: Single<&Window, With<PrimaryWindow>>,
     settings: Res<Settings>,
     tooltip_box: Single<(&mut Node, &mut Visibility, &ComputedNode), With<TooltipBox>>,
@@ -130,11 +138,11 @@ fn follow_pointer(
             std::iter::once(hit)
                 .chain(parents.iter_ancestors(hit))
                 .find_map(|entity| {
-                    let (text, glyphs) = tooltips.get(entity).ok()?;
+                    let (text, glyphs, instant) = tooltips.get(entity).ok()?;
                     let text = text.filter(|text| !text.0.is_empty());
                     let glyphs = glyphs.filter(|glyphs| !glyphs.0.is_empty());
                     (text.is_some() || glyphs.is_some())
-                        .then_some((data.depth, entity, text, glyphs))
+                        .then_some((data.depth, entity, text, glyphs, instant))
                 })
         })
         .min_by(|a, b| a.0.total_cmp(&b.0));
@@ -145,12 +153,14 @@ fn follow_pointer(
         hover.since = now;
     }
     let (mut node, mut visibility, computed) = tooltip_box.into_inner();
-    let (Some((_, _, tooltip, glyphs)), Some(cursor)) = (hovered, window.cursor_position()) else {
+    let (Some((_, _, tooltip, glyphs, instant)), Some(cursor)) =
+        (hovered, window.cursor_position())
+    else {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     };
     // Die Icons über den Schiffen (Glyphen) erklären sich sofort.
-    if glyphs.is_none() && now - hover.since < DELAY {
+    if glyphs.is_none() && !instant && now - hover.since < DELAY {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     }
