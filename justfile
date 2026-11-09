@@ -46,6 +46,10 @@ smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":
     mkdir -p "{{ dir }}"
     VOIDFLEET_SMOKE_FRAMES=200000 VOIDFLEET_SMOKE_PLAY={{ rounds }} VOIDFLEET_SMOKE_SCREENSHOT="{{ dir }}/play.png" cargo run -p voidfleet-client
 
+# Wiki aus docs/ im Browser, lädt bei Änderungen neu (braucht mdBook: `cargo install mdbook`)
+docs *args:
+    mdbook serve --open {{ args }}
+
 # Icons zu PNG rastern
 rasterize:
     cargo run --release --manifest-path tools/rasterize/Cargo.toml

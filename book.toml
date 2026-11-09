@@ -1,0 +1,10 @@
+# Das Wiki: mdBook rendert die Seiten aus docs/ (`just docs`). Neue Seiten in docs/SUMMARY.md eintragen.
+[book]
+title = "Voidfleet"
+language = "de"
+src = "docs"
+
+[build]
+build-dir = "target/book"
+# Ein Tippfehler in SUMMARY.md soll scheitern, statt eine leere Seite anzulegen.
+create-missing = false
