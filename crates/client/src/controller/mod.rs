@@ -18,7 +18,7 @@
 
 pub mod selection;
 
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::{picking::hover::Hovered, platform::collections::HashSet, prelude::*};
 
 pub use selection::{Outcome, Pick, Selection};
 
@@ -39,6 +39,7 @@ use crate::{
         StationPressed,
         dialogs::{Dialog, DialogSystems, OpenDialog},
         fullscreen::ToggleFullscreen,
+        stations::StationButton,
         theme::Modal,
     },
 };
@@ -284,7 +285,7 @@ fn miss_board(
     }
 }
 
-/// Eine Station im Stationen-Feld: Sie wird eingestellt, eine Kartenwahl geht.
+/// Eine Station im Stationen-Feld: Sie läuft sofort (wie eine gespielte Karte), eine Kartenwahl geht.
 fn press_stations(
     mut pressed: MessageReader<StationPressed>,
     battle: Option<Res<Battle>>,
@@ -296,8 +297,14 @@ fn press_stations(
     for &StationPressed(station) in pressed.read() {
         if can_act(battle.as_deref(), *mode.get()) {
             selection.set_if_neq(Selection::Idle);
-            sounds.write(PlayUiSound(UiSound::Select));
-            actions.write(PlayerAction::ToggleStation(station));
+            // Eine Ablehnung meldet sich mit ihrem eigenen Ton.
+            if battle
+                .as_deref()
+                .is_some_and(|battle| battle.can_run(station).is_ok())
+            {
+                sounds.write(PlayUiSound(UiSound::Place));
+            }
+            actions.write(PlayerAction::RunStation(station));
         }
     }
 }
@@ -385,14 +392,15 @@ fn planning_changed(
         || mode.is_some_and(|mode| mode.is_changed())
 }
 
-/// Dazu der Zeiger.
+/// Dazu der Zeiger, auf dem Brett und auf den Stationen.
 fn focus_changed(
     battle: Option<Res<Battle>>,
     selection: Res<Selection>,
     mode: Option<Res<State<BoardMode>>>,
     hover: Res<BoardHover>,
+    stations: Query<(), (Changed<Hovered>, With<StationButton>)>,
 ) -> bool {
-    planning_changed(battle, selection, mode) || hover.is_changed()
+    planning_changed(battle, selection, mode) || hover.is_changed() || !stations.is_empty()
 }
 
 fn update_highlights(
@@ -418,18 +426,25 @@ fn update_highlights(
     highlights.set_if_neq(next);
 }
 
-/// Unter dem Zeiger die Treffer der gewählten Karte bzw. der Zielstation.
+/// Unter dem Zeiger die Treffer der gewählten Karte bzw. der Waffen; zeigt er auf eine Station, deren Treffer.
 fn update_focus(
     battle: Option<Res<Battle>>,
     selection: Res<Selection>,
     mode: Res<State<BoardMode>>,
     hover: Res<BoardHover>,
+    stations: Query<(&Hovered, &StationButton)>,
     mut focus: ResMut<BoardFocus>,
 ) {
+    let station = stations
+        .iter()
+        .find_map(|(hovered, &StationButton(station))| hovered.get().then_some(station));
     let preview = battle
         .as_deref()
         .filter(|battle| can_act(Some(battle), *mode.get()))
-        .and_then(|battle| selection::preview(battle, *selection, hover.slot));
+        .and_then(|battle| match station {
+            Some(station) => selection::station_preview(battle, station),
+            None => selection::preview(battle, *selection, hover.slot),
+        });
     focus.set_if_neq(BoardFocus { preview });
 }
 

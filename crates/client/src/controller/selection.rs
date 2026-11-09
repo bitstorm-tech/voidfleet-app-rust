@@ -1,8 +1,9 @@
 //! Die Auswahl als kleine Zustandsmaschine ohne Bevy: was ein Klick je Zustand bedeutet, welche Slots gültige Ziele
 //! sind und was die Vorschau unter dem Zeiger zeigt.
 //!
-//! - Nichts gewählt: Ein Klick auf einen Gegner setzt das Ziel der Station (Waffen, Fokusfeuer, Stillstand), ein Klick
-//!   auf eine eigene Spalte wählt vor der ersten Aktion in Runde 1 die Startspalte, danach bei Manöver die Zielspalte.
+//! - Nichts gewählt: Ein Klick auf einen Gegner setzt das Ziel der Stationen (Waffen, Fokusfeuer, Stillstand), solange
+//!   eine davon in dieser Runde noch laufen darf; ein Klick auf eine eigene Spalte setzt die Zielspalte des Manövers,
+//!   solange es noch laufen darf. Ausgelöst werden Stationen im Stationen-Feld.
 //! - Eine Karte gewählt, die ein Ziel braucht: Der Klick auf ein gültiges Ziel spielt sie. Karten ohne Ziel wirken
 //!   sofort beim Klick auf die Hand.
 
@@ -48,13 +49,18 @@ pub enum Outcome {
     Nothing,
 }
 
-/// Ob eine besetzte Station ein gegnerisches Ziel braucht.
+/// Ob eine Station, die ein gegnerisches Ziel braucht, in dieser Runde noch laufen darf.
 pub fn station_needs_target(battle: &Battle) -> bool {
-    let flagship = &battle.flagship;
-    flagship
-        .stations
-        .iter()
-        .any(|&station| flagship.needs_target(station))
+    [Station::Weapons, Station::Admiral]
+        .into_iter()
+        .any(|station| {
+            battle.flagship.needs_target(station) && battle.station_open(station).is_ok()
+        })
+}
+
+/// Ob das Manöver in dieser Runde noch laufen darf.
+fn maneuver_open(battle: &Battle) -> bool {
+    battle.station_open(Station::Maneuver).is_ok()
 }
 
 /// Die Einheit auf einem Slot der Gegnerseite.
@@ -114,7 +120,7 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
             }
             Some(_) => Outcome::Nothing,
             None if slot.side == Side::Enemy => Outcome::Nothing,
-            None if battle.flagship.stations.contains(&Station::Maneuver) => {
+            None if maneuver_open(battle) && slot.column != battle.flagship.column => {
                 Outcome::Act(PlayerAction::SetColumn(slot.column))
             }
             None => Outcome::Nothing,
@@ -151,7 +157,7 @@ pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
             if station_needs_target(battle) {
                 slots.extend(enemies().map(|(_, slot)| SlotRef::enemy(slot)));
             }
-            if battle.flagship.stations.contains(&Station::Maneuver) {
+            if maneuver_open(battle) {
                 slots.extend(columns().map(SlotRef::player));
             }
             slots
@@ -159,8 +165,8 @@ pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
     }
 }
 
-/// Die Vorschau unter dem Zeiger: die Treffer der gewählten Karte bzw. der Zielstation auf den Gegner unter dem Zeiger,
-/// samt dessen Kennung. Gerechnet auf einer Kopie, also genau wie die Ausführung.
+/// Die Vorschau unter dem Zeiger: die Treffer der gewählten Karte bzw. der Waffen (solange sie noch laufen dürfen) auf
+/// den Gegner unter dem Zeiger, samt dessen Kennung. Gerechnet auf einer Kopie, also genau wie die Ausführung.
 pub fn preview(
     battle: &Battle,
     selection: Selection,
@@ -169,14 +175,20 @@ pub fn preview(
     let uid = enemy_at(battle, hover?)?;
     let hits = match selection {
         Selection::Card(index) => battle.preview_card(index, Target::Enemy(uid)).ok()?,
-        Selection::Idle if station_needs_target(battle) => {
+        Selection::Idle => {
             let mut copy = battle.clone();
             copy.set_target(uid).ok()?;
-            copy.preview_stations()
+            copy.preview_station(Station::Weapons).ok()?
         }
-        Selection::Idle => return None,
     };
     Some((uid, hits))
+}
+
+/// Die Vorschau einer Station unter dem Zeiger im Stationen-Feld, mit dem eingestellten Ziel bzw. der eingestellten
+/// Spalte, samt der Kennung des ersten Getroffenen; ohne Treffer keine.
+pub fn station_preview(battle: &Battle, station: Station) -> Option<(u32, Vec<Hit>)> {
+    let hits = battle.preview_station(station).ok()?;
+    Some((unit_uid(hits.first()?.target), hits))
 }
 
 /// Die Kennung einer Einheit in der Szene: Gegner nach `uid`, das Flaggschiff 0.
@@ -289,20 +301,33 @@ mod tests {
         );
         assert_eq!(
             click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
-            Outcome::Nothing
-        );
-        battle.flagship.stations = vec![Station::Maneuver];
-        assert_eq!(
-            click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
             Outcome::Act(PlayerAction::SetColumn(2))
         );
         assert_eq!(
-            click(&battle, Selection::Idle, Pick::Slot(slot)),
+            highlights(&battle, Selection::Idle).len(),
+            battle.enemies.len() + 2
+        );
+        battle.set_target(uid).unwrap();
+        battle.run_station(Station::Weapons).unwrap();
+        assert_eq!(
+            click(
+                &battle,
+                Selection::Idle,
+                Pick::Slot(enemy_slot(&battle, 0).1)
+            ),
             Outcome::Nothing
         );
         assert_eq!(
-            highlights(&battle, Selection::Idle),
-            vec![SlotRef::player(0), SlotRef::player(2)]
+            click(&battle, Selection::Idle, Pick::Slot(SlotRef::player(2))),
+            Outcome::Nothing
+        );
+        assert!(highlights(&battle, Selection::Idle).is_empty());
+        // Mit Alarmstufe Rot sind Stillstand (braucht ein Ziel) und Manöver noch offen.
+        battle.flagship.station_slots = 2;
+        assert!(station_needs_target(&battle));
+        assert!(
+            highlights(&battle, Selection::Idle)
+                .ends_with(&[SlotRef::player(0), SlotRef::player(2)])
         );
     }
 
@@ -317,5 +342,13 @@ mod tests {
         let (_, hits) = preview(&battle, Selection::Card(0), Some(slot)).unwrap();
         assert!(hits.iter().any(|hit| unit_uid(hit.target) == uid));
         assert!(preview(&battle, Selection::Idle, Some(SlotRef::player(0))).is_none());
+        assert!(station_preview(&battle, Station::Weapons).is_none());
+        let mut battle = battle;
+        battle.set_target(uid).unwrap();
+        let (focus, hits) = station_preview(&battle, Station::Weapons).unwrap();
+        assert_eq!(focus, uid);
+        assert_eq!(hits[0].breakdown.base, battle.flagship_attack());
+        battle.run_station(Station::Weapons).unwrap();
+        assert!(preview(&battle, Selection::Idle, Some(slot)).is_none());
     }
 }

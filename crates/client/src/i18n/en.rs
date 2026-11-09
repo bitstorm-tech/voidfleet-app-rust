@@ -268,14 +268,6 @@ impl Messages for En {
         format!("Station: {station}")
     }
 
-    fn checklist_target(&self) -> &'static str {
-        "Choose a target"
-    }
-
-    fn checklist_column(&self) -> &'static str {
-        "Choose a column"
-    }
-
     fn checklist_points(&self, points: u32) -> String {
         match points {
             1 => "1 command point left".to_owned(),
@@ -321,7 +313,7 @@ impl Messages for En {
                 "Round",
                 &[
                     "A round is your turn, the enemy turn and the resolution. Before round 1 you see the formation and its intents and may pick your column with a click on your side.",
-                    "In your turn every card and your station take effect at once, in the order you choose. Cards cost command points: 3 each round, unused points are lost. End turn when you are done; a station you have not fired yet fires then, if it can.",
+                    "In your turn every card and your station take effect at once, in the order you choose. Cards cost command points: 3 each round, unused points are lost. End turn when you are done; a round without a station is allowed.",
                     "In the enemy turn each unit does what it announced, front before back, left to right. Then burns tick, shields expire, your hand is discarded and you draw five new cards.",
                     "From round 8 the battle clock gives every enemy +1 ATK per round.",
                 ],
@@ -329,7 +321,7 @@ impl Messages for En {
             RulesChapter::Stations => section(
                 "Stations",
                 &[
-                    "Your flagship mans exactly one station per round. Station, target and column stay set until you change them.",
+                    "Your flagship triggers one station per round, with Red Alert a second, different one. It takes effect at once, like a card, with the target and column you have set; both stay set until you change them.",
                     "Weapons fire your ATK at the chosen target. Shields absorb 8 in the next enemy turn (Osei 12). Damage control puts out the fire and repairs 5 hull. Maneuver moves to another column and dodges column fire aimed at the old one.",
                     "The admiral station depends on your admiral and is not available while your bridge is hit (hull at 25 % or less).",
                 ],
@@ -346,7 +338,7 @@ impl Messages for En {
                 "Conditions",
                 &[
                     "Burning: a hit that brings a unit to 50 % hull or less sets it on fire. A burning unit loses 2 hull in each resolution; your own fire is put out by damage control or the repair crew.",
-                    "Emergency: at 25 % hull or less a unit fires with half ATK and no longer evades. Your flagship cannot man its admiral station.",
+                    "Emergency: at 25 % hull or less a unit fires with half ATK and no longer evades. Your flagship cannot trigger its admiral station.",
                     "Destroyed: an enemy at 0 hull falls at once and never acts again. If your flagship falls, the battle is lost.",
                 ],
             ),
@@ -378,7 +370,7 @@ impl Messages for En {
                 "Controls",
                 &[
                     "Click a card to play it; a card with a target waits for a click on a glowing enemy or column. Clicking the card again, right-clicking or Escape cancels.",
-                    "Pick a station in the panel; click an enemy to set the weapon target, a glowing column of your side for a maneuver. Hover an enemy to see the damage of your card or station.",
+                    "Click an enemy to set the weapon target, a glowing column of your side for a maneuver; click a station in the panel to trigger it at once. Hover an enemy to see the damage of your card or weapons, a station to see its damage on the set target.",
                     "Space skips the playback, V switches the view, ← → orbit, ↑ ↓ zoom, F toggles fullscreen, Escape opens the settings.",
                 ],
             ),
@@ -521,6 +513,8 @@ impl Messages for En {
             RuleError::AdmiralStationInEmergency => "Bridge hit: no admiral station.",
             RuleError::Jumped => "The flagship is in micro jump.",
             RuleError::SameColumn => "The flagship is already in this column.",
+            RuleError::StationUsed => "This station already ran this round.",
+            RuleError::NoStationSlot => "No station left this round.",
         }
     }
 
@@ -540,7 +534,7 @@ impl Messages for En {
 
     fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
         match station {
-            Station::Weapons => "Fires your ATK at the chosen target.".to_owned(),
+            Station::Weapons => "Fires your ATK at the set target at once.".to_owned(),
             Station::Shields => format!(
                 "Absorbs {} in the next enemy turn.",
                 admiral.shield_station()
@@ -549,7 +543,7 @@ impl Messages for En {
                 format!("Puts out the fire and repairs {DAMAGE_CONTROL_REPAIR} hull.")
             }
             Station::Maneuver => {
-                "Moves to another column and dodges column fire on the old one.".to_owned()
+                "Moves to the set column at once and dodges column fire on the old one.".to_owned()
             }
             Station::Admiral => self.admiral(admiral).station_text.to_owned(),
         }
@@ -641,12 +635,12 @@ impl Messages for En {
                 "Pulls a chosen ship (not a flagship) into a free slot of its row; cover breaks.".to_owned()
             }
             CardId::MicroJump => {
-                "Your flagship leaves the board: no station this round, no target in the enemy turn; it returns in the resolution.".to_owned()
+                "Your flagship leaves the board: no more stations this round, no target in the enemy turn; it returns in the resolution.".to_owned()
             }
-            CardId::EvasiveAction => "Your flagship moves to another column at once, keeping its station.".to_owned(),
+            CardId::EvasiveAction => "Your flagship moves to another column at once, without using a station.".to_owned(),
             CardId::Countermeasures => "The first enemy attack in the enemy turn deals half damage.".to_owned(),
             CardId::Scavenge => format!("Draw {SCAVENGE_DRAW} commands."),
-            CardId::RedAlert => "Man two different stations this round.".to_owned(),
+            CardId::RedAlert => "Trigger a second, different station this round.".to_owned(),
             CardId::FireControlDoctrine => {
                 format!("Doctrine: for the rest of the battle all your shots and attack cards +{v} damage.")
             }
@@ -706,7 +700,7 @@ impl Messages for En {
                 weapon: "Plasma thrower: every hit sets the target on fire",
                 passive: "Ember core: enemy burns tick 3 instead of 2.",
                 station: "Follow-up",
-                station_text: "Does not fire. Every burning enemy takes double its burn damage at once; attack cards on burning targets +2 this round.",
+                station_text: "Does not fire. Every burning enemy takes double its burn damage at once; attack cards on burning targets +2 for the rest of the round.",
             },
         }
     }

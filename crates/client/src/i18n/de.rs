@@ -267,14 +267,6 @@ impl Messages for De {
         format!("Station: {station}")
     }
 
-    fn checklist_target(&self) -> &'static str {
-        "Ziel wählen"
-    }
-
-    fn checklist_column(&self) -> &'static str {
-        "Spalte wählen"
-    }
-
     fn checklist_points(&self, points: u32) -> String {
         match points {
             1 => "1 Befehlspunkt offen".to_owned(),
@@ -320,7 +312,7 @@ impl Messages for De {
                 "Runde",
                 &[
                     "Eine Runde ist dein Zug, der Gegnerzug und die Auflösung. Vor Runde 1 siehst du Formation und Absichten und darfst mit einem Klick auf deine Seite deine Spalte wählen.",
-                    "In deinem Zug wirken Karten und Station sofort, in deiner Reihenfolge. Karten kosten Befehlspunkte: 3 je Runde, was übrig bleibt, verfällt. Beende den Zug, wenn du fertig bist; eine Station, die noch nicht lief, läuft dann, wenn sie kann.",
+                    "In deinem Zug wirken Karten und Station sofort, in deiner Reihenfolge. Karten kosten Befehlspunkte: 3 je Runde, was übrig bleibt, verfällt. Beende den Zug, wenn du fertig bist; eine Runde ohne Station ist erlaubt.",
                     "Im Gegnerzug tut jede Einheit, was sie angesagt hat, Front vor Back, links nach rechts. Dann ticken Brände, Schilde verfallen, die Hand wird abgeworfen und du ziehst fünf neue Karten.",
                     "Ab Runde 8 gibt die Gefechtsuhr allen Gegnern je Runde +1 ATK.",
                 ],
@@ -328,7 +320,7 @@ impl Messages for De {
             RulesChapter::Stations => section(
                 "Stationen",
                 &[
-                    "Dein Flaggschiff besetzt genau eine Station je Runde. Station, Ziel und Spalte bleiben eingestellt, bis du sie änderst.",
+                    "Dein Flaggschiff löst eine Station je Runde aus, mit Alarmstufe Rot eine zweite, andere. Sie wirkt sofort, wie eine Karte, mit dem eingestellten Ziel und der eingestellten Spalte; beides bleibt eingestellt, bis du es änderst.",
                     "Waffen feuern deine ATK auf das gewählte Ziel. Schilde schlucken im nächsten Gegnerzug 8 (Osei 12). Schadenskontrolle löscht den Brand und repariert 5 Hülle. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
                     "Die Admiralsstation hängt von deinem Admiral ab und geht nicht, solange die Brücke getroffen ist (Hülle bei 25 % oder weniger).",
                 ],
@@ -345,7 +337,7 @@ impl Messages for De {
                 "Zustände",
                 &[
                     "Brand: Ein Treffer, der eine Einheit auf 50 % Hülle oder weniger bringt, setzt sie in Brand. Wer brennt, verliert in jeder Auflösung 2 Hülle; den eigenen Brand löschen Schadenskontrolle und Reparaturtrupp.",
-                    "Notfall: Bei 25 % Hülle oder weniger feuert eine Einheit mit halber ATK und weicht nicht mehr aus. Dein Flaggschiff kann dann seine Admiralsstation nicht besetzen.",
+                    "Notfall: Bei 25 % Hülle oder weniger feuert eine Einheit mit halber ATK und weicht nicht mehr aus. Dein Flaggschiff kann dann seine Admiralsstation nicht auslösen.",
                     "Zerstört: Ein Gegner mit Hülle 0 fällt sofort und handelt nie mehr. Fällt dein Flaggschiff, ist das Gefecht verloren.",
                 ],
             ),
@@ -377,7 +369,7 @@ impl Messages for De {
                 "Steuerung",
                 &[
                     "Klicke eine Karte, um sie zu spielen; eine Karte mit Ziel wartet auf einen Klick auf einen leuchtenden Gegner oder eine Spalte. Ein zweiter Klick auf die Karte, Rechtsklick oder Escape bricht ab.",
-                    "Wähle die Station im Stationen-Feld; ein Klick auf einen Gegner setzt das Ziel der Waffen, eine leuchtende eigene Spalte das Ziel des Manövers. Unter dem Zeiger zeigt ein Gegner den Schaden deiner Karte oder Station.",
+                    "Ein Klick auf einen Gegner setzt das Ziel der Waffen, eine leuchtende eigene Spalte das Ziel des Manövers; ein Klick auf eine Station im Stationen-Feld löst sie sofort aus. Unter dem Zeiger zeigt ein Gegner den Schaden deiner Karte oder Waffen, eine Station ihren Schaden am eingestellten Ziel.",
                     "Leertaste überspringt die Wiedergabe, V wechselt die Ansicht, ← → drehen, ↑ ↓ zoomen, F schaltet das Vollbild, Escape öffnet die Einstellungen.",
                 ],
             ),
@@ -530,6 +522,8 @@ impl Messages for De {
             RuleError::AdmiralStationInEmergency => "Brücke getroffen: keine Admiralsstation.",
             RuleError::Jumped => "Das Flaggschiff ist im Kurzsprung.",
             RuleError::SameColumn => "Das Flaggschiff steht schon in dieser Spalte.",
+            RuleError::StationUsed => "Diese Station lief in dieser Runde schon.",
+            RuleError::NoStationSlot => "Keine Station mehr frei in dieser Runde.",
         }
     }
 
@@ -549,7 +543,7 @@ impl Messages for De {
 
     fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
         match station {
-            Station::Weapons => "Feuert deine ATK auf das gewählte Ziel.".to_owned(),
+            Station::Weapons => "Feuert sofort deine ATK auf das eingestellte Ziel.".to_owned(),
             Station::Shields => format!(
                 "Schluckt im nächsten Gegnerzug {}.",
                 admiral.shield_station()
@@ -558,7 +552,7 @@ impl Messages for De {
                 format!("Löscht den Brand und repariert {DAMAGE_CONTROL_REPAIR} Hülle.")
             }
             Station::Maneuver => {
-                "Wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.".to_owned()
+                "Wechselt sofort in die eingestellte Spalte und entgeht dem Spaltenfeuer auf die alte.".to_owned()
             }
             Station::Admiral => self.admiral(admiral).station_text.to_owned(),
         }
@@ -650,12 +644,12 @@ impl Messages for De {
                 "Zieht ein gewähltes Schiff (kein Flaggschiff) in einen freien Slot seiner Reihe; Deckung bricht.".to_owned()
             }
             CardId::MicroJump => {
-                "Dein Flaggschiff verlässt das Brett: keine Station in dieser Runde, kein Ziel im Gegnerzug; es kehrt in der Auflösung zurück.".to_owned()
+                "Dein Flaggschiff verlässt das Brett: danach in dieser Runde keine Station mehr, kein Ziel im Gegnerzug; es kehrt in der Auflösung zurück.".to_owned()
             }
-            CardId::EvasiveAction => "Dein Flaggschiff wechselt sofort die Spalte und behält seine Station.".to_owned(),
+            CardId::EvasiveAction => "Dein Flaggschiff wechselt sofort die Spalte, ohne eine Station zu verbrauchen.".to_owned(),
             CardId::Countermeasures => "Der erste gegnerische Angriff im Gegnerzug macht halben Schaden.".to_owned(),
             CardId::Scavenge => format!("{SCAVENGE_DRAW} Befehle ziehen."),
-            CardId::RedAlert => "Besetze in dieser Runde zwei verschiedene Stationen.".to_owned(),
+            CardId::RedAlert => "Löse in dieser Runde eine zweite, andere Station aus.".to_owned(),
             CardId::FireControlDoctrine => {
                 format!("Doktrin: Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +{v} Schaden.")
             }
@@ -715,7 +709,7 @@ impl Messages for De {
                 weapon: "Plasmawerfer: jeder Treffer setzt das Ziel in Brand",
                 passive: "Glutkern: Brände bei Gegnern ticken 3 statt 2.",
                 station: "Nachsetzen",
-                station_text: "Feuert nicht. Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens; Angriffskarten auf brennende Ziele +2 in dieser Runde.",
+                station_text: "Feuert nicht. Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens; Angriffskarten auf brennende Ziele +2 für den Rest der Runde.",
             },
         }
     }

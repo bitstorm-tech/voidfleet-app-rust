@@ -5,7 +5,7 @@
 //!   weg, verschwindet es;
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
 //!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]);
-//! - der Geist des Flaggschiffs ([`Ghost`]) in der Zielspalte, solange die Manöver-Station besetzt ist;
+//! - der Geist des Flaggschiffs ([`Ghost`]) in der Zielspalte, solange das Manöver in dieser Runde noch laufen darf;
 //! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
 //!   Balken; Brand, Notfall, Stillstand und Funkstille dazu als Icons in der Beschriftung.
 //!
@@ -291,13 +291,11 @@ pub fn sync_ships(
     }
 }
 
-/// Wohin das Flaggschiff manövrieren wird: die Zielspalte, solange die Manöver-Station besetzt ist und sie woanders
-/// liegt.
+/// Wohin das Flaggschiff manövrieren würde: die Zielspalte, solange das Manöver in dieser Runde noch laufen darf und
+/// sie woanders liegt.
 fn ghost_slot(battle: &CoreBattle) -> Option<SlotRef> {
     let flagship = &battle.flagship;
-    (!flagship.jumped
-        && flagship.stations.contains(&Station::Maneuver)
-        && flagship.maneuver_column != flagship.column)
+    (battle.station_open(Station::Maneuver).is_ok() && flagship.maneuver_column != flagship.column)
         .then_some(SlotRef::player(flagship.maneuver_column))
 }
 
@@ -387,15 +385,15 @@ mod tests {
         );
     }
 
-    /// Der Geist steht nur bei besetzter Manöver-Station und nur in einer anderen Spalte.
+    /// Der Geist steht nur, solange das Manöver noch laufen darf, und nur in einer anderen Spalte.
     #[test]
     fn ghost_marks_the_maneuver() {
         let mut battle = fixture_battle(AdmiralId::Kerr);
-        battle.flagship.maneuver_column = 2;
-        assert_eq!(ghost_slot(&battle), None);
-        battle.flagship.stations = vec![Station::Maneuver];
-        assert_eq!(ghost_slot(&battle), Some(SlotRef::player(2)));
         battle.flagship.maneuver_column = battle.flagship.column;
+        assert_eq!(ghost_slot(&battle), None);
+        battle.flagship.maneuver_column = 2;
+        assert_eq!(ghost_slot(&battle), Some(SlotRef::player(2)));
+        battle.run_station(Station::Shields).unwrap();
         assert_eq!(ghost_slot(&battle), None);
     }
 

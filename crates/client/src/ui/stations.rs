@@ -1,8 +1,8 @@
 //! Das Stationen-Feld rechts in der Hand: die fünf Stationen des Flaggschiffs (die Admiralsstation mit ihrem Namen je
-//! Admiral), die besetzten leuchten (eine, mit Alarmstufe Rot mehr); darunter Ziel bzw. Spalte als Text. Die besetzten
-//! Stationen laufen beim Zugende. Daneben „Zug beenden“ (während einer Wiedergabe „Überspringen“) mit der Checkliste
-//! des Zugs: Stationen, Ziel bzw. Spalte, freie Stationen und offene Befehlspunkte als Hinweis. Klicks melden
-//! [`StationPressed`] und [`ActionPressed`].
+//! Admiral); ein Klick löst eine Station sofort aus, die in dieser Runde gelaufenen leuchten (eine, mit Alarmstufe Rot
+//! zwei); darunter Ziel bzw. Spalte als Text, solange eine Station sie noch braucht. Daneben „Zug beenden“ (während
+//! einer Wiedergabe „Überspringen“) mit der Checkliste des Zugs: gelaufene Stationen, freie Stationen und offene
+//! Befehlspunkte als Hinweis. Klicks melden [`StationPressed`] und [`ActionPressed`].
 
 use bevy::{
     prelude::*,
@@ -10,10 +10,7 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, observe},
 };
-use voidfleet_core::{
-    admirals::Station,
-    battle::{Battle as CoreBattle, RuleError},
-};
+use voidfleet_core::{admirals::Station, battle::Battle as CoreBattle};
 
 use super::{
     ActionPressed, Fonts, HudAction, HudState, StationPressed, UiIcons,
@@ -28,9 +25,9 @@ use crate::{
 
 /// Eine Station im Feld.
 #[derive(Component, Clone, Copy, Debug)]
-struct StationButton(Station);
+pub struct StationButton(pub Station);
 
-/// Ziel bzw. Spalte der eingestellten Station.
+/// Ziel bzw. Spalte, solange eine Station sie noch braucht.
 #[derive(Component)]
 struct StationDetail;
 
@@ -160,7 +157,7 @@ pub(super) fn stations_panel(fonts: &Fonts) -> impl Bundle {
     )
 }
 
-/// Beschriftung, Tooltip und Leuchten der Stationen; dazu Ziel bzw. Spalte der besetzten.
+/// Beschriftung, Tooltip und Leuchten der Stationen; dazu Ziel bzw. Spalte, solange eine Station sie noch braucht.
 fn update_stations(
     mut commands: Commands,
     battle: Option<Res<Battle>>,
@@ -195,10 +192,10 @@ fn update_stations(
             }
         }
         tooltip.0 = locale.station_text(station, admiral);
-        let chosen = flagship.stations.contains(&station);
-        if chosen && !lit {
+        let ran = flagship.stations_used.contains(&station);
+        if ran && !lit {
             commands.entity(entity).insert(Lit);
-        } else if !chosen && lit {
+        } else if !ran && lit {
             commands.entity(entity).remove::<Lit>();
         }
         let enabled = hud.planning;
@@ -217,7 +214,8 @@ fn update_stations(
             None => locale.hud_no_target().to_owned(),
         });
     }
-    if flagship.stations.contains(&Station::Maneuver) {
+    if battle.station_open(Station::Maneuver).is_ok() && flagship.maneuver_column != flagship.column
+    {
         lines.push(locale.hud_column(flagship.maneuver_column));
     }
     let text = lines.join("\n");
@@ -268,40 +266,23 @@ fn update_actions(
     }
 }
 
-/// Die Zeilen der Checkliste: je besetzte Station eine (erledigt, wenn sie beim Zugende laufen kann), fehlendes Ziel
-/// bzw. fehlende Spalte, freie Stationen und offene Befehlspunkte.
+/// Die Zeilen der Checkliste: je gelaufene Station eine (erledigt), freie Stationsplätze (offen, solange noch eine
+/// laufen darf) und offene Befehlspunkte.
 pub fn checklist_lines(locale: &Locale, battle: &CoreBattle) -> Vec<(String, ChecklistState)> {
     let flagship = &battle.flagship;
-    let mut lines = Vec::new();
-    let mut missing = Vec::new();
-    for &station in &flagship.stations {
-        let check = battle.can_run(station);
-        let state = if check.is_ok() {
-            ChecklistState::Done
-        } else {
-            ChecklistState::Open
-        };
-        let name = locale.station(station, flagship.admiral);
-        lines.push((locale.checklist_station(name), state));
-        let line = match check {
-            Err(RuleError::TargetRequired) => locale.checklist_target(),
-            Err(RuleError::SameColumn) => locale.checklist_column(),
-            _ => continue,
-        };
-        if !missing.contains(&line) {
-            missing.push(line);
-        }
-    }
-    lines.extend(
-        missing
-            .into_iter()
-            .map(|line| (line.to_owned(), ChecklistState::Open)),
-    );
+    let mut lines: Vec<_> = flagship
+        .stations_used
+        .iter()
+        .map(|&station| {
+            let name = locale.station(station, flagship.admiral);
+            (locale.checklist_station(name), ChecklistState::Done)
+        })
+        .collect();
     let free = flagship
         .station_slots
-        .saturating_sub(flagship.stations.len());
-    if free > 0 {
-        lines.push((locale.checklist_free_stations(free), ChecklistState::Hint));
+        .saturating_sub(flagship.stations_used.len());
+    if free > 0 && !flagship.jumped && battle.result.is_none() {
+        lines.push((locale.checklist_free_stations(free), ChecklistState::Open));
     }
     let affordable = battle.hand.iter().any(|card| card.cost() <= battle.points);
     if battle.points > 0 && affordable {
@@ -423,34 +404,30 @@ mod tests {
     use crate::{game::fixture_battle, settings::Language};
 
     #[test]
-    fn checklist_follows_station() {
+    fn checklist_follows_stations() {
         let locale = Locale::new(Language::De);
         let mut battle = fixture_battle(AdmiralId::Osei);
-        let texts = |battle: &CoreBattle| {
-            checklist_lines(&locale, battle)
-                .into_iter()
-                .map(|(text, _)| text)
-                .collect::<Vec<_>>()
-        };
         assert_eq!(
-            texts(&battle),
-            ["Station: Waffen", "Ziel wählen", "3 Befehlspunkte offen"]
+            checklist_lines(&locale, &battle),
+            [
+                ("1 Station frei".to_owned(), ChecklistState::Open),
+                ("3 Befehlspunkte offen".to_owned(), ChecklistState::Hint)
+            ]
         );
-        battle.flagship.stations = vec![Station::Maneuver];
         battle.points = 0;
-        assert_eq!(texts(&battle), ["Station: Manöver", "Spalte wählen"]);
-        battle.flagship.stations = vec![Station::Shields];
+        battle.flagship.station_slots = 2;
+        battle.run_station(Station::Shields).unwrap();
+        assert_eq!(
+            checklist_lines(&locale, &battle),
+            [
+                ("Station: Schilde".to_owned(), ChecklistState::Done),
+                ("1 Station frei".to_owned(), ChecklistState::Open)
+            ]
+        );
+        battle.flagship.jumped = true;
         assert_eq!(
             checklist_lines(&locale, &battle),
             [("Station: Schilde".to_owned(), ChecklistState::Done)]
         );
-        battle.flagship.station_slots = 2;
-        battle.flagship.stations = vec![Station::Shields, Station::Weapons];
-        assert_eq!(
-            texts(&battle),
-            ["Station: Schilde", "Station: Waffen", "Ziel wählen"]
-        );
-        battle.flagship.stations = vec![Station::Shields];
-        assert_eq!(texts(&battle), ["Station: Schilde", "1 Station frei"]);
     }
 }

@@ -84,6 +84,10 @@ pub enum RuleError {
     AdmiralStationInEmergency,
     Jumped,
     SameColumn,
+    /// Diese Station lief in dieser Runde schon.
+    StationUsed,
+    /// Alle Stationsplätze der Runde sind verbraucht.
+    NoStationSlot,
 }
 
 /// Das Flaggschiff des Spielers samt Einstellungen und dem Zustand dieser Runde.
@@ -101,14 +105,13 @@ pub struct Flagship {
     /// Vorstoß (nur Vance).
     pub momentum: i32,
     pub jumped: bool,
-    /// Die besetzten Stationen in der Reihenfolge der Wahl; sie laufen beim Zugende.
-    pub stations: Vec<Station>,
+    /// Eingestelltes Ziel für Waffen, Fokusfeuer und Stillstand; bleibt über Runden stehen.
     pub target: Option<u32>,
     /// Zielspalte der Manöver-Station.
     pub maneuver_column: usize,
-    /// Wie viele Stationen in dieser Runde besetzt werden dürfen (Alarmstufe Rot +1).
+    /// Wie viele Stationen in dieser Runde laufen dürfen (Alarmstufe Rot +1).
     pub station_slots: usize,
-    /// Die Stationen, die beim Zugende liefen (für Vances Vorstoß).
+    /// Die Stationen, die in dieser Runde liefen, in Reihenfolge (für Nachsetzen und Vances Vorstoß).
     pub stations_used: Vec<Station>,
     /// Energiestoß und Überladung in dieser Runde.
     pub attack_bonus: i32,
@@ -254,7 +257,6 @@ impl Battle {
                 ablative: 0,
                 momentum: 0,
                 jumped: false,
-                stations: vec![Station::Weapons],
                 target: None,
                 maneuver_column: COLUMNS / 2,
                 station_slots: 1,
@@ -407,25 +409,6 @@ impl Battle {
 
     // --- Spielerzug ---
 
-    /// Besetzt eine Station oder gibt sie frei. Sind alle Plätze belegt, weicht die zuerst gewählte; die letzte bleibt.
-    pub fn toggle_station(&mut self, station: Station) -> Result<(), RuleError> {
-        let f = &mut self.flagship;
-        if let Some(i) = f.stations.iter().position(|&s| s == station) {
-            if f.stations.len() > 1 {
-                f.stations.remove(i);
-            }
-            return Ok(());
-        }
-        if station == Station::Admiral && f.emergency() {
-            return Err(RuleError::AdmiralStationInEmergency);
-        }
-        if f.stations.len() >= f.station_slots {
-            f.stations.remove(0);
-        }
-        f.stations.push(station);
-        Ok(())
-    }
-
     pub fn set_target(&mut self, uid: u32) -> Result<(), RuleError> {
         self.enemy(uid).ok_or(RuleError::TargetInvalid)?;
         self.flagship.target = Some(uid);
@@ -436,8 +419,8 @@ impl Battle {
         self.flagship.maneuver_column = column;
     }
 
-    /// Ob eine besetzte Station beim Zugende laufen kann (für die Checkliste).
-    pub fn can_run(&self, station: Station) -> Result<(), RuleError> {
+    /// Ob die Station in dieser Runde noch laufen darf, abgesehen von Ziel und Spalte.
+    pub fn station_open(&self, station: Station) -> Result<(), RuleError> {
         let f = &self.flagship;
         if self.result.is_some() {
             return Err(RuleError::BattleOver);
@@ -445,12 +428,24 @@ impl Battle {
         if f.jumped {
             return Err(RuleError::Jumped);
         }
-        match station {
-            Station::Maneuver if f.maneuver_column == f.column => {
-                return Err(RuleError::SameColumn);
-            }
-            Station::Admiral if f.emergency() => return Err(RuleError::AdmiralStationInEmergency),
-            _ => {}
+        if f.stations_used.contains(&station) {
+            return Err(RuleError::StationUsed);
+        }
+        if f.stations_used.len() >= f.station_slots {
+            return Err(RuleError::NoStationSlot);
+        }
+        if station == Station::Admiral && f.emergency() {
+            return Err(RuleError::AdmiralStationInEmergency);
+        }
+        Ok(())
+    }
+
+    /// Ob die Station jetzt mit dem eingestellten Ziel und der eingestellten Spalte laufen kann.
+    pub fn can_run(&self, station: Station) -> Result<(), RuleError> {
+        self.station_open(station)?;
+        let f = &self.flagship;
+        if station == Station::Maneuver && f.maneuver_column == f.column {
+            return Err(RuleError::SameColumn);
         }
         if f.needs_target(station) && f.target.is_none() {
             return Err(RuleError::TargetRequired);
@@ -476,14 +471,21 @@ impl Battle {
         Ok(events)
     }
 
-    /// Führt die besetzten Stationen aus, die laufen können; dann Zugende, Gegnerzug, Auflösung.
+    /// Führt die Station sofort aus, mit dem eingestellten Ziel und der eingestellten Spalte.
+    pub fn run_station(&mut self, station: Station) -> Result<Vec<BattleEvent>, RuleError> {
+        self.can_run(station)?;
+        let mut events = Vec::new();
+        self.execute_station(station, &mut events);
+        Ok(events)
+    }
+
+    /// Zugende (Überladung), Gegnerzug, Auflösung.
     pub fn end_turn(&mut self) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         if self.result.is_some() {
             return events;
         }
-        self.run_stations(&mut events);
-        if self.result.is_none() && self.flagship.overcharge > 0 {
+        if self.flagship.overcharge > 0 {
             let was = self.flagship.emergency();
             let amount = self.flagship.overcharge.min(self.flagship.hull);
             self.flagship.hull -= amount;
@@ -504,12 +506,9 @@ impl Battle {
 
     // --- Vorschau ---
 
-    /// Die Treffer der besetzten Stationen, wie sie beim Zugende fielen.
-    pub fn preview_stations(&self) -> Vec<Hit> {
+    pub fn preview_station(&self, station: Station) -> Result<Vec<Hit>, RuleError> {
         let mut copy = self.clone();
-        let mut events = Vec::new();
-        copy.run_stations(&mut events);
-        hits(events)
+        copy.run_station(station).map(hits)
     }
 
     pub fn preview_card(&self, hand_index: usize, target: Target) -> Result<Vec<Hit>, RuleError> {
@@ -519,15 +518,7 @@ impl Battle {
 
     // --- Stationen und Karten ---
 
-    fn run_stations(&mut self, events: &mut Vec<BattleEvent>) {
-        for station in self.flagship.stations.clone() {
-            if self.can_run(station).is_ok() {
-                self.run_station(station, events);
-            }
-        }
-    }
-
-    fn run_station(&mut self, station: Station, events: &mut Vec<BattleEvent>) {
+    fn execute_station(&mut self, station: Station, events: &mut Vec<BattleEvent>) {
         self.flagship.stations_used.push(station);
         events.push(BattleEvent::StationTriggered { station });
         match station {
@@ -809,12 +800,11 @@ impl Battle {
         value + self.flagship.fire_control + self.follow_up_bonus(enemy)
     }
 
-    /// Nachsetzen gibt Angriffskarten auf brennende Ziele +2, solange es besetzt ist und laufen kann.
+    /// Nachsetzen gibt Angriffskarten auf brennende Ziele +2, sobald es in dieser Runde lief.
     fn follow_up_bonus(&self, enemy: &Enemy) -> i32 {
-        let manned = self.flagship.admiral.station() == AdmiralStation::FollowUp
-            && self.flagship.stations.contains(&Station::Admiral)
-            && self.can_run(Station::Admiral).is_ok();
-        if manned && enemy.burning {
+        let ran = self.flagship.admiral.station() == AdmiralStation::FollowUp
+            && self.flagship.stations_used.contains(&Station::Admiral);
+        if ran && enemy.burning {
             FOLLOW_UP_CARD_BONUS
         } else {
             0
@@ -1305,7 +1295,6 @@ impl Battle {
         }
         f.stations_used.clear();
         f.station_slots = 1;
-        f.stations.truncate(1);
         f.attack_bonus = 0;
         f.overcharge = 0;
         f.countermeasures = 0;

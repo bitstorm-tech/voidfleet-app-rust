@@ -4,7 +4,7 @@
 
 Wer ist wer in diesem Text:
 
-- **Der Spieler** ist ein Mensch. Er führt genau eine Einheit, sein Flaggschiff, besetzt dessen Stationen und spielt Karten.
+- **Der Spieler** ist ein Mensch. Er führt genau eine Einheit, sein Flaggschiff, löst dessen Stationen aus und spielt Karten.
 - **Das Flaggschiff** ohne Zusatz ist immer das Schiff des Spielers. Ein gegnerisches Flaggschiff gibt es nur in Boss-Gefechten.
 - **Die Gegner** sind alle Einheiten auf der anderen Seite. Sie steuert das Spiel nach festen Mustern mit angesagten Absichten (Abschnitt 12): kein zweiter Mensch, kein planender Bot. Sie spielen keine Karten und haben keine Stationen.
 - **Die Runde** ist Spielerzug, Gegnerzug, Auflösung (Abschnitt 5). Im Spielerzug handelt nur der Spieler, im Gegnerzug nur das Spiel.
@@ -14,8 +14,8 @@ Wer ist wer in diesem Text:
 Nach dem MDA-Framework, von hinten nach vorn:
 
 - **Ästhetik.** Kommandanten-Fantasie und Schauwert. Der Moment, für den man wiederkommt, ist „Was für eine Schlacht“: ein Schiff, eine Crew, eine Übermacht. Ton wie Battlestar Galactica und The Expanse: rau, militärisch, Schadensmeldungen von der Brücke, Verluste und Schaden tun weh. Der Ton kommt aus Funk, Text, Zuständen und Inszenierung, nicht aus dem Look; der Clean-Toon-Stil bleibt und wird detailreicher und schmutziger. Nicht im Zentrum: Mindgame; die offene Rechnung ist Mittel, nicht Zweck.
-- **Dynamik.** Eines gegen viele, Mensch gegen Spiel, in Zügen im Wechsel. Die gegnerische Flotte steht in Formation und sagt an, was sie in ihrem Zug tun wird; der Spieler handelt zuerst, rechnet gegen die Ansage und entscheidet, welche Station seines Schiffs in dieser Runde besetzt wird: Geschütz, Schild, Werft oder Admiral; dann führt das Spiel aus, was von der Ansage noch steht. Der Spannungsbogen kommt aus Verfall: Gegner brennen, fallen in den Notfall, verlieren sichtbar Modelle, und das Flaggschiff trägt seine Hülle durch den ganzen Run. Kein Schuss geht ins Nichts, und jede Zahl steht fest, bevor der Spieler klickt. Jede Runde stellt die Frage: Wo gebe ich Feuerkraft auf, um zu überleben, und wofür gebe ich meine Befehlspunkte aus?
-- **Mechanik.** Das Flaggschiff besetzt pro Runde eine Station. Befehlspunkte zahlen Karten aus einem Deck, das im Run wächst. Vier Admirale als Charaktere, jeder mit Waffe, Passiv, Admiralsstation und Startdeck. Gegner haben Muster und Absichten statt Karten. Drei Sektoren mit Sternenkarte, Beute und Bossen. Der Gegnerzug ist ein erzählter Gefechtsbericht. Fällt das Flaggschiff, endet der Run.
+- **Dynamik.** Eines gegen viele, Mensch gegen Spiel, in Zügen im Wechsel. Die gegnerische Flotte steht in Formation und sagt an, was sie in ihrem Zug tun wird; der Spieler handelt zuerst, rechnet gegen die Ansage und entscheidet, welche Station seines Schiffs in dieser Runde läuft: Geschütz, Schild, Werft oder Admiral; dann führt das Spiel aus, was von der Ansage noch steht. Der Spannungsbogen kommt aus Verfall: Gegner brennen, fallen in den Notfall, verlieren sichtbar Modelle, und das Flaggschiff trägt seine Hülle durch den ganzen Run. Kein Schuss geht ins Nichts, und jede Zahl steht fest, bevor der Spieler klickt. Jede Runde stellt die Frage: Wo gebe ich Feuerkraft auf, um zu überleben, und wofür gebe ich meine Befehlspunkte aus?
+- **Mechanik.** Das Flaggschiff löst pro Runde eine Station aus, die wie eine Karte sofort wirkt. Befehlspunkte zahlen Karten aus einem Deck, das im Run wächst. Vier Admirale als Charaktere, jeder mit Waffe, Passiv, Admiralsstation und Startdeck. Gegner haben Muster und Absichten statt Karten. Drei Sektoren mit Sternenkarte, Beute und Bossen. Der Gegnerzug ist ein erzählter Gefechtsbericht. Fällt das Flaggschiff, endet der Run.
 
 ## 2. Brett und Formation
 
@@ -68,11 +68,11 @@ Die Hülle des Flaggschiffs bleibt zwischen den Gefechten, wie sie ist; geheilt 
 
 ## 4. Stationen des Flaggschiffs
 
-Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (Abschnitt 12). Das Flaggschiff besetzt pro Runde genau eine Station. Station, Ziel und Spalte bleiben eingestellt, bis der Spieler sie ändert; eine Runde kann deshalb einen Klick brauchen oder acht. Die besetzte Station läuft beim Zugende, nach allen Karten des Zugs; Karten wirken also immer vor ihr.
+Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (Abschnitt 12). Das Flaggschiff löst pro Runde eine Station aus, jede höchstens einmal. Sie wirkt sofort beim Auslösen, wie eine Karte, und zwischen Karten und Station zählt die Reihenfolge: Ein Torpedo vor dem Schuss schwächt das Ziel, ein Schuss vor dem Gnadenstoß kann es in den Notfall bringen. Ziel und Spalte bleiben eingestellt, bis der Spieler sie ändert; die Station nutzt, was beim Auslösen eingestellt ist.
 
 | Station                                     | Wirkung                                                                                                                    |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Waffen**, feuert auf ein gewähltes Schiff | beim Zugende die ATK des Flaggschiffs auf das Ziel, mit den Abzügen aus Abschnitt 3                                       |
+| **Waffen**, feuert auf ein gewähltes Schiff | sofort die ATK des Flaggschiffs auf das Ziel, mit den Abzügen aus Abschnitt 3                                              |
 | **Schilde**, feuert nicht                   | schluckt im folgenden Gegnerzug 8 Schaden (Mauer 12), Zielfeuer wie Spaltenfeuer; was übrig ist, verfällt in der Auflösung |
 | **Schadenskontrolle**, feuert nicht         | löscht den Brand, +5 Hülle, nie über die volle Hülle                                                                       |
 | **Manöver**, feuert nicht                   | wechselt die Spalte und entgeht so dem Spaltenfeuer, das auf die alte Spalte angesagt ist; Zielfeuer folgt                 |
@@ -80,10 +80,11 @@ Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (
 
 Regeln im Detail:
 
-- Eine Waffen-Station ohne Ziel feuert nicht. Es gibt keine automatische Zielwahl. Stirbt das Ziel, bleibt die Station auf Waffen, das Ziel ist leer und wird in der Checkliste angemahnt.
+- Waffen ohne Ziel lassen sich nicht auslösen, Manöver nicht ohne andere Spalte. Es gibt keine automatische Zielwahl. Stirbt das Ziel, ist es leer; das Stationen-Feld zeigt es an, und die Checkliste mahnt die freie Station an.
+- Eine Runde ohne Station ist erlaubt.
 - Schilde schlucken allen Schaden, der im Gegnerzug auf das Flaggschiff gerichtet ist, Karten-Schilde (Notschilde, Standhalten, Alarmbereitschaft) kommen dazu.
 - Das Flaggschiff weicht nicht aus; Panzerung hat es nur durch Ablativpanzerung und Module. Gegen gegnerisches Feuer hat der Spieler vier Antworten: Schilde gegen den Schaden, Manöver gegen Spaltenfeuer, Kurzsprung gegen alles, und den Schützen zerstören, bevor er handelt.
-- Die Karte Alarmstufe Rot erlaubt zwei Stationen in einer Runde; das ist der einzige Weg zu zwei Stationen.
+- Die Karte Alarmstufe Rot erlaubt eine zweite, andere Station in dieser Runde; das ist der einzige Weg zu zwei Stationen.
 
 ## 5. Die Runde: Spielerzug, Gegnerzug, Auflösung
 
@@ -91,9 +92,9 @@ Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in de
 
 | Abschnitt      | Wer handelt                | Was geschieht                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Spielerzug** | der Spieler                | Karten wirken sofort, in der Reihenfolge des Spielers; die Station läuft beim Zugende (Abschnitt 6). Gegner mit Hülle 0 fallen auf der Stelle und handeln in dieser Runde nicht mehr.                                                                                                                                                                                                                                              |
+| **Spielerzug** | der Spieler                | Karten und Station wirken sofort, in der Reihenfolge des Spielers (Abschnitt 6). Gegner mit Hülle 0 fallen auf der Stelle und handeln in dieser Runde nicht mehr.                                                                                                                                                                                                                                              |
 | **Gegnerzug**  | das Spiel                  | Angesagte Verstärkung trifft ein und sagt ihre erste Absicht an. Dann handelt jede gegnerische Einheit nach ihrer Absicht, Front vor Back, links nach rechts: Spaltenfeuer, Zielfeuer, Rammkurs, Aufladen, Schilde, Ausweichen, Zielerfassung, Verstärkung rufen. Schilde des Flaggschiffs, Gegenfeuer, Standhalten und Gegenmaßnahmen werden je Treffer gerechnet. Fällt das Flaggschiff, endet der Run hier. |
-| **Auflösung**  | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3, die Station bleibt eingestellt. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
+| **Auflösung**  | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3, Ziel und Spalte bleiben eingestellt. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
 
 Weil der Spieler zuerst handelt, feuert ein Gegner, der im Spielerzug fällt, nie: Das ist die wichtigste Regel des Runs. Jeder Angriff ist eine Rechnung gegen die Ansage: Was fällt, bevor es handelt, hat nie gehandelt; was in den Notfall geht, handelt mit halber ATK. Umgekehrt gibt es keinen Schutz, den man nicht vor dem Zugende aufgebaut hat.
 
@@ -101,15 +102,15 @@ Weil der Spieler zuerst handelt, feuert ein Gegner, der im Spielerzug fällt, ni
 
 Im Spielerzug wirkt alles sofort, in der Reihenfolge, in der der Spieler es tut, wie in Slay the Spire:
 
-1. **Karten.** Beliebig viele Befehlskarten, solange die **Befehlspunkte** reichen. Jede Runde 3 Punkte, sie verfallen am Zugende. Jede Karte wirkt beim Spielen; wer erst den Torpedo einschlagen sieht, wählt danach das Ziel seiner Station.
-2. **Station.** Eine der fünf Stationen, bei Waffen ein Ziel, bei Manöver eine Spalte; voreingestellt ist, was in der Vorrunde galt. Die Station läuft beim Zugende; mit Alarmstufe Rot sind zwei besetzt, sie laufen in der Reihenfolge der Wahl.
+1. **Karten.** Beliebig viele Befehlskarten, solange die **Befehlspunkte** reichen. Jede Runde 3 Punkte, sie verfallen am Zugende. Jede Karte wirkt beim Spielen; wer erst den Torpedo einschlagen sieht, wählt danach das Ziel seiner Station. Überladung und Energiestoß gelten nur für Schüsse danach.
+2. **Station.** Ein Klick auf einen Gegner setzt das Ziel, ein Klick auf eine eigene Spalte die Manöver-Spalte; beides bleibt aus der Vorrunde stehen. Ein Klick auf eine Station führt sie sofort aus, mit dem eingestellten Ziel und der eingestellten Spalte, vor, zwischen oder nach den Karten. Eine Station je Runde, mit Alarmstufe Rot eine zweite, andere.
 3. **Zug beenden.** Der Gegnerzug beginnt.
 
 Die Hand wird jede Runde neu gezogen: fünf Befehle vom Deck, nicht gespielte Karten gehen in der Auflösung auf den Ablagestapel, und ist das Deck leer, wird der Ablagestapel gemischt. So zählt jede Karte im Deck, und der Deckbau im Run hat eine Wirkung.
 
 ## 7. Die vier Admirale
 
-Ein Admiral ist der Charakter, den der Spieler zu Beginn des Runs wählt, wie in Slay the Spire: Flaggschiff mit Hülle, ATK und Waffe, ein **Passiv**, eine **Admiralsstation**, die das Flaggschiff statt Waffen, Schilde, Schadenskontrolle oder Manöver besetzen kann, und ein Startdeck mit zwei **Kennkarten** (Abschnitt 8). Dass die Admiralsstation mit den Waffen oder dem Schutz des eigenen Schiffs konkurriert, ist die Entscheidung jedes Admirals in jeder Runde.
+Ein Admiral ist der Charakter, den der Spieler zu Beginn des Runs wählt, wie in Slay the Spire: Flaggschiff mit Hülle, ATK und Waffe, ein **Passiv**, eine **Admiralsstation**, die das Flaggschiff statt Waffen, Schilde, Schadenskontrolle oder Manöver auslösen kann, und ein Startdeck mit zwei **Kennkarten** (Abschnitt 8). Dass die Admiralsstation mit den Waffen oder dem Schutz des eigenen Schiffs konkurriert, ist die Entscheidung jedes Admirals in jeder Runde.
 
 | Admiral             | Flaggschiff | Hülle | ATK | Waffe                                               | Passiv                                                                                                       | Admiralsstation | Kennkarte   |
 | ------------------- | ----------- | ----- | --- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------- | ----------- |
@@ -124,7 +125,7 @@ Ein Admiral ist der Charakter, den der Spieler zu Beginn des Runs wählt, wie in
 
 **Kerr, der Uhrmacher.** Admiralsstation **Stillstand**: Die Pendulum feuert nicht. Eine gewählte gegnerische Einheit handelt in dieser Runde nicht; ihre Absicht verschiebt sich auf die nächste Runde, eine Aufladung bleibt erhalten. Mit dem Uhrwerk sieht Kerr zwei Runden voraus, und mit der Railgun trifft er, wen er will, durch Deckung und Ausweichen hindurch. Sein Dilemma: Stillstand verschiebt die Gefahr nur, und jede Runde Stillstand ist eine Runde ohne Railgun, während die Gefechtsuhr läuft. Der Uhrmacher ist der Admiral, der das Hauptgeschütz um eine Runde verschiebt, in der seine Angriffskarten den Belagerer fällen.
 
-**Reyes, die Glut.** Admiralsstation **Nachsetzen**: Die Pyre feuert nicht. Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens, und Angriffskarten auf brennende Ziele machen +2 Schaden, solange Nachsetzen besetzt ist. Mit dem Plasmawerfer brennt alles, was sie trifft; drei brennende Gegner und Nachsetzen sind 18 Schaden ohne einen Schuss. Ihr Dilemma: Brände legt nur ihr Plasmawerfer, ein Ziel je Runde, und Nachsetzen braucht eine Runde ohne Waffen. Gegen einzelne Schlachtschiffe ist sie die Schwächste, gegen Flotten die Beste.
+**Reyes, die Glut.** Admiralsstation **Nachsetzen**: Die Pyre feuert nicht. Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens, und Angriffskarten auf brennende Ziele machen nach dem Auslösen +2 Schaden, für den Rest der Runde. Mit dem Plasmawerfer brennt alles, was sie trifft; drei brennende Gegner und Nachsetzen sind 18 Schaden ohne einen Schuss. Ihr Dilemma: Brände legt nur ihr Plasmawerfer, ein Ziel je Runde, und Nachsetzen braucht eine Runde ohne Waffen. Gegen einzelne Schlachtschiffe ist sie die Schwächste, gegen Flotten die Beste.
 
 Was die vier unterscheidet, in einem Satz: Die Mauer gewinnt, indem sie aushält, der Hammer, indem er nicht aufhört, der Uhrmacher, indem er die Uhr anhält, die Glut, indem sie wartet.
 
@@ -153,11 +154,11 @@ Karten spielt nur der Spieler; die Gegner haben keine. Kosten in Befehlspunkten.
 | Zielstörer        | 1   | Schwächung  | Alle gegnerischen Schüsse im Gegnerzug −1 ATK                                                                                                                                      |
 | Funkstille        | 2   | Schwächung  | Die Sonderaktion eines gegnerischen Schiffs (Aufladen, Zielerfassung, Verstärkung rufen, Riegel) fällt diese Runde aus, und es feuert auch nicht                                   |
 | Traktorstrahl     | 2   | Schwächung  | Ein gegnerisches Schiff außer einem Flaggschiff wird in einen freien Slot seiner Reihe gezogen; Deckung bricht                                                                     |
-| Kurzsprung        | 2   | Taktik      | Das Flaggschiff verlässt das Brett: Es führt diese Runde keine Station aus, ist im Gegnerzug kein Ziel und kehrt in der Auflösung in seine Spalte zurück. Kennkarte des Uhrmachers |
-| Ausweichmanöver   | 1   | Taktik      | Das Flaggschiff wechselt sofort die Spalte, ohne seine Station zu verlieren                                                                                                        |
+| Kurzsprung        | 2   | Taktik      | Das Flaggschiff verlässt das Brett: Es führt danach in dieser Runde keine Station mehr aus, ist im Gegnerzug kein Ziel und kehrt in der Auflösung in seine Spalte zurück. Kennkarte des Uhrmachers |
+| Ausweichmanöver   | 1   | Taktik      | Das Flaggschiff wechselt sofort die Spalte, ohne eine Station zu verbrauchen                                                                                                       |
 | Gegenmaßnahmen    | 1   | Taktik      | Der erste gegnerische Angriff im Gegnerzug, Spaltenfeuer oder Schuss, macht halben Schaden                                                                                         |
 | Plündern          | 1   | Taktik      | Zwei Befehle ziehen                                                                                                                                                                |
-| Alarmstufe Rot    | 2   | Taktik      | Das Flaggschiff besetzt diese Runde zwei Stationen; die Admiralsstation darf eine davon sein                                                                                       |
+| Alarmstufe Rot    | 2   | Taktik      | Das Flaggschiff darf diese Runde eine zweite, andere Station auslösen; die Admiralsstation darf eine davon sein                                                                    |
 | Feuerleitdoktrin  | 2   | Doktrin     | Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +1 Schaden                                                                                                       |
 | Alarmbereitschaft | 2   | Doktrin     | Für den Rest des Gefechts schluckt das Flaggschiff in jedem Gegnerzug 2                                                                                                            |
 

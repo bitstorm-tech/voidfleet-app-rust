@@ -1,6 +1,6 @@
 //! Vorschau-Szenen ohne Spieler (wie `client/dev/*.html` im Original), gewählt mit `VOIDFLEET_DEV_SCENE`:
 //!
-//! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed), Station Waffen auf den ersten Gegner: Absichten,
+//! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed), Ziel auf dem ersten Gegner: Absichten,
 //!   Visier, Hand, Stationen.
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
 //!   daneben ein Belagerer mit Rumpfbrüchen, das Kreuzer-Paar im Notfall (ein Modell ausgebrannt und brennend);
@@ -15,7 +15,7 @@
 
 use bevy::{diagnostic::FrameCount, prelude::*, time::Stopwatch};
 use voidfleet_core::{
-    admirals::{AdmiralId, FlagshipId, Station},
+    admirals::{AdmiralId, FlagshipId},
     board::{EnemySlot, Row},
     enemies::EnemyId,
 };
@@ -177,7 +177,6 @@ fn stage(
         DevScene::Board => {
             let run = super::dev_run(AdmiralId::Kerr, true);
             let mut battle = Battle(run.start_battle());
-            battle.flagship.stations = vec![Station::Weapons];
             battle.flagship.target = battle.enemies.first().map(|enemy| enemy.uid);
             commands.insert_resource(run);
             commands.insert_resource(battle);
