@@ -13,7 +13,7 @@ import importlib
 
 IDS = ("void_interceptor", "scrap_raider", "horizon_cruiser", "plasma_frigate", "iron_dreadnought", "titan_carrier", "drone",
        "repair_drone", "signal_booster", "bastion", "vanguard", "hive", "mirage", "pendulum", "decoy",
-       "lance_bomber", "pyre", "warden", "scrap_king", "seal")
+       "lance_bomber", "pyre", "warden", "scrap_king", "seal", "broadside")
 
 
 def module(ship_id):

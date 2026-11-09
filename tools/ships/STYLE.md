@@ -189,6 +189,7 @@ Kennzeichen bleiben und werden eher größer:
 | mirage           | flach, facettiert, dunkler Rumpf mit türkisen Nähten, zwei schräge Projektorflossen, Diamantflügel                           |
 | pendulum         | Railgun als Rückgrat mit Spulen weit über den Bug, Gimbal aus Messing-Zahnkranz und Spulenring, Pendel unter dem Kiel        |
 | decoy            | Hologramm eines Mirage-Jägers aus Flächen (`hologram`) und leuchtenden Kanten, wenige Dreiecke                               |
+| broadside        | olivgrau, langer Pfeilrumpf mit stumpfem Bug, Grat, Plateau mit Pfeilspitze, acht flache Zwillingstürme, Gürtel, Achterburg  |
 
 ## Fallen
 

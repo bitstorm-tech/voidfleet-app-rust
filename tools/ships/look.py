@@ -61,6 +61,7 @@ HERO_SHIPS = {
     "hive": {"dir": (-0.5, -0.9, 0.8), "key": HERO_TOP_KEY},  # Brutwaben auf dem Rücken
     "scrap_king": {"dir": (-0.5, -0.9, 0.8), "key": HERO_TOP_KEY},  # Waben und Trümmerkrone auf dem Rücken
     "bastion": {"dir": (-0.75, -0.6, 0.8), "key": HERO_TOP_KEY},  # Terrassen, Bergfried und Pylone statt nur der Bugwand
+    "broadside": {"dir": (-0.71, -0.5, 0.5), "roll": 35.0, "key": HERO_TOP_KEY},  # Blickwinkel der Konzeptvorlage
 }
 STEPS = (0.12, 0.5)  # Schwellen auf light: Schatten | Halbschatten | Licht
 SHADOW_BIAS = 0.012  # Blender-Einheiten
