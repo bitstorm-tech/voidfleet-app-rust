@@ -18,7 +18,7 @@ use bevy::{
 };
 use voidfleet_core::cards::DeckCard;
 
-use super::{Fonts, theme};
+use super::{Fonts, theme, tooltip::Tooltip};
 use crate::{
     audio::{PlayUiSound, UiSound},
     data::card_art::{Card, CardArt},
@@ -166,9 +166,49 @@ fn card_text(
     )
 }
 
+/// Zerlegt einen Effekttext an seinen Schlüsselwörtern: je Stück der Text und, bei einem Schlüsselwort, seine
+/// Erklärung. Ein Schlüsselwort ist ein ganzes Wort, Groß- und Kleinschreibung zählt nicht.
+fn keyword_chunks<'a>(
+    effect: &'a str,
+    keywords: &[(&'static str, &'static str)],
+) -> Vec<(&'a str, Option<&'static str>)> {
+    let mut chunks = Vec::new();
+    let mut plain = 0;
+    let mut start = None;
+    for (at, c) in effect.char_indices().chain([(effect.len(), ' ')]) {
+        match (start, c.is_alphanumeric()) {
+            (None, true) => start = Some(at),
+            (Some(from), false) => {
+                start = None;
+                let word = effect[from..at].to_lowercase();
+                if let Some((_, explanation)) = keywords
+                    .iter()
+                    .find(|(name, _)| name.to_lowercase() == word)
+                {
+                    chunks.push((&effect[plain..from], None));
+                    chunks.push((&effect[from..at], Some(*explanation)));
+                    plain = at;
+                }
+            }
+            _ => {}
+        }
+    }
+    chunks.push((&effect[plain..], None));
+    chunks
+}
+
 /// Farbe des Screens einer Befehlskarte (`--card-rgb`).
 fn screen_color(card: DeckCard) -> Color {
     palette::darkened(palette::card_type_color(card.id.card_type()), 0.25)
+}
+
+/// Das Wort mit großem Anfangsbuchstaben („durchschlagend“ → „Durchschlagend“).
+fn capitalized(word: &str) -> String {
+    let mut chars = word.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// Eine Befehlskarte als Datapad.
@@ -177,6 +217,34 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
     let fonts = &assets.fonts;
     let locale = &assets.locale;
     let text = locale.card(card);
+    let chunks = keyword_chunks(&text.effect, locale.keywords());
+    // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
+    let mut explained: Vec<String> = Vec::new();
+    for (word, explanation) in &chunks {
+        if let Some(explanation) = explanation {
+            let line = format!("{}: {explanation}", capitalized(word));
+            if !explained.contains(&line) {
+                explained.push(line);
+            }
+        }
+    }
+    let effect_font = fonts.body(8.5 * scale);
+    let spans: Vec<_> = chunks
+        .into_iter()
+        .map(|(chunk, explanation)| {
+            let color = if explanation.is_some() {
+                palette::BUFF
+            } else {
+                theme::rgb(235, 242, 255)
+            };
+            (
+                TextSpan::new(chunk),
+                effect_font.clone(),
+                TextColor(color),
+                LineHeight::RelativeToFont(1.35),
+            )
+        })
+        .collect();
     let target = format!(
         "{} · {}",
         locale.card_type(card.id.card_type()),
@@ -198,6 +266,7 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
     };
     (
         CardView { card, scale },
+        Tooltip(explained.join("\n")),
         Node {
             width: s(CARD_WIDTH),
             height: s(CARD_HEIGHT),
@@ -256,11 +325,12 @@ pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bun
                         children![(
                             card_text(
                                 fonts.body(8.5 * scale),
-                                text.effect,
+                                "",
                                 theme::rgb(235, 242, 255),
                                 Justify::Center
                             ),
                             LineHeight::RelativeToFont(1.35),
+                            Children::spawn(SpawnIter(spans.into_iter())),
                         )],
                     ),
                 ],
@@ -461,5 +531,25 @@ impl Plugin for CardPlugin {
             .add_observer(show_mark)
             .add_observer(hide_mark)
             .add_systems(Update, animate_cards);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keyword_chunks;
+
+    #[test]
+    fn keywords_are_whole_words_in_any_case() {
+        let keywords = [("Brand", "brennt"), ("Schilde", "schluckt")];
+        assert_eq!(
+            keyword_chunks("Schilde 5, brand. Brandsatz", &keywords),
+            [
+                ("", None),
+                ("Schilde", Some("schluckt")),
+                (" 5, ", None),
+                ("brand", Some("brennt")),
+                (". Brandsatz", None),
+            ]
+        );
     }
 }

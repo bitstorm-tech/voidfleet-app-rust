@@ -332,9 +332,9 @@ impl Messages for De {
             RulesChapter::Admirals => section(
                 "Admirale",
                 &[
-                    "Osei, die Mauer: Bastion, 70 Hülle, 7 ATK. Schilde schlucken 12. Gegenfeuer: schluckt 6, und jeder Schütze, der sie trifft, verliert 3 Hülle.",
-                    "Vance, der Hammer: Vanguard, 50 Hülle, 11 ATK. Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +4. Fokusfeuer: doppelter Vorstoß, Ausweichen zählt nicht, dafür je Treffer 2 mehr.",
-                    "Kerr, der Uhrmacher: Pendulum, 56 Hülle, 8 ATK. Die Railgun ignoriert Deckung und Ausweichen; er sieht die Absichten zwei Runden voraus. Stillstand: Ein Gegner handelt in dieser Runde nicht.",
+                    "Osei, die Mauer: Bastion, 70 Hülle, 7 ATK. Schilde schlucken 12. Gegenfeuer: Schilde 6, Abwehrfeuer 3.",
+                    "Vance, der Hammer: Vanguard, 50 Hülle, 11 ATK. Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +4. Fokusfeuer: doppelter Vorstoß, zielsuchend, dafür je Treffer 2 mehr.",
+                    "Kerr, der Uhrmacher: Pendulum, 56 Hülle, 8 ATK. Die Railgun ist zielsuchend und durchschlagend; er sieht die Absichten zwei Runden voraus. Stillstand: Ein Gegner handelt in dieser Runde nicht.",
                     "Reyes, die Glut: Pyre, 56 Hülle, 9 ATK. Der Plasmawerfer setzt jedes Ziel in Brand, Brände bei Gegnern ticken 3. Nachsetzen: Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens, Angriffskarten auf brennende Ziele +2.",
                 ],
             ),
@@ -343,6 +343,7 @@ impl Messages for De {
                 &[
                     "Jede Runde ziehst du fünf Befehle. Angriffskarten treffen mit festem Schaden und den üblichen Abzügen; Verstärkungen stärken dein Flaggschiff, Schwächungen einen Gegner, Taktiken verändern das Brett. Doktrinen bleiben bis zum Gefechtsende liegen.",
                     "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) machen oder schlucken 2 mehr oder kosten 1 weniger.",
+                    "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung 2 Hülle.",
                 ],
             ),
             RulesChapter::Enemies => section(
@@ -594,29 +595,27 @@ impl Messages for De {
     fn card_effect(&self, card: DeckCard) -> String {
         let v = card.value();
         match card.id {
-            CardId::Torpedo => format!("{v} Schaden auf ein gewähltes Schiff, Ausweichen zählt nicht."),
-            CardId::OrbitalStrike => format!("{v} Schaden auf ein gewähltes Schiff, ignoriert Deckung."),
-            CardId::VolleyFire => format!("{v} Schaden auf jede gegnerische Einheit, ignoriert Deckung."),
-            CardId::Barrage => format!("{v} Schaden auf jedes gegnerische Schiff, das gerade ausweicht."),
+            CardId::Torpedo => format!("{v} Schaden auf ein gewähltes Schiff. Zielsuchend."),
+            CardId::OrbitalStrike => format!("{v} Schaden auf ein gewähltes Schiff. Durchschlagend."),
+            CardId::VolleyFire => format!("{v} Schaden auf jede gegnerische Einheit. Durchschlagend."),
+            CardId::Barrage => format!("{v} Schaden auf jedes gegnerische Schiff, das gerade ausweicht. Zielsuchend."),
             CardId::HeatSeeker => format!(
-                "{v} Schaden auf ein gewähltes Schiff, {}, wenn es ausweicht; ignoriert Deckung.",
+                "{v} Schaden auf ein gewähltes Schiff, {}, wenn es ausweicht. Zielsuchend, durchschlagend.",
                 v + HEAT_SEEKER_EVADING_BONUS
             ),
             CardId::CoupDeGrace => format!(
                 "{v} Schaden auf ein gewähltes Schiff, {}, wenn es im Notfall ist.",
                 v + COUP_DE_GRACE_EMERGENCY_BONUS
             ),
-            CardId::Bombardment => format!("{v} Schaden auf jede Einheit in der gegnerischen Back-Reihe."),
+            CardId::Bombardment => format!("{v} Schaden auf jede Einheit in der gegnerischen Back-Reihe. Durchschlagend."),
             CardId::CollisionCourse => {
                 let bonus = if v > 0 { format!(" +{v}") } else { String::new() };
-                format!("Rammt ein gewähltes Schiff: Es nimmt das Doppelte deiner ATK{bonus}, dein Flaggschiff seine ATK.")
+                format!("Rammt ein gewähltes Schiff: Es nimmt das Doppelte deiner ATK{bonus}, dein Flaggschiff seine ATK. Zielsuchend, durchschlagend.")
             }
-            CardId::Firebomb => format!("{v} Schaden auf ein gewähltes Schiff und setzt es in Brand."),
-            CardId::EmergencyShields => format!("Dein Flaggschiff schluckt im Gegnerzug {v} zusätzlich."),
-            CardId::HoldTheLine => format!(
-                "Schluckt im Gegnerzug {v} zusätzlich; jeder Schütze, der dich trifft, verliert {HOLD_THE_LINE_RETALIATION} Hülle."
-            ),
-            CardId::AblativeArmor => format!("Für den Rest des Gefechts nimmst du je Treffer {v} weniger."),
+            CardId::Firebomb => format!("{v} Schaden auf ein gewähltes Schiff, Brand."),
+            CardId::EmergencyShields => format!("Schilde {v}."),
+            CardId::HoldTheLine => format!("Schilde {v}, Abwehrfeuer {HOLD_THE_LINE_RETALIATION}."),
+            CardId::AblativeArmor => format!("Panzerung {v} für den Rest des Gefechts."),
             CardId::Overcharge => format!(
                 "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {OVERCHARGE_SELF_DAMAGE} Schaden."
             ),
@@ -638,12 +637,34 @@ impl Messages for De {
             CardId::Scavenge => format!("{SCAVENGE_DRAW} Befehle ziehen."),
             CardId::RedAlert => "Löse in dieser Runde eine zweite, andere Station aus.".to_owned(),
             CardId::FireControlDoctrine => {
-                format!("Doktrin: Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +{v} Schaden.")
+                format!("Doktrin: Alle eigenen Schüsse und Angriffskarten +{v} Schaden.")
             }
             CardId::BattleStations => {
-                format!("Doktrin: Für den Rest des Gefechts schluckt dein Flaggschiff in jedem Gegnerzug {v}.")
+                format!("Doktrin: In jedem Gegnerzug Schilde {v}.")
             }
         }
+    }
+
+    fn keywords(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("Zielsuchend", "Ausweichen zählt nicht."),
+            ("Durchschlagend", "Deckung zählt nicht."),
+            (
+                "Schilde",
+                "Schluckt so viel Schaden im folgenden Gegnerzug.",
+            ),
+            ("Panzerung", "Jeder Treffer macht so viel weniger."),
+            (
+                "Abwehrfeuer",
+                "Jeder Schütze, der dein Flaggschiff trifft, verliert so viel Hülle.",
+            ),
+            ("Brand", "Wer brennt, verliert in jeder Auflösung 2 Hülle."),
+            (
+                "Notfall",
+                "Bei 25 % Hülle oder weniger: halbe ATK, kein Ausweichen.",
+            ),
+            ("Doktrin", "Gilt für den Rest des Gefechts."),
+        ]
     }
 
     fn card_type(&self, card_type: CardType) -> &'static str {
@@ -672,7 +693,7 @@ impl Messages for De {
                 weapon: "Flakbatterien",
                 passive: "Wächterschild: Schilde schlucken 12 statt 8.",
                 station: "Gegenfeuer",
-                station_text: "Feuert nicht. Schluckt 6; jeder Schütze, der die Bastion trifft, verliert 3 Hülle.",
+                station_text: "Feuert nicht. Schilde 6, Abwehrfeuer 3.",
             },
             AdmiralId::Vance => AdmiralText {
                 name: "Vance",
@@ -680,12 +701,12 @@ impl Messages for De {
                 weapon: "Schwere Geschütze",
                 passive: "Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +4; jede andere Station setzt zurück.",
                 station: "Fokusfeuer",
-                station_text: "Feuert mit doppeltem Vorstoß, Ausweichen zählt nicht; nimmt im nächsten Gegnerzug je Treffer 2 mehr.",
+                station_text: "Feuert mit doppeltem Vorstoß, zielsuchend; nimmt im nächsten Gegnerzug je Treffer 2 mehr.",
             },
             AdmiralId::Kerr => AdmiralText {
                 name: "Kerr",
                 epithet: "Der Uhrmacher",
-                weapon: "Railgun: ignoriert Deckung und Ausweichen",
+                weapon: "Railgun: zielsuchend, durchschlagend",
                 passive: "Uhrwerk: sieht die Absichten der Gegner zwei Runden voraus.",
                 station: "Stillstand",
                 station_text: "Feuert nicht. Ein gewählter Gegner handelt in dieser Runde nicht; seine Absicht verschiebt sich, eine Aufladung bleibt.",

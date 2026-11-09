@@ -333,9 +333,9 @@ impl Messages for En {
             RulesChapter::Admirals => section(
                 "Admirals",
                 &[
-                    "Osei, the Wall: Bastion, 70 hull, 7 ATK. Shields absorb 12. Counterfire: absorbs 6 and every shooter that hits her loses 3 hull.",
-                    "Vance, the Hammer: Vanguard, 50 hull, 11 ATK. Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +4. Focus fire: double momentum, ignores evading, but takes 2 more per hit.",
-                    "Kerr, the Clockmaker: Pendulum, 56 hull, 8 ATK. The railgun ignores cover and evading; he sees intents two rounds ahead. Stasis: one enemy does not act this round.",
+                    "Osei, the Wall: Bastion, 70 hull, 7 ATK. Shields absorb 12. Counterfire: shields 6, retaliation 3.",
+                    "Vance, the Hammer: Vanguard, 50 hull, 11 ATK. Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +4. Focus fire: double momentum, homing, but takes 2 more per hit.",
+                    "Kerr, the Clockmaker: Pendulum, 56 hull, 8 ATK. The railgun is homing and piercing; he sees intents two rounds ahead. Stasis: one enemy does not act this round.",
                     "Reyes, the Ember: Pyre, 56 hull, 9 ATK. The plasma thrower sets every target on fire, enemy burns tick 3. Follow-up: every burning enemy takes double burn damage at once, attack cards on burning targets +2.",
                 ],
             ),
@@ -344,6 +344,7 @@ impl Messages for En {
                 &[
                     "Every round you draw five commands. Attack cards hit with fixed damage and the usual deductions; buffs strengthen your flagship, debuffs weaken an enemy, tactics change the board. Doctrines stay in play until the battle ends.",
                     "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) deal or absorb 2 more or cost 1 less.",
+                    "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses 2 hull in each resolution.",
                 ],
             ),
             RulesChapter::Enemies => section(
@@ -584,29 +585,27 @@ impl Messages for En {
     fn card_effect(&self, card: DeckCard) -> String {
         let v = card.value();
         match card.id {
-            CardId::Torpedo => format!("{v} damage to a chosen ship; evading does not count."),
-            CardId::OrbitalStrike => format!("{v} damage to a chosen ship; ignores cover."),
-            CardId::VolleyFire => format!("{v} damage to every enemy unit; ignores cover."),
-            CardId::Barrage => format!("{v} damage to every enemy ship that is evading."),
+            CardId::Torpedo => format!("{v} damage to a chosen ship. Homing."),
+            CardId::OrbitalStrike => format!("{v} damage to a chosen ship. Piercing."),
+            CardId::VolleyFire => format!("{v} damage to every enemy unit. Piercing."),
+            CardId::Barrage => format!("{v} damage to every enemy ship that is evading. Homing."),
             CardId::HeatSeeker => format!(
-                "{v} damage to a chosen ship, {} if it is evading; ignores cover.",
+                "{v} damage to a chosen ship, {} if it is evading. Homing, piercing.",
                 v + HEAT_SEEKER_EVADING_BONUS
             ),
             CardId::CoupDeGrace => format!(
                 "{v} damage to a chosen ship, {} if it is in emergency.",
                 v + COUP_DE_GRACE_EMERGENCY_BONUS
             ),
-            CardId::Bombardment => format!("{v} damage to every unit in the enemy back row."),
+            CardId::Bombardment => format!("{v} damage to every unit in the enemy back row. Piercing."),
             CardId::CollisionCourse => {
                 let bonus = if v > 0 { format!(" +{v}") } else { String::new() };
-                format!("Ram a chosen ship: it takes twice your ATK{bonus}, your flagship takes its ATK.")
+                format!("Ram a chosen ship: it takes twice your ATK{bonus}, your flagship takes its ATK. Homing, piercing.")
             }
-            CardId::Firebomb => format!("{v} damage to a chosen ship and sets it on fire."),
-            CardId::EmergencyShields => format!("Your flagship absorbs {v} more in the enemy turn."),
-            CardId::HoldTheLine => format!(
-                "Absorbs {v} more in the enemy turn; every shooter that hits you loses {HOLD_THE_LINE_RETALIATION} hull."
-            ),
-            CardId::AblativeArmor => format!("For the rest of the battle you take {v} less per hit."),
+            CardId::Firebomb => format!("{v} damage to a chosen ship, burning."),
+            CardId::EmergencyShields => format!("Shields {v}."),
+            CardId::HoldTheLine => format!("Shields {v}, retaliation {HOLD_THE_LINE_RETALIATION}."),
+            CardId::AblativeArmor => format!("Armor {v} for the rest of the battle."),
             CardId::Overcharge => format!(
                 "+{v} ATK this round; your flagship takes {OVERCHARGE_SELF_DAMAGE} damage at the end of your turn."
             ),
@@ -628,12 +627,31 @@ impl Messages for En {
             CardId::Scavenge => format!("Draw {SCAVENGE_DRAW} commands."),
             CardId::RedAlert => "Trigger a second, different station this round.".to_owned(),
             CardId::FireControlDoctrine => {
-                format!("Doctrine: for the rest of the battle all your shots and attack cards +{v} damage.")
+                format!("Doctrine: all your shots and attack cards +{v} damage.")
             }
             CardId::BattleStations => {
-                format!("Doctrine: for the rest of the battle your flagship absorbs {v} in each enemy turn.")
+                format!("Doctrine: shields {v} in each enemy turn.")
             }
         }
+    }
+
+    fn keywords(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("Homing", "Evading does not count."),
+            ("Piercing", "Cover does not count."),
+            (
+                "Shields",
+                "Absorbs that much damage in the next enemy turn.",
+            ),
+            ("Armor", "Every hit deals that much less."),
+            (
+                "Retaliation",
+                "Every shooter that hits your flagship loses that much hull.",
+            ),
+            ("Burning", "A burning unit loses 2 hull in each resolution."),
+            ("Emergency", "At 25 % hull or less: half ATK, no evading."),
+            ("Doctrine", "Lasts for the rest of the battle."),
+        ]
     }
 
     fn card_type(&self, card_type: CardType) -> &'static str {
@@ -662,7 +680,7 @@ impl Messages for En {
                 weapon: "Flak batteries",
                 passive: "Guardian shield: shields absorb 12 instead of 8.",
                 station: "Counterfire",
-                station_text: "Does not fire. Absorbs 6; every shooter that hits the Bastion loses 3 hull.",
+                station_text: "Does not fire. Shields 6, retaliation 3.",
             },
             AdmiralId::Vance => AdmiralText {
                 name: "Vance",
@@ -670,12 +688,12 @@ impl Messages for En {
                 weapon: "Heavy guns",
                 passive: "Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +4; any other station resets it.",
                 station: "Focus fire",
-                station_text: "Fires with double momentum, evading does not count; takes 2 more per hit in the next enemy turn.",
+                station_text: "Fires with double momentum, homing; takes 2 more per hit in the next enemy turn.",
             },
             AdmiralId::Kerr => AdmiralText {
                 name: "Kerr",
                 epithet: "The Clockmaker",
-                weapon: "Railgun: ignores cover and evading",
+                weapon: "Railgun: homing, piercing",
                 passive: "Clockwork: sees enemy intents two rounds ahead.",
                 station: "Stasis",
                 station_text: "Does not fire. A chosen enemy does not act this round; its intent moves to the next, a charge is kept.",

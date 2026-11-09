@@ -2,20 +2,40 @@
 
 Karten spielt nur der Spieler. Kosten in Befehlspunkten (BP). Angriffskarten treffen immer, mit festem Schaden und den Abzügen eines Schusses ([Schaden](gefecht.md#schaden)), wo nichts anderes steht.
 
+## Schlüsselwörter
+
+Ein Schlüsselwort ist ein Wort mit fester Bedeutung, wie in Slay the Spire oder Hearthstone. Auf Karten, Stationen, Waffen, Modulen und Gegnern steht nur das Wort, mit seiner Zahl, wo es eine hat; was es heißt, steht hier und nirgends sonst. Neue Karten benutzen diese Wörter, statt die Regel auszuschreiben.
+
+| Schlüsselwort | Bedeutung |
+| --- | --- |
+| **Zielsuchend** | Ausweichen zählt nicht: Der Schaden wird nicht halbiert. |
+| **Durchschlagend** | Deckung zählt nicht: Das Ziel nimmt den ganzen Schaden, der Vordermann nichts. |
+| **Schilde N** | Schluckt N Schaden. Beim Flaggschiff im folgenden Gegnerzug, der Rest verfällt in der Auflösung; bei Gegnern bis zum Ende des nächsten Spielerzugs. Mehrere Schilde zählen zusammen. |
+| **Panzerung N** | Jeder Treffer macht N weniger, nie unter 0. Mehrere Panzerungen zählen zusammen. |
+| **Abwehrfeuer N** | Jeder Schütze, der das Flaggschiff im Gegnerzug trifft, verliert N Hülle. Mehrere Abwehrfeuer zählen zusammen. |
+| **Brand** | Der Zustand aus [Zustände](gefecht.md#zustände); „Brand“ auf einer Karte setzt das Ziel in Brand. |
+| **Notfall** | Der Zustand aus [Zustände](gefecht.md#zustände). |
+| **Doktrin** | Der Kartentyp: Die Wirkung gilt für den Rest des Gefechts. |
+| **Kennkarte** | Die Karte eines Admirals, zweimal in seinem Startdeck. |
+
+Wo Ausweichen, Panzerung, Deckung und Schilde in der Rechnung stehen, sagt [Schaden](gefecht.md#schaden).
+
+## Die Karten
+
 | Karte | BP | Typ | Wirkung |
 | --- | --- | --- | --- |
-| Torpedo | 2 | Angriff | 6 Schaden auf ein gewähltes Schiff, Ausweichen zählt nicht |
-| Orbitalschlag | 3 | Angriff | 7 Schaden auf ein gewähltes Schiff, ignoriert Deckung |
-| Salvenfeuer | 2 | Angriff | 2 Schaden auf jede gegnerische Einheit, ignoriert Deckung |
-| Sperrfeuer | 1 | Angriff | 4 Schaden auf jedes gegnerische Schiff, das gerade ausweicht |
-| Wärmesucher | 2 | Angriff | 5 Schaden auf ein gewähltes Schiff, ignoriert Deckung; 8, wenn es gerade ausweicht |
+| Torpedo | 2 | Angriff | 6 Schaden auf ein gewähltes Schiff. Zielsuchend |
+| Orbitalschlag | 3 | Angriff | 7 Schaden auf ein gewähltes Schiff. Durchschlagend |
+| Salvenfeuer | 2 | Angriff | 2 Schaden auf jede gegnerische Einheit. Durchschlagend |
+| Sperrfeuer | 1 | Angriff | 4 Schaden auf jedes gegnerische Schiff, das gerade ausweicht. Zielsuchend |
+| Wärmesucher | 2 | Angriff | 5 Schaden auf ein gewähltes Schiff; 8, wenn es gerade ausweicht. Zielsuchend, durchschlagend |
 | Gnadenstoß | 2 | Angriff | 3 Schaden auf ein gewähltes Schiff; 8, wenn es im Notfall ist |
-| Bombardement | 2 | Angriff | 3 Schaden auf jede Einheit in der gegnerischen Back-Reihe |
-| Rammkurs | 3 | Angriff | Das Flaggschiff rammt ein gewähltes Schiff: Das Ziel nimmt das Doppelte der ATK des Flaggschiffs, das Flaggschiff die ATK des Ziels |
-| Brandsatz | 1 | Angriff | 2 Schaden auf ein gewähltes Schiff und setzt es in Brand. Kennkarte der Glut |
-| Notschilde | 1 | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich |
-| Standhalten | 1 | Verstärkung | Das Flaggschiff schluckt im Gegnerzug 5 zusätzlich; jeder Schütze, der es trifft, verliert 2 Hülle. Kennkarte der Mauer |
-| Ablativpanzerung | 2 | Verstärkung | Das Flaggschiff nimmt für den Rest des Gefechts je Treffer 1 weniger |
+| Bombardement | 2 | Angriff | 3 Schaden auf jede Einheit in der gegnerischen Back-Reihe. Durchschlagend |
+| Rammkurs | 3 | Angriff | Das Flaggschiff rammt ein gewähltes Schiff: Das Ziel nimmt das Doppelte der ATK des Flaggschiffs, das Flaggschiff die ATK des Ziels. Zielsuchend, durchschlagend |
+| Brandsatz | 1 | Angriff | 2 Schaden auf ein gewähltes Schiff, Brand. Kennkarte der Glut |
+| Notschilde | 1 | Verstärkung | Schilde 5 |
+| Standhalten | 1 | Verstärkung | Schilde 5, Abwehrfeuer 2. Kennkarte der Mauer |
+| Ablativpanzerung | 2 | Verstärkung | Panzerung 1 für den Rest des Gefechts |
 | Überladung | 1 | Verstärkung | Das Flaggschiff feuert diese Runde mit +5 ATK und nimmt am Zugende 3 Schaden. Kennkarte des Hammers |
 | Energiestoß | 2 | Verstärkung | Das Flaggschiff feuert diese Runde mit +3 ATK |
 | Reparaturtrupp | 1 | Verstärkung | Brand gelöscht, +4 Hülle, zusätzlich zur Station |
@@ -28,8 +48,8 @@ Karten spielt nur der Spieler. Kosten in Befehlspunkten (BP). Angriffskarten tre
 | Gegenmaßnahmen | 1 | Taktik | Der erste gegnerische Treffer im Gegnerzug, ob Zielfeuer, Spaltenfeuer oder Rammkurs, macht halben Schaden |
 | Plündern | 1 | Taktik | Zwei Befehle ziehen |
 | Alarmstufe Rot | 2 | Taktik | Das Flaggschiff darf diese Runde eine zweite, andere Station auslösen; die Admiralsstation darf eine davon sein |
-| Feuerleitdoktrin | 2 | Doktrin | Für den Rest des Gefechts alle eigenen Schüsse und Angriffskarten +1 Schaden |
-| Alarmbereitschaft | 2 | Doktrin | Für den Rest des Gefechts schluckt das Flaggschiff in jedem Gegnerzug 2 |
+| Feuerleitdoktrin | 2 | Doktrin | Alle eigenen Schüsse und Angriffskarten +1 Schaden |
+| Alarmbereitschaft | 2 | Doktrin | In jedem Gegnerzug Schilde 2 |
 
 Doktrinen sind die Power-Karten von Slay the Spire: Sie bleiben liegen, bis das Gefecht endet.
 

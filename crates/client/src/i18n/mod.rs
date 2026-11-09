@@ -285,6 +285,8 @@ pub trait Messages: Sync {
     fn card_name(&self, card: CardId) -> &'static str;
     /// Effekttext mit den Zahlen der (aufgewerteten) Karte.
     fn card_effect(&self, card: DeckCard) -> String;
+    /// Die Schlüsselwörter (`docs/karten.md`): Wort, wie es im Effekttext steht, und seine Erklärung.
+    fn keywords(&self) -> &'static [(&'static str, &'static str)];
     fn card_type(&self, card_type: CardType) -> &'static str;
     fn card_target(&self, target: CardTarget) -> &'static str;
     fn admiral(&self, admiral: AdmiralId) -> AdmiralText;

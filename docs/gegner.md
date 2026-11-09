@@ -16,7 +16,7 @@ Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände flieg
 | Wachkreuzer | Kreuzer | 16 | 4 | `horizon_cruiser` | Zielfeuer, Zielfeuer, Schilde 6, von vorn. |
 | Plasmakreuzer | Kreuzer | 14 | 4 | `plasma_frigate` | Zielfeuer; seine Treffer zünden den Brand schon ab 60 % Hülle. |
 | Spotter | Kreuzer | 12 | 2 | `signal_booster` | Zielerfassung statt Zielfeuer. Steht in der Back-Reihe, gedeckt. |
-| Belagerer | Schlachtschiff | 30 | 8 | `iron_dreadnought` | Panzerung: jeder Treffer −2. Aufladen, dann Hauptgeschütz: Spaltenfeuer mit doppelter ATK, dann Schilde 10, von vorn. |
+| Belagerer | Schlachtschiff | 30 | 8 | `iron_dreadnought` | Panzerung 2. Aufladen, dann Hauptgeschütz: Spaltenfeuer mit doppelter ATK, dann Schilde 10, von vorn. |
 | Trägerschiff | Schlachtschiff | 26 | 5 | `titan_carrier` | Zielfeuer; alle zwei Runden ruft es eine Plünderer-Staffel in einen freien Slot. |
 
 ## Sektoren, Elite und Bosse
