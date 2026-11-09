@@ -68,7 +68,7 @@ Die Hülle des Flaggschiffs bleibt zwischen den Gefechten, wie sie ist; geheilt 
 
 ## 4. Stationen des Flaggschiffs
 
-Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (Abschnitt 12). Das Flaggschiff löst pro Runde eine Station aus, jede höchstens einmal. Sie wirkt sofort beim Auslösen, wie eine Karte, und zwischen Karten und Station zählt die Reihenfolge: Ein Torpedo vor dem Schuss schwächt das Ziel, ein Schuss vor dem Gnadenstoß kann es in den Notfall bringen. Ziel und Spalte bleiben eingestellt, bis der Spieler sie ändert; die Station nutzt, was beim Auslösen eingestellt ist.
+Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (Abschnitt 12). Das Flaggschiff löst pro Runde eine Station aus, jede höchstens einmal. Sie wirkt sofort beim Auslösen, wie eine Karte, und zwischen Karten und Station zählt die Reihenfolge: Ein Torpedo vor dem Schuss schwächt das Ziel, ein Schuss vor dem Gnadenstoß kann es in den Notfall bringen. Eine Station wird wie eine Karte ausgelöst und bekommt dabei ihr Ziel: Waffen, Fokusfeuer und Stillstand ein gegnerisches Schiff, Manöver eine andere Spalte; die übrigen Stationen brauchen keins.
 
 | Station                                     | Wirkung                                                                                                                    |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -80,7 +80,7 @@ Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (
 
 Regeln im Detail:
 
-- Waffen ohne Ziel lassen sich nicht auslösen, Manöver nicht ohne andere Spalte. Es gibt keine automatische Zielwahl. Stirbt das Ziel, ist es leer; das Stationen-Feld zeigt es an, und die Checkliste mahnt die freie Station an.
+- Waffen ohne Ziel lassen sich nicht auslösen, Manöver nicht ohne andere Spalte. Es gibt keine automatische Zielwahl; die Checkliste mahnt die freie Station an.
 - Eine Runde ohne Station ist erlaubt.
 - Schilde schlucken allen Schaden, der im Gegnerzug auf das Flaggschiff gerichtet ist, Karten-Schilde (Notschilde, Standhalten, Alarmbereitschaft) kommen dazu.
 - Das Flaggschiff weicht nicht aus; Panzerung hat es nur durch Ablativpanzerung und Module. Gegen gegnerisches Feuer hat der Spieler vier Antworten: Schilde gegen den Schaden, Manöver gegen Spaltenfeuer, Kurzsprung gegen alles, und den Schützen zerstören, bevor er handelt.
@@ -94,7 +94,7 @@ Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in de
 | -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Spielerzug** | der Spieler                | Karten und Station wirken sofort, in der Reihenfolge des Spielers (Abschnitt 6). Gegner mit Hülle 0 fallen auf der Stelle und handeln in dieser Runde nicht mehr.                                                                                                                                                                                                                                              |
 | **Gegnerzug**  | das Spiel                  | Angesagte Verstärkung trifft ein und sagt ihre erste Absicht an. Dann handelt jede gegnerische Einheit nach ihrer Absicht, Front vor Back, links nach rechts: Spaltenfeuer, Zielfeuer, Rammkurs, Aufladen, Schilde, Ausweichen, Zielerfassung, Verstärkung rufen. Schilde des Flaggschiffs, Gegenfeuer, Standhalten und Gegenmaßnahmen werden je Treffer gerechnet. Fällt das Flaggschiff, endet der Run hier. |
-| **Auflösung**  | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3, Ziel und Spalte bleiben eingestellt. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
+| **Auflösung**  | niemand, das Spiel rechnet | Brände ticken auf beiden Seiten. Zustände werden neu bestimmt und ausgerufen. Schilde des Flaggschiffs verfallen, der Kurzsprung kehrt zurück. Die Hand wird abgeworfen und fünf Befehle nachgezogen, Befehlspunkte auf 3. Die Gegner sagen ihre Absichten für die nächste Runde an (Abschnitt 12), und ab Runde 8 tickt die Gefechtsuhr.                                      |
 
 Weil der Spieler zuerst handelt, feuert ein Gegner, der im Spielerzug fällt, nie: Das ist die wichtigste Regel des Runs. Jeder Angriff ist eine Rechnung gegen die Ansage: Was fällt, bevor es handelt, hat nie gehandelt; was in den Notfall geht, handelt mit halber ATK. Umgekehrt gibt es keinen Schutz, den man nicht vor dem Zugende aufgebaut hat.
 
@@ -103,7 +103,7 @@ Weil der Spieler zuerst handelt, feuert ein Gegner, der im Spielerzug fällt, ni
 Im Spielerzug wirkt alles sofort, in der Reihenfolge, in der der Spieler es tut, wie in Slay the Spire:
 
 1. **Karten.** Beliebig viele Befehlskarten, solange die **Befehlspunkte** reichen. Jede Runde 3 Punkte, sie verfallen am Zugende. Jede Karte wirkt beim Spielen; wer erst den Torpedo einschlagen sieht, wählt danach das Ziel seiner Station. Überladung und Energiestoß gelten nur für Schüsse danach.
-2. **Station.** Ein Klick auf einen Gegner setzt das Ziel, ein Klick auf eine eigene Spalte die Manöver-Spalte; beides bleibt aus der Vorrunde stehen. Ein Klick auf eine Station führt sie sofort aus, mit dem eingestellten Ziel und der eingestellten Spalte, vor, zwischen oder nach den Karten. Eine Station je Runde, mit Alarmstufe Rot eine zweite, andere.
+2. **Station.** Ein Klick auf eine Station löst sie aus, vor, zwischen oder nach den Karten. Braucht sie ein Ziel, leuchten die gültigen Ziele, und der Klick auf eines führt sie aus, genau wie bei einer Karte; sonst wirkt sie sofort. Eine Station je Runde, mit Alarmstufe Rot eine zweite, andere.
 3. **Zug beenden.** Der Gegnerzug beginnt.
 
 Die Hand wird jede Runde neu gezogen: fünf Befehle vom Deck, nicht gespielte Karten gehen in der Auflösung auf den Ablagestapel, und ist das Deck leer, wird der Ablagestapel gemischt. So zählt jede Karte im Deck, und der Deckbau im Run hat eine Wirkung.

@@ -3,9 +3,10 @@
 //! - je Gegner-Slot die Einheit aus [`Battle`] (Modell nach Katalog, Hülle, Schild) und das Flaggschiff in seiner
 //!   Spalte, im Kurzsprung fehlt es; fehlt ein Schiff, entsteht es, steht es woanders, wechselt es den Slot, ist es
 //!   weg, verschwindet es;
-//! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel), das Visier
-//!   unter dem Ziel der Station und über jedem Schiff Absicht und Zustände ([`ShipCaption`]);
-//! - der Geist des Flaggschiffs ([`Ghost`]) in der Zielspalte, solange das Manöver in dieser Runde noch laufen darf;
+//! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel) und über
+//!   jedem Schiff Absicht und Zustände ([`ShipCaption`]);
+//! - der Geist des Flaggschiffs ([`Ghost`]) in der Spalte aus [`BoardFocus`] (unter dem Zeiger, solange die Wahl eine
+//!   Spalte braucht);
 //! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
 //!   Balken; Brand, Notfall, Stillstand und Funkstille dazu als Icons in der Beschriftung.
 //!
@@ -15,7 +16,7 @@
 
 use bevy::prelude::*;
 use voidfleet_core::{
-    admirals::{AdmiralId, Station},
+    admirals::AdmiralId,
     battle::{Battle as CoreBattle, Enemy},
     events::{Hit, UnitRef, UnitStats},
 };
@@ -31,10 +32,7 @@ use super::{
 };
 use crate::{
     assets::AppState,
-    controller::{
-        Scripted,
-        selection::{station_needs_target, unit_uid},
-    },
+    controller::{Scripted, selection::unit_uid},
     data::ship_models::{ShipKind, ShipModels},
     game::Battle,
     i18n::{Condition, Locale, Messages},
@@ -51,10 +49,12 @@ pub enum BoardMode {
     Playback,
 }
 
-/// Was der Controller unter dem Zeiger zeigt: die Treffer der gewählten Karte bzw. Station auf den Gegner `uid`.
+/// Was der Controller unter dem Zeiger zeigt: die Treffer der gewählten Karte bzw. Station auf den Gegner `uid` und
+/// die Spalte, in der der Geist des Flaggschiffs steht.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct BoardFocus {
     pub preview: Option<(u32, Vec<Hit>)>,
+    pub ghost: Option<SlotRef>,
 }
 
 /// Die Systeme des Abgleichs; wer danach die Szene ändert, ordnet sich dahinter.
@@ -108,7 +108,6 @@ struct Wanted {
     stats: UnitStats,
     max_hull: i32,
     caption: ShipCaption,
-    aimed: bool,
     evading: bool,
     aura: ShipAura,
 }
@@ -136,9 +135,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
             .map(|hit| locale.breakdown(&hit.breakdown))
             .unwrap_or_default()
     };
-    let aiming = station_needs_target(battle)
-        .then_some(battle.flagship.target)
-        .flatten();
     // Der Uhrmacher sieht zwei Runden voraus.
     let clockwork = battle.flagship.admiral == AdmiralId::Kerr;
     let mut ships: Vec<Wanted> = battle
@@ -159,7 +155,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                     conditions: enemy_conditions(enemy),
                     preview: preview_text(enemy.uid),
                 },
-                aimed: aiming == Some(enemy.uid),
                 evading: enemy.is_evading(),
                 aura: ShipAura {
                     burning: enemy.burning,
@@ -189,7 +184,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 preview: preview_text(0),
                 ..default()
             },
-            aimed: false,
             evading: false,
             aura: ShipAura {
                 burning: flagship.burning,
@@ -291,25 +285,18 @@ pub fn sync_ships(
     }
 }
 
-/// Wohin das Flaggschiff manövrieren würde: die Zielspalte, solange das Manöver in dieser Runde noch laufen darf und
-/// sie woanders liegt.
-fn ghost_slot(battle: &CoreBattle) -> Option<SlotRef> {
-    let flagship = &battle.flagship;
-    (battle.station_open(Station::Maneuver).is_ok() && flagship.maneuver_column != flagship.column)
-        .then_some(SlotRef::player(flagship.maneuver_column))
-}
-
-/// Stellt den Geist des Flaggschiffs in die Zielspalte des Manövers oder nimmt ihn weg.
+/// Stellt den Geist des Flaggschiffs in die Spalte aus [`BoardFocus`] oder nimmt ihn weg.
 fn sync_ghost(
     mut commands: Commands,
     battle: Option<Res<Battle>>,
+    focus: Res<BoardFocus>,
     models: Res<ShipModels>,
     board: Res<BoardEntities>,
     ghosts: Query<(Entity, &Ghost, &ChildOf)>,
 ) {
     let wanted = battle.and_then(|battle| {
         let kind = ShipKind::Flagship(battle.flagship.admiral.flagship());
-        ghost_slot(&battle).map(|slot| (kind, board.anchor(slot)))
+        focus.ghost.map(|slot| (kind, board.anchor(slot)))
     });
     let mut kept = false;
     for (entity, ghost, child_of) in &ghosts {
@@ -338,16 +325,13 @@ fn clear_ghost(mut commands: Commands, ghosts: Query<Entity, With<Ghost>>) {
     }
 }
 
-/// Das Visier unter dem Ziel der Station, die Marke einer ausweichenden Einheit.
+/// Die Marke einer ausweichenden Einheit.
 fn ship_markers(want: &Wanted) -> ShipMarkers {
     ShipMarkers(
-        [
-            (want.aimed, MarkerKind::Aim, palette::SELECT),
-            (want.evading, MarkerKind::Evading, palette::ENEMY),
-        ]
-        .into_iter()
-        .filter_map(|(on, kind, color)| on.then_some(MarkerSpec::new(kind, color)))
-        .collect(),
+        want.evading
+            .then(|| MarkerSpec::new(MarkerKind::Evading, palette::ENEMY))
+            .into_iter()
+            .collect(),
     )
 }
 
@@ -383,18 +367,6 @@ mod tests {
             wanted_ships(&battle, &*locale, &BoardFocus::default()).len(),
             3
         );
-    }
-
-    /// Der Geist steht nur, solange das Manöver noch laufen darf, und nur in einer anderen Spalte.
-    #[test]
-    fn ghost_marks_the_maneuver() {
-        let mut battle = fixture_battle(AdmiralId::Kerr);
-        battle.flagship.maneuver_column = battle.flagship.column;
-        assert_eq!(ghost_slot(&battle), None);
-        battle.flagship.maneuver_column = 2;
-        assert_eq!(ghost_slot(&battle), Some(SlotRef::player(2)));
-        battle.run_station(Station::Shields).unwrap();
-        assert_eq!(ghost_slot(&battle), None);
     }
 
     #[test]

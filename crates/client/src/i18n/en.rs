@@ -245,18 +245,6 @@ impl Messages for En {
         "Stations"
     }
 
-    fn hud_target(&self, target: &str) -> String {
-        format!("Target: {target}")
-    }
-
-    fn hud_no_target(&self) -> &'static str {
-        "No target — click an enemy"
-    }
-
-    fn hud_column(&self, column: usize) -> String {
-        format!("Move to: {}", self.column_name(column))
-    }
-
     fn checklist_free_stations(&self, count: usize) -> String {
         match count {
             1 => "1 station free".to_owned(),
@@ -321,8 +309,8 @@ impl Messages for En {
             RulesChapter::Stations => section(
                 "Stations",
                 &[
-                    "Your flagship triggers one station per round, with Red Alert a second, different one. It takes effect at once, like a card, with the target and column you have set; both stay set until you change them.",
-                    "Weapons fire your ATK at the chosen target. Shields absorb 8 in the next enemy turn (Osei 12). Damage control puts out the fire and repairs 5 hull. Maneuver moves to another column and dodges column fire aimed at the old one.",
+                    "Your flagship triggers one station per round, with Red Alert a second, different one. It is triggered like a card and gets its target the same way: weapons, focus fire and stasis an enemy ship, maneuver another column; the other stations need none. It takes effect at once.",
+                    "Weapons fire your ATK at the target. Shields absorb 8 in the next enemy turn (Osei 12). Damage control puts out the fire and repairs 5 hull. Maneuver moves to another column and dodges column fire aimed at the old one.",
                     "The admiral station depends on your admiral and is not available while your bridge is hit (hull at 25 % or less).",
                 ],
             ),
@@ -370,7 +358,7 @@ impl Messages for En {
                 "Controls",
                 &[
                     "Click a card to play it; a card with a target waits for a click on a glowing enemy or column. Clicking the card again, right-clicking or Escape cancels.",
-                    "Click an enemy to set the weapon target, a glowing column of your side for a maneuver; click a station in the panel to trigger it at once. Hover an enemy to see the damage of your card or weapons, a station to see its damage on the set target.",
+                    "Stations work the same way: click a station in the panel; without a target it takes effect at once, otherwise the valid targets glow and a click on one triggers it. Hover a glowing enemy to see the damage of the selected card or station.",
                     "Space skips the playback, V switches the view, ← → orbit, ↑ ↓ zoom, F toggles fullscreen, Escape opens the settings.",
                 ],
             ),
@@ -508,11 +496,9 @@ impl Messages for En {
         match error {
             RuleError::BattleOver => "The battle is over.",
             RuleError::NotEnoughPoints => "Not enough command points.",
-            RuleError::TargetRequired => "Choose a target first.",
             RuleError::TargetInvalid => "Not a valid target.",
             RuleError::AdmiralStationInEmergency => "Bridge hit: no admiral station.",
             RuleError::Jumped => "The flagship is in micro jump.",
-            RuleError::SameColumn => "The flagship is already in this column.",
             RuleError::StationUsed => "This station already ran this round.",
             RuleError::NoStationSlot => "No station left this round.",
         }
@@ -534,7 +520,7 @@ impl Messages for En {
 
     fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
         match station {
-            Station::Weapons => "Fires your ATK at the set target at once.".to_owned(),
+            Station::Weapons => "Fires your ATK at an enemy ship at once.".to_owned(),
             Station::Shields => format!(
                 "Absorbs {} in the next enemy turn.",
                 admiral.shield_station()
@@ -543,7 +529,7 @@ impl Messages for En {
                 format!("Puts out the fire and repairs {DAMAGE_CONTROL_REPAIR} hull.")
             }
             Station::Maneuver => {
-                "Moves to the set column at once and dodges column fire on the old one.".to_owned()
+                "Moves to another column at once and dodges column fire on the old one.".to_owned()
             }
             Station::Admiral => self.admiral(admiral).station_text.to_owned(),
         }

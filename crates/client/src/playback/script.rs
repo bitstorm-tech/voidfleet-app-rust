@@ -114,7 +114,7 @@ pub(super) enum Spot {
     Above(UnitRef),
     /// Eine Spalte der Spielerseite (Spaltenfeuer).
     Column(usize),
-    /// Das Ziel der Station (Stillstand: das Ereignis nennt es nicht).
+    /// Das Ziel des Stillstands (das Ereignis nennt es nicht): der Gegner, der im Stillstand steht.
     StationTarget,
 }
 
@@ -335,12 +335,12 @@ impl Stage<'_, '_> {
             Spot::StationTarget => self
                 .battle
                 .as_ref()
-                .and_then(|battle| battle.flagship.target)
-                .and_then(|uid| {
+                .and_then(|battle| battle.enemies.iter().find(|enemy| enemy.stasis))
+                .and_then(|enemy| {
                     self.ships
                         .iter()
                         .find(|(_, ship, _)| {
-                            ship.uid == uid && matches!(ship.kind, ShipKind::Enemy(_))
+                            ship.uid == enemy.uid && matches!(ship.kind, ShipKind::Enemy(_))
                         })
                         .map(|(_, _, transform)| transform.translation() + SHIP_CENTER)
                 })

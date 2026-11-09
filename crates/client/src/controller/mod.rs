@@ -9,16 +9,18 @@
 //! 1. [`ControllerSystems::Game`] — ein neues Gefecht setzt Auswahl, Musik und Log zurück und lässt den Bordfunk
 //!    melden. Ereignisse einer Aktion übergeben die Szene der Wiedergabe ([`BoardMode::Playback`], [`PlayEvents`]);
 //!    meldet sie [`PlaybackFinished`], gehört die Szene wieder der Planung. Abgelehnte Aktionen erscheinen als Banner.
-//! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand, Slots, Klick daneben (zweimal schnell:
-//!    Vollbild), Rechtsklick und Escape brechen ab, Escape ohne Auswahl öffnet die Einstellungen, Leertaste
-//!    überspringt, Stationen-Feld und Aktionsknöpfe. Admiralswahl, Ergebnis und Run laufen über [`crate::run`].
-//! 3. [`ControllerSystems::Refresh`] — [`Highlights`], [`BoardFocus`] und [`HudState`] aus Gefecht, Auswahl und Zeiger.
+//! 2. [`ControllerSystems::Input`] — je Eingabeart ein System: Karten der Hand und Stationen (beide über die
+//!    Auswahl), Slots, Klick daneben (zweimal schnell: Vollbild), Rechtsklick und Escape brechen ab, Escape ohne
+//!    Auswahl öffnet die Einstellungen, Leertaste überspringt, Aktionsknöpfe. Admiralswahl, Ergebnis und Run laufen
+//!    über [`crate::run`].
+//! 3. [`ControllerSystems::Refresh`] — [`Highlights`], [`BoardFocus`] (Vorschau und Geist) und [`HudState`] aus
+//!    Gefecht, Auswahl und Zeiger.
 //!
 //! Dev-Ansichten, die Brett und HUD selbst stellen, setzen [`Scripted`]; dann ruht der Controller.
 
 pub mod selection;
 
-use bevy::{picking::hover::Hovered, platform::collections::HashSet, prelude::*};
+use bevy::{platform::collections::HashSet, prelude::*};
 
 pub use selection::{Outcome, Pick, Selection};
 
@@ -39,7 +41,6 @@ use crate::{
         StationPressed,
         dialogs::{Dialog, DialogSystems, OpenDialog},
         fullscreen::ToggleFullscreen,
-        stations::StationButton,
         theme::Modal,
     },
 };
@@ -285,27 +286,26 @@ fn miss_board(
     }
 }
 
-/// Eine Station im Stationen-Feld: Sie läuft sofort (wie eine gespielte Karte), eine Kartenwahl geht.
+/// Eine Station im Stationen-Feld: wie eine Karte der Hand.
 fn press_stations(
     mut pressed: MessageReader<StationPressed>,
     battle: Option<Res<Battle>>,
     mode: Res<State<BoardMode>>,
     mut selection: ResMut<Selection>,
     mut actions: MessageWriter<PlayerAction>,
+    mut rejected: MessageWriter<RuleRejected>,
     mut sounds: MessageWriter<PlayUiSound>,
 ) {
     for &StationPressed(station) in pressed.read() {
-        if can_act(battle.as_deref(), *mode.get()) {
-            selection.set_if_neq(Selection::Idle);
-            // Eine Ablehnung meldet sich mit ihrem eigenen Ton.
-            if battle
-                .as_deref()
-                .is_some_and(|battle| battle.can_run(station).is_ok())
-            {
-                sounds.write(PlayUiSound(UiSound::Place));
-            }
-            actions.write(PlayerAction::RunStation(station));
-        }
+        handle_click(
+            Pick::Station(station),
+            battle.as_deref(),
+            *mode.get(),
+            &mut selection,
+            &mut actions,
+            &mut rejected,
+            &mut sounds,
+        );
     }
 }
 
@@ -392,15 +392,14 @@ fn planning_changed(
         || mode.is_some_and(|mode| mode.is_changed())
 }
 
-/// Dazu der Zeiger, auf dem Brett und auf den Stationen.
+/// Dazu der Zeiger auf dem Brett.
 fn focus_changed(
     battle: Option<Res<Battle>>,
     selection: Res<Selection>,
     mode: Option<Res<State<BoardMode>>>,
     hover: Res<BoardHover>,
-    stations: Query<(), (Changed<Hovered>, With<StationButton>)>,
 ) -> bool {
-    planning_changed(battle, selection, mode) || hover.is_changed() || !stations.is_empty()
+    planning_changed(battle, selection, mode) || hover.is_changed()
 }
 
 fn update_highlights(
@@ -426,26 +425,22 @@ fn update_highlights(
     highlights.set_if_neq(next);
 }
 
-/// Unter dem Zeiger die Treffer der gewählten Karte bzw. der Waffen; zeigt er auf eine Station, deren Treffer.
+/// Unter dem Zeiger die Treffer des Gewählten bzw. der Geist des Flaggschiffs in der Spalte, die es anfliegen würde.
 fn update_focus(
     battle: Option<Res<Battle>>,
     selection: Res<Selection>,
     mode: Res<State<BoardMode>>,
     hover: Res<BoardHover>,
-    stations: Query<(&Hovered, &StationButton)>,
     mut focus: ResMut<BoardFocus>,
 ) {
-    let station = stations
-        .iter()
-        .find_map(|(hovered, &StationButton(station))| hovered.get().then_some(station));
-    let preview = battle
+    let next = battle
         .as_deref()
         .filter(|battle| can_act(Some(battle), *mode.get()))
-        .and_then(|battle| match station {
-            Some(station) => selection::station_preview(battle, station),
-            None => selection::preview(battle, *selection, hover.slot),
+        .map_or_else(BoardFocus::default, |battle| BoardFocus {
+            preview: selection::preview(battle, *selection, hover.slot),
+            ghost: selection::ghost(battle, *selection, hover.slot),
         });
-    focus.set_if_neq(BoardFocus { preview });
+    focus.set_if_neq(next);
 }
 
 fn update_hud(
@@ -459,7 +454,11 @@ fn update_hud(
         playing_back: *mode.get() == BoardMode::Playback,
         selected: match *selection {
             Selection::Card(index) => Some(index),
-            Selection::Idle => None,
+            _ => None,
+        },
+        station: match *selection {
+            Selection::Station(station) => Some(station),
+            _ => None,
         },
     });
 }

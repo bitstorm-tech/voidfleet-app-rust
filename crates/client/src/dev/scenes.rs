@@ -1,7 +1,6 @@
 //! Vorschau-Szenen ohne Spieler (wie `client/dev/*.html` im Original), gewählt mit `VOIDFLEET_DEV_SCENE`:
 //!
-//! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed), Ziel auf dem ersten Gegner: Absichten,
-//!   Visier, Hand, Stationen.
+//! - `board` — das erste Gefecht eines Runs mit Kerr (fester Seed): Absichten, Hand, Stationen.
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
 //!   daneben ein Belagerer mit Rumpfbrüchen, das Kreuzer-Paar im Notfall (ein Modell ausgebrannt und brennend);
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
@@ -176,8 +175,7 @@ fn stage(
         DevScene::Report => {}
         DevScene::Board => {
             let run = super::dev_run(AdmiralId::Kerr, true);
-            let mut battle = Battle(run.start_battle());
-            battle.flagship.target = battle.enemies.first().map(|enemy| enemy.uid);
+            let battle = Battle(run.start_battle());
             commands.insert_resource(run);
             commands.insert_resource(battle);
         }

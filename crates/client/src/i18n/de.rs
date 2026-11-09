@@ -244,18 +244,6 @@ impl Messages for De {
         "Stationen"
     }
 
-    fn hud_target(&self, target: &str) -> String {
-        format!("Ziel: {target}")
-    }
-
-    fn hud_no_target(&self) -> &'static str {
-        "Kein Ziel — Gegner anklicken"
-    }
-
-    fn hud_column(&self, column: usize) -> String {
-        format!("Nach: {}", self.column_name(column))
-    }
-
     fn checklist_free_stations(&self, count: usize) -> String {
         match count {
             1 => "1 Station frei".to_owned(),
@@ -320,8 +308,8 @@ impl Messages for De {
             RulesChapter::Stations => section(
                 "Stationen",
                 &[
-                    "Dein Flaggschiff löst eine Station je Runde aus, mit Alarmstufe Rot eine zweite, andere. Sie wirkt sofort, wie eine Karte, mit dem eingestellten Ziel und der eingestellten Spalte; beides bleibt eingestellt, bis du es änderst.",
-                    "Waffen feuern deine ATK auf das gewählte Ziel. Schilde schlucken im nächsten Gegnerzug 8 (Osei 12). Schadenskontrolle löscht den Brand und repariert 5 Hülle. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
+                    "Dein Flaggschiff löst eine Station je Runde aus, mit Alarmstufe Rot eine zweite, andere. Sie wird wie eine Karte ausgelöst und bekommt dabei ihr Ziel: Waffen, Fokusfeuer und Stillstand ein gegnerisches Schiff, Manöver eine andere Spalte; die übrigen Stationen brauchen keins. Sie wirkt sofort.",
+                    "Waffen feuern deine ATK auf das Ziel. Schilde schlucken im nächsten Gegnerzug 8 (Osei 12). Schadenskontrolle löscht den Brand und repariert 5 Hülle. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
                     "Die Admiralsstation hängt von deinem Admiral ab und geht nicht, solange die Brücke getroffen ist (Hülle bei 25 % oder weniger).",
                 ],
             ),
@@ -369,7 +357,7 @@ impl Messages for De {
                 "Steuerung",
                 &[
                     "Klicke eine Karte, um sie zu spielen; eine Karte mit Ziel wartet auf einen Klick auf einen leuchtenden Gegner oder eine Spalte. Ein zweiter Klick auf die Karte, Rechtsklick oder Escape bricht ab.",
-                    "Ein Klick auf einen Gegner setzt das Ziel der Waffen, eine leuchtende eigene Spalte das Ziel des Manövers; ein Klick auf eine Station im Stationen-Feld löst sie sofort aus. Unter dem Zeiger zeigt ein Gegner den Schaden deiner Karte oder Waffen, eine Station ihren Schaden am eingestellten Ziel.",
+                    "Stationen gehen genauso: Klicke eine Station im Stationen-Feld an; ohne Ziel wirkt sie sofort, sonst leuchten die gültigen Ziele, und der Klick auf eines löst sie aus. Unter dem Zeiger zeigt ein leuchtender Gegner den Schaden der gewählten Karte oder Station.",
                     "Leertaste überspringt die Wiedergabe, V wechselt die Ansicht, ← → drehen, ↑ ↓ zoomen, F schaltet das Vollbild, Escape öffnet die Einstellungen.",
                 ],
             ),
@@ -517,11 +505,9 @@ impl Messages for De {
         match error {
             RuleError::BattleOver => "Das Gefecht ist vorbei.",
             RuleError::NotEnoughPoints => "Nicht genug Befehlspunkte.",
-            RuleError::TargetRequired => "Erst ein Ziel wählen.",
             RuleError::TargetInvalid => "Kein gültiges Ziel.",
             RuleError::AdmiralStationInEmergency => "Brücke getroffen: keine Admiralsstation.",
             RuleError::Jumped => "Das Flaggschiff ist im Kurzsprung.",
-            RuleError::SameColumn => "Das Flaggschiff steht schon in dieser Spalte.",
             RuleError::StationUsed => "Diese Station lief in dieser Runde schon.",
             RuleError::NoStationSlot => "Keine Station mehr frei in dieser Runde.",
         }
@@ -543,7 +529,7 @@ impl Messages for De {
 
     fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
         match station {
-            Station::Weapons => "Feuert sofort deine ATK auf das eingestellte Ziel.".to_owned(),
+            Station::Weapons => "Feuert sofort deine ATK auf ein gegnerisches Schiff.".to_owned(),
             Station::Shields => format!(
                 "Schluckt im nächsten Gegnerzug {}.",
                 admiral.shield_station()
@@ -552,7 +538,8 @@ impl Messages for De {
                 format!("Löscht den Brand und repariert {DAMAGE_CONTROL_REPAIR} Hülle.")
             }
             Station::Maneuver => {
-                "Wechselt sofort in die eingestellte Spalte und entgeht dem Spaltenfeuer auf die alte.".to_owned()
+                "Wechselt sofort in eine andere Spalte und entgeht dem Spaltenfeuer auf die alte."
+                    .to_owned()
             }
             Station::Admiral => self.admiral(admiral).station_text.to_owned(),
         }

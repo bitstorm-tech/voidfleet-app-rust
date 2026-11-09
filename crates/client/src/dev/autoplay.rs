@@ -209,8 +209,10 @@ fn fight(battle: &Battle, play: &mut AutoPlay, actions: &mut MessageWriter<Playe
     match play.step {
         Step::Weapons => {
             if let Some(enemy) = battle.enemies.first() {
-                actions.write(PlayerAction::SetTarget(enemy.uid));
-                actions.write(PlayerAction::RunStation(Station::Weapons));
+                actions.write(PlayerAction::RunStation {
+                    station: Station::Weapons,
+                    target: Target::Enemy(enemy.uid),
+                });
             }
             play.step = Step::Card;
         }

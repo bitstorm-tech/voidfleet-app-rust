@@ -1,6 +1,6 @@
-//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): das Visier aus Ring und vier Spitzen
-//! unter dem Ziel der Station. Die übrigen Glyphen (Fadenkreuz mit Rauten, Stacheln, Zielklammern, kreisende Drohnen,
-//! Uhr, Leuchtring, Bereitschaft) stehen für die erzählte Wiedergabe bereit.
+//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): kreisende Drohnen unter einer
+//! ausweichenden Einheit; die übrigen Glyphen (Fadenkreuz mit Rauten, Stacheln, Zielklammern, Uhr, Leuchtring,
+//! Bereitschaft) stehen für die erzählte Wiedergabe bereit.
 //!
 //! Welche Marken ein Schiff trägt, steht in [`ShipMarkers`]; eine Marke, die schon liegt, bleibt liegen, damit ihre
 //! Drehung nicht springt. In der Wiedergabe fällt eine neue Marke mit [`DropMarker`] auf das Schiff herab. Jede Marke
@@ -27,8 +27,6 @@ pub enum MarkerKind {
     Taunt,
     /// Bereitschaft.
     Ready,
-    /// Das Ziel der Station.
-    Aim,
     Counterfire,
     FocusFire,
     /// Die Einheit weicht aus.
@@ -69,11 +67,6 @@ impl MarkerKind {
                 },
             ),
             Self::Ready => (0.6, 0.6, const { &[layer(Ready, 0.25, (0.9, 0.04))] }),
-            Self::Aim => (
-                0.6,
-                0.95,
-                const { &[layer(Aim, 0.0, (1.4, 0.03)), layer(AimPointers, 0.8, STILL)] },
-            ),
         }
     }
 }
@@ -139,12 +132,10 @@ enum Glyph {
     Beacon,
     BeaconChevrons,
     Ready,
-    Aim,
-    AimPointers,
 }
 
 impl Glyph {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 10] = [
         Self::Lock,
         Self::LockRing,
         Self::Spikes,
@@ -155,8 +146,6 @@ impl Glyph {
         Self::Beacon,
         Self::BeaconChevrons,
         Self::Ready,
-        Self::Aim,
-        Self::AimPointers,
     ];
 }
 
@@ -336,17 +325,6 @@ fn draw(glyph: Glyph) -> Image {
             canvas.fill(white, dashed_ring(0.82, 0.035, 0.12, 0.09));
             canvas.fill(white, around(3, rect(-0.025, -0.99, 0.05, 0.12)));
         }
-        Glyph::Aim => {
-            canvas.fill(white, ring(0.8, 0.05));
-            canvas.fill(white, ring(0.7, 0.015));
-        }
-        Glyph::AimPointers => canvas.fill(
-            white,
-            around(
-                4,
-                polygon(vec![p(-0.09, -0.84), p(0.0, -0.99), p(0.09, -0.84)]),
-            ),
-        ),
     }
     canvas.into_image()
 }

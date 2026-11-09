@@ -145,9 +145,6 @@ pub trait Messages: Sync {
     fn hud_draw_pile(&self) -> &'static str;
     fn hud_discard_pile(&self) -> &'static str;
     fn hud_stations(&self) -> &'static str;
-    fn hud_target(&self, target: &str) -> String;
-    fn hud_no_target(&self) -> &'static str;
-    fn hud_column(&self, column: usize) -> String;
     /// So viele Stationen dürfen in dieser Runde noch laufen.
     fn checklist_free_stations(&self, count: usize) -> String;
     fn checklist_station(&self, station: &str) -> String;

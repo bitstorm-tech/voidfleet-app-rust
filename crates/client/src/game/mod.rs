@@ -24,10 +24,11 @@ pub enum PlayerAction {
         hand_index: usize,
         target: Target,
     },
-    /// Löst eine Station sofort aus, mit dem eingestellten Ziel bzw. der eingestellten Spalte.
-    RunStation(Station),
-    SetTarget(u32),
-    SetColumn(usize),
+    /// Löst eine Station sofort aus, mit dem Ziel, das sie braucht (`Battle::station_target`).
+    RunStation {
+        station: Station,
+        target: Target,
+    },
     EndTurn,
 }
 
@@ -55,19 +56,14 @@ pub struct LeaveBattle;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct GameSystems;
 
-/// Führt eine Aktion am Gefecht aus; `Ok` mit ihren Ereignissen (Einstellungen haben keine).
+/// Führt eine Aktion am Gefecht aus; `Ok` mit ihren Ereignissen.
 pub fn apply(
     battle: &mut battle::Battle,
     action: PlayerAction,
 ) -> Result<Vec<BattleEvent>, RuleError> {
     match action {
         PlayerAction::PlayCard { hand_index, target } => battle.play_card(hand_index, target),
-        PlayerAction::RunStation(station) => battle.run_station(station),
-        PlayerAction::SetTarget(uid) => battle.set_target(uid).map(|()| Vec::new()),
-        PlayerAction::SetColumn(column) => {
-            battle.set_column(column);
-            Ok(Vec::new())
-        }
+        PlayerAction::RunStation { station, target } => battle.run_station(station, target),
         PlayerAction::EndTurn => Ok(battle.end_turn()),
     }
 }
@@ -179,8 +175,14 @@ mod tests {
         assert_eq!(battle.enemies.len(), 3);
         assert_eq!(battle.hand.len(), 5);
         let uid = battle.enemies[0].uid;
-        apply(&mut battle, PlayerAction::SetTarget(uid)).unwrap();
-        let events = apply(&mut battle, PlayerAction::RunStation(Station::Weapons)).unwrap();
+        let events = apply(
+            &mut battle,
+            PlayerAction::RunStation {
+                station: Station::Weapons,
+                target: Target::Enemy(uid),
+            },
+        )
+        .unwrap();
         assert!(
             events
                 .iter()

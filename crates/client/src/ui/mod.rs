@@ -9,7 +9,7 @@
 //!
 //! Das HUD des Gefechts:
 //! - [`hand`] — die Hand mit Kosten, Stapeln, Auswahl, Hover-Zoom, Einflug neu gezogener Karten.
-//! - [`stations`] — die fünf Stationen (ein Klick löst aus) mit Ziel bzw. Spalte, „Zug beenden“ mit Checkliste.
+//! - [`stations`] — die fünf Stationen (Klick wie auf eine Karte), „Zug beenden“ mit Checkliste.
 //! - [`hud`] — Kopfzeile (Runde, Gefechtsuhr, Hülle), Log, Banner.
 //! - [`run_bar`] — der Stand des Runs in der Kopfzeile (Hülle, Schrott, Deck, Sektor, Module).
 //! - [`round_log`] — je Ereignis des Gefechts eine Log-Zeile.
@@ -179,6 +179,8 @@ pub struct HudState {
     pub playing_back: bool,
     /// Hand-Index der Karte, die auf ihr Ziel wartet.
     pub selected: Option<usize>,
+    /// Die Station, die auf ihr Ziel wartet.
+    pub station: Option<Station>,
 }
 
 /// Eine Karte der Hand (Hand-Index) wurde angeklickt.

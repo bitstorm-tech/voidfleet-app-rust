@@ -1,8 +1,9 @@
 //! Das Stationen-Feld rechts in der Hand: die fünf Stationen des Flaggschiffs (die Admiralsstation mit ihrem Namen je
-//! Admiral); ein Klick löst eine Station sofort aus, die in dieser Runde gelaufenen leuchten (eine, mit Alarmstufe Rot
-//! zwei); darunter Ziel bzw. Spalte als Text, solange eine Station sie noch braucht. Daneben „Zug beenden“ (während
-//! einer Wiedergabe „Überspringen“) mit der Checkliste des Zugs: gelaufene Stationen, freie Stationen und offene
-//! Befehlspunkte als Hinweis. Klicks melden [`StationPressed`] und [`ActionPressed`].
+//! Admiral); ein Klick wirkt wie auf eine Karte der Hand (ohne Ziel sofort, sonst ist die Station gewählt und leuchtet,
+//! bis ein Ziel auf dem Brett sie auslöst). Gesperrt ist, was in dieser Runde nicht mehr laufen darf, also auch die
+//! gelaufenen (eine, mit Alarmstufe Rot zwei). Daneben „Zug beenden“ (während einer Wiedergabe „Überspringen“) mit der
+//! Checkliste des Zugs: gelaufene Stationen, freie Stationen und offene Befehlspunkte als Hinweis. Klicks melden
+//! [`StationPressed`] und [`ActionPressed`].
 
 use bevy::{
     prelude::*,
@@ -18,18 +19,11 @@ use super::{
     theme,
     tooltip::Tooltip,
 };
-use crate::{
-    assets::AppState, controller::selection::station_needs_target, game::Battle, i18n::Locale,
-    palette,
-};
+use crate::{assets::AppState, game::Battle, i18n::Locale, palette};
 
 /// Eine Station im Feld.
 #[derive(Component, Clone, Copy, Debug)]
-pub struct StationButton(pub Station);
-
-/// Ziel bzw. Spalte, solange eine Station sie noch braucht.
-#[derive(Component)]
-struct StationDetail;
+struct StationButton(Station);
 
 /// Ein Aktionsknopf.
 #[derive(Component, Clone, Copy, Debug)]
@@ -120,16 +114,6 @@ pub(super) fn stations_panel(fonts: &Fonts) -> impl Bundle {
                     station(Station::DamageControl),
                     station(Station::Maneuver),
                     station(Station::Admiral),
-                    (
-                        StationDetail,
-                        Node {
-                            width: px(190),
-                            margin: UiRect::top(px(2)),
-                            ..default()
-                        },
-                        theme::text(fonts.body(13.0), "", palette::TEXT_DIM),
-                        Pickable::IGNORE,
-                    ),
                 ],
             ),
             (
@@ -157,7 +141,7 @@ pub(super) fn stations_panel(fonts: &Fonts) -> impl Bundle {
     )
 }
 
-/// Beschriftung, Tooltip und Leuchten der Stationen; dazu Ziel bzw. Spalte, solange eine Station sie noch braucht.
+/// Beschriftung, Tooltip, Leuchten (gewählt) und Sperre (darf nicht mehr laufen) der Stationen.
 fn update_stations(
     mut commands: Commands,
     battle: Option<Res<Battle>>,
@@ -171,8 +155,7 @@ fn update_stations(
         Has<Lit>,
         Has<InteractionDisabled>,
     )>,
-    mut labels: Query<&mut Text, Without<StationDetail>>,
-    mut detail: Single<&mut Text, With<StationDetail>>,
+    mut labels: Query<&mut Text>,
 ) {
     let Some(battle) = battle else {
         return;
@@ -180,8 +163,7 @@ fn update_stations(
     if !battle.is_changed() && !hud.is_changed() && !locale.is_changed() {
         return;
     }
-    let flagship = &battle.flagship;
-    let admiral = flagship.admiral;
+    let admiral = battle.flagship.admiral;
     for (entity, &StationButton(station), children, mut tooltip, lit, disabled) in &mut buttons {
         let label = locale.station(station, admiral).to_uppercase();
         for &child in children {
@@ -192,35 +174,16 @@ fn update_stations(
             }
         }
         tooltip.0 = locale.station_text(station, admiral);
-        let ran = flagship.stations_used.contains(&station);
-        if ran && !lit {
+        let chosen = hud.station == Some(station);
+        if chosen && !lit {
             commands.entity(entity).insert(Lit);
-        } else if !ran && lit {
+        } else if !chosen && lit {
             commands.entity(entity).remove::<Lit>();
         }
-        let enabled = hud.planning;
+        let enabled = hud.planning && battle.station_open(station).is_ok();
         if disabled == enabled {
             button::set_enabled(&mut commands, entity, enabled);
         }
-    }
-    let mut lines = Vec::new();
-    if station_needs_target(&battle) {
-        lines.push(match flagship.target.and_then(|uid| battle.enemy(uid)) {
-            Some(enemy) => locale.hud_target(&format!(
-                "{} ({})",
-                locale.enemy(enemy.id),
-                locale.slot_name(enemy.slot)
-            )),
-            None => locale.hud_no_target().to_owned(),
-        });
-    }
-    if battle.station_open(Station::Maneuver).is_ok() && flagship.maneuver_column != flagship.column
-    {
-        lines.push(locale.hud_column(flagship.maneuver_column));
-    }
-    let text = lines.join("\n");
-    if detail.0 != text {
-        detail.0 = text;
     }
 }
 
@@ -416,7 +379,9 @@ mod tests {
         );
         battle.points = 0;
         battle.flagship.station_slots = 2;
-        battle.run_station(Station::Shields).unwrap();
+        battle
+            .run_station(Station::Shields, voidfleet_core::battle::Target::None)
+            .unwrap();
         assert_eq!(
             checklist_lines(&locale, &battle),
             [

@@ -79,18 +79,17 @@ pub enum BattleResult {
 pub enum RuleError {
     BattleOver,
     NotEnoughPoints,
-    TargetRequired,
+    /// Das Ziel passt nicht zur Karte oder Station, steht nicht oder ist die eigene Spalte.
     TargetInvalid,
     AdmiralStationInEmergency,
     Jumped,
-    SameColumn,
     /// Diese Station lief in dieser Runde schon.
     StationUsed,
     /// Alle Stationsplätze der Runde sind verbraucht.
     NoStationSlot,
 }
 
-/// Das Flaggschiff des Spielers samt Einstellungen und dem Zustand dieser Runde.
+/// Das Flaggschiff des Spielers samt dem Zustand dieser Runde.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Flagship {
     pub admiral: AdmiralId,
@@ -105,10 +104,6 @@ pub struct Flagship {
     /// Vorstoß (nur Vance).
     pub momentum: i32,
     pub jumped: bool,
-    /// Eingestelltes Ziel für Waffen, Fokusfeuer und Stillstand; bleibt über Runden stehen.
-    pub target: Option<u32>,
-    /// Zielspalte der Manöver-Station.
-    pub maneuver_column: usize,
     /// Wie viele Stationen in dieser Runde laufen dürfen (Alarmstufe Rot +1).
     pub station_slots: usize,
     /// Die Stationen, die in dieser Runde liefen, in Reihenfolge (für Nachsetzen und Vances Vorstoß).
@@ -133,18 +128,6 @@ pub struct Flagship {
 }
 
 impl Flagship {
-    /// Ob eine Station ein gegnerisches Ziel braucht.
-    pub fn needs_target(&self, station: Station) -> bool {
-        match station {
-            Station::Weapons => true,
-            Station::Admiral => matches!(
-                self.admiral.station(),
-                AdmiralStation::FocusFire | AdmiralStation::Stasis
-            ),
-            _ => false,
-        }
-    }
-
     pub fn emergency(&self) -> bool {
         self.hull * 4 <= self.max_hull
     }
@@ -257,8 +240,6 @@ impl Battle {
                 ablative: 0,
                 momentum: 0,
                 jumped: false,
-                target: None,
-                maneuver_column: COLUMNS / 2,
                 station_slots: 1,
                 stations_used: Vec::new(),
                 attack_bonus: 0,
@@ -409,17 +390,24 @@ impl Battle {
 
     // --- Spielerzug ---
 
-    pub fn set_target(&mut self, uid: u32) -> Result<(), RuleError> {
-        self.enemy(uid).ok_or(RuleError::TargetInvalid)?;
-        self.flagship.target = Some(uid);
-        Ok(())
+    /// Welches Ziel die Station beim Auslösen braucht.
+    pub fn station_target(&self, station: Station) -> CardTarget {
+        match station {
+            Station::Weapons => CardTarget::Enemy,
+            Station::Maneuver => CardTarget::Column,
+            Station::Admiral
+                if matches!(
+                    self.flagship.admiral.station(),
+                    AdmiralStation::FocusFire | AdmiralStation::Stasis
+                ) =>
+            {
+                CardTarget::Enemy
+            }
+            _ => CardTarget::None,
+        }
     }
 
-    pub fn set_column(&mut self, column: usize) {
-        self.flagship.maneuver_column = column;
-    }
-
-    /// Ob die Station in dieser Runde noch laufen darf, abgesehen von Ziel und Spalte.
+    /// Ob die Station in dieser Runde noch laufen darf, abgesehen vom Ziel.
     pub fn station_open(&self, station: Station) -> Result<(), RuleError> {
         let f = &self.flagship;
         if self.result.is_some() {
@@ -436,19 +424,6 @@ impl Battle {
         }
         if station == Station::Admiral && f.emergency() {
             return Err(RuleError::AdmiralStationInEmergency);
-        }
-        Ok(())
-    }
-
-    /// Ob die Station jetzt mit dem eingestellten Ziel und der eingestellten Spalte laufen kann.
-    pub fn can_run(&self, station: Station) -> Result<(), RuleError> {
-        self.station_open(station)?;
-        let f = &self.flagship;
-        if station == Station::Maneuver && f.maneuver_column == f.column {
-            return Err(RuleError::SameColumn);
-        }
-        if f.needs_target(station) && f.target.is_none() {
-            return Err(RuleError::TargetRequired);
         }
         Ok(())
     }
@@ -471,11 +446,16 @@ impl Battle {
         Ok(events)
     }
 
-    /// Führt die Station sofort aus, mit dem eingestellten Ziel und der eingestellten Spalte.
-    pub fn run_station(&mut self, station: Station) -> Result<Vec<BattleEvent>, RuleError> {
-        self.can_run(station)?;
+    /// Führt die Station sofort aus, mit dem Ziel aus `station_target`.
+    pub fn run_station(
+        &mut self,
+        station: Station,
+        target: Target,
+    ) -> Result<Vec<BattleEvent>, RuleError> {
+        self.station_open(station)?;
+        self.check_target(self.station_target(station), target)?;
         let mut events = Vec::new();
-        self.execute_station(station, &mut events);
+        self.execute_station(station, target, &mut events);
         Ok(events)
     }
 
@@ -506,9 +486,9 @@ impl Battle {
 
     // --- Vorschau ---
 
-    pub fn preview_station(&self, station: Station) -> Result<Vec<Hit>, RuleError> {
+    pub fn preview_station(&self, station: Station, target: Target) -> Result<Vec<Hit>, RuleError> {
         let mut copy = self.clone();
-        copy.run_station(station).map(hits)
+        copy.run_station(station, target).map(hits)
     }
 
     pub fn preview_card(&self, hand_index: usize, target: Target) -> Result<Vec<Hit>, RuleError> {
@@ -518,29 +498,36 @@ impl Battle {
 
     // --- Stationen und Karten ---
 
-    fn execute_station(&mut self, station: Station, events: &mut Vec<BattleEvent>) {
+    fn execute_station(&mut self, station: Station, target: Target, events: &mut Vec<BattleEvent>) {
+        let uid = match target {
+            Target::Enemy(uid) => uid,
+            _ => 0,
+        };
         self.flagship.stations_used.push(station);
         events.push(BattleEvent::StationTriggered { station });
         match station {
-            Station::Weapons => self.fire(false, events),
+            Station::Weapons => self.fire(uid, false, events),
             Station::Shields => {
                 self.shield_flagship(self.flagship.admiral.shield_station(), events)
             }
             Station::DamageControl => self.repair(DAMAGE_CONTROL_REPAIR, events),
-            Station::Maneuver => self.maneuver(self.flagship.maneuver_column, events),
+            Station::Maneuver => {
+                let Target::Column(column) = target else {
+                    unreachable!("geprüft")
+                };
+                self.maneuver(column, events);
+            }
             Station::Admiral => match self.flagship.admiral.station() {
                 AdmiralStation::Counterfire => {
                     self.flagship.counterfire = true;
                     self.shield_flagship(COUNTERFIRE_SHIELD, events);
                 }
                 AdmiralStation::FocusFire => {
-                    self.fire(true, events);
+                    self.fire(uid, true, events);
                     self.flagship.focus_vulnerable = true;
                 }
                 AdmiralStation::Stasis => {
-                    let i = self
-                        .index(self.flagship.target.expect("geprüft"))
-                        .expect("steht");
+                    let i = self.index(uid).expect("geprüft");
                     self.enemies[i].stasis = true;
                 }
                 AdmiralStation::FollowUp => {
@@ -574,8 +561,8 @@ impl Battle {
         }
     }
 
-    /// Waffen-Station oder Fokusfeuer auf das eingestellte Ziel.
-    fn fire(&mut self, focus: bool, events: &mut Vec<BattleEvent>) {
+    /// Waffen-Station oder Fokusfeuer auf `uid`.
+    fn fire(&mut self, uid: u32, focus: bool, events: &mut Vec<BattleEvent>) {
         let admiral = self.flagship.admiral;
         let shot = Shot {
             base: self.shot_attack(focus),
@@ -584,7 +571,7 @@ impl Battle {
             ignite: admiral == AdmiralId::Reyes,
             rammed: false,
         };
-        self.shoot(self.flagship.target.expect("geprüft"), shot, events);
+        self.shoot(uid, shot, events);
     }
 
     fn check_card(&self, hand_index: usize, target: Target) -> Result<(), RuleError> {
@@ -595,8 +582,7 @@ impl Battle {
         if card.cost() > self.points {
             return Err(RuleError::NotEnoughPoints);
         }
-        let f = &self.flagship;
-        if f.jumped
+        if self.flagship.jumped
             && matches!(
                 card.id,
                 CardId::MicroJump | CardId::EvasiveAction | CardId::CollisionCourse
@@ -604,27 +590,28 @@ impl Battle {
         {
             return Err(RuleError::Jumped);
         }
-        match (card.id.target(), target) {
-            (CardTarget::Enemy, Target::Enemy(uid)) => {
-                let enemy = self.enemy(uid).ok_or(RuleError::TargetInvalid)?;
-                if card.id == CardId::TractorBeam
-                    && (enemy.id.class() == EnemyClass::Flagship
-                        || self.tractor_slot(enemy).is_none())
-                {
-                    return Err(RuleError::TargetInvalid);
-                }
-                Ok(())
-            }
-            (CardTarget::Column, Target::Column(column)) if column >= COLUMNS => {
-                Err(RuleError::TargetInvalid)
-            }
-            (CardTarget::Column, Target::Column(column)) if column == f.column => {
-                Err(RuleError::SameColumn)
-            }
-            (CardTarget::Column, Target::Column(_)) | (CardTarget::None, Target::None) => Ok(()),
-            (CardTarget::None, _) => Err(RuleError::TargetInvalid),
-            _ => Err(RuleError::TargetRequired),
+        self.check_target(card.id.target(), target)?;
+        if card.id == CardId::TractorBeam
+            && let Target::Enemy(uid) = target
+            && let Some(enemy) = self.enemy(uid)
+            && (enemy.id.class() == EnemyClass::Flagship || self.tractor_slot(enemy).is_none())
+        {
+            return Err(RuleError::TargetInvalid);
         }
+        Ok(())
+    }
+
+    /// Ob das Ziel zur Art passt: ein stehender Gegner oder eine andere Spalte als die eigene.
+    fn check_target(&self, kind: CardTarget, target: Target) -> Result<(), RuleError> {
+        let valid = match (kind, target) {
+            (CardTarget::None, Target::None) => true,
+            (CardTarget::Enemy, Target::Enemy(uid)) => self.enemy(uid).is_some(),
+            (CardTarget::Column, Target::Column(column)) => {
+                column < COLUMNS && column != self.flagship.column
+            }
+            _ => false,
+        };
+        valid.then_some(()).ok_or(RuleError::TargetInvalid)
     }
 
     fn apply_card(&mut self, card: DeckCard, target: Target, events: &mut Vec<BattleEvent>) {
@@ -978,9 +965,6 @@ impl Battle {
             cause,
         });
         self.kills += 1;
-        if self.flagship.target == Some(enemy.uid) {
-            self.flagship.target = None;
-        }
         if enemy.id == EnemyId::Seal {
             return self.end(BattleResult::Won, events);
         }
@@ -1161,9 +1145,6 @@ impl Battle {
                     }
                     if action == Action::Ram {
                         self.enemies.remove(i);
-                        if self.flagship.target == Some(uid) {
-                            self.flagship.target = None;
-                        }
                         events.push(BattleEvent::FireshipSpent { unit });
                         self.check_won(events);
                     } else if missed.is_none() {
