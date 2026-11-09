@@ -59,8 +59,7 @@ impl OutlineMaterial {
     /// Der Schatten-Ton der Fläche (bei Lichtern ihre Farbe), in Oklch um [`CONTOUR_DARKEN`] abgedunkelt.
     pub fn color(&self) -> Color {
         let tone = match &self.spec {
-            ToonSpec::Toon { tones, .. } if self.livery => livery(tones[2].0, false),
-            ToonSpec::Light { color, .. } if self.livery => livery(color.0, true),
+            ToonSpec::Light { color, .. } if self.livery => livery(color.0),
             ToonSpec::Toon { tones, .. } | ToonSpec::Wreck { tones, .. } => tones[2].0,
             ToonSpec::Light { color, .. } | ToonSpec::Hologram { color, .. } => color.0,
         };
@@ -172,20 +171,18 @@ mod tests {
     use super::*;
     use crate::scene::toon::material::Hex;
 
-    /// Die Kontur ist dunkler als der Schatten-Ton und folgt der Lackierung.
+    /// Die Kontur ist dunkler als der Schatten-Ton.
     #[test]
     fn contour_darkens_the_shadow_tone() {
         let shadow = Color::srgb(0.3, 0.35, 0.45);
         let tone = Hex(Color::WHITE);
-        let mut material = OutlineMaterial::new(ToonSpec::Toon {
+        let material = OutlineMaterial::new(ToonSpec::Toon {
             tones: [tone, tone, Hex(shadow)],
             round: false,
             glint: 0.0,
         });
         let plain = material.color();
         assert!(Oklcha::from(plain).lightness < Oklcha::from(shadow).lightness * 0.7);
-        material.livery = true;
-        assert_ne!(material.color(), plain);
     }
 
     /// Zwei Flächen eines Würfelecks: Die Ecke an derselben Stelle bekommt in beiden die gemittelte Normale.

@@ -14,8 +14,7 @@ use serde::{Deserialize, Deserializer};
 
 use super::look::{
     GHOST_ALPHA, GHOST_HOLOGRAM_ALPHA, GHOST_LIGHT, GHOST_TONES, GLOW_BOOST, KEY, LIVERY_ACCENT,
-    LIVERY_CHROMA, LIVERY_CHROMA_BASE, LIVERY_HUE, LIVERY_LIGHTNESS, RIM_FLAT, RIM_ROUND,
-    TONE_SPREAD,
+    RIM_FLAT, RIM_ROUND, TONE_SPREAD,
 };
 use crate::palette;
 
@@ -149,7 +148,7 @@ pub struct ToonUniform {
     weather: Vec4,
 }
 
-/// Linear und auf ≥ 0 begrenzt: Spreizung und Lackierung behalten das Chroma und können aus dem sRGB-Raum fallen.
+/// Linear und auf ≥ 0 begrenzt: Spreizung und Lackierung der Lichter behalten das Chroma und können aus dem sRGB-Raum fallen.
 fn linear(color: Color) -> Vec4 {
     color.to_linear().to_vec4().max(Vec4::ZERO)
 }
@@ -164,21 +163,13 @@ fn spread(tones: [Color; 3]) -> [Color; 3] {
     })
 }
 
-/// Eine Farbe des Vertrags in der Lackierung der Gegner: Rumpf- und Panzertöne gedreht und entsättigt, Lichter im
-/// Farbton der Gegnerfarbe.
-pub fn livery(color: Color, light: bool) -> Color {
+/// Ein Licht in der Lackierung der Gegner: im Farbton der Gegnerfarbe; die Rumpftöne bleiben, wie sie sind.
+pub fn livery(color: Color) -> Color {
     let tone = Oklcha::from(color);
     let enemy = Oklcha::from(palette::ENEMY);
-    if light {
-        tone.with_hue(enemy.hue)
-            .with_chroma(tone.chroma + (enemy.chroma - tone.chroma) * LIVERY_ACCENT)
-            .into()
-    } else {
-        tone.rotate_hue(LIVERY_HUE)
-            .with_chroma(tone.chroma * LIVERY_CHROMA + LIVERY_CHROMA_BASE)
-            .with_lightness(tone.lightness * LIVERY_LIGHTNESS)
-            .into()
-    }
+    tone.with_hue(enemy.hue)
+        .with_chroma(tone.chroma + (enemy.chroma - tone.chroma) * LIVERY_ACCENT)
+        .into()
 }
 
 impl From<&ToonMaterial> for ToonUniform {
@@ -190,14 +181,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 round,
                 glint,
             } => (
-                spread(tones.map(|tone| {
-                    if material.livery {
-                        livery(tone.0, false)
-                    } else {
-                        tone.0
-                    }
-                }))
-                .map(linear),
+                spread(tones.map(|tone| tone.0)).map(linear),
                 true,
                 *glint,
                 1.0,
@@ -215,7 +199,7 @@ impl From<&ToonMaterial> for ToonUniform {
             ToonSpec::Light { color, glow } => {
                 let color = match (material.ghost, material.livery) {
                     (true, _) => GHOST_LIGHT,
-                    (false, true) => livery(color.0, true),
+                    (false, true) => livery(color.0),
                     (false, false) => color.0,
                 };
                 let glow = if *glow { GLOW_BOOST } else { 1.0 };
@@ -343,14 +327,10 @@ mod tests {
         assert!(ToonSpec::from_extras(r#"{"other": 1}"#).is_none());
     }
 
-    /// Die Lackierung dreht Blaugrau zu einem warmen Ton, wenig gesättigt und nicht heller; Lichter in Gegnerfarbe.
+    /// Die Lackierung färbt Lichter in der Gegnerfarbe.
     #[test]
-    fn livery_shifts_hull_tones() {
-        let hull = Oklcha::from(Color::srgb_u8(0x56, 0x65, 0x7a));
-        let painted = Oklcha::from(livery(hull.into(), false));
-        assert!(painted.hue < 120.0 || painted.hue > 330.0, "{painted:?}");
-        assert!(painted.chroma < 0.06 && painted.lightness <= hull.lightness + 1e-4);
-        let light = Oklcha::from(livery(Color::srgb(0.3, 0.6, 1.0), true));
+    fn livery_tints_lights() {
+        let light = Oklcha::from(livery(Color::srgb(0.3, 0.6, 1.0)));
         let enemy = Oklcha::from(palette::ENEMY);
         assert!((light.hue - enemy.hue).abs() < 1.0);
     }

@@ -52,14 +52,8 @@ pub const SCORCHED: Vec4 = Vec4::new(0.02, 0.014, 0.01, 0.72);
 /// bewährt es sich, wandert es nach `tones()` in `tools/ships/palette.py` und fällt hier weg.
 pub const TONE_SPREAD: f32 = 1.4;
 
-/// Lackierung der Gegner mit den alten Rümpfen (nur im Client, ohne Gegenstück in `look.py`): In Oklch dreht sich der
-/// Farbton der Rumpf- und Panzerfarben um so viel Grad, ihr Chroma schrumpft auf diesen Anteil plus einen Sockel (auch
-/// graue Flächen bekommen einen Stich) und die Helligkeit auf diesen Anteil; aus Blaugrau wird Rost und Oliv, aus Koralle
-/// Schiefer. Lichter nehmen den Farbton der Gegnerfarbe an, ihr Chroma rückt um diesen Anteil zu deren Chroma.
-pub const LIVERY_HUE: f32 = 170.0;
-pub const LIVERY_CHROMA: f32 = 0.85;
-pub const LIVERY_CHROMA_BASE: f32 = 0.02;
-pub const LIVERY_LIGHTNESS: f32 = 1.0;
+/// Lackierung der Gegner mit den alten Rümpfen (nur im Client, ohne Gegenstück in `look.py`): Lichter nehmen den
+/// Farbton der Gegnerfarbe an, ihr Chroma rückt um diesen Anteil zu deren Chroma; die Rumpftöne bleiben.
 pub const LIVERY_ACCENT: f32 = 0.7;
 
 #[cfg(test)]
