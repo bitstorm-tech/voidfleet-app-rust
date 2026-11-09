@@ -93,6 +93,11 @@ const ICONS: &[(&str, &str)] = &[
         "silenced",
         r#"<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M19.1 4.9C23 8.8 23 15.1 19.1 19M3 3l18 18" /><circle cx="12" cy="12" r="2" />"#,
     ),
+    // Deckung (Lucide „brick-wall“).
+    (
+        "cover",
+        r#"<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 9v6M16 15v6M16 3v6M3 15h18M3 9h18M8 15v6M8 3v6" />"#,
+    ),
 ];
 
 /// Gefüllte Icons.

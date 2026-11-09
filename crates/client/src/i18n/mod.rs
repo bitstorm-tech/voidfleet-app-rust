@@ -123,6 +123,8 @@ pub enum Condition {
     Emergency,
     Stasis,
     Silenced,
+    /// Gedeckt: Ein Vordermann fängt die Hälfte ab.
+    Covered,
 }
 
 /// Alle sichtbaren Texte einer Sprache.

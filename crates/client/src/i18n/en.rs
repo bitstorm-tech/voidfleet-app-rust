@@ -769,6 +769,7 @@ impl Messages for En {
             Condition::Emergency => "Emergency".to_owned(),
             Condition::Stasis => "Stasis".to_owned(),
             Condition::Silenced => "Silenced".to_owned(),
+            Condition::Covered => "Cover".to_owned(),
         }
     }
 
@@ -801,6 +802,9 @@ impl Messages for En {
             }
             Condition::Stasis => "Does not act this round.",
             Condition::Silenced => "Holds fire and skips its special action this round.",
+            Condition::Covered => {
+                "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
+            }
         }
     }
 

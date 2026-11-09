@@ -782,6 +782,7 @@ impl Messages for De {
             Condition::Emergency => "Notfall".to_owned(),
             Condition::Stasis => "Stillstand".to_owned(),
             Condition::Silenced => "Funkstille".to_owned(),
+            Condition::Covered => "Deckung".to_owned(),
         }
     }
 
@@ -817,6 +818,9 @@ impl Messages for De {
             }
             Condition::Stasis => "Handelt in dieser Runde nicht.",
             Condition::Silenced => "Feuert in dieser Runde nicht und setzt seine Sonderaktion aus.",
+            Condition::Covered => {
+                "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
+            }
         }
     }
 

@@ -108,6 +108,7 @@ fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
         Condition::Emergency => icons.emergency.clone(),
         Condition::Stasis => icons.stasis.clone(),
         Condition::Silenced => icons.silenced.clone(),
+        Condition::Covered => icons.cover.clone(),
     };
     Glyph {
         icon,

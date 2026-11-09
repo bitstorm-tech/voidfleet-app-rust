@@ -110,8 +110,9 @@ struct Wanted {
 }
 
 /// Zustände einer gegnerischen Einheit als Icons (der Brand kommt mit seiner Zahl eigens).
-fn enemy_conditions(enemy: &Enemy) -> Vec<Condition> {
+fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
     [
+        (battle.covered(enemy.uid), Condition::Covered),
         (enemy.emergency(), Condition::Emergency),
         (enemy.stasis, Condition::Stasis),
         (enemy.silenced, Condition::Silenced),
@@ -149,7 +150,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                     intent: Some(first),
                     next: clockwork.then_some(second),
                     burning: enemy.burning.then(|| battle.burn_damage(enemy.unit())),
-                    conditions: enemy_conditions(enemy),
+                    conditions: enemy_conditions(battle, enemy),
                     preview: preview_text(enemy.uid),
                 },
                 aura: ShipAura {

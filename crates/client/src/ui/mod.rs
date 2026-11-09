@@ -122,6 +122,7 @@ pub struct UiIcons {
     pub emergency: Handle<Image>,
     pub stasis: Handle<Image>,
     pub silenced: Handle<Image>,
+    pub cover: Handle<Image>,
 }
 
 impl FromWorld for UiIcons {
@@ -150,6 +151,7 @@ impl FromWorld for UiIcons {
                 emergency: icon("emergency"),
                 stasis: icon("stasis"),
                 silenced: icon("silenced"),
+                cover: icon("cover"),
             }
         })
     }
