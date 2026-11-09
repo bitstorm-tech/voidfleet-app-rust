@@ -7,7 +7,7 @@
 //!   jedem Schiff Absicht und Zustände ([`ShipCaption`]);
 //! - der Geist des Flaggschiffs ([`Ghost`]) in der Spalte aus [`BoardFocus`] (unter dem Zeiger, solange die Wahl eine
 //!   Spalte braucht);
-//! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), Ausweichen als Marke, der Schild im
+//! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), der Schild im
 //!   Balken; Brand, Notfall, Stillstand und Funkstille dazu als Icons in der Beschriftung.
 //!
 //! Der Controller schaltet nach jeder Aktion auf [`BoardMode::Playback`]; dann gehört die Szene der Wiedergabe, die
@@ -26,7 +26,6 @@ use super::{
     board::{BoardEntities, OnSlot, place},
     coords::{Side, SlotRef},
     labels::ShipCaption,
-    markers::{MarkerKind, MarkerSpec, ShipMarkers},
     ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
 };
@@ -36,7 +35,6 @@ use crate::{
     data::ship_models::{ShipKind, ShipModels},
     game::Battle,
     i18n::{Condition, Locale, Messages},
-    palette,
     playback::PlayEvents,
 };
 
@@ -108,7 +106,6 @@ struct Wanted {
     stats: UnitStats,
     max_hull: i32,
     caption: ShipCaption,
-    evading: bool,
     aura: ShipAura,
 }
 
@@ -155,7 +152,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                     conditions: enemy_conditions(enemy),
                     preview: preview_text(enemy.uid),
                 },
-                evading: enemy.is_evading(),
                 aura: ShipAura {
                     burning: enemy.burning,
                     charged: enemy.charged,
@@ -184,7 +180,6 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 preview: preview_text(0),
                 ..default()
             },
-            evading: false,
             aura: ShipAura {
                 burning: flagship.burning,
                 ..default()
@@ -223,7 +218,6 @@ pub fn sync_ships(
         &Ship,
         &OnSlot,
         &mut ShipStatus,
-        &mut ShipMarkers,
         Option<&mut ShipCaption>,
         Option<&mut ShipAura>,
     )>,
@@ -231,7 +225,7 @@ pub fn sync_ships(
     let wanted = battle.map_or_else(Vec::new, |battle| wanted_ships(&battle, &**locale, &focus));
     let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
     let mut kept = Vec::new();
-    for (entity, ship, on, mut status, mut markers, caption, aura) in &mut ships {
+    for (entity, ship, on, mut status, caption, aura) in &mut ships {
         let Some(want) = wanted
             .iter()
             .find(|want| want.uid == ship.uid && want.kind == ship.kind)
@@ -251,7 +245,6 @@ pub fn sync_ships(
             doomed: preview.is_some_and(|(_, lethal)| lethal),
             ..status.with_shield(want.stats.shield)
         });
-        markers.set_if_neq(ship_markers(want));
         match aura {
             Some(mut aura) => {
                 aura.set_if_neq(want.aura);
@@ -278,7 +271,6 @@ pub fn sync_ships(
                 uid: want.uid,
             },
             ShipStatus::new(want.stats.hull, want.max_hull, want.stats.shield),
-            ship_markers(want),
             want.caption.clone(),
             want.aura,
         ));
@@ -323,16 +315,6 @@ fn clear_ghost(mut commands: Commands, ghosts: Query<Entity, With<Ghost>>) {
     for ghost in &ghosts {
         commands.entity(ghost).despawn();
     }
-}
-
-/// Die Marke einer ausweichenden Einheit.
-fn ship_markers(want: &Wanted) -> ShipMarkers {
-    ShipMarkers(
-        want.evading
-            .then(|| MarkerSpec::new(MarkerKind::Evading, palette::ENEMY))
-            .into_iter()
-            .collect(),
-    )
 }
 
 /// Die Wiedergabe übernimmt: Die Vorschau geht.

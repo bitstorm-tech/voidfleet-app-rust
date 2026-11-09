@@ -35,7 +35,6 @@ use crate::{
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
         labels::ShipCaption,
-        markers::{DropMarker, MarkerKind, MarkerSpec},
         motion::{Arrive, Charge, HitFlash, MoveShip, Withdraw},
         ship::{AimedHull, Ship, ShipModel, Wreck, spawn_ship},
         status::ShipStatus,
@@ -187,7 +186,6 @@ pub(super) enum Job {
     Hide,
     Burning(bool),
     Charged(bool),
-    Mark(MarkerKind, Color),
     /// Die Absichten über dem Schiff.
     Caption {
         intent: Option<Intent>,
@@ -668,13 +666,6 @@ impl Stage<'_, '_> {
                 }
                 self.commands.entity(ship).insert(aura);
             }
-            Job::Mark(kind, color) => self.await_job(
-                script_entity,
-                DropMarker {
-                    ship,
-                    spec: MarkerSpec::new(kind, color),
-                },
-            ),
             Job::Caption { intent, next } => {
                 if let Ok(mut caption) = self.captions.get_mut(ship) {
                     caption.intent = intent;

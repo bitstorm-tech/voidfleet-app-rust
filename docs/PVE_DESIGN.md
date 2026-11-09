@@ -260,12 +260,12 @@ Was ein Gegner in seinem Zug tun kann, und was der Spieler dagegen hat:
 | **Spaltenfeuer**      | Torpedo-Staffel, Belagerer, Wächter | trifft, was im Gegnerzug in der angesagten Spalte steht                                   | Manöver, Kurzsprung, die Aufladung brechen            |
 | **Rammkurs**          | Brander                             | fester Schaden, der Brander ist danach weg                                                | vorher fällen, Kurzsprung                             |
 | **Schilde**           | Wachkreuzer, Belagerer, Wächter     | schluckt Schaden bis zum Ende des nächsten Spielerzugs                                    | abwarten, EMP-Stoß, ein anderes Ziel                  |
-| **Ausweichen**        | Jäger, Kreuzer                      | halbiert die Schüsse des Spielers auf diese Einheit bis zum Ende des nächsten Spielerzugs | Torpedo, Railgun, Fokusfeuer, Sperrfeuer, Wärmesucher |
+| **Ausweichen**        | Jäger, Kreuzer                      | gilt ab der Ansage: halbiert die Schüsse des Spielers in diesem Spielerzug, feuert nicht  | Torpedo, Railgun, Fokusfeuer, Sperrfeuer, Wärmesucher |
 | **Aufladen**          | Schlachtschiffe                     | feuert nicht, nächste Runde doppelte ATK                                                  | EMP-Stoß, Funkstille, Stillstand, vorher fällen       |
 | **Zielerfassung**     | Spotter                             | alle gegnerischen Schüsse +1 ATK, solange er steht                                        | den Spotter fällen, Traktorstrahl, Funkstille         |
 | **Verstärkung rufen** | Trägerschiff, Schrottkönig          | eine neue Einheit trifft im nächsten Gegnerzug ein                                        | den Rufer fällen, Funkstille                          |
 
-Gegner manövrieren nicht, reparieren nicht und spielen keine Karten. Ein Gegner, der eintrifft, sagt sofort seine erste Absicht an und handelt in der nächsten Runde. Ausweichen und Schilde eines Gegners sind als Zustand an ihm zu sehen, solange sie gelten.
+Gegner manövrieren nicht, reparieren nicht und spielen keine Karten. Ein Gegner, der eintrifft, sagt sofort seine erste Absicht an und handelt in der nächsten Runde. Ausweichen ist die eine Absicht, die schon mit der Ansage gilt und mit ihr endet; alle anderen wirken erst im Gegnerzug. Ausweichen und Schilde eines Gegners sind als Zustand an ihm zu sehen, solange sie gelten.
 
 ### Muster
 

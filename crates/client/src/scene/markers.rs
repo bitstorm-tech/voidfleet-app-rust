@@ -1,6 +1,6 @@
-//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): kreisende Drohnen unter einer
-//! ausweichenden Einheit; die übrigen Glyphen (Fadenkreuz mit Rauten, Stacheln, Zielklammern, Uhr, Leuchtring,
-//! Bereitschaft) stehen für die erzählte Wiedergabe bereit.
+//! Leuchtende Marken am Boden unter einem Schiff (Port von `scene/markers.ts`): Fadenkreuz mit Rauten, Stacheln,
+//! Zielklammern, Uhr, Leuchtring, Bereitschaft. Das Gefecht legt derzeit keine; sie stehen für die erzählte
+//! Wiedergabe bereit und liegen in der Probe.
 //!
 //! Welche Marken ein Schiff trägt, steht in [`ShipMarkers`]; eine Marke, die schon liegt, bleibt liegen, damit ihre
 //! Drehung nicht springt. In der Wiedergabe fällt eine neue Marke mit [`DropMarker`] auf das Schiff herab. Jede Marke
@@ -14,7 +14,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use super::{
     animation::{Animation, AnimationSystems},
     fx::{FxAssets, FxMaterial, glowing},
-    paint::{Canvas, around, dashed_ring, disc, polygon, rect, ring, unrotate},
+    paint::{Canvas, around, dashed_ring, polygon, rect, ring, unrotate},
     status::{ShipBounds, ShipParts},
 };
 
@@ -29,8 +29,6 @@ pub enum MarkerKind {
     Ready,
     Counterfire,
     FocusFire,
-    /// Die Einheit weicht aus.
-    Evading,
     HeadStart,
 }
 
@@ -50,7 +48,6 @@ impl MarkerKind {
             ),
             Self::Counterfire => (0.6, 0.9, const { &[layer(Spikes, 0.35, STILL)] }),
             Self::FocusFire => (0.6, 0.95, const { &[layer(Brackets, 0.0, (1.6, 0.05))] }),
-            Self::Evading => (0.6, 0.9, const { &[layer(Swarm, 1.3, STILL)] }),
             Self::HeadStart => (
                 0.6,
                 0.9,
@@ -126,7 +123,6 @@ enum Glyph {
     LockRing,
     Spikes,
     Brackets,
-    Swarm,
     Clock,
     ClockHand,
     Beacon,
@@ -135,12 +131,11 @@ enum Glyph {
 }
 
 impl Glyph {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 9] = [
         Self::Lock,
         Self::LockRing,
         Self::Spikes,
         Self::Brackets,
-        Self::Swarm,
         Self::Clock,
         Self::ClockHand,
         Self::Beacon,
@@ -274,20 +269,6 @@ fn draw(glyph: Glyph) -> Image {
                 around(4, move |point| a(point) || b(point) || tick(point)),
             );
             canvas.fill(white, ring(0.9, 0.02));
-        }
-        Glyph::Swarm => {
-            canvas.fill(white, |point| {
-                (0..40).any(|index| {
-                    let angle = spin(index, 40);
-                    disc(p(angle.cos() * 0.86, angle.sin() * 0.86), 0.014)(point)
-                })
-            });
-            let drone = polygon(
-                [p(-0.13, -0.08), p(0.12, 0.0), p(-0.13, 0.08), p(-0.07, 0.0)]
-                    .map(|corner| corner + p(0.0, -0.86))
-                    .to_vec(),
-            );
-            canvas.fill(white, around(6, drone));
         }
         Glyph::Clock => {
             canvas.fill(white, ring(0.9, 0.03));

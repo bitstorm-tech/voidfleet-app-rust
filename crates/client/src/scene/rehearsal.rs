@@ -20,13 +20,12 @@ use super::{
 use crate::{assets::AppState, data::ship_models::ShipModels, palette};
 
 /// Alle Marken, reihum auf die Schiffe verteilt.
-const MARKERS: [MarkerKind; 7] = [
+const MARKERS: [MarkerKind; 6] = [
     MarkerKind::Lock,
     MarkerKind::Taunt,
     MarkerKind::Ready,
     MarkerKind::Counterfire,
     MarkerKind::FocusFire,
-    MarkerKind::Evading,
     MarkerKind::HeadStart,
 ];
 

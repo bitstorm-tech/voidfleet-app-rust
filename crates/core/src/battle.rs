@@ -150,7 +150,6 @@ pub struct Enemy {
     pub max_hull: i32,
     pub burning: bool,
     pub shield: i32,
-    pub evading: bool,
     pub charged: bool,
     pub intents: [Action; 2],
     pub step: u32,
@@ -167,9 +166,10 @@ impl Enemy {
         self.hull * 4 <= self.max_hull
     }
 
-    /// Im Notfall weicht ein Gegner nicht mehr aus.
+    /// Ausweichen gilt in der Runde, in der es angesagt ist, schon im Spielerzug; im Notfall weicht ein Gegner nicht
+    /// mehr aus.
     pub fn is_evading(&self) -> bool {
-        self.evading && !self.emergency()
+        self.intents[0] == Action::Evade && !self.emergency()
     }
 
     pub fn unit(&self) -> UnitRef {
@@ -1084,7 +1084,6 @@ impl Battle {
     fn enemy_turn(&mut self, events: &mut Vec<BattleEvent>) {
         for enemy in &mut self.enemies {
             enemy.shield = 0;
-            enemy.evading = false;
         }
         if self.flagship.battle_stations > 0 {
             self.shield_flagship(self.flagship.battle_stations, events);
@@ -1160,9 +1159,8 @@ impl Battle {
                         after: enemy.stats(),
                     });
                 }
-                Action::Evade => self.enemies[i].evading = true,
                 Action::Charge => self.enemies[i].charged = true,
-                Action::TargetLock => {}
+                Action::Evade | Action::TargetLock => {}
                 Action::Call(unit) => {
                     self.reinforcements.push(Reinforcement {
                         round: round + 1,
@@ -1365,7 +1363,6 @@ impl Battle {
             max_hull,
             burning: false,
             shield: 0,
-            evading: false,
             charged: false,
             intents: [id.action(0, column), id.action(1, column)],
             step: 2,

@@ -212,7 +212,7 @@ fn damage_order_with_evade_armor_cover_and_shield() {
     );
     let besieger = uid(&b, EnemyId::Besieger);
     let cruiser = uid(&b, EnemyId::GuardCruiser);
-    unit(&mut b, EnemyId::Besieger).evading = true;
+    unit(&mut b, EnemyId::Besieger).intents[0] = Action::Evade;
     unit(&mut b, EnemyId::Besieger).shield = 1;
     unit(&mut b, EnemyId::GuardCruiser).shield = 2;
     assert!(b.covered(besieger));
@@ -292,11 +292,12 @@ fn emergency_halves_attack_and_ends_evade() {
     let cruiser = uid(&b, EnemyId::GuardCruiser);
     let enemy = unit(&mut b, EnemyId::GuardCruiser);
     enemy.hull = 4;
-    enemy.evading = true;
     let enemy = b.enemy(cruiser).unwrap().clone();
-    assert!(enemy.emergency() && !enemy.is_evading());
     assert_eq!(b.enemy_attack(&enemy), 2);
     assert_eq!(b.announced(cruiser)[0].damage, 2);
+    let enemy = unit(&mut b, EnemyId::GuardCruiser);
+    enemy.intents[0] = Action::Evade;
+    assert!(enemy.emergency() && !enemy.is_evading());
 
     b.flagship.hull = 12;
     assert_eq!(b.flagship_attack(), 6);
@@ -780,8 +781,13 @@ fn raiders_evade_after_hit() {
     b.enemies[0].max_hull = 20;
     b.run_station(Station::Weapons, Target::Enemy(uid(&b, EnemyId::Raiders)))
         .unwrap();
+    assert!(!b.enemies[0].is_evading());
     b.end_turn();
+    // Angesagt heißt aktiv: Die Staffel weicht schon in diesem Spielerzug aus, im nächsten nicht mehr.
     assert_eq!(b.enemies[0].intents[0], Action::Evade);
+    assert!(b.enemies[0].is_evading());
+    b.end_turn();
+    assert!(!b.enemies[0].is_evading());
 }
 
 #[test]

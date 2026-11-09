@@ -32,7 +32,7 @@ use crate::{
     palette::{self, admiral_color},
     scene::{
         animation::AnimationScope, effects::FIRE_FLASH, effects::HitVariant,
-        floating_text::FloatTone, markers::MarkerKind,
+        floating_text::FloatTone,
     },
     ui::{ShowBanner, round_log::describe_event},
 };
@@ -540,15 +540,12 @@ impl Planner<'_> {
                     .then([Cue::Unit(unit, Job::Charge(Spot::Unit(UnitRef::Flagship)))])
                     .and(fire(Weapon::Contact(HitVariant::Fireball)));
             }
-            Action::Evade => vec![
-                Cue::Fx(Fx::Pulse {
-                    at: actor,
-                    color: palette::PLAYER,
-                    size: 1.6,
-                    duration: 0.35,
-                }),
-                Cue::Unit(unit, Job::Mark(MarkerKind::Evading, palette::ENEMY)),
-            ],
+            Action::Evade => vec![Cue::Fx(Fx::Pulse {
+                at: actor,
+                color: palette::PLAYER,
+                size: 1.6,
+                duration: 0.35,
+            })],
             Action::Charge => vec![
                 Cue::Fx(Fx::Pulse {
                     at: actor,
