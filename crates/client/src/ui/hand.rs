@@ -4,7 +4,8 @@
 //! überlappen sich; die Karte unter dem Zeiger wächst und liegt oben. Karten, die mehr kosten, als Befehlspunkte
 //! übrig sind, sind gedimmt.
 //!
-//! Karten werden nur neu aufgebaut, wenn sich die Hand ändert; neu gezogene fliegen dabei nacheinander ein. Ein Klick
+//! Karten werden nur neu aufgebaut, wenn sich die Hand ändert; neu gezogene fliegen dabei nacheinander ein. Nach dem
+//! Zugende ist die Reihe leer, die neue Hand kommt erst, wenn Gegnerzug und Auflösung abgespielt sind. Ein Klick
 //! meldet [`HandCardPressed`] mit dem Hand-Index; die gewählte Karte zeigt der Rahmen ([`Marked`]).
 
 use bevy::{
@@ -19,7 +20,7 @@ use super::{
     stations, theme,
     theme::UiOpacity,
 };
-use crate::{assets::AppState, game::Battle, i18n::Locale, palette};
+use crate::{assets::AppState, game::Battle, i18n::Locale, palette, playback::PlaybackFinished};
 
 /// Breite einer Karte auf der Hand, Abstand zweier Karten (logische Pixel).
 const CARD: f32 = CARD_WIDTH * HAND_ZOOM;
@@ -52,7 +53,16 @@ struct HandStack(Vec<usize>);
 
 /// Was die Reihe gerade zeigt; nur eine Änderung baut sie neu.
 #[derive(Resource, Default, PartialEq)]
-struct ShownHand(Vec<DeckCard>);
+struct ShownHand {
+    cards: Vec<DeckCard>,
+    /// Die Runde, zu der die Karten gehören; 0 ohne Gefecht.
+    round: u32,
+}
+
+/// Die neue Runde ist gerechnet, aber noch nicht abgespielt: Die alte Hand ist abgeworfen, die neue wartet.
+fn awaits_playback(shown_round: u32, round: u32, played: bool) -> bool {
+    shown_round != 0 && round != shown_round && !played
+}
 
 fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
     let pile = |kind: PileText, font: TextFont, color: Color| {
@@ -236,14 +246,26 @@ fn rebuild_row(
     mut shown: ResMut<ShownHand>,
     assets: CardAssets,
     row: Single<Entity, With<HandRow>>,
+    mut finished: MessageReader<PlaybackFinished>,
 ) {
-    let next = ShownHand(battle.map_or_else(Vec::new, |battle| battle.hand.clone()));
+    let played = finished.read().count() > 0;
+    let next = match battle {
+        None => ShownHand::default(),
+        Some(battle) if awaits_playback(shown.round, battle.round, played) => ShownHand {
+            cards: Vec::new(),
+            round: shown.round,
+        },
+        Some(battle) => ShownHand {
+            cards: battle.hand.clone(),
+            round: battle.round,
+        },
+    };
     if *shown == next && !assets.locale.is_changed() {
         return;
     }
-    let drawn = drawn_indices(&shown.0, &next.0);
+    let drawn = drawn_indices(&shown.cards, &next.cards);
     commands.entity(*row).despawn_related::<Children>();
-    for (card, indices) in stacks_of(&next.0) {
+    for (card, indices) in stacks_of(&next.cards) {
         let mut entity = commands.spawn((
             command_card(&assets, card, HAND_ZOOM),
             HandStack(indices.clone()),
@@ -361,6 +383,14 @@ mod tests {
     use voidfleet_core::cards::CardId;
 
     use super::*;
+
+    #[test]
+    fn new_hand_waits_for_the_playback() {
+        assert!(awaits_playback(1, 2, false));
+        assert!(!awaits_playback(1, 2, true));
+        assert!(!awaits_playback(1, 1, false));
+        assert!(!awaits_playback(0, 1, false));
+    }
 
     #[test]
     fn stacks_keep_first_position() {

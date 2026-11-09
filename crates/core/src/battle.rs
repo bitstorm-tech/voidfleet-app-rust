@@ -1290,10 +1290,6 @@ impl Battle {
             });
         }
 
-        self.discard_pile.append(&mut self.hand);
-        self.draw(self.hand_size(), events);
-        self.points = COMMAND_POINTS;
-
         let column = self.flagship.column;
         for enemy in &mut self.enemies {
             if !enemy.stasis && !enemy.arrived {
@@ -1311,6 +1307,10 @@ impl Battle {
         for uid in self.uids() {
             self.push_intents(uid, events);
         }
+
+        self.discard_pile.append(&mut self.hand);
+        self.draw(self.hand_size(), events);
+        self.points = COMMAND_POINTS;
     }
 
     /// Was ein Brand der Einheit je Auflösung kostet; 0, wenn er nicht tickt (Brandschutz).
