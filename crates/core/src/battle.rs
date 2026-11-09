@@ -1,5 +1,5 @@
 //! Das Gefecht: ein Flaggschiff gegen die gegnerische Flotte, Runde für Runde aus Spielerzug, Gegnerzug und Auflösung
-//! (Entwurf Abschnitte 2 bis 9 und 12). Im Spielerzug wirkt alles sofort; jeder Schritt liefert seine Ereignisse.
+//! (`docs/gefecht.md`). Im Spielerzug wirkt alles sofort; jeder Schritt liefert seine Ereignisse.
 //! Die Vorschau rechnet auf einer Kopie, also genau wie die Ausführung.
 
 use rand::SeedableRng;
@@ -843,7 +843,7 @@ impl Battle {
 
     // --- Schaden ---
 
-    /// Schuss auf eine gegnerische Einheit: Ausweichen, Panzerung, Deckung, Schild (Entwurf Abschnitt 3).
+    /// Schuss auf eine gegnerische Einheit: Ausweichen, Panzerung, Deckung, Schild (`docs/gefecht.md`).
     fn shoot(&mut self, uid: u32, shot: Shot, events: &mut Vec<BattleEvent>) {
         let Some(i) = self.index(uid) else { return };
         let enemy = &self.enemies[i];

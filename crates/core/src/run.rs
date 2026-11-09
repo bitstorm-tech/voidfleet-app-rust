@@ -1,4 +1,4 @@
-//! Der Run (Entwurf Abschnitte 11 und 12): drei Sektoren mit je einer Sternenkarte, die Gefechte gegen die Verbände
+//! Der Run (`docs/run.md`, `docs/gegner.md`): drei Sektoren mit je einer Sternenkarte, die Gefechte gegen die Verbände
 //! des Sektors, Beute, Werft, Schwarzmarkt und Ereignisse. Der Zustand liegt in öffentlichen Feldern, jeder Schritt
 //! ist eine Methode, die eine ungültige Wahl mit [`RunError`] ablehnt. Der Zufall hängt nur an `seed` und `rolls`,
 //! also ist ein Run mit Seed wiederholbar und nach dem Laden derselbe.

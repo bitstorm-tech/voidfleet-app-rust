@@ -85,7 +85,7 @@ fn enemy_ref(uid: u32) -> UnitRef {
     }
 }
 
-/// Entwurf Abschnitt 10: Runde 3, Vanguard 38/50 mit Vorstoß +2, Belagerer aufgeladen, Plünderer hinten links.
+/// `docs/beispielrunde.md`: Runde 5, Vanguard 38/50 mit Vorstoß +2, Belagerer aufgeladen, Plünderer hinten links.
 fn example_round() -> Battle {
     let mut b = battle(
         AdmiralId::Vance,
@@ -94,7 +94,7 @@ fn example_round() -> Battle {
             (EnemyId::Raiders, Row::Back, 0),
         ],
     );
-    b.round = 3;
+    b.round = 5;
     b.flagship.hull = 38;
     b.flagship.momentum = 2;
     give(
@@ -111,7 +111,7 @@ fn example_round() -> Battle {
     besieger.hull = 22;
     besieger.charged = true;
     besieger.intents = [Action::ColumnFire { columns: MID }, Action::Shields(10)];
-    besieger.step = 3;
+    besieger.step = 6;
     b
 }
 
@@ -168,7 +168,7 @@ fn example_round_hammer() {
     assert_eq!(b.flagship.hull, 31);
     assert_eq!(b.flagship.momentum, 3);
     assert_eq!(b.enemy(raiders).unwrap().intents[0], Action::Fire);
-    assert_eq!((b.round, b.result), (4, None));
+    assert_eq!((b.round, b.result), (6, None));
 }
 
 #[test]

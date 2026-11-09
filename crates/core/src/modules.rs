@@ -1,4 +1,4 @@
-//! Module: dauerhafte Passiva des Runs (Entwurf Abschnitt 11). Das Gefecht wertet aus, was im Gefecht wirkt;
+//! Module: dauerhafte Passiva des Runs (`docs/run.md`). Das Gefecht wertet aus, was im Gefecht wirkt;
 //! Kampfsimulator und Verstärkte Spanten wertet der Run aus, den Schrott des Bergungskrans auch (aus den Abschüssen).
 
 use serde::{Deserialize, Serialize};

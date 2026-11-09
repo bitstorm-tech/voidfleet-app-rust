@@ -1,4 +1,4 @@
-//! Die Gegner (Entwurf Abschnitt 12): Werte und Muster. Jedes Muster ist eine feste Aktionsfolge, die das Gefecht
+//! Die Gegner (`docs/gegner.md`): Werte und Muster. Jedes Muster ist eine feste Aktionsfolge, die das Gefecht
 //! Schritt für Schritt ansagt ([`EnemyId::action`]); was eine Aktion im Gegnerzug anrichtet, rechnet `battle`.
 
 use serde::{Deserialize, Serialize};

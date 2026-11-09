@@ -1,4 +1,4 @@
-//! Das Regelwerk von Voidfleet: ein Flaggschiff gegen die gegnerische Flotte (`docs/PVE_DESIGN.md`).
+//! Das Regelwerk von Voidfleet: ein Flaggschiff gegen die gegnerische Flotte (Regeln in `docs/`).
 //!
 //! - [`board`]: Reihen, Spalten und Slots.
 //! - [`cards`]: das Befehlsdeck samt Aufwertungen und Startdecks.

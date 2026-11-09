@@ -1,4 +1,4 @@
-//! Die erzählte Wiedergabe des Gefechts (Entwurf Abschnitt 9, „Der Gefechtsbericht“): Jede Aktion läuft sichtbar ab,
+//! Die erzählte Wiedergabe des Gefechts (`docs/inszenierung.md`): Jede Aktion läuft sichtbar ab,
 //! bevor die Szene den neuen Zustand übernimmt. Der Spielerzug zeigt Schuss, Einschlag und Zahl und gibt sofort zurück;
 //! `end_turn` erzählt Zugende, Gegnerzug und Auflösung Ereignis für Ereignis.
 //!

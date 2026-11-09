@@ -1,4 +1,4 @@
-//! Die vier Admirale (Entwurf Abschnitt 7): Flaggschiff mit Hülle und ATK, Waffe, Passiv, Admiralsstation und
+//! Die vier Admirale (`docs/admirale.md`): Flaggschiff mit Hülle und ATK, Waffe, Passiv, Admiralsstation und
 //! Kennkarte. Die Passiva wertet das Gefecht aus: Vorstoß (Vance), Uhrwerk (Kerr, zeigt der Client), Glutkern
 //! (Reyes), dazu die Waffen Railgun (Kerr) und Plasmawerfer (Reyes).
 

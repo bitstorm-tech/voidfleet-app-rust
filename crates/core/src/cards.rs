@@ -1,4 +1,4 @@
-//! Das Befehlsdeck: 26 Karten, die nur der Spieler spielt (Entwurf Abschnitt 8). Jede Karte hat eine aufgewertete
+//! Das Befehlsdeck: 26 Karten, die nur der Spieler spielt (`docs/karten.md`). Jede Karte hat eine aufgewertete
 //! Fassung: Angriffskarten und Schild- oder Reparaturwerte +2, alle anderen kosten einen Befehlspunkt weniger.
 //! Namen und Effekttexte liegen im Client.
 

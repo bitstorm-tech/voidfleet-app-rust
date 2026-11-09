@@ -1,7 +1,7 @@
 # Regelwerk (`voidfleet-core`)
 
 - `cargo test -p voidfleet-core`, `cargo clippy -p voidfleet-core --all-targets -- -D warnings`. Abhängigkeiten nur `serde` und `rand`; kein I/O, keine Texte.
-- Die Regeln stehen in `docs/PVE_DESIGN.md` (Abschnitte 2 bis 12); dieses Crate setzt das Gefecht und den Run (Abschnitte 11 und 12) um; der Client zeichnet, speichert und spielt ihn ab.
+- Die Regeln stehen in `docs/` (`gefecht.md`, `admirale.md`, `karten.md`, `gegner.md`, `run.md`); dieses Crate setzt das Gefecht und den Run um; der Client zeichnet, speichert und spielt ihn ab.
 - Ids sind Enums und serialisieren als `snake_case`; der Client leitet daraus Dateinamen ab und hält Namen und Effekttexte.
 
 ## Aufbau
@@ -14,7 +14,7 @@
 - `src/events.rs` — `BattleEvent` in Ausführungsreihenfolge; Einheiten als `UnitRef` samt Id und Slot, Treffer mit `Breakdown` (jede Zahl der Rechnung) und `UnitStats` danach. `Hit` ist ein Treffer der Vorschau, `Intent` eine Ansage samt live gerechnetem Schaden.
 - `src/battle.rs` — `Battle`, die eine Schnittstelle für den Client. Der Zustand liegt in öffentlichen Feldern (`flagship`, `enemies`, `hand`, Stapel, `points`, `kills`, `result` …), abgeleitete Werte über Methoden (`flagship_attack`, `flagship_armor`, `enemy_attack`, `announced`, `covered`, `clock`). Spielerzug: `place`, `station_open` (darf die Station in dieser Runde noch laufen), `station_target` (welches Ziel sie braucht, `CardTarget` wie bei Karten), `run_station(station, target)` und `play_card(hand_index, target)` (wirken sofort; ein Ziel, das nicht zur Art passt, nicht steht oder die eigene Spalte ist, ergibt `TargetInvalid`), `end_turn`; Vorschau `preview_station`/`preview_card` spielt auf einer Kopie, rechnet also genau wie die Ausführung.
 - `src/run.rs` — `Run`, der Run aus Sternenkarte, Verbänden, Beute, Werft, Schwarzmarkt und Ereignissen (Abschnitt „Run“ unten).
-- `tests/battle.rs` — die Beispielrunde aus Abschnitt 10 (beide Züge) und je ein Test für die übrigen Regeln. Zustände werden über `Battle::new` und direkte Felder aufgesetzt.
+- `tests/battle.rs` — die Beispielrunde aus `docs/beispielrunde.md` (beide Züge) und je ein Test für die übrigen Regeln. Zustände werden über `Battle::new` und direkte Felder aufgesetzt.
 
 ## Eine Runde
 

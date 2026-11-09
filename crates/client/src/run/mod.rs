@@ -1,4 +1,4 @@
-//! Der Run aus Sicht des Clients (Entwurf Abschnitt 11): die Ressource [`ActiveRun`] um [`voidfleet_core::run::Run`],
+//! Der Run aus Sicht des Clients (`docs/run.md`): die Ressource [`ActiveRun`] um [`voidfleet_core::run::Run`],
 //! was gerade zu sehen ist ([`Screen`]) und der Speicherstand ([`save`]). Die Regeln stehen im Core; hier wird nur
 //! gerufen, gespeichert und das Gefecht eines Knotens gestartet.
 //!

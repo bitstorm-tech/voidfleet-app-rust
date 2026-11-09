@@ -1,4 +1,4 @@
-//! Eine Einheit als Gruppe von Modellen (Entwurf Abschnitt 3, Spalte „Darstellung“): die Jäger-Staffel als fünf
+//! Eine Einheit als Gruppe von Modellen (`docs/gefecht.md`, Spalte „Darstellung“): die Jäger-Staffel als fünf
 //! kleine Modelle in 2-1-2, das Kreuzer-Paar als zwei mittlere nebeneinander, Schlachtschiff und Flaggschiffe als eins.
 //! Die Einheit bleibt ein [`Ship`] mit Balken und Beschriftung über der Gruppe; ihre Modelle sind [`Hull`]s unter der
 //! Gruppe ([`ShipModel`]).
