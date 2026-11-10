@@ -183,6 +183,8 @@ pub struct HudState {
     pub selected: Option<usize>,
     /// Die Station, die auf ihr Ziel wartet.
     pub station: Option<Station>,
+    /// Das Gewählte wartet auf ein gegnerisches Ziel; der Mauszeiger wird zum Fadenkreuz.
+    pub aiming: bool,
 }
 
 /// Eine Karte der Hand (Hand-Index) wurde angeklickt.

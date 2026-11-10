@@ -21,6 +21,7 @@
 pub mod selection;
 
 use bevy::{platform::collections::HashSet, prelude::*};
+use voidfleet_core::cards::CardTarget;
 
 pub use selection::{Outcome, Pick, Selection};
 
@@ -449,8 +450,13 @@ fn update_hud(
     mode: Res<State<BoardMode>>,
     mut hud: ResMut<HudState>,
 ) {
+    let planning = can_act(battle.as_deref(), *mode.get());
     hud.set_if_neq(HudState {
-        planning: can_act(battle.as_deref(), *mode.get()),
+        planning,
+        aiming: planning
+            && battle
+                .as_deref()
+                .is_some_and(|battle| selection.target_kind(battle) == CardTarget::Enemy),
         playing_back: *mode.get() == BoardMode::Playback,
         selected: match *selection {
             Selection::Card(index) => Some(index),

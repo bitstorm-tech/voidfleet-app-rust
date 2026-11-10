@@ -54,7 +54,7 @@ pub enum Outcome {
 
 /// Das Gewählte, Karte oder Station, mit einem Code: welches Ziel es braucht, was es dort träfe, welche Aktion es ist.
 impl Selection {
-    fn target_kind(self, battle: &Battle) -> CardTarget {
+    pub fn target_kind(self, battle: &Battle) -> CardTarget {
         match self {
             Self::Idle => CardTarget::None,
             Self::Card(index) => battle.hand[index].id.target(),

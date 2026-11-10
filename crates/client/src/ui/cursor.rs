@@ -1,5 +1,6 @@
-//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von zehn Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
-//! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster.
+//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von neun Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
+//! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster. Wartet eine Karte oder Station im Gefecht
+//! auf ein gegnerisches Ziel ([`HudState::aiming`]), ist es in derselben Größe das Fadenkreuz.
 //!
 //! Es ist der Systemzeiger mit eigenem Bild, den das Betriebssystem unabhängig vom Spielbild zeichnet, also ohne
 //! Verzögerung. `resvg` rastert das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) so,
@@ -24,10 +25,14 @@ use bevy::{
 use bevy::{ecs::system::NonSendMarker, window::WindowFocused};
 use resvg::{tiny_skia, usvg};
 
-use crate::settings::{CursorId, Settings};
+use super::HudState;
+use crate::{
+    assets::AppState,
+    settings::{CursorId, Settings},
+};
 
-/// Alle wählbaren Zeiger in der Reihenfolge der Auswahl.
-pub const CURSORS: [CursorId; 10] = [
+/// Alle wählbaren Zeiger in der Reihenfolge der Auswahl; das Fadenkreuz ist dem Zielen vorbehalten.
+pub const CURSORS: [CursorId; 9] = [
     CursorId::Arrow,
     CursorId::Fighter,
     CursorId::Delta,
@@ -37,7 +42,6 @@ pub const CURSORS: [CursorId; 10] = [
     CursorId::Formation,
     CursorId::Holo,
     CursorId::Thruster,
-    CursorId::Crosshair,
 ];
 
 /// Wählbare Größe in logischen Pixeln (Punkten): kleinste, größte, Schritt des Reglers.
@@ -72,6 +76,15 @@ const fn hotspot(cursor: CursorId) -> Vec2 {
     match cursor {
         CursorId::Crosshair => Vec2::splat(16.0),
         _ => Vec2::splat(2.0),
+    }
+}
+
+/// Der Zeiger, der gerade gilt: beim Zielen im Gefecht das Fadenkreuz, sonst der gewählte.
+fn shown(settings: &Settings, hud: &HudState, state: &AppState) -> CursorId {
+    if hud.aiming && *state == AppState::Match {
+        CursorId::Crosshair
+    } else {
+        settings.cursor
     }
 }
 
@@ -153,52 +166,58 @@ impl CursorImages {
     }
 }
 
-/// Setzt den gewählten Zeiger als Systemzeiger: beim Start und wenn sich Wahl, Größe oder Skalierungsfaktor ändern.
+/// Setzt den geltenden Zeiger als Systemzeiger: beim Start und wenn sich Zeiger, Größe oder Skalierungsfaktor ändern.
 #[cfg(not(target_os = "macos"))]
 fn apply(
     mut commands: Commands,
     settings: Res<Settings>,
+    hud: Res<HudState>,
+    state: Res<State<AppState>>,
     window: Single<(Entity, &Window), With<PrimaryWindow>>,
     mut images: ResMut<Assets<Image>>,
     mut applied: Local<Option<(CursorId, u32)>>,
 ) {
     let (entity, window) = window.into_inner();
+    let cursor = shown(&settings, &hud, state.get());
     let pixels = (chosen_size(&settings) * window.scale_factor()).round() as u32;
-    let wanted = (settings.cursor, pixels);
+    let wanted = (cursor, pixels);
     if *applied == Some(wanted) {
         return;
     }
     *applied = Some(wanted);
-    let spot = (hotspot(settings.cursor) * pixels as f32 / ART_SIZE).round();
+    let spot = (hotspot(cursor) * pixels as f32 / ART_SIZE).round();
     commands
         .entity(entity)
         .insert(CursorIcon::Custom(CustomCursor::Image(CustomCursorImage {
-            handle: images.add(rasterize(settings.cursor, pixels)),
+            handle: images.add(rasterize(cursor, pixels)),
             hotspot: (spot.x as u16, spot.y as u16),
             ..default()
         })));
 }
 
-/// Setzt den gewählten Zeiger als Systemzeiger: beim Start und wenn sich Wahl oder Größe ändern. Je ein Bild in
+/// Setzt den geltenden Zeiger als Systemzeiger: beim Start und wenn sich Zeiger oder Größe ändern. Je ein Bild in
 /// einfacher und doppelter Auflösung, AppKit wählt je Bildschirm das passende.
 #[cfg(target_os = "macos")]
 fn apply(
     _main_thread: NonSendMarker,
     settings: Res<Settings>,
+    hud: Res<HudState>,
+    state: Res<State<AppState>>,
     mut applied: Local<Option<(CursorId, f32)>>,
 ) {
+    let cursor = shown(&settings, &hud, state.get());
     let points = chosen_size(&settings);
-    let wanted = (settings.cursor, points);
+    let wanted = (cursor, points);
     if *applied == Some(wanted) {
         return;
     }
     *applied = Some(wanted);
     let pngs = [1, 2].map(|scale| {
-        pixmap(settings.cursor, points.round() as u32 * scale)
+        pixmap(cursor, points.round() as u32 * scale)
             .encode_png()
             .expect("PNG aus dem Zeigerbild")
     });
-    macos::install(pngs, points, hotspot(settings.cursor) * points / ART_SIZE);
+    macos::install(pngs, points, hotspot(cursor) * points / ART_SIZE);
 }
 
 pub(super) struct CursorPlugin;
@@ -210,14 +229,21 @@ impl Plugin for CursorPlugin {
         app.add_systems(
             Update,
             apply.run_if(
-                resource_changed::<Settings>.or_else(on_message::<WindowScaleFactorChanged>),
+                resource_changed::<Settings>
+                    .or_else(resource_changed::<HudState>)
+                    .or_else(state_changed::<AppState>)
+                    .or_else(on_message::<WindowScaleFactorChanged>),
             ),
         );
         #[cfg(target_os = "macos")]
         app.add_systems(
             Update,
             (
-                apply.run_if(resource_changed::<Settings>),
+                apply.run_if(
+                    resource_changed::<Settings>
+                        .or_else(resource_changed::<HudState>)
+                        .or_else(state_changed::<AppState>),
+                ),
                 macos::reapply
                     .run_if(on_message::<CursorEntered>.or_else(on_message::<WindowFocused>)),
             )
@@ -233,7 +259,7 @@ mod tests {
     /// Jeder Zeiger lässt sich rastern und zeichnet seine Spitze an den Hotspot.
     #[test]
     fn every_cursor_rasterizes() {
-        for cursor in CURSORS {
+        for cursor in CURSORS.into_iter().chain([CursorId::Crosshair]) {
             let image = rasterize(cursor, 64);
             let data = image.data.as_ref().expect("Pixel");
             let tip = hotspot(cursor) * 2.0;
