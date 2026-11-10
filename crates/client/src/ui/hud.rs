@@ -4,6 +4,7 @@
 //! einer neuen Runde.
 
 use bevy::{
+    picking::hover::Hovered,
     prelude::*,
     text::LineHeight,
     ui_widgets::{Activate, ScrollArea, observe},
@@ -12,7 +13,7 @@ use bevy::{
 use super::{
     AppendLog, ClearLog, Fonts, HideBanner, ShowBanner, ShowRoundBanner, UiIcons,
     button::{self, Lit},
-    card::{CardAssets, CardHover, command_card},
+    card::{CardAssets, CardHover, HAND_ZOOM, command_card},
     hand::HandBar,
     theme::{self, UiOpacity},
     tooltip::Tooltip,
@@ -44,9 +45,13 @@ struct HullLabel;
 #[derive(Component)]
 struct DoctrineBar;
 
-/// Maßstab der Doktrinen in der Leiste und ihr Zoom beim Hover.
+/// Eine kleine Doktrin der Leiste mit ihrer großen Ansicht, die beim Hover über ihr erscheint. Eigens gesetzt statt
+/// hochskaliert, sonst wird die klein gerasterte Schrift unscharf.
+#[derive(Component)]
+struct DoctrinePreview(Entity);
+
+/// Maßstab der Doktrinen in der Leiste.
 const DOCTRINE_SCALE: f32 = 0.45;
-const DOCTRINE_ZOOM: f32 = 3.0;
 
 /// Der Icon-Knopf des Logs.
 #[derive(Component)]
@@ -333,17 +338,49 @@ fn update_doctrines(
     commands.entity(*bar).despawn_related::<Children>();
     commands.entity(*bar).with_children(|bar| {
         for &card in &doctrines {
-            bar.spawn((
+            // Die große Ansicht ist ein Kind der kleinen Karte und deckt sie zu: Auch über ihr bleibt die kleine
+            // Karte gehovert, und die Schlüsselwörter der großen Karte zeigen ihre Tooltips.
+            let mut mini = bar.spawn((
                 command_card(&assets, card, DOCTRINE_SCALE),
-                // Wächst nach rechts unten, damit der Text lesbar wird.
-                CardHover::Zoom {
-                    scale: DOCTRINE_ZOOM,
-                    origin: Vec2::new(-1.0, -1.0),
-                },
+                CardHover::Raise,
             ));
+            let mut preview = Entity::PLACEHOLDER;
+            mini.with_children(|mini| {
+                preview = mini
+                    .spawn((
+                        Node {
+                            display: Display::None,
+                            position_type: PositionType::Absolute,
+                            top: Val::ZERO,
+                            left: Val::ZERO,
+                            ..default()
+                        },
+                        GlobalZIndex(10),
+                        Pickable::IGNORE,
+                        children![command_card(&assets, card, HAND_ZOOM)],
+                    ))
+                    .id();
+            });
+            mini.insert(DoctrinePreview(preview));
         }
     });
     *shown = doctrines;
+}
+
+/// Zeigt die große Ansicht einer Doktrin, solange der Zeiger auf ihrer kleinen Karte liegt.
+fn show_doctrine_previews(cards: Query<(&Hovered, &DoctrinePreview)>, mut nodes: Query<&mut Node>) {
+    for (hovered, preview) in &cards {
+        if let Ok(mut node) = nodes.get_mut(preview.0) {
+            let display = if hovered.get() {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            if node.display != display {
+                node.display = display;
+            }
+        }
+    }
 }
 
 /// Hand, Stationen und Log gehören zum Gefecht; auf Karte und Knoten liegen sie verborgen.
@@ -550,6 +587,7 @@ impl Plugin for HudPlugin {
                     show_battle_hud,
                     update_top_bar,
                     update_doctrines,
+                    show_doctrine_previews,
                     append_log,
                     show_banner,
                     hide_banner,
