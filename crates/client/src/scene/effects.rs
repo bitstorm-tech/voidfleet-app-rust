@@ -39,8 +39,9 @@ const BEAM_SHEATH: f32 = 0.26;
 const BEAM_DURATION: f32 = 0.52;
 /// Rakete: Welteinheiten pro Sekunde entlang der Bahn, Höhe und seitlicher Schwung der Kurve.
 const MISSILE_SPEED: f32 = 8.0;
-const MISSILE_ARC: f32 = 3.2;
-const MISSILE_SWING: f32 = 2.4;
+/// Rumpf des Torpedos: Länge und Durchmesser.
+const MISSILE_LENGTH: f32 = 0.7;
+const MISSILE_WIDTH: f32 = 0.16;
 const TRAIL_RATE: f32 = 220.0;
 /// Traktorstrahl: dünner als die Railgun, flimmert (Hz), blendet ein und aus.
 const TETHER_WIDTH: f32 = 0.6;
@@ -430,7 +431,7 @@ pub struct Beam {
     pub width: f32,
 }
 
-/// Rakete des Wärmesuchers: Ein heller Kopf steigt auf, schwingt seitlich aus und stürzt auf `to`, mit Leuchtspur.
+/// Torpedo: Ein Rumpf mit leuchtendem Kopf fliegt geradlinig von `from` auf `to`, mit Leuchtspur am Heck.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Missile {
     pub from: Vec3,
@@ -565,10 +566,6 @@ struct BeamParts {
     core: Entity,
     sheath: Entity,
 }
-
-/// Bézierbahn der Rakete.
-#[derive(Component, Clone, Copy)]
-struct MissilePath(CubicSegment<Vec3>);
 
 /// Ein- und Ausblenden eines Traktorstrahls.
 #[derive(Component, Clone, Copy)]
@@ -887,22 +884,43 @@ fn fade_beams(
 
 fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     let missile = *missiles.get(add.entity).expect("Rakete");
-    let swing = if rand::random::<bool>() { -1.0 } else { 1.0 };
-    // Seitlich heißt quer zu den Lanes, also entlang z (im Original +z in Babylon, hier gespiegelt).
-    let lift = missile.from + Vec3::new(0.0, MISSILE_ARC, -swing * MISSILE_SWING);
-    let dive = missile.to + Vec3::new(0.0, MISSILE_ARC * 1.2, -swing * MISSILE_SWING * 0.4);
-    let length = missile.from.distance(lift) + lift.distance(dive) + dive.distance(missile.to);
-    let path = CubicSegment::new_bezier([missile.from, lift, dive, missile.to]);
-    let material = fx.material(FxMaterial::light(light(lighten(missile.color, 0.6))));
-    let mesh = Mesh3d(fx.assets.sphere.clone());
-    fx.commands.entity(add.entity).insert((
-        Name::new("Rakete"),
-        mesh,
-        material,
-        Transform::from_translation(missile.from).with_scale(Vec3::splat(0.15)),
-        MissilePath(path),
-        Animation::new(length / MISSILE_SPEED),
+    // Rumpf und Kopf liegen vor dem Ursprung, damit die Leuchtspur am Heck austritt und sie nicht verdeckt.
+    let hull_material = fx.material(FxMaterial::solid(
+        mix(missile.color, Color::WHITE, 0.75).to_linear(),
     ));
+    let nose_material = fx.material(FxMaterial::light(light(lighten(missile.color, 0.6))));
+    let hull = fx
+        .commands
+        .spawn((
+            Name::new("Rakete-Rumpf"),
+            Mesh3d(fx.assets.beam.clone()),
+            hull_material,
+            Transform::from_xyz(0.0, 0.0, -MISSILE_LENGTH / 2.0).with_scale(Vec3::new(
+                MISSILE_WIDTH,
+                MISSILE_WIDTH,
+                MISSILE_LENGTH,
+            )),
+        ))
+        .id();
+    let nose = fx
+        .commands
+        .spawn((
+            Name::new("Rakete-Kopf"),
+            Mesh3d(fx.assets.sphere.clone()),
+            nose_material,
+            Transform::from_xyz(0.0, 0.0, -MISSILE_LENGTH)
+                .with_scale(Vec3::splat(MISSILE_WIDTH * 1.3)),
+        ))
+        .id();
+    fx.commands
+        .entity(add.entity)
+        .insert((
+            Name::new("Rakete"),
+            Transform::from_translation(missile.from).looking_at(missile.to, Vec3::Y),
+            Visibility::default(),
+            Animation::new(missile.from.distance(missile.to) / MISSILE_SPEED),
+        ))
+        .add_children(&[hull, nose]);
     let trail = Burst {
         speed: (0.1, 0.5),
         life: (0.35, 0.7),
@@ -925,11 +943,11 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     ));
 }
 
-fn fly_missiles(mut missiles: Query<(&MissilePath, &Animation, &mut Transform)>) {
-    for (path, animation, mut transform) in &mut missiles {
+fn fly_missiles(mut missiles: Query<(&Missile, &Animation, &mut Transform)>) {
+    for (missile, animation, mut transform) in &mut missiles {
         let progress = animation.progress();
         let travelled = EaseFunction::CubicIn.sample_clamped(progress) * 0.35 + progress * 0.65;
-        transform.translation = path.0.position(travelled);
+        transform.translation = missile.from.lerp(missile.to, travelled);
     }
 }
 
