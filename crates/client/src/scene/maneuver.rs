@@ -6,7 +6,7 @@
 //! Gerechnet wird im Raum des Ziel-Ankers wie im Original (x seitlich, `ahead` nach vorn, Ziel im Ursprung); nach außen
 //! gibt [`Flight::pose`] die Lage im Raum des Ankers in Bevy-Koordinaten (Nase nach −Z) zurück. Wie wendig ein Schiff
 //! ist, legt seine Klasse fest: Schlachtschiffe und Flaggschiffe gleiten behäbig, ohne Cruise-Phase, kaum gehoben und
-//! kaum geneigt; vom Traktorstrahl gezogen gleitet ein Schiff langsamer, flacher und fast ohne Schräglage.
+//! mit spürbarer, aber ruhiger Schräglage; vom Traktorstrahl gezogen gleitet ein Schiff langsamer, flacher und fast ohne Schräglage.
 
 use bevy::prelude::*;
 use voidfleet_core::enemies::EnemyClass;
@@ -29,7 +29,7 @@ const fn handling(class: EnemyClass) -> Handling {
     let (speed, turn_radius, acceleration, bank, lift) = match class {
         EnemyClass::Fighter => (9.0, 0.9, 0.2, 60.0, 1.0),
         EnemyClass::Cruiser => (5.5, 1.5, 0.32, 22.0, 1.0),
-        EnemyClass::Battleship | EnemyClass::Flagship => (3.0, 1.7, 0.5, 6.0, 0.3),
+        EnemyClass::Battleship | EnemyClass::Flagship => (3.0, 1.7, 0.5, 15.0, 0.3),
     };
     Handling {
         speed,
@@ -370,18 +370,24 @@ mod tests {
         assert!(towed.duration > forward.duration);
     }
 
-    /// Das Flaggschiff versetzt seitlich behäbig: langsamer als ein Kreuzer, ohne zu nicken, kaum gehoben und geneigt.
+    /// Das Flaggschiff versetzt seitlich behäbig: langsamer als ein Kreuzer, ohne zu nicken, kaum gehoben, sichtbar
+    /// aber ruhig zur Seite geneigt.
     #[test]
-    fn flagship_sidestep_stays_level() {
+    fn flagship_sidestep_glides() {
         let from = Vec3::new(3.0, 0.0, 0.0);
         let flagship = Flight::new(from, EnemyClass::Flagship, false);
         assert!(flagship.duration > Flight::new(from, EnemyClass::Cruiser, false).duration);
+        let mut lean = 0f32;
         for i in 0..=20 {
             let pose = flagship.pose(i as f32 / 20.0);
             let (_, pitch, roll) = pose.attitude.to_euler(EulerRot::YXZ);
             assert!(pitch.abs() < 1e-4, "Nicken {pitch}");
-            assert!(roll.abs() < 5f32.to_radians(), "Schräglage {roll}");
             assert!(pose.translation.y < 0.3, "Höhe {}", pose.translation.y);
+            lean = lean.max(roll.abs());
         }
+        assert!(
+            (6f32.to_radians()..10f32.to_radians()).contains(&lean),
+            "Schräglage {lean}"
+        );
     }
 }
