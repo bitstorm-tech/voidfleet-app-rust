@@ -5,7 +5,8 @@
 //!
 //! Gerechnet wird im Raum des Ziel-Ankers wie im Original (x seitlich, `ahead` nach vorn, Ziel im Ursprung); nach außen
 //! gibt [`Flight::pose`] die Lage im Raum des Ankers in Bevy-Koordinaten (Nase nach −Z) zurück. Wie wendig ein Schiff
-//! ist, legt seine Klasse fest; vom Traktorstrahl gezogen gleitet es langsamer, flacher und fast ohne Schräglage.
+//! ist, legt seine Klasse fest: Schlachtschiffe und Flaggschiffe gleiten behäbig, ohne Cruise-Phase, kaum gehoben und
+//! kaum geneigt; vom Traktorstrahl gezogen gleitet ein Schiff langsamer, flacher und fast ohne Schräglage.
 
 use bevy::prelude::*;
 use voidfleet_core::enemies::EnemyClass;
@@ -20,19 +21,22 @@ struct Handling {
     acceleration: f32,
     /// Größte Schräglage in Kurven.
     bank: f32,
+    /// Anteil der Flughöhe von S-Kurve und Seitversatz (die Schleife steigt immer über die anderen Schiffe).
+    lift: f32,
 }
 
 const fn handling(class: EnemyClass) -> Handling {
-    let (speed, turn_radius, acceleration, bank) = match class {
-        EnemyClass::Fighter => (9.0, 0.9, 0.2, 60.0),
-        EnemyClass::Cruiser => (5.5, 1.5, 0.32, 22.0),
-        EnemyClass::Battleship | EnemyClass::Flagship => (4.0, 1.7, 0.42, 10.0),
+    let (speed, turn_radius, acceleration, bank, lift) = match class {
+        EnemyClass::Fighter => (9.0, 0.9, 0.2, 60.0, 1.0),
+        EnemyClass::Cruiser => (5.5, 1.5, 0.32, 22.0, 1.0),
+        EnemyClass::Battleship | EnemyClass::Flagship => (3.0, 1.7, 0.5, 6.0, 0.3),
     };
     Handling {
         speed,
         turn_radius,
         acceleration,
         bank: bank * std::f32::consts::PI / 180.0,
+        lift,
     }
 }
 
@@ -115,7 +119,7 @@ impl Flight {
         let height = if is_loop {
             LOOP_HEIGHT
         } else {
-            (SWERVE_HEIGHT_PER_UNIT * start.x.abs()).min(SWERVE_MAX_HEIGHT)
+            (SWERVE_HEIGHT_PER_UNIT * start.x.abs()).min(SWERVE_MAX_HEIGHT) * handling.lift
         } * if towed { TOWED_HEIGHT } else { 1.0 };
         let mut flight = Self {
             duration: 0.0,
@@ -158,14 +162,20 @@ impl Flight {
 
         let phase = std::f32::consts::PI * distance / length;
         let y = self.height * phase.sin().powi(2);
-        let climb = self.height * std::f32::consts::PI / length * (2.0 * phase).sin();
-        // Schräglage braucht Fahrt: Sie wächst mit Krümmung und Geschwindigkeit; Rechtskurve = rechte Seite runter.
+        // Seitlich versetzt hebt sich das Schiff waagerecht; nicken würde es nur, wenn die Nase in Flugrichtung zeigt.
+        let climb = if self.strafe != 0.0 {
+            0.0
+        } else {
+            self.height * std::f32::consts::PI / length * (2.0 * phase).sin()
+        };
+        // Schräglage braucht Fahrt: Sie wächst mit Krümmung und Geschwindigkeit, ohne Knick am Scheitel der Fahrt;
+        // Rechtskurve = rechte Seite runter.
         let turn = if self.strafe != 0.0 {
             STRAFE_BANK * self.strafe
         } else {
             (curvature * self.handling.turn_radius).clamp(-1.0, 1.0)
         };
-        let roll = -self.handling.bank * turn * speed;
+        let roll = -self.handling.bank * turn * speed * speed * (3.0 - 2.0 * speed);
         // Im Original (linkshändig, Nase +z) dreht ein positiver Kurs nach rechts und eine positive Neigung die Nase
         // nach unten; in Bevy ist beides umgekehrt, die Schräglage bleibt.
         Pose {
@@ -358,5 +368,20 @@ mod tests {
         assert!(back.height > forward.height);
         let towed = Flight::new(Vec3::new(0.0, 0.0, 3.4), EnemyClass::Fighter, true);
         assert!(towed.duration > forward.duration);
+    }
+
+    /// Das Flaggschiff versetzt seitlich behäbig: langsamer als ein Kreuzer, ohne zu nicken, kaum gehoben und geneigt.
+    #[test]
+    fn flagship_sidestep_stays_level() {
+        let from = Vec3::new(3.0, 0.0, 0.0);
+        let flagship = Flight::new(from, EnemyClass::Flagship, false);
+        assert!(flagship.duration > Flight::new(from, EnemyClass::Cruiser, false).duration);
+        for i in 0..=20 {
+            let pose = flagship.pose(i as f32 / 20.0);
+            let (_, pitch, roll) = pose.attitude.to_euler(EulerRot::YXZ);
+            assert!(pitch.abs() < 1e-4, "Nicken {pitch}");
+            assert!(roll.abs() < 5f32.to_radians(), "Schräglage {roll}");
+            assert!(pose.translation.y < 0.3, "Höhe {}", pose.translation.y);
+        }
     }
 }
