@@ -45,16 +45,6 @@ pub(super) fn signed(value: i64) -> String {
     }
 }
 
-/// Schaden der Waffen-Station: der Grundwert des Admirals, die tatsächliche ATK in Klammern, wenn sie abweicht.
-pub(super) fn damage(admiral: AdmiralId, attack: i32) -> String {
-    let base = admiral.attack();
-    if attack == base {
-        base.to_string()
-    } else {
-        format!("{base} ({attack})")
-    }
-}
-
 /// Alle Sprachen in der Reihenfolge der Sprachwahl.
 pub const LANGUAGES: [Language; 2] = [Language::En, Language::De];
 
@@ -300,6 +290,8 @@ pub trait Messages: Sync {
     fn card_effect(&self, card: DeckCard, v: i32) -> String;
     /// Die Schlüsselwörter (`docs/karten.md`): Wort, wie es im Effekttext steht, und seine Erklärung.
     fn keywords(&self) -> &'static [(&'static str, &'static str)];
+    /// Erklärung zum erhöhten Kartenschaden: `bonus` aus der Feuerleitdoktrin.
+    fn card_bonus(&self, bonus: i32) -> String;
     fn card_type(&self, card_type: CardType) -> &'static str;
     fn card_target(&self, target: CardTarget) -> &'static str;
     fn admiral(&self, admiral: AdmiralId) -> AdmiralText;

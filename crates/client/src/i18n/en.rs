@@ -18,9 +18,7 @@ use voidfleet_core::{
     run::{EventId, EventOption, NodeKind},
 };
 
-use super::{
-    AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, damage, signed,
-};
+use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, signed};
 use crate::{
     data::radio::RadioCue,
     settings::{AnimationSpeed, CursorId, WindowMode},
@@ -523,10 +521,7 @@ impl Messages for En {
 
     fn station_text(&self, station: Station, admiral: AdmiralId, attack: i32) -> String {
         match station {
-            Station::Weapons => format!(
-                "Fires {} damage at an enemy ship at once.",
-                damage(admiral, attack)
-            ),
+            Station::Weapons => format!("Fires {} damage at an enemy ship at once.", attack),
             Station::Shields => format!(
                 "Absorbs {} in the next enemy turn.",
                 admiral.shield_station()
@@ -585,6 +580,13 @@ impl Messages for En {
             CardId::FireControlDoctrine => "Fire Control Doctrine",
             CardId::BattleStations => "Battle Stations",
         }
+    }
+
+    fn card_bonus(&self, bonus: i32) -> String {
+        format!(
+            "{}: +{bonus} damage.",
+            self.card_name(CardId::FireControlDoctrine)
+        )
     }
 
     fn card_effect(&self, card: DeckCard, v: i32) -> String {

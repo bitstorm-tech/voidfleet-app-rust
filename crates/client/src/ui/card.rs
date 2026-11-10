@@ -241,20 +241,37 @@ pub fn command_card_with_bonus(
             }
         }
     }
+    if bonus != 0 {
+        explained.insert(0, locale.card_bonus(bonus));
+    }
     let explained = explained.join("\n");
+    // Was sich gegenüber dem Text ohne Zuschlag ändert, ist eine erhöhte Zahl und leuchtet wie ein Schlüsselwort.
+    let unboosted = locale.card(card).effect;
+    let unboosted: Vec<_> = unboosted.split_whitespace().collect();
     // Je Wort ein Knoten, damit ein Schlüsselwort den Zeiger spürt; es zeigt sofort alle Schlüsselwörter der Karte.
     let effect_font = fonts.body(8.5 * scale);
     let words: Vec<_> = text
         .effect
         .split_whitespace()
-        .map(|word| {
-            let chunks = keyword_chunks(word, keywords);
-            let keyword = chunks.iter().any(|(_, explanation)| explanation.is_some());
+        .enumerate()
+        .map(|(i, word)| {
+            let chunks: Vec<_> = if unboosted.get(i) == Some(&word) {
+                keyword_chunks(word, keywords)
+                    .into_iter()
+                    .map(|(chunk, explanation)| (chunk, explanation.is_some()))
+                    .collect()
+            } else {
+                let end = word
+                    .find(|c: char| !c.is_alphanumeric())
+                    .unwrap_or(word.len());
+                vec![(&word[..end], true), (&word[end..], false)]
+            };
+            let keyword = chunks.iter().any(|&(_, highlighted)| highlighted);
             let font = effect_font.clone();
             let spans: Vec<_> = chunks
                 .into_iter()
-                .map(|(chunk, explanation)| {
-                    let color = if explanation.is_some() {
+                .map(|(chunk, highlighted)| {
+                    let color = if highlighted {
                         palette::BUFF
                     } else {
                         theme::rgb(235, 242, 255)
