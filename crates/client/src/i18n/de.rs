@@ -620,7 +620,7 @@ impl Messages for De {
             CardId::Firebomb => format!("{v} Schaden auf ein gewähltes Schiff, Brand."),
             CardId::EmergencyShields => format!("Schilde {v}."),
             CardId::HoldTheLine => format!("Schilde {v}, Abwehrfeuer {HOLD_THE_LINE_RETALIATION}."),
-            CardId::AblativeArmor => format!("Panzerung {v} für den Rest des Gefechts."),
+            CardId::AblativeArmor => format!("Doktrin: Panzerung {v}."),
             CardId::Overcharge => format!(
                 "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {OVERCHARGE_SELF_DAMAGE} Schaden."
             ),
@@ -827,6 +827,10 @@ impl Messages for De {
                 "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
             }
         }
+    }
+
+    fn armor_hint(&self, amount: i32) -> String {
+        format!("Panzerung: Jeder Treffer macht {amount} weniger Schaden.")
     }
 
     fn burn_hint(&self, amount: i32) -> String {

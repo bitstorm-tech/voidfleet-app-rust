@@ -610,7 +610,7 @@ impl Messages for En {
             CardId::Firebomb => format!("{v} damage to a chosen ship, burning."),
             CardId::EmergencyShields => format!("Shields {v}."),
             CardId::HoldTheLine => format!("Shields {v}, retaliation {HOLD_THE_LINE_RETALIATION}."),
-            CardId::AblativeArmor => format!("Armor {v} for the rest of the battle."),
+            CardId::AblativeArmor => format!("Doctrine: armor {v}."),
             CardId::Overcharge => format!(
                 "+{v} ATK this round; your flagship takes {OVERCHARGE_SELF_DAMAGE} damage at the end of your turn."
             ),
@@ -811,6 +811,10 @@ impl Messages for En {
                 "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
             }
         }
+    }
+
+    fn armor_hint(&self, amount: i32) -> String {
+        format!("Armor: every hit deals {amount} less damage.")
     }
 
     fn burn_hint(&self, amount: i32) -> String {

@@ -314,6 +314,8 @@ pub trait Messages: Sync {
     /// Was ein Zustand bewirkt, für den Tooltip seines Icons; der Brand mit seiner Zahl über [`Self::burn_hint`].
     fn condition_hint(&self, condition: Condition) -> &'static str;
     fn burn_hint(&self, amount: i32) -> String;
+    /// Tooltip am Icon der Panzerung.
+    fn armor_hint(&self, amount: i32) -> String;
     /// Vor der zweiten Absicht im Tooltip (Uhrwerk).
     fn caption_next(&self) -> &'static str;
     fn module(&self, module: ModuleId) -> (&'static str, &'static str);

@@ -367,13 +367,13 @@ impl Planner<'_> {
                 ]))
             }
             CardId::RedAlert
+            | CardId::AblativeArmor
             | CardId::FireControlDoctrine
             | CardId::BattleStations
             | CardId::HoldTheLine => doctrine(),
             CardId::Countermeasures
             | CardId::Overcharge
             | CardId::PowerSurge
-            | CardId::AblativeArmor
             | CardId::Scavenge => buff(),
             CardId::EmergencyShields
             | CardId::RepairCrew

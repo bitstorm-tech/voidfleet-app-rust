@@ -153,6 +153,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                     intent: Some(first),
                     next: clockwork.then_some(second),
                     burning: enemy.burning.then(|| battle.burn_damage(enemy.unit())),
+                    armor: enemy.id.armor(),
                     conditions: enemy_conditions(battle, enemy),
                     preview: preview_text(enemy.uid),
                 },
@@ -176,6 +177,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) 
                 burning: flagship
                     .burning
                     .then(|| battle.burn_damage(UnitRef::Flagship)),
+                armor: battle.flagship_armor(),
                 conditions: flagship
                     .emergency()
                     .then_some(Condition::Emergency)

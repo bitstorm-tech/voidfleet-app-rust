@@ -104,6 +104,11 @@ const ICONS: &[(&str, &str)] = &[
         "cover",
         r#"<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 9v6M16 15v6M16 3v6M3 15h18M3 9h18M8 15v6M8 3v6" />"#,
     ),
+    // Panzerung: eine Panzerplatte (Lucide „hexagon“) mit Kern.
+    (
+        "armor",
+        r#"<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="m12 8 3.5 2v4L12 16l-3.5-2v-4z" />"#,
+    ),
 ];
 
 /// Gefüllte Icons.

@@ -35,7 +35,6 @@ Wo Ausweichen, Panzerung, Deckung und Schilde in der Rechnung stehen, sagt [Scha
 | Brandsatz | 1 | Angriff | 2 Schaden auf ein gewähltes Schiff, Brand. Kennkarte der Glut |
 | Notschilde | 1 | Verstärkung | Schilde 5 |
 | Standhalten | 1 | Verstärkung | Schilde 5, Abwehrfeuer 2. Kennkarte der Mauer |
-| Ablativpanzerung | 2 | Verstärkung | Panzerung 1 für den Rest des Gefechts |
 | Überladung | 1 | Verstärkung | Das Flaggschiff feuert diese Runde mit +5 ATK und nimmt am Zugende 3 Schaden. Kennkarte des Hammers |
 | Energiestoß | 2 | Verstärkung | Das Flaggschiff feuert diese Runde mit +3 ATK |
 | Reparaturtrupp | 1 | Verstärkung | Brand gelöscht, +4 Hülle, zusätzlich zur Station |
@@ -48,6 +47,7 @@ Wo Ausweichen, Panzerung, Deckung und Schilde in der Rechnung stehen, sagt [Scha
 | Gegenmaßnahmen | 1 | Taktik | Der erste gegnerische Treffer im Gegnerzug, ob Zielfeuer, Spaltenfeuer oder Rammkurs, macht halben Schaden |
 | Plündern | 1 | Taktik | Zwei Befehle ziehen |
 | Alarmstufe Rot | 2 | Taktik | Das Flaggschiff darf diese Runde eine zweite, andere Station auslösen; die Admiralsstation darf eine davon sein |
+| Ablativpanzerung | 2 | Doktrin | Panzerung 1 |
 | Feuerleitdoktrin | 2 | Doktrin | Alle eigenen Schüsse und Angriffskarten +1 Schaden |
 | Alarmbereitschaft | 2 | Doktrin | In jedem Gegnerzug Schilde 2 |
 

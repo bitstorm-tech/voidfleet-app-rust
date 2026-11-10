@@ -125,6 +125,7 @@ pub struct UiIcons {
     pub stasis: Handle<Image>,
     pub silenced: Handle<Image>,
     pub cover: Handle<Image>,
+    pub armor: Handle<Image>,
     pub repair: Handle<Image>,
     pub maneuver: Handle<Image>,
 }
@@ -156,6 +157,7 @@ impl FromWorld for UiIcons {
                 stasis: icon("stasis"),
                 silenced: icon("silenced"),
                 cover: icon("cover"),
+                armor: icon("armor"),
                 repair: icon("repair"),
                 maneuver: icon("maneuver"),
             }

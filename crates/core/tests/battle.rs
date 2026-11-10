@@ -711,6 +711,17 @@ fn deck_cycles_through_discard_and_doctrines_leave() {
     assert_eq!(b.flagship.fire_control, 1);
 }
 
+/// Ablativpanzerung bleibt als Doktrin liegen: Sie kommt nicht mit dem Deck zurück und stapelt sich nicht.
+#[test]
+fn ablative_armor_is_a_doctrine() {
+    let mut b = battle(AdmiralId::Osei, &[(EnemyId::Spotter, Row::Back, 0)]);
+    give(&mut b, &[CardId::AblativeArmor]);
+    play(&mut b, CardId::AblativeArmor, Target::None);
+    assert_eq!(b.flagship_armor(), 1);
+    assert_eq!(b.doctrines, [DeckCard::new(CardId::AblativeArmor)]);
+    assert!(b.discard_pile.is_empty());
+}
+
 #[test]
 fn battle_clock_and_spotter() {
     let mut b = battle(

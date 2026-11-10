@@ -42,6 +42,8 @@ pub struct ShipCaption {
     pub next: Option<Intent>,
     /// Was ein Brand je Auflösung kostet, solange das Schiff brennt.
     pub burning: Option<i32>,
+    /// Panzerung: Abzug je Treffer, 0 zeigt nichts.
+    pub armor: i32,
     pub conditions: Vec<Condition>,
     /// Die Rechnung der Vorschau am Ziel unter dem Zeiger.
     pub preview: String,
@@ -118,8 +120,19 @@ fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
     }
 }
 
-/// Die Zeilen der Icons: Absicht, die nächste, Zustände (Brand zuerst).
+/// Die Zeilen der Icons: Absicht, die nächste, Zustände (Panzerung und Brand zuerst).
 fn glyph_rows(caption: &ShipCaption, locale: &dyn Messages, icons: &UiIcons) -> [GlyphRow; 3] {
+    let armor = (caption.armor > 0).then(|| {
+        (
+            Glyph {
+                icon: icons.armor.clone(),
+                color: CONDITION,
+                value: Some(caption.armor),
+                columns: None,
+            },
+            locale.armor_hint(caption.armor),
+        )
+    });
     let burning = caption.burning.map(|amount| {
         (
             Glyph {
@@ -156,7 +169,7 @@ fn glyph_rows(caption: &ShipCaption, locale: &dyn Messages, icons: &UiIcons) -> 
         },
         GlyphRow {
             size: 16.0,
-            glyphs: burning.into_iter().chain(conditions).collect(),
+            glyphs: armor.into_iter().chain(burning).chain(conditions).collect(),
         },
     ]
 }

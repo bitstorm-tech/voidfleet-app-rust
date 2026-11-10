@@ -100,8 +100,14 @@ impl EnemyId {
         }
     }
 
+    /// Fester Abzug je Treffer.
     pub fn armor(self) -> i32 {
-        if self == EnemyId::Besieger { 2 } else { 0 }
+        use EnemyId::*;
+        match self {
+            Besieger => 2,
+            Carrier | Warden => 1,
+            _ => 0,
+        }
     }
 
     /// Die Aktion im Schritt `step` des Musters. `column` ist die Spalte des Flaggschiffs bei der Ansage; der Wächter

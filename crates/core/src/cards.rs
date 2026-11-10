@@ -100,11 +100,10 @@ impl CardId {
         match self {
             Torpedo | OrbitalStrike | VolleyFire | Barrage | HeatSeeker | CoupDeGrace
             | Bombardment | CollisionCourse | Firebomb => CardType::Attack,
-            EmergencyShields | HoldTheLine | AblativeArmor | Overcharge | PowerSurge
-            | RepairCrew => CardType::Buff,
+            EmergencyShields | HoldTheLine | Overcharge | PowerSurge | RepairCrew => CardType::Buff,
             EmpBlast | TargetingJammer | RadioSilence | TractorBeam => CardType::Debuff,
             MicroJump | EvasiveAction | Countermeasures | Scavenge | RedAlert => CardType::Tactic,
-            FireControlDoctrine | BattleStations => CardType::Doctrine,
+            AblativeArmor | FireControlDoctrine | BattleStations => CardType::Doctrine,
         }
     }
 
