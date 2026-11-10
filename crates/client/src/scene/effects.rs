@@ -454,6 +454,14 @@ pub struct ReleaseTether {
     pub entity: Entity,
 }
 
+/// Ein Schild baut sich um ein Schiff vom Radius `size` auf: Blitz, zwei Druckwellen und Funken, die nach außen sprühen.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ShieldFlare {
+    pub position: Vec3,
+    pub color: Color,
+    pub size: f32,
+}
+
 /// Eine Leuchtkugel wächst auf `size` und verblasst dabei in `duration` Sekunden.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Pulse {
@@ -651,6 +659,7 @@ impl Plugin for EffectsPlugin {
             .add_observer(start_tether)
             .add_observer(release_tether)
             .add_observer(start_pulse)
+            .add_observer(start_shield_flare)
             .add_observer(start_sprite)
             .add_observer(start_impact)
             .add_observer(start_secondary)
@@ -1010,6 +1019,49 @@ fn start_pulse(add: On<Add<Pulse>>, pulses: Query<&Pulse>, mut fx: Fx) {
         },
         Animation::new(pulse.duration),
     ));
+}
+
+fn start_shield_flare(add: On<Add<ShieldFlare>>, flares: Query<&ShieldFlare>, mut fx: Fx) {
+    let ShieldFlare {
+        position,
+        color,
+        size,
+    } = *flares.get(add.entity).expect("Schildaufbau");
+    fx.sprite(
+        position,
+        light(lighten(color, 0.7)),
+        2.2 * size,
+        0.25,
+        SpriteKind::Flash,
+    );
+    fx.sprite(
+        position,
+        light(color),
+        3.4 * size,
+        0.6,
+        SpriteKind::FlatShockwave,
+    );
+    fx.sprite(
+        position,
+        light(lighten(color, 0.3)),
+        2.6 * size,
+        0.45,
+        SpriteKind::Shockwave,
+    );
+    let sparks = Burst {
+        count: 48,
+        spread: 0.3 * size,
+        speed: (1.5 * size, 3.5 * size),
+        life: (0.25, 0.55),
+        size: (0.05, 0.1),
+        stretch: 3.0,
+        colors: shot,
+        ..Burst::DEFAULT
+    };
+    fx.burst(position, Vec3::Y, sparks, color, 1.0);
+    fx.commands
+        .entity(add.entity)
+        .insert((Name::new("Schildaufbau"), Animation::new(0.6)));
 }
 
 fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {

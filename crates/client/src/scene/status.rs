@@ -18,9 +18,10 @@ use bevy::{
 use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 
 use super::{
-    animation::AnimationSystems,
+    animation::{Animation, AnimationClock, AnimationSystems},
     board::SHIP_ANCHOR_HEIGHT,
     camera::MainCamera,
+    effects::ShieldFlare,
     formation::Hull,
     fx::{Billboard, FxAssets, FxMaterial, glowing, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
@@ -58,6 +59,8 @@ const SHIELD_HULL_ALPHA: f32 = 0.35;
 const SHIELD_HULL_RIM: f32 = 2.5;
 const SHIELD_HULL_MARGIN: f32 = 1.3;
 const SHIELD_HULL_MIN_AXIS: f32 = 0.45;
+/// Aufbau der Schildhülle in Sekunden; bei normaler Animationsgeschwindigkeit (×1,25) genau eine.
+const SHIELD_RISE: f32 = 0.8;
 
 /// Werte über dem Schiff.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -100,6 +103,18 @@ impl ShipStatus {
         }
     }
 }
+
+/// Schildhülle: Größe nach dem Modell (Raum des Schiffs) und ob sie gerade steht.
+#[derive(Component, Default)]
+struct ShieldHull {
+    scale: Vec3,
+    up: bool,
+}
+
+/// Aufbau einer Schildhülle: Sie wächst mit Überschwingen, glüht ganz auf, flackert und beruhigt sich zum Rand.
+#[derive(Component)]
+#[require(Animation::new(SHIELD_RISE))]
+struct ShieldRise(Entity);
 
 /// Grenzen des Modells im Raum des Schiffs (vor dessen Maßstab), sobald es geladen ist.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -179,7 +194,8 @@ impl Plugin for StatusPlugin {
                 (
                     measure,
                     // Nach Wiedergabe und Abgleich, die die Werte schreiben: Die Balken zeigen sie im selben Bild.
-                    (update_bars, pulse_preview)
+                    rise_shields.in_set(AnimationSystems::Apply),
+                    (update_bars, pulse_preview, raise_shields)
                         .after(AnimationSystems::Apply)
                         .after(SyncSystems),
                 ),
@@ -445,6 +461,7 @@ fn dress_ship(
     let shield_hull = commands
         .spawn((
             Name::new("Schildhülle"),
+            ShieldHull::default(),
             Mesh3d(fx.sphere.clone()),
             MeshMaterial3d(materials.add(FxMaterial {
                 rim: SHIELD_HULL_RIM,
@@ -514,6 +531,7 @@ fn measure(
     children: Query<&Children>,
     parts: Query<(&GlobalTransform, Option<&Aabb>), With<Mesh3d>>,
     mut transforms: Query<&mut Transform>,
+    mut shield_hulls: Query<&mut ShieldHull>,
 ) {
     for (group, child_of, members) in &groups {
         let Ok((ship_transform, ship_parts)) = ships.get(child_of.parent()) else {
@@ -556,11 +574,14 @@ fn measure(
         if let Ok(mut overlay) = transforms.get_mut(ship_parts.overlay) {
             overlay.translation.y = BAR_MIN_HEIGHT.max(max.y + BAR_MARGIN);
         }
-        if let Ok(mut hull) = transforms.get_mut(ship_parts.shield_hull) {
+        if let (Ok(mut transform), Ok(mut hull)) = (
+            transforms.get_mut(ship_parts.shield_hull),
+            shield_hulls.get_mut(ship_parts.shield_hull),
+        ) {
             let half = (max - min) / 2.0 * SHIELD_HULL_MARGIN;
             // Die Kugel hat den Durchmesser 1.
-            *hull = Transform::from_translation((min + max) / 2.0)
-                .with_scale(half.max(Vec3::splat(half.max_element() * SHIELD_HULL_MIN_AXIS)) * 2.0);
+            hull.scale = half.max(Vec3::splat(half.max_element() * SHIELD_HULL_MIN_AXIS)) * 2.0;
+            *transform = Transform::from_translation((min + max) / 2.0).with_scale(hull.scale);
         }
     }
 }
@@ -718,6 +739,66 @@ fn follow_bars(
         let size = FontSize::Px(((bottom.y - top.y).abs() * VALUE_SIZE).round().max(1.0));
         if font.font_size != size {
             font.font_size = size;
+        }
+    }
+}
+
+/// Kommt ein Schild hoch, baut sich die Hülle auf (bis dahin ohne Größe) und flammt der Aufbau am Schiff auf.
+fn raise_shields(
+    mut commands: Commands,
+    clock: Res<AnimationClock>,
+    ships: Query<
+        (
+            &ShipStatus,
+            &ShipParts,
+            Option<&ShipBounds>,
+            &GlobalTransform,
+        ),
+        Changed<ShipStatus>,
+    >,
+    mut hulls: Query<(&mut ShieldHull, &mut Transform)>,
+) {
+    for (status, parts, bounds, ship) in &ships {
+        let Ok((mut hull, mut transform)) = hulls.get_mut(parts.shield_hull) else {
+            continue;
+        };
+        let up = status.shield > 0 && !status.hidden;
+        if hull.up == up {
+            continue;
+        }
+        hull.up = up;
+        if !up || clock.skip {
+            continue;
+        }
+        transform.scale = Vec3::ZERO;
+        commands.spawn(ShieldRise(parts.shield_hull));
+        if let Some(bounds) = bounds {
+            commands.spawn(ShieldFlare {
+                position: bounds.world_center(ship),
+                color: palette::SHIELD,
+                size: bounds.world_radius(),
+            });
+        }
+    }
+}
+
+/// Endet bei Größe, Kante und Deckkraft der ruhenden Hülle.
+fn rise_shields(
+    rises: Query<(&ShieldRise, &Animation)>,
+    mut hulls: Query<(&ShieldHull, &mut Transform, &MeshMaterial3d<FxMaterial>)>,
+    mut materials: ResMut<Assets<FxMaterial>>,
+) {
+    for (rise, animation) in &rises {
+        let Ok((hull, mut transform, material)) = hulls.get_mut(rise.0) else {
+            continue;
+        };
+        let t = animation.progress();
+        transform.scale = hull.scale * EaseFunction::BackOut.sample_clamped(t * 2.0);
+        let calm = EaseFunction::CubicOut.sample_clamped(t);
+        let flicker = 1.0 + 0.5 * (1.0 - t) * (t * 60.0).sin();
+        if let Some(mut material) = materials.get_mut(&material.0) {
+            material.rim = SHIELD_HULL_RIM * (0.15 + 0.85 * calm);
+            material.set_alpha(SHIELD_HULL_ALPHA * (1.0 + 4.0 * (1.0 - calm)) * flicker);
         }
     }
 }
