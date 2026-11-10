@@ -541,11 +541,12 @@ impl Planner<'_> {
                 }),
                 Cue::Unit(unit, Job::Charged(true)),
             ],
-            Action::TargetLock => vec![Cue::Fx(Fx::Beam {
-                from: actor,
-                to: Spot::Unit(UnitRef::Flagship),
-                color: palette::ENEMY,
-                width: 0.35,
+            // Die Zielerfassung stärkt die eigene Flotte: ein Puls am Spotter, kein Strahl aufs Flaggschiff.
+            Action::TargetLock => vec![Cue::Fx(Fx::Pulse {
+                at: actor,
+                color: palette::BUFF,
+                size: 2.0,
+                duration: 0.8,
             })],
             Action::Call(_) => vec![Cue::Fx(Fx::Pulse {
                 at: actor,
