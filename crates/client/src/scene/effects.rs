@@ -13,7 +13,7 @@
 
 use std::f32::consts::PI;
 
-use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy::{ecs::system::SystemParam, prelude::*, world_serialization::WorldAssetRoot};
 
 use super::{
     animation::{Animation, AnimationScope, AnimationSystems},
@@ -39,9 +39,9 @@ const BEAM_SHEATH: f32 = 0.26;
 const BEAM_DURATION: f32 = 0.52;
 /// Rakete: Welteinheiten pro Sekunde entlang der Bahn, Höhe und seitlicher Schwung der Kurve.
 const MISSILE_SPEED: f32 = 8.0;
-/// Rumpf des Torpedos: Länge und Durchmesser.
-const MISSILE_LENGTH: f32 = 0.7;
-const MISSILE_WIDTH: f32 = 0.16;
+/// Maßstab des Torpedo-Modells (5,75 lang, also gut 0,85 auf dem Brett).
+const MISSILE_SCALE: f32 = 0.15;
+const MISSILE_LENGTH: f32 = 5.75 * MISSILE_SCALE;
 const TRAIL_RATE: f32 = 220.0;
 /// Traktorstrahl: dünner als die Railgun, flimmert (Hz), blendet ein und aus.
 const TETHER_WIDTH: f32 = 0.6;
@@ -431,7 +431,7 @@ pub struct Beam {
     pub width: f32,
 }
 
-/// Torpedo: Ein Rumpf mit leuchtendem Kopf fliegt geradlinig von `from` auf `to`, mit Leuchtspur am Heck.
+/// Torpedo: Das Modell des Torpedos fliegt geradlinig von `from` auf `to`, mit Leuchtspur am Heck.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Missile {
     pub from: Vec3,
@@ -884,32 +884,14 @@ fn fade_beams(
 
 fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     let missile = *missiles.get(add.entity).expect("Rakete");
-    // Rumpf und Kopf liegen vor dem Ursprung, damit die Leuchtspur am Heck austritt und sie nicht verdeckt.
-    let hull_material = fx.material(FxMaterial::solid(
-        mix(missile.color, Color::WHITE, 0.75).to_linear(),
-    ));
-    let nose_material = fx.material(FxMaterial::light(light(lighten(missile.color, 0.6))));
-    let hull = fx
+    // Das Modell liegt vor dem Ursprung, damit die Leuchtspur am Heck austritt und es nicht verdeckt.
+    let model = fx
         .commands
         .spawn((
-            Name::new("Rakete-Rumpf"),
-            Mesh3d(fx.assets.beam.clone()),
-            hull_material,
-            Transform::from_xyz(0.0, 0.0, -MISSILE_LENGTH / 2.0).with_scale(Vec3::new(
-                MISSILE_WIDTH,
-                MISSILE_WIDTH,
-                MISSILE_LENGTH,
-            )),
-        ))
-        .id();
-    let nose = fx
-        .commands
-        .spawn((
-            Name::new("Rakete-Kopf"),
-            Mesh3d(fx.assets.sphere.clone()),
-            nose_material,
-            Transform::from_xyz(0.0, 0.0, -MISSILE_LENGTH)
-                .with_scale(Vec3::splat(MISSILE_WIDTH * 1.3)),
+            Name::new("Torpedo-Modell"),
+            WorldAssetRoot(fx.assets.torpedo.clone()),
+            Transform::from_xyz(0.0, 0.0, -MISSILE_LENGTH / 2.0)
+                .with_scale(Vec3::splat(MISSILE_SCALE)),
         ))
         .id();
     fx.commands
@@ -920,7 +902,7 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
             Visibility::default(),
             Animation::new(missile.from.distance(missile.to) / MISSILE_SPEED),
         ))
-        .add_children(&[hull, nose]);
+        .add_children(&[model]);
     let trail = Burst {
         speed: (0.1, 0.5),
         life: (0.35, 0.7),

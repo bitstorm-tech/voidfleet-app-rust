@@ -1,5 +1,5 @@
 """Baut die Schiffe und exportiert sie nach assets/models/ships/<id>.glb, dazu ihre Wrackteile (wreck.py) nach
-<id>_wreck.glb. Vor dem Export bekommt jedes Schiff seine UVs und die Maske der Verwitterung (weather.py, gebacken oder
+<id>_wreck.glb (nicht für die Geschosse, fleet.PROJECTILES). Vor dem Export bekommt jedes Schiff seine UVs und die Maske der Verwitterung (weather.py, gebacken oder
 aus dem Cache); die Stücke des Wracks erben beides.
 
 Headless:   <blender> -b --factory-startup -P tools/ships/build.py -- [ids...]
@@ -47,13 +47,14 @@ def build_all(ids=None):
         weathered = time.time() - started
         path = os.path.join(OUT_DIR, f"{ship_id}.glb")
         vf.export_glb([obj], path)
-        pieces = wreck.build(obj)
+        pieces = [] if ship_id in fleet.PROJECTILES else wreck.build(obj)
         wreck_path = os.path.join(OUT_DIR, f"{ship_id}_wreck.glb")
-        vf.export_glb(pieces, wreck_path)
+        if pieces:
+            vf.export_glb(pieces, wreck_path)
         shells = vf.bad_shells(obj) + [shell for piece in pieces for shell in vf.bad_shells(piece)]
         report[ship_id] = {**vf.stats(obj), "kb": os.path.getsize(path) / 1024, "loose": vf.loose_parts(obj), "shells": shells,
                            "mask": f"Maske {mask.size[0]} px ({weathered:.1f} s)" if mask else "ohne Maske",
-                           "wreck": {**wreck.stats(pieces), "kb": os.path.getsize(wreck_path) / 1024}}
+                           "wreck": {**wreck.stats(pieces), "kb": os.path.getsize(wreck_path) / 1024} if pieces else None}
     return report
 
 
@@ -61,8 +62,8 @@ if __name__ == "__main__":
     requested = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     for ship_id, info in build_all(requested or None).items():
         w = info["wreck"]
-        print(f"{ship_id}: {info['tris']} Dreiecke, {info['kb']:.0f} KB, {info['mask']}, Maße {info['size']}, z {info['z']}; "
-              f"Wrack {w['pieces']} Stücke, {w['tris']} Dreiecke, {w['kb']:.0f} KB")
+        print(f"{ship_id}: {info['tris']} Dreiecke, {info['kb']:.0f} KB, {info['mask']}, Maße {info['size']}, z {info['z']}"
+              + (f"; Wrack {w['pieces']} Stücke, {w['tris']} Dreiecke, {w['kb']:.0f} KB" if w else ""))
         for center, tris in info["loose"]:
             print(f"  WARNUNG {ship_id}: schwebendes Teil bei ({center.x:.2f}, {center.y:.2f}, {center.z:.2f}), {tris} Dreiecke")
         for center, tris, problem in info["shells"]:

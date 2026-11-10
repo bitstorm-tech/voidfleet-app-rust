@@ -10,6 +10,7 @@
 
 use bevy::{
     asset::RenderAssetUsages,
+    gltf::GltfAssetLabel,
     mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology},
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
@@ -19,9 +20,11 @@ use bevy::{
     },
     shader::ShaderRef,
     transform::TransformSystems,
+    world_serialization::WorldAsset,
 };
 
 use super::{camera::MainCamera, paint::Canvas};
+use crate::assets::Preload;
 
 const SHADER: &str = "shaders/fx.wesl";
 
@@ -220,6 +223,8 @@ pub struct FxAssets {
     pub dot: Handle<Image>,
     /// Ring mit weichen Kanten: Druckwellen, Zielmarken, Portal.
     pub ring: Handle<Image>,
+    /// Modell des Torpedos (`tools/ships/fleet/torpedo.py`), Spitze nach −Z, Mitte im Ursprung.
+    pub torpedo: Handle<WorldAsset>,
 }
 
 /// Kantenlänge der berechneten Sprite-Texturen.
@@ -247,6 +252,10 @@ impl FromWorld for FxAssets {
         let ring = images.add(sprite(|distance| {
             (1.0 - (distance - 0.72).abs() / 0.22).max(0.0).powf(1.5)
         }));
+        let torpedo = world
+            .resource::<AssetServer>()
+            .load(GltfAssetLabel::Scene(0).from_asset("models/ships/torpedo.glb"));
+        world.resource_mut::<Preload>().track(torpedo.clone());
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         Self {
             quad: meshes.add(Rectangle::new(1.0, 1.0)),
@@ -262,6 +271,7 @@ impl FromWorld for FxAssets {
             ),
             dot,
             ring,
+            torpedo,
         }
     }
 }
