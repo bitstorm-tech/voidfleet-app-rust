@@ -283,37 +283,23 @@ impl Planner<'_> {
                 .then(sound.iter().map(clone_sound))
                 .and(self.salvo(rest, weapon))
         };
-        let buff = || {
-            Script::default()
-                .then(sound.iter().map(clone_sound).chain([
-                    Cue::Fx(Fx::Pulse {
+        // Ton, Puls und die Folgen (Auren, Schilde) starten im selben Takt; der Funkspruch läuft schon seit Schrittbeginn.
+        let pulsed = |size, label: Cue| {
+            Script::default().then(sound.iter().map(clone_sound).chain([
+                label,
+                Cue::Fork(vec![
+                    Script::default().then([Cue::Fx(Fx::Pulse {
                         at: flagship,
                         color: palette::BUFF,
-                        size: 2.2,
+                        size,
                         duration: 0.6,
-                    }),
-                    Cue::float(flagship, name.clone(), FloatTone::Buff),
-                ]))
-                .and(self.sequence(rest, self.plain()))
+                    })]),
+                    self.sequence(rest, self.plain()),
+                ]),
+            ]))
         };
-        let doctrine = || {
-            Script::default()
-                .then(
-                    [
-                        self.banner(name.clone(), None, true),
-                        Cue::Pause(BANNER_LEAD),
-                    ]
-                    .into_iter()
-                    .chain(sound.iter().map(clone_sound)),
-                )
-                .then([Cue::Fx(Fx::Pulse {
-                    at: flagship,
-                    color: palette::BUFF,
-                    size: 2.4,
-                    duration: 0.6,
-                })])
-                .and(self.sequence(rest, self.plain()))
-        };
+        let buff = || pulsed(2.2, Cue::float(flagship, name.clone(), FloatTone::Buff));
+        let doctrine = || pulsed(2.4, self.banner(name.clone(), None, true));
         let at_target = |spot: Spot, color, variant: Option<HitVariant>| {
             let mut beat: Vec<Cue> = sound.iter().map(clone_sound).collect();
             beat.push(Cue::Fx(Fx::Ring { at: spot, color }));
