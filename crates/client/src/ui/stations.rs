@@ -23,7 +23,7 @@ use crate::{assets::AppState, game::Battle, i18n::Locale, palette};
 
 /// Eine Station im Feld.
 #[derive(Component, Clone, Copy, Debug)]
-struct StationButton(Station);
+pub(super) struct StationButton(pub(super) Station);
 
 /// Ein Aktionsknopf.
 #[derive(Component, Clone, Copy, Debug)]

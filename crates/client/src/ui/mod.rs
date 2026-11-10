@@ -17,6 +17,7 @@
 //! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
 //! - [`dialogs`] — Admiralswahl, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln);
 //!   Schnittstelle dort.
+//! - [`aim_arrow`] — der Zielpfeil vom Gewählten zum Mauszeiger, solange es auf ein gegnerisches Ziel wartet.
 //! - [`cursor`] — der gewählte Mauszeiger in der gewählten Größe als Systemzeiger.
 //!
 //! Schnittstelle zum Controller: Die Widgets lesen [`Battle`](crate::game::Battle), [`Locale`] und [`HudState`] (was
@@ -25,6 +26,7 @@
 //! der Controller. Log und Banner füllen Controller und Wiedergabe mit [`AppendLog`], [`ClearLog`], [`ShowBanner`],
 //! [`HideBanner`] und [`ShowRoundBanner`].
 
+pub mod aim_arrow;
 pub mod button;
 pub mod card;
 pub mod cursor;
@@ -274,6 +276,7 @@ impl Plugin for InterfacePlugin {
                 view_toggle::ViewTogglePlugin,
                 fullscreen::FullscreenPlugin,
                 cursor::CursorPlugin,
+                aim_arrow::AimArrowPlugin,
                 dialogs::DialogsPlugin,
             ))
             .add_plugins(fps::FpsPlugin)

@@ -49,7 +49,7 @@ enum PileText {
 
 /// Eine Karte der Hand: ein Stapel gleicher Karten mit ihren Hand-Indizes.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
-struct HandStack(Vec<usize>);
+pub(super) struct HandStack(Vec<usize>);
 
 /// Was die Reihe gerade zeigt; nur eine Änderung baut sie neu.
 #[derive(Resource, Default, PartialEq)]
