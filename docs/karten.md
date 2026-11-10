@@ -18,7 +18,7 @@ Ein Schlüsselwort ist ein Wort mit fester Bedeutung, wie in Slay the Spire oder
 | **Doktrin** | Der Kartentyp: Die Wirkung gilt für den Rest des Gefechts. |
 | **Kennkarte** | Die Karte eines Admirals, zweimal in seinem Startdeck. |
 
-Wo Ausweichen, Panzerung, Deckung und Schilde in der Rechnung stehen, sagt [Schaden](gefecht.md#schaden).
+Wo Ausweichen, Deckung, Schilde und Panzerung in der Rechnung stehen, sagt [Schaden](gefecht.md#schaden).
 
 ## Die Karten
 

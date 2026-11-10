@@ -28,8 +28,8 @@ pub struct UnitStats {
 }
 
 /// Wie der Schaden eines Treffers entstand, in der Reihenfolge der Abzüge: Gegenmaßnahmen und Ausweichen halbieren,
-/// Panzerung zieht ab, Deckung leitet einen Teil an den Vordermann (eigener Treffer mit diesem Teil als `base`),
-/// Schilde schlucken, der Rest geht auf die Hülle. `lethal`: Die Hülle steht danach bei 0.
+/// Deckung leitet einen Teil an den Vordermann (eigener Treffer mit diesem Teil als `base`), Schilde schlucken,
+/// Panzerung zieht ab, der Rest geht auf die Hülle. `lethal`: Die Hülle steht danach bei 0.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     pub base: i32,

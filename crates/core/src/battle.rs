@@ -859,7 +859,7 @@ impl Battle {
 
     // --- Schaden ---
 
-    /// Schuss auf eine gegnerische Einheit: Ausweichen, Panzerung, Deckung, Schild (`docs/gefecht.md`).
+    /// Schuss auf eine gegnerische Einheit: Ausweichen, Deckung, Schild, Panzerung (`docs/gefecht.md`).
     fn shoot(&mut self, uid: u32, shot: Shot, events: &mut Vec<BattleEvent>) {
         let Some(i) = self.index(uid) else { return };
         let enemy = &self.enemies[i];
@@ -870,8 +870,6 @@ impl Battle {
             0
         };
         rest -= evaded;
-        let armor = enemy.id.armor().min(rest);
-        rest -= armor;
         let front = if shot.ignore_cover {
             None
         } else {
@@ -889,7 +887,6 @@ impl Battle {
         let breakdown = Breakdown {
             base: shot.base,
             evaded,
-            armor,
             covered,
             ..Breakdown::default()
         };
@@ -916,7 +913,8 @@ impl Battle {
         let enemy = &mut self.enemies[i];
         let was = enemy.emergency();
         breakdown.shielded = enemy.shield.min(rest);
-        breakdown.hull = (rest - breakdown.shielded).min(enemy.hull);
+        breakdown.armor = enemy.id.armor().min(rest - breakdown.shielded);
+        breakdown.hull = (rest - breakdown.shielded - breakdown.armor).min(enemy.hull);
         enemy.shield -= breakdown.shielded;
         enemy.hull -= breakdown.hull;
         enemy.hit = true;
@@ -1033,13 +1031,13 @@ impl Battle {
             breakdown.countermeasures = rest / 2;
             rest -= rest / 2;
         }
-        breakdown.armor = armor_value.min(rest);
-        rest -= breakdown.armor;
         if shields {
             breakdown.shielded = f.shield.min(rest);
             rest -= breakdown.shielded;
             f.shield -= breakdown.shielded;
         }
+        breakdown.armor = armor_value.min(rest);
+        rest -= breakdown.armor;
         breakdown.hull = rest.min(f.hull);
         f.hull -= breakdown.hull;
         breakdown.lethal = f.hull == 0;

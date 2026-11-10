@@ -726,7 +726,7 @@ impl Planner<'_> {
         beat
     }
 
-    /// Die Marken unter der Zahl: „weicht aus: 6 · Panzerung −2 · gedeckt: 4 → Wachkreuzer · Schild schluckt 8“.
+    /// Die Marken unter der Zahl: „weicht aus: 6 · gedeckt: 4 → Wachkreuzer · Schild schluckt 8 · Panzerung −2“.
     fn marks(&self, breakdown: &Breakdown, cover: Option<UnitRef>) -> String {
         let locale = self.locale;
         let mut marks = Vec::new();
@@ -736,14 +736,14 @@ impl Planner<'_> {
         if breakdown.countermeasures > 0 {
             marks.push(locale.mark_countermeasures(breakdown.countermeasures));
         }
-        if breakdown.armor > 0 {
-            marks.push(locale.mark_armor(breakdown.armor));
-        }
         if let (Some((_, amount)), Some(cover)) = (breakdown.covered, cover) {
             marks.push(locale.mark_covered(amount, &self.name(cover)));
         }
         if breakdown.shielded > 0 {
             marks.push(locale.mark_shielded(breakdown.shielded));
+        }
+        if breakdown.armor > 0 {
+            marks.push(locale.mark_armor(breakdown.armor));
         }
         if breakdown.lethal {
             marks.push(locale.breakdown_words()[5].to_owned());

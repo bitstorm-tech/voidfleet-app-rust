@@ -401,16 +401,16 @@ pub trait Messages: Sync {
         )
     }
 
-    /// Die Rechnung eines Treffers in Kurzform: „18 · Panzerung −2 · gedeckt −4 · Schild −3 → 9“.
+    /// Die Rechnung eines Treffers in Kurzform: „18 · gedeckt −4 · Schild −3 · Panzerung −2 → 9“.
     fn breakdown(&self, breakdown: &Breakdown) -> String {
         let [evaded, countermeasures, armor, covered, shield, lethal] = self.breakdown_words();
         let mut parts = vec![breakdown.base.to_string()];
         for (word, amount) in [
             (evaded, breakdown.evaded),
             (countermeasures, breakdown.countermeasures),
-            (armor, breakdown.armor),
             (covered, breakdown.covered.map_or(0, |(_, amount)| amount)),
             (shield, breakdown.shielded),
+            (armor, breakdown.armor),
         ] {
             if amount > 0 {
                 parts.push(format!("{word} −{amount}"));
@@ -560,7 +560,7 @@ mod tests {
         };
         assert_eq!(
             de.breakdown(&breakdown),
-            "18 · Panzerung −2 · gedeckt −4 · Schild −3 → 9"
+            "18 · gedeckt −4 · Schild −3 · Panzerung −2 → 9"
         );
         assert_eq!(
             en.breakdown(&Breakdown {

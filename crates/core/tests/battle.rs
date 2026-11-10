@@ -202,7 +202,7 @@ fn example_round_safe() {
 }
 
 #[test]
-fn damage_order_with_evade_armor_cover_and_shield() {
+fn damage_order_with_evade_cover_shield_and_armor() {
     let mut b = battle(
         AdmiralId::Vance,
         &[
@@ -222,24 +222,24 @@ fn damage_order_with_evade_armor_cover_and_shield() {
     let events = b
         .run_station(Station::Weapons, Target::Enemy(besieger))
         .unwrap();
-    // 11, ausgewichen −5, Panzerung −2, gedeckt: 2 an den Wachkreuzer, Schild 1, Hülle 1.
+    // 11, ausgewichen −5, gedeckt: 3 an den Wachkreuzer, Schild 1, Panzerung −2, Hülle 0.
     let expected = Breakdown {
         base: 11,
         evaded: 5,
         armor: 2,
-        covered: Some((cruiser, 2)),
+        covered: Some((cruiser, 3)),
         shielded: 1,
         countermeasures: 0,
-        hull: 1,
+        hull: 0,
         lethal: false,
     };
     assert_eq!(hits_on(&events, enemy_ref(besieger)), vec![expected]);
     let front = hits_on(&events, enemy_ref(cruiser))[0];
-    assert_eq!((front.base, front.shielded, front.hull), (2, 2, 0));
+    assert_eq!((front.base, front.shielded, front.hull), (3, 2, 1));
     assert_eq!(preview.len(), 2);
     assert_eq!(preview[0].breakdown, expected);
     assert_eq!(preview[1].breakdown, front);
-    assert_eq!(b.enemy(besieger).unwrap().hull, 29);
+    assert_eq!(b.enemy(besieger).unwrap().hull, 30);
 }
 
 #[test]
