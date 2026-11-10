@@ -689,14 +689,26 @@ impl Planner<'_> {
         weapon: Weapon,
     ) -> Vec<Cue> {
         let at = Spot::Unit(target);
-        let mut beat = vec![
-            Cue::Fx(Fx::Impact {
-                at,
-                from: Spot::Unit(source),
-                color: shot_color(source, self.admiral),
-                variant: weapon.variant(),
-            }),
-            Cue::Unit(target, Job::Flash),
+        let from = Spot::Unit(source);
+        let color = shot_color(source, self.admiral);
+        // Stand vor dem Treffer ein Schild, verpufft der Schuss daran; nur was durchschlägt, trifft die Hülle.
+        let shield = breakdown.shielded > 0 || after.shield > 0;
+        let mut beat = Vec::new();
+        if shield {
+            beat.push(Cue::Fx(Fx::ShieldImpact { at: target, from }));
+        }
+        if !shield || breakdown.hull > 0 {
+            beat.extend([
+                Cue::Fx(Fx::Impact {
+                    at,
+                    from,
+                    color,
+                    variant: weapon.variant(),
+                }),
+                Cue::Unit(target, Job::Flash),
+            ]);
+        }
+        beat.extend([
             Cue::Unit(target, Job::Stats(after)),
             Cue::Float {
                 at,
@@ -704,7 +716,7 @@ impl Planner<'_> {
                 detail: self.marks(breakdown, cover),
                 tone: FloatTone::Damage,
             },
-        ];
+        ]);
         if target == UnitRef::Flagship {
             beat.push(Cue::Shake(
                 (SHAKE_BASE + SHAKE_PER_POINT * breakdown.hull as f32).min(SHAKE_MAX),

@@ -63,6 +63,8 @@ const SHIELD_HULL_MARGIN: f32 = 1.3;
 const SHIELD_HULL_MIN_AXIS: f32 = 0.45;
 /// Aufbau der Schildhülle in Sekunden; bei normaler Animationsgeschwindigkeit (×1,25) genau eine.
 const SHIELD_RISE: f32 = 0.8;
+/// Dauer des Aufglühens nach einem Schildtreffer, in Sekunden.
+const SHIELD_STRIKE: f32 = 0.5;
 
 /// Werte über dem Schiff.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -118,6 +120,11 @@ struct ShieldHull {
 #[require(Animation::new(SHIELD_RISE))]
 struct ShieldRise(Entity);
 
+/// Ein Schuss verpufft am Schild des Schiffs: Die Hülle glüht auf und beruhigt sich wieder.
+#[derive(Component)]
+#[require(Animation::new(SHIELD_STRIKE))]
+pub struct ShieldStrike(pub Entity);
+
 /// Grenzen des Modells im Raum des Schiffs (vor dessen Maßstab), sobald es geladen ist.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct ShipBounds {
@@ -129,6 +136,19 @@ impl ShipBounds {
     /// Mitte des Modells in der Welt.
     pub fn world_center(&self, ship: &GlobalTransform) -> Vec3 {
         ship.transform_point((self.min + self.max) / 2.0)
+    }
+
+    /// Halbachsen der Schildhülle im Raum des Schiffs; sie steht um die Mitte des Modells.
+    fn shield_half(&self) -> Vec3 {
+        let half = (self.max - self.min) / 2.0 * SHIELD_HULL_MARGIN;
+        half.max(Vec3::splat(half.max_element() * SHIELD_HULL_MIN_AXIS))
+    }
+
+    /// Wo die Linie von der Mitte des Modells nach `from` die Schildhülle schneidet, in der Welt.
+    pub fn shield_point(&self, ship: &GlobalTransform, from: Vec3) -> Vec3 {
+        let (center, half) = ((self.min + self.max) / 2.0, self.shield_half());
+        let toward = (ship.affine().inverse().transform_point3(from) - center) / half;
+        ship.transform_point(center + toward.normalize_or(Vec3::Z) * half)
     }
 
     /// Halbe größte Ausdehnung in Welteinheiten.
@@ -196,7 +216,7 @@ impl Plugin for StatusPlugin {
                 (
                     measure,
                     // Nach Wiedergabe und Abgleich, die die Werte schreiben: Die Balken zeigen sie im selben Bild.
-                    rise_shields.in_set(AnimationSystems::Apply),
+                    (rise_shields, strike_shields).in_set(AnimationSystems::Apply),
                     (update_bars, pulse_preview, raise_shields)
                         .after(AnimationSystems::Apply)
                         .after(SyncSystems),
@@ -562,9 +582,8 @@ fn measure(
             transforms.get_mut(ship_parts.shield_hull),
             shield_hulls.get_mut(ship_parts.shield_hull),
         ) {
-            let half = (max - min) / 2.0 * SHIELD_HULL_MARGIN;
             // Die Kugel hat den Durchmesser 1.
-            hull.scale = half.max(Vec3::splat(half.max_element() * SHIELD_HULL_MIN_AXIS)) * 2.0;
+            hull.scale = ShipBounds { min, max }.shield_half() * 2.0;
             *transform = Transform::from_translation((min + max) / 2.0).with_scale(hull.scale);
         }
     }
@@ -787,6 +806,28 @@ fn rise_shields(
     }
 }
 
+/// Endet bei Kante und Deckkraft der ruhenden Hülle.
+fn strike_shields(
+    strikes: Query<(&ShieldStrike, &Animation)>,
+    ships: Query<&ShipParts>,
+    hulls: Query<&MeshMaterial3d<FxMaterial>>,
+    mut materials: ResMut<Assets<FxMaterial>>,
+) {
+    for (strike, animation) in &strikes {
+        let Some(mut material) = ships
+            .get(strike.0)
+            .and_then(|parts| hulls.get(parts.shield_hull))
+            .ok()
+            .and_then(|material| materials.get_mut(&material.0))
+        else {
+            continue;
+        };
+        let glow = (1.0 - animation.progress()).powi(2);
+        material.rim = SHIELD_HULL_RIM * (1.0 - 0.6 * glow);
+        material.set_alpha(SHIELD_HULL_ALPHA * (1.0 + 3.0 * glow));
+    }
+}
+
 /// Verlust und Totenkopf blinken im selben Takt, über alle Schiffe gleich.
 fn pulse_preview(
     time: Res<Time>,
@@ -811,5 +852,25 @@ fn pulse_preview(
                 material.set_alpha(alpha);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shield_point_lies_on_the_hull_toward_the_shooter() {
+        let bounds = ShipBounds {
+            min: Vec3::new(-1.0, -0.5, -2.0),
+            max: Vec3::new(1.0, 0.5, 2.0),
+        };
+        let ship =
+            GlobalTransform::from(Transform::from_xyz(3.0, 0.0, 0.0).with_scale(Vec3::splat(2.0)));
+        let from = Vec3::new(3.0, 0.0, 20.0);
+        let point = bounds.shield_point(&ship, from);
+        let local = ship.affine().inverse().transform_point3(point) / bounds.shield_half();
+        assert!((local.length() - 1.0).abs() < 1e-4);
+        assert!(point.z > 0.0 && (point.x - 3.0).abs() < 1e-4);
     }
 }

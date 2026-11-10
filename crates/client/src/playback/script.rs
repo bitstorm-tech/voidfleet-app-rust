@@ -21,6 +21,7 @@ use crate::{
     audio::{PlaySound, RadioCue, Say, SoundId},
     data::ship_models::{ShipKind, ShipModels},
     game::Battle,
+    palette,
     scene::{
         animation::{Animation, AnimationClock, AnimationScope},
         aura::ShipAura,
@@ -30,14 +31,14 @@ use crate::{
         destruction::DestroyShip,
         effects::{
             Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
-            SecondaryExplosion, TargetRing, Tether, Warp,
+            SecondaryExplosion, ShieldImpact, TargetRing, Tether, Warp,
         },
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
         labels::ShipCaption,
         motion::{Arrive, Charge, HitFlash, MoveShip, Withdraw},
         ship::{AimedHull, Ship, ShipModel, Wreck, spawn_ship},
-        status::ShipStatus,
+        status::{ShieldStrike, ShipBounds, ShipStatus},
     },
     ui::{AppendLog, ShowBanner, ShowRoundBanner},
 };
@@ -154,6 +155,11 @@ pub(super) enum Fx {
         color: Color,
         variant: Option<HitVariant>,
     },
+    /// Ein Schuss verpufft am Schild: Funken und Welle am Schild, die Hülle glüht auf.
+    ShieldImpact {
+        at: UnitRef,
+        from: Spot,
+    },
     Ring {
         at: Spot,
         color: Color,
@@ -257,6 +263,7 @@ pub(super) struct Stage<'w, 's> {
     groups: Query<'w, 's, &'static Children, (With<ShipModel>, Without<Wreck>)>,
     hulls: Query<'w, 's, (&'static Hull, &'static Visibility, &'static GlobalTransform)>,
     aimed: Query<'w, 's, &'static mut AimedHull>,
+    bounds: Query<'w, 's, (&'static ShipBounds, &'static GlobalTransform)>,
     statuses: Query<'w, 's, &'static mut ShipStatus>,
     captions: Query<'w, 's, &'static mut ShipCaption>,
     auras: Query<'w, 's, &'static mut ShipAura>,
@@ -391,6 +398,32 @@ impl Stage<'_, '_> {
         to + (from - to).normalize_or_zero() * HULL_RADIUS
     }
 
+    /// Wo die Schildhülle einer Einheit zum Schützen bei `from` hin liegt.
+    fn shield_point(&self, unit: UnitRef, from: Vec3) -> Option<Vec3> {
+        let (ship, _) = self.ship(unit)?;
+        let (bounds, transform) = self.bounds.get(ship).ok()?;
+        Some(bounds.shield_point(transform, from))
+    }
+
+    /// Wo ein Geschoss endet: Steht am Ziel (bei Spaltenfeuer: am Flaggschiff in der Spalte) ein Schild, an dessen
+    /// Hülle, sonst auf der Hülle des Schiffs. Der Schild gilt vor dem Treffer, die Werte folgen erst mit dem Einschlag.
+    fn shot_point(&mut self, from: Vec3, to: Spot) -> Vec3 {
+        let unit = match to {
+            Spot::Unit(unit) => Some(unit),
+            Spot::Column(column) if self.slot(UnitRef::Flagship) == SlotRef::player(column) => {
+                Some(UnitRef::Flagship)
+            }
+            _ => None,
+        };
+        unit.filter(|&unit| {
+            self.ship(unit)
+                .and_then(|(ship, _)| self.statuses.get(ship).ok())
+                .is_some_and(|status| status.shield > 0 && !status.hidden)
+        })
+        .and_then(|unit| self.shield_point(unit, from))
+        .unwrap_or_else(|| self.hull_point(from, to))
+    }
+
     fn await_job(&mut self, script: Entity, job: impl Bundle) {
         self.commands.spawn((job, AwaitedBy(script)));
     }
@@ -464,7 +497,7 @@ impl Stage<'_, '_> {
         match fx {
             Fx::Bolt { from, to, color } => {
                 let from = self.point(from);
-                let to = self.hull_point(from, to);
+                let to = self.shot_point(from, to);
                 self.await_job(script, Bolt { from, to, color });
             }
             Fx::Fizzle { from, to, color } => {
@@ -479,7 +512,7 @@ impl Stage<'_, '_> {
                 width,
             } => {
                 let from = self.point(from);
-                let to = self.hull_point(from, to);
+                let to = self.shot_point(from, to);
                 self.await_job(
                     script,
                     Beam {
@@ -492,7 +525,7 @@ impl Stage<'_, '_> {
             }
             Fx::Missile { from, to, color } => {
                 let from = self.point(from);
-                let to = self.hull_point(from, to);
+                let to = self.shot_point(from, to);
                 self.await_job(script, Missile { from, to, color });
             }
             Fx::Pulse {
@@ -527,6 +560,23 @@ impl Stage<'_, '_> {
                         origin,
                         color,
                         variant,
+                    },
+                );
+            }
+            Fx::ShieldImpact { at, from } => {
+                let origin = self.point(from);
+                let position = self
+                    .shield_point(at, origin)
+                    .unwrap_or_else(|| self.point(Spot::Unit(at)));
+                if let Some((ship, _)) = self.ship(at) {
+                    self.commands.spawn(ShieldStrike(ship));
+                }
+                self.await_job(
+                    script,
+                    ShieldImpact {
+                        position,
+                        origin,
+                        color: palette::SHIELD,
                     },
                 );
             }

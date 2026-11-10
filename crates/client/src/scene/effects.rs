@@ -462,6 +462,15 @@ pub struct ShieldFlare {
     pub size: f32,
 }
 
+/// Ein Schuss verpufft am Schild bei `position`, aus Richtung `origin`: Blitz und Welle in der Schildfarbe, Funken
+/// gleiten über die Hülle, ohne das Schiff zu treffen.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ShieldImpact {
+    pub position: Vec3,
+    pub origin: Vec3,
+    pub color: Color,
+}
+
 /// Eine Leuchtkugel wächst auf `size` und verblasst dabei in `duration` Sekunden.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Pulse {
@@ -660,6 +669,7 @@ impl Plugin for EffectsPlugin {
             .add_observer(release_tether)
             .add_observer(start_pulse)
             .add_observer(start_shield_flare)
+            .add_observer(start_shield_impact)
             .add_observer(start_sprite)
             .add_observer(start_impact)
             .add_observer(start_secondary)
@@ -1062,6 +1072,44 @@ fn start_shield_flare(add: On<Add<ShieldFlare>>, flares: Query<&ShieldFlare>, mu
     fx.commands
         .entity(add.entity)
         .insert((Name::new("Schildaufbau"), Animation::new(0.6)));
+}
+
+fn start_shield_impact(add: On<Add<ShieldImpact>>, impacts: Query<&ShieldImpact>, mut fx: Fx) {
+    let ShieldImpact {
+        position,
+        origin,
+        color,
+    } = *impacts.get(add.entity).expect("Schildtreffer");
+    fx.sound(PlaySound::new(SoundId::ImpactEnergy).at(position).rate(1.3));
+    let normal = (origin - position).normalize();
+    let sparks = Burst {
+        count: 40,
+        cone: 80f32.to_radians(),
+        speed: (2.0, 6.0),
+        life: (0.15, 0.4),
+        size: (0.05, 0.09),
+        stretch: 6.0,
+        colors: shot,
+        ..Burst::DEFAULT
+    };
+    fx.burst(position, normal, sparks, color, 1.0);
+    fx.sprite(
+        position,
+        light(lighten(color, 0.6)),
+        1.3,
+        FLASH_DURATION * 1.5,
+        SpriteKind::Flash,
+    );
+    fx.sprite(
+        position,
+        light(color),
+        1.8,
+        RING_DURATION,
+        SpriteKind::Shockwave,
+    );
+    fx.commands
+        .entity(add.entity)
+        .insert((Name::new("Schildtreffer"), Animation::new(RING_DURATION)));
 }
 
 fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {
