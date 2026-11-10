@@ -1,5 +1,5 @@
 //! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8, der Hülle des Flaggschiffs und dem
-//! Stand des Runs ([`super::run_bar`]), das
+//! Stand des Runs ([`super::run_bar`]), darunter die aktiven Doktrinen als kleine Karten, das
 //! Log hinter dem Icon-Knopf oben rechts, das Banner für kurze Ansagen (etwa abgelehnte Aktionen) und die Ankündigung
 //! einer neuen Runde.
 
@@ -12,10 +12,13 @@ use bevy::{
 use super::{
     AppendLog, ClearLog, Fonts, HideBanner, ShowBanner, ShowRoundBanner, UiIcons,
     button::{self, Lit},
+    card::{CardAssets, CardHover, command_card},
     hand::HandBar,
     theme::{self, UiOpacity},
     tooltip::Tooltip,
 };
+use voidfleet_core::cards::DeckCard;
+
 use crate::{
     assets::AppState,
     audio::{PlayUiSound, UiSound},
@@ -36,6 +39,14 @@ struct ClockLabel;
 
 #[derive(Component)]
 struct HullLabel;
+
+/// Die Leiste der aktiven Doktrinen unter der Kopfzeile.
+#[derive(Component)]
+struct DoctrineBar;
+
+/// Maßstab der Doktrinen in der Leiste und ihr Zoom beim Hover.
+const DOCTRINE_SCALE: f32 = 0.45;
+const DOCTRINE_ZOOM: f32 = 3.0;
 
 /// Der Icon-Knopf des Logs.
 #[derive(Component)]
@@ -103,6 +114,18 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             ),
             super::run_bar::run_header(),
         ],
+    ));
+    commands.spawn((
+        Name::new("Doktrinen"),
+        DoctrineBar,
+        Node {
+            position_type: PositionType::Absolute,
+            top: px(76),
+            left: px(32),
+            column_gap: px(8),
+            ..default()
+        },
+        Pickable::IGNORE,
     ));
     commands.spawn((
         Name::new("Log"),
@@ -293,10 +316,48 @@ fn update_top_bar(
     }
 }
 
+/// Baut die Leiste der Doktrinen neu, sobald sich die gespielten Doktrinen ändern; ohne Gefecht bleibt sie leer.
+fn update_doctrines(
+    mut commands: Commands,
+    battle: Option<Res<Battle>>,
+    assets: CardAssets,
+    bar: Single<Entity, With<DoctrineBar>>,
+    mut shown: Local<Vec<DeckCard>>,
+) {
+    let doctrines = battle
+        .map(|battle| battle.doctrines.clone())
+        .unwrap_or_default();
+    if *shown == doctrines && !assets.locale.is_changed() {
+        return;
+    }
+    commands.entity(*bar).despawn_related::<Children>();
+    commands.entity(*bar).with_children(|bar| {
+        for &card in &doctrines {
+            bar.spawn((
+                command_card(&assets, card, DOCTRINE_SCALE),
+                // Wächst nach rechts unten, damit der Text lesbar wird.
+                CardHover::Zoom {
+                    scale: DOCTRINE_ZOOM,
+                    origin: Vec2::new(-1.0, -1.0),
+                },
+            ));
+        }
+    });
+    *shown = doctrines;
+}
+
 /// Hand, Stationen und Log gehören zum Gefecht; auf Karte und Knoten liegen sie verborgen.
 fn show_battle_hud(
     screen: Res<Screen>,
-    mut parts: Query<&mut Visibility, Or<(With<HandBar>, With<LogButton>, With<LogPanel>)>>,
+    mut parts: Query<
+        &mut Visibility,
+        Or<(
+            With<HandBar>,
+            With<LogButton>,
+            With<LogPanel>,
+            With<DoctrineBar>,
+        )>,
+    >,
 ) {
     let visibility = if *screen == Screen::Battle {
         Visibility::Inherited
@@ -488,6 +549,7 @@ impl Plugin for HudPlugin {
                 (
                     show_battle_hud,
                     update_top_bar,
+                    update_doctrines,
                     append_log,
                     show_banner,
                     hide_banner,
