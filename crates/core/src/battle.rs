@@ -1101,12 +1101,7 @@ impl Battle {
             .partition(|r| r.round <= round);
         self.reinforcements = later;
         for Reinforcement { unit, .. } in due {
-            let free = EnemySlot::ALL
-                .into_iter()
-                .find(|s| self.enemies.iter().all(|e| e.slot != *s));
-            if let (Some(slot), true) = (free, self.enemies.len() < MAX_ENEMIES) {
-                self.spawn(unit, slot, true, events);
-            }
+            self.reinforce(unit, events);
         }
         for uid in self.uids() {
             let Some(i) = self.index(uid) else { continue };
@@ -1168,12 +1163,8 @@ impl Battle {
                 }
                 Action::Charge => self.enemies[i].charged = true,
                 Action::Evade | Action::TargetLock => {}
-                Action::Call(unit) => {
-                    self.reinforcements.push(Reinforcement {
-                        round: round + 1,
-                        unit,
-                    });
-                }
+                // Trifft sofort ein und steht damit in der nächsten Runde auf dem Brett.
+                Action::Call(unit) => self.reinforce(unit, events),
                 Action::Bolt => {
                     for enemy in &mut self.enemies {
                         enemy.shield += BOLT_SHIELD;
@@ -1351,6 +1342,16 @@ impl Battle {
     }
 
     /// Stellt eine Einheit auf und lässt sie ihre ersten beiden Absichten ansagen.
+    /// Stellt Verstärkung in den ersten freien Slot, solange die Grenze nicht erreicht ist.
+    fn reinforce(&mut self, unit: EnemyId, events: &mut Vec<BattleEvent>) {
+        let free = EnemySlot::ALL
+            .into_iter()
+            .find(|s| self.enemies.iter().all(|e| e.slot != *s));
+        if let (Some(slot), true) = (free, self.enemies.len() < MAX_ENEMIES) {
+            self.spawn(unit, slot, true, events);
+        }
+    }
+
     fn spawn(
         &mut self,
         id: EnemyId,

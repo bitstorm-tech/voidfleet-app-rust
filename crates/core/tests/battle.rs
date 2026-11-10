@@ -573,8 +573,7 @@ fn carrier_calls_reinforcement() {
             ..
         }
     )));
-    assert_eq!(b.enemies.len(), 1);
-    let events = b.end_turn();
+    // Gerufen trifft sie im selben Gegnerzug ein und steht in der nächsten Runde.
     assert!(
         events
             .iter()

@@ -116,7 +116,7 @@ Was ein Gegner in seinem Zug tun kann, und was der Spieler dagegen hat:
 | **Ausweichen** | Jäger | gilt ab der Ansage: halbiert die Schüsse des Spielers in diesem Spielerzug, feuert nicht | Torpedo, Railgun, Fokusfeuer, Sperrfeuer, Wärmesucher |
 | **Aufladen** | Belagerer, Wächter | feuert nicht, nächste Runde doppelte ATK | EMP-Stoß, Funkstille, Stillstand, vorher fällen |
 | **Zielerfassung** | Spotter | alle gegnerischen Schüsse +1 ATK, solange er steht | den Spotter fällen, Traktorstrahl, Funkstille |
-| **Verstärkung rufen** | Trägerschiff, Schrottkönig | eine neue Einheit trifft im nächsten Gegnerzug ein | den Rufer fällen, Funkstille |
+| **Verstärkung rufen** | Trägerschiff, Schrottkönig | eine neue Einheit trifft sofort ein und steht in der nächsten Runde auf dem Brett | den Rufer fällen, Funkstille |
 
 Gegner manövrieren nicht, reparieren nicht und spielen keine Karten. Ausweichen ist die eine Absicht, die schon mit der Ansage gilt und mit ihr endet; alle anderen wirken erst im Gegnerzug. Ausweichen und Schilde eines Gegners sind als Zustand an ihm zu sehen, solange sie gelten.
 
@@ -124,7 +124,7 @@ Zielerfassung, Zielstörer, Gefechtsuhr und Notfall ändern die ATK, also Zielfe
 
 ### Verstärkung
 
-Verstärkung kommt auf zwei Wegen: Manche Gefechte sagen sie an („Zwei Wachkreuzer in zwei Runden“), und manche Gegner rufen sie mit der Aktion Verstärkung rufen. Sie trifft zu Beginn des Gegnerzugs in freie Slots ein; die Grenze von vier Einheiten gilt auch für sie. Wer eintrifft, sagt sofort seine erste Absicht an und handelt in der nächsten Runde. Verstärkung macht ein Gefecht zum Wettlauf und gibt den Angriffskarten ein Ziel.
+Verstärkung kommt auf zwei Wegen: Manche Gefechte sagen sie an („Zwei Wachkreuzer in zwei Runden“), und manche Gegner rufen sie mit der Aktion Verstärkung rufen. Angesagte Verstärkung trifft zu Beginn des Gegnerzugs ein, gerufene sofort mit dem Ruf, beide in freie Slots; die Grenze von vier Einheiten gilt auch für sie. Wer eintrifft, sagt sofort seine erste Absicht an und handelt in der nächsten Runde. Verstärkung macht ein Gefecht zum Wettlauf und gibt den Angriffskarten ein Ziel.
 
 ### Gefechtsuhr
 
