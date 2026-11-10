@@ -93,6 +93,12 @@ const ICONS: &[(&str, &str)] = &[
         "silenced",
         r#"<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M19.1 4.9C23 8.8 23 15.1 19.1 19M3 3l18 18" /><circle cx="12" cy="12" r="2" />"#,
     ),
+    // Stationen Schadenskontrolle (Lucide „wrench“) und Manöver (Lucide „move-horizontal“).
+    (
+        "repair",
+        r#"<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />"#,
+    ),
+    ("maneuver", r#"<path d="m18 8 4 4-4 4M2 12h20M6 8l-4 4 4 4" />"#),
     // Deckung (Lucide „brick-wall“).
     (
         "cover",
@@ -102,10 +108,10 @@ const ICONS: &[(&str, &str)] = &[
 
 /// Gefüllte Icons.
 const FILLED_ICONS: &[(&str, &str)] = &[
-    // Krone der Flaggschiffe.
+    // Drei Sterne der Flaggschiffe, des Bosses und der Admiralsstation.
     (
-        "crown",
-        r#"<path d="M3 18 2 7l5.5 4L12 4l4.5 7L22 7l-1 11Z" /><rect x="3" y="19.5" width="18" height="2.5" rx="0.6" />"#,
+        "stars",
+        r#"<path d="M4.5 8.4l.88 2.39 2.54.1-1.99 1.57.69 2.45-2.12-1.41-2.12 1.41.69-2.45-1.99-1.57 2.54-.1z" /><path d="M12 8.4l.88 2.39 2.54.1-1.99 1.57.69 2.45-2.12-1.41-2.12 1.41.69-2.45-1.99-1.57 2.54-.1z" /><path d="M19.5 8.4l.88 2.39 2.54.1-1.99 1.57.69 2.45-2.12-1.41-2.12 1.41.69-2.45-1.99-1.57 2.54-.1z" />"#,
     ),
 ];
 

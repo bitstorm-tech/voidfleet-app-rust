@@ -1,5 +1,5 @@
 //! Ein kleiner Zeichengrund für die Texturen, die das Original im Canvas zeichnet (Marken am Boden, Pfeile vor den
-//! Spalten, Krone, Totenkopf, Sprites der Effekte). Gezeichnet wird im Einheitsquadrat wie dort nach `translate` und
+//! Spalten, Sterne, Totenkopf, Sprites der Effekte). Gezeichnet wird im Einheitsquadrat wie dort nach `translate` und
 //! `scale`: Mitte (0, 0), Rand ±1, y nach unten. Jede Form ist eine Funktion „liegt der Punkt darin?“; der Zeichengrund
 //! tastet je Pixel 4×4-fach ab und mischt sRGB-Farben wie der Canvas (source-over).
 

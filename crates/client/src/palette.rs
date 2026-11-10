@@ -36,7 +36,7 @@ pub const HP_FULL: Color = Color::srgb(0.3, 0.86, 0.38);
 pub const WON: Color = Color::srgb(1.0, 0.84, 0.4);
 pub const LOST: Color = Color::srgb(1.0, 0.38, 0.31);
 pub const DRAW: Color = Color::srgb(0.69, 0.74, 0.81);
-/// Gemeinsamer Zierton aller Flaggschiffe: Rahmen der Flaggschiff-Karte, Krone neben dem Hüllenbalken.
+/// Gemeinsamer Zierton aller Flaggschiffe: Rahmen der Flaggschiff-Karte, Sterne neben dem Hüllenbalken.
 pub const FLAGSHIP_TRIM: Color = hex(0xF4D68C);
 /// Text der Oberfläche und gedämpfter Text (`--text`, `--text-dim` in `styles.css`).
 pub const TEXT: Color = Color::srgb(242.0 / 255.0, 247.0 / 255.0, 1.0);

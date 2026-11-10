@@ -42,20 +42,35 @@ pub enum ChecklistState {
 }
 
 /// Das Feld; steht rechts in der Hand ([`super::hand`]).
-pub(super) fn stations_panel(fonts: &Fonts) -> impl Bundle {
+pub(super) fn stations_panel(fonts: &Fonts, icons: &UiIcons) -> impl Bundle {
     let station = |station: Station| {
+        // Die drei Sterne füllen nur ein Drittel der Höhe ihres Icons.
+        let (icon, size) = match station {
+            Station::Weapons => (&icons.crosshair, 16.0),
+            Station::Shields => (&icons.shield, 16.0),
+            Station::DamageControl => (&icons.repair, 16.0),
+            Station::Maneuver => (&icons.maneuver, 16.0),
+            Station::Admiral => (&icons.stars, 26.0),
+        };
         (
             StationButton(station),
-            button::text_button(
-                fonts.display_bold(16.0),
-                "",
+            button::button(
                 Key::NORMAL,
                 Node {
                     width: px(190),
                     height: px(30),
+                    column_gap: px(8),
                     ..default()
                 },
             ),
+            children![
+                button::icon_image(icon.clone(), size),
+                (
+                    theme::caps(fonts.display_bold(16.0), "", theme::TRACKING, palette::TEXT),
+                    theme::text_shadow(0.55),
+                    Pickable::IGNORE,
+                ),
+            ],
             Tooltip::default(),
             observe(
                 move |_: On<Activate>, mut pressed: MessageWriter<StationPressed>| {

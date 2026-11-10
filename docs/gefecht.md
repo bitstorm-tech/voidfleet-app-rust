@@ -16,7 +16,7 @@ Die Regeln eines Gefechts: Brett, Einheiten, Schaden, Zustände, Stationen, die 
 | Jäger-Staffel | nur Gegner | 5 kleine Modelle, die mit der Hülle verschwinden (je 20 % ein Modell) | schwach, aber viele; weicht aus, deckt, rammt |
 | Kreuzer-Paar | nur Gegner | 2 mittlere Modelle; bei 50 % Hülle oder weniger brennt eines, im Notfall ist eines ein Wrack | das Rückgrat jedes Verbands, Feuerleitung, Plasma |
 | Schlachtschiff | nur Gegner | 1 großes Modell mit Bränden und Rumpfbrüchen | Spaltenfeuer mit Aufladen, Panzerung, ruft Verstärkung |
-| Flaggschiff | Spieler; Gegner nur als Boss | wie Schlachtschiff, größer, mit Ring und Krone | das Schiff des Spielers, der Held des Runs |
+| Flaggschiff | Spieler; Gegner nur als Boss | wie Schlachtschiff, größer, mit Ring und drei Sternen | das Schiff des Spielers, der Held des Runs |
 
 Jede Einheit hat **Hülle** und **ATK**, keinen Schildwert. Schilde gibt es nur auf Zeit. Beim Flaggschiff kommen sie aus der Schild-Station und aus Befehlskarten, gelten für den folgenden Gegnerzug und verfallen in der Auflösung. Bei Gegnern kommen sie aus der Aktion Schilde und gelten bis zum Ende des nächsten Spielerzugs. Dazu kommt Deckung.
 

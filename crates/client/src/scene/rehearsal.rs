@@ -1,7 +1,7 @@
 //! Generalprobe hinter dem Ladebildschirm (Port von `scene/rehearsal.ts`): Einmal stehen alle Gegner und Flaggschiffe
 //! als Modellgruppen (Gegner in ihrer Lackierung, ein Kreuzermodell brennend und ausgebrannt, Rumpfbrüche) und ihre
 //! Wracks mit glühenden Bruchflächen und ein Geist auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das
-//! Gefecht beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Krone, alle Marken am Boden und die stummen Effekte (Bolzen,
+//! Gefecht beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Sternen, alle Marken am Boden und die stummen Effekte (Bolzen,
 //! verpuffender Bolzen, Zielmarke, Strahl, Rakete mit Leuchtspur, Schildaufbau, Impuls, Hyperraum-Austritt mit Blitz
 //! und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.

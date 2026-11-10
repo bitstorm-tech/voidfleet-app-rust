@@ -15,7 +15,7 @@ use bevy::{
 use voidfleet_core::cards::DeckCard;
 
 use super::{
-    Fonts, HandCardPressed, HudState,
+    Fonts, HandCardPressed, HudState, UiIcons,
     card::{CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card},
     stations, theme,
     theme::UiOpacity,
@@ -64,7 +64,7 @@ fn awaits_playback(shown_round: u32, round: u32, played: bool) -> bool {
     shown_round != 0 && round != shown_round && !played
 }
 
-fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
+fn spawn(mut commands: Commands, fonts: Res<Fonts>, icons: Res<UiIcons>) {
     let pile = |kind: PileText, font: TextFont, color: Color| {
         (
             kind,
@@ -122,7 +122,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
                 },
                 Pickable::IGNORE,
             ),
-            stations::stations_panel(&fonts),
+            stations::stations_panel(&fonts, &icons),
         ],
     ));
 }

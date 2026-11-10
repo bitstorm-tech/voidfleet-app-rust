@@ -138,7 +138,7 @@ fn kind_look(kind: NodeKind, icons: &UiIcons) -> (Color, Result<Handle<Image>, &
     match kind {
         NodeKind::Battle => (palette::ENEMY, Ok(icons.crosshair.clone())),
         NodeKind::Elite => (palette::DEBUFF, Ok(icons.crosshair.clone())),
-        NodeKind::Boss => (palette::DAMAGE, Ok(icons.crown.clone())),
+        NodeKind::Boss => (palette::DAMAGE, Ok(icons.stars.clone())),
         NodeKind::Event => (palette::BUFF, Err("?")),
         NodeKind::Shipyard => (palette::HEAL, Err("+")),
         NodeKind::Market => (palette::FLAGSHIP_TRIM, Err("$")),
@@ -331,12 +331,14 @@ fn spawn_node(
         }
         NodeState::Locked => {}
     }
+    // Die drei Sterne des Bosses füllen nur ein Drittel der Höhe ihres Icons.
+    let icon_size = size * if kind == NodeKind::Boss { 0.85 } else { 0.5 };
     node.with_children(|key| match glyph {
         Ok(icon) => {
             key.spawn((
                 Node {
-                    width: px(size * 0.5),
-                    height: px(size * 0.5),
+                    width: px(icon_size),
+                    height: px(icon_size),
                     ..default()
                 },
                 ImageNode::new(icon).with_color(tint),

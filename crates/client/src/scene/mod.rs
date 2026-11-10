@@ -3,7 +3,7 @@
 //! - Grundlagen: Kamera mit zwei Ansichten und Eingabe ([`camera`]), Hintergrund ([`background`]), Toon-Rendering
 //!   ([`toon`]), Schiffe und Wracks ([`ship`]), selbstleuchtendes Material und Billboards ([`fx`]), gezeichnete
 //!   Texturen ([`paint`]).
-//! - Brett: Pads, Anker, Hervorhebung ([`board`]); Statusbalken, Krone, Totenkopf und Grenzen der Schiffe
+//! - Brett: Pads, Anker, Hervorhebung ([`board`]); Statusbalken, Sterne, Totenkopf und Grenzen der Schiffe
 //!   ([`status`]); Marken am Boden ([`markers`]); Absicht, Zustände und Vorschau als Text über den Schiffen
 //!   ([`labels`]); Brand und Aufladung als Partikel ([`aura`]).
 //! - Zustand: [`sync`] stellt die Szene aus dem Gefecht, solange keine Wiedergabe läuft ([`sync::BoardMode`]);

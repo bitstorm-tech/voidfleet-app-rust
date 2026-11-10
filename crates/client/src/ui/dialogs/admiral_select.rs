@@ -80,8 +80,8 @@ fn lead_text(
     )
 }
 
-/// Überschrift eines Abschnitts, beim Flaggschiff mit Krone davor.
-fn section_label(fonts: &Fonts, label: &str, crown: Option<Handle<Image>>) -> impl Bundle + use<> {
+/// Überschrift eines Abschnitts, beim Flaggschiff mit drei Sternen davor.
+fn section_label(fonts: &Fonts, label: &str, stars: Option<Handle<Image>>) -> impl Bundle + use<> {
     (
         Node {
             align_items: AlignItems::Center,
@@ -91,14 +91,16 @@ fn section_label(fonts: &Fonts, label: &str, crown: Option<Handle<Image>>) -> im
         },
         Pickable::IGNORE,
         Children::spawn((
-            SpawnIter(crown.into_iter().map(|crown| {
+            SpawnIter(stars.into_iter().map(|stars| {
                 (
                     Node {
-                        width: px(13),
-                        height: px(13),
+                        width: px(22),
+                        height: px(22),
+                        // Die Sterne füllen nur ein Drittel der Höhe; die Zeile bleibt so hoch wie die Schrift.
+                        margin: UiRect::vertical(px(-4.5)),
                         ..default()
                     },
-                    ImageNode::new(crown).with_color(palette::FLAGSHIP_TRIM),
+                    ImageNode::new(stars).with_color(palette::FLAGSHIP_TRIM),
                     Pickable::IGNORE,
                 )
             })),
@@ -245,7 +247,7 @@ fn admiral_card(
                             section_label(
                                 fonts,
                                 locale.label_flagship(),
-                                Some(icons.crown.clone())
+                                Some(icons.stars.clone())
                             ),
                             (
                                 theme::text(

@@ -108,7 +108,7 @@ pub struct UiIcons {
     pub crosshair: Handle<Image>,
     pub check: Handle<Image>,
     pub arrow_right: Handle<Image>,
-    pub crown: Handle<Image>,
+    pub stars: Handle<Image>,
     pub settings: Handle<Image>,
     pub rules: Handle<Image>,
     pub column_fire: Handle<Image>,
@@ -123,6 +123,8 @@ pub struct UiIcons {
     pub stasis: Handle<Image>,
     pub silenced: Handle<Image>,
     pub cover: Handle<Image>,
+    pub repair: Handle<Image>,
+    pub maneuver: Handle<Image>,
 }
 
 impl FromWorld for UiIcons {
@@ -137,7 +139,7 @@ impl FromWorld for UiIcons {
                 crosshair: icon("crosshair"),
                 check: icon("check"),
                 arrow_right: icon("arrow_right"),
-                crown: icon("crown"),
+                stars: icon("stars"),
                 settings: icon("settings"),
                 rules: icon("rules"),
                 column_fire: icon("column_fire"),
@@ -152,6 +154,8 @@ impl FromWorld for UiIcons {
                 stasis: icon("stasis"),
                 silenced: icon("silenced"),
                 cover: icon("cover"),
+                repair: icon("repair"),
+                maneuver: icon("maneuver"),
             }
         })
     }

@@ -1,6 +1,7 @@
 //! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild über dem
-//! Modell, als Billboard zur Kamera gedreht, eine durchsichtige Schildhülle um das Modell, solange es Schild hat, Krone des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der
-//! Vorschau links daneben, und der Boden unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
+//! Modell, als Billboard zur Kamera gedreht, eine durchsichtige Schildhülle um das Modell, solange es Schild hat, drei
+//! Sterne des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der Vorschau links daneben, und der Boden
+//! unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
 //! in [`ShipStatus`]; wer sie ändert, ändert die Balken.
 //!
 //! Vorschau: Die Füllung zeigt, was nach dem Schuss oder der Karte bleibt, der Rest bis zum jetzigen Stand blinkt in
@@ -49,9 +50,10 @@ const VALUE_SIZE: f32 = 1.05;
 /// Zielvorschau: Takt (Hz) und schwächste Deckkraft des blinkenden Verlusts.
 const PREVIEW_PULSE: f32 = 1.4;
 const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
-/// Totenkopf und Krone, links bzw. rechts neben dem Hüllenbalken.
+/// Totenkopf und Sterne, links bzw. rechts neben dem Hüllenbalken.
 const SKULL_SIZE: f32 = 0.62;
-const CROWN_SIZE: f32 = 0.62;
+// Breiter als der Totenkopf: Die drei Sterne füllen nur ein Drittel der Höhe.
+const STARS_SIZE: f32 = 1.3;
 const BADGE_TEXTURE: u32 = 128;
 /// Schildhülle: Deckkraft, Kantenleuchten (Exponent), Abstand zum Modell (Faktor der halben Ausdehnung) und kleinste
 /// Halbachse als Anteil der größten, damit flache Schiffe kein Diskus umgibt.
@@ -74,7 +76,7 @@ pub struct ShipStatus {
     pub preview: Option<UnitStats>,
     /// Totenkopf: Laut Vorschau fällt das Schiff.
     pub doomed: bool,
-    /// Balken, Krone und Marken ausgeblendet (Einflug, Todeskampf).
+    /// Balken, Sterne und Marken ausgeblendet (Einflug, Todeskampf).
     pub hidden: bool,
 }
 
@@ -144,7 +146,7 @@ impl ShipBounds {
 /// Die Teile über und unter einem Schiff.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ShipParts {
-    /// Billboard über dem Modell: Balken, Krone, Totenkopf.
+    /// Billboard über dem Modell: Balken, Sterne, Totenkopf.
     pub overlay: Entity,
     pub bars: Entity,
     hp_fill: Entity,
@@ -155,7 +157,7 @@ pub struct ShipParts {
     tracks: [Entity; 2],
     /// Die Zahlen in Hüllen- und Schildbalken (Knoten der Oberfläche).
     values: [Entity; 2],
-    crown: Option<Entity>,
+    stars: Option<Entity>,
     skull: Entity,
     /// Schildhülle um das Modell (Raum des Schiffs), sichtbar, solange es Schild hat.
     shield_hull: Entity,
@@ -176,10 +178,10 @@ struct BarValue {
     track: usize,
 }
 
-/// Texturen von Krone und Totenkopf.
+/// Texturen von Sternen und Totenkopf.
 #[derive(Resource)]
 struct Badges {
-    crown: Handle<Image>,
+    stars: Handle<Image>,
     skull: Handle<Image>,
 }
 
@@ -214,7 +216,7 @@ impl FromWorld for Badges {
     fn from_world(world: &mut World) -> Self {
         let mut images = world.resource_mut::<Assets<Image>>();
         Self {
-            crown: images.add(crown()),
+            stars: images.add(stars()),
             skull: images.add(skull()),
         }
     }
@@ -225,43 +227,25 @@ fn pixels(point: Vec2) -> Vec2 {
     (point + 1.0) * BADGE_TEXTURE as f32 / 2.0
 }
 
-/// Goldene Krone mit dunklem Rand: fünf Zacken, drei Kugeln, darunter das Band.
-fn crown() -> Image {
+/// Drei goldene Sterne in einer Reihe mit dunklem Rand, wie das Icon `stars` der Oberfläche.
+fn stars() -> Image {
     let mut canvas = Canvas::new(BADGE_TEXTURE);
     let trim = palette::FLAGSHIP_TRIM.to_srgba();
     let edge = Srgba::new(40.0 / 255.0, 28.0 / 255.0, 8.0 / 255.0, 0.9);
-    let outline = [
-        (14.0, 96.0),
-        (10.0, 38.0),
-        (38.0, 62.0),
-        (64.0, 24.0),
-        (90.0, 62.0),
-        (118.0, 38.0),
-        (114.0, 96.0),
-    ]
-    .map(|(x, y)| Vec2::new(x, y));
-    let mut closed = outline.to_vec();
-    closed.push(outline[0]);
-    let stroke = polyline(closed, 6.0);
-    canvas.fill(edge, move |point| stroke(pixels(point)));
-    let body = polygon(outline.to_vec());
-    canvas.fill(trim, move |point| body(pixels(point)));
-    let band = rect(14.0, 100.0, 100.0, 14.0);
-    canvas.fill(trim, move |point| band(pixels(point)));
-    let band_edge = polyline(
-        vec![
-            Vec2::new(14.0, 100.0),
-            Vec2::new(114.0, 100.0),
-            Vec2::new(114.0, 114.0),
-            Vec2::new(14.0, 114.0),
-            Vec2::new(14.0, 100.0),
-        ],
-        6.0,
-    );
-    canvas.fill(edge, move |point| band_edge(pixels(point)));
-    for (x, y) in [(10.0, 36.0), (64.0, 22.0), (118.0, 36.0)] {
-        let ball = disc(Vec2::new(x, y), 8.0);
-        canvas.fill(trim, move |point| ball(pixels(point)));
+    for x in [22.0, 64.0, 106.0] {
+        let outline: Vec<Vec2> = (0..10)
+            .map(|index| {
+                let angle = (index as f32 * 36.0 - 90.0).to_radians();
+                let radius = if index % 2 == 0 { 20.0 } else { 8.5 };
+                Vec2::new(x, 64.0) + radius * Vec2::from_angle(angle)
+            })
+            .collect();
+        let mut closed = outline.clone();
+        closed.push(outline[0]);
+        let stroke = polyline(closed, 6.0);
+        canvas.fill(edge, move |point| stroke(pixels(point)));
+        let body = polygon(outline);
+        canvas.fill(trim, move |point| body(pixels(point)));
     }
     canvas.into_image()
 }
@@ -296,7 +280,7 @@ fn skull() -> Image {
     canvas.into_image()
 }
 
-/// Gibt jedem neuen Schiff Balken, Krone, Totenkopf, Boden und Werte.
+/// Gibt jedem neuen Schiff Balken, Sterne, Totenkopf, Boden und Werte.
 fn dress_ship(
     add: On<Add<Ship>>,
     ships: Query<&Ship>,
@@ -423,20 +407,20 @@ fn dress_ship(
             ))
             .id()
     };
-    // Die Krone trägt nur ein gegnerisches Flaggschiff; sie wird mit den Balken gedämpft.
-    let crown =
+    // Die Sterne trägt nur ein gegnerisches Flaggschiff; sie werden mit den Balken gedämpft.
+    let stars =
         matches!(ship.kind, ShipKind::Enemy(enemy) if enemy.class() == EnemyClass::Flagship).then(
             || {
-                let crown = badge(
+                let stars = badge(
                     &mut commands,
                     &mut materials,
                     bars,
-                    badges.crown.clone(),
-                    CROWN_SIZE,
-                    (TRACK_WIDTH + CROWN_SIZE) / 2.0 + 0.08,
+                    badges.stars.clone(),
+                    STARS_SIZE,
+                    (TRACK_WIDTH + STARS_SIZE) / 2.0 + 0.08,
                 );
-                commands.entity(crown).insert(Bar { alpha: 1.0 });
-                crown
+                commands.entity(stars).insert(Bar { alpha: 1.0 });
+                stars
             },
         );
     let skull = badge(
@@ -514,7 +498,7 @@ fn dress_ship(
         shield_loss,
         tracks: [hp_track, shield_track],
         values,
-        crown,
+        stars,
         skull,
         shield_hull,
         floor,
@@ -683,7 +667,7 @@ fn update_bars(
             ship_parts.tracks[0],
             ship_parts.tracks[1],
         ];
-        entities.extend(ship_parts.crown);
+        entities.extend(ship_parts.stars);
         for entity in entities {
             let Ok((bar, material)) = bars.get(entity) else {
                 continue;
