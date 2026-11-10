@@ -29,7 +29,7 @@ use crate::{
         coords::{BOARD_CENTER, SlotRef},
         destruction::DestroyShip,
         effects::{
-            Beam, Bolt, Bubble, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
+            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
             SecondaryExplosion, TargetRing, Tether, Warp,
         },
         floating_text::{FloatTone, FloatingText},
@@ -140,10 +140,6 @@ pub(super) enum Fx {
     Missile {
         from: Spot,
         to: Spot,
-        color: Color,
-    },
-    Bubble {
-        at: Spot,
         color: Color,
     },
     Pulse {
@@ -498,22 +494,6 @@ impl Stage<'_, '_> {
                 let from = self.point(from);
                 let to = self.hull_point(from, to);
                 self.await_job(script, Missile { from, to, color });
-            }
-            Fx::Bubble { at, color } => {
-                let size = if at == Spot::Unit(UnitRef::Flagship) {
-                    2.6
-                } else {
-                    2.0
-                };
-                let position = self.point(at);
-                self.await_job(
-                    script,
-                    Bubble {
-                        position,
-                        color,
-                        size,
-                    },
-                );
             }
             Fx::Pulse {
                 at,

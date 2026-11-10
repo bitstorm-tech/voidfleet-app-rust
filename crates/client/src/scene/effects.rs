@@ -1,6 +1,6 @@
 //! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Laserbolzen (auch verpuffende), die Zielmarke eines
 //! umgelenkten Schusses, der Strahl der Railgun, die Rakete des Wärmesuchers mit Leuchtspur, der Traktorstrahl, Impulse,
-//! Schildblasen, Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und der Austritt
+//! Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und der Austritt
 //! eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
 //! Blitz). Alle räumen sich nach dem Abspielen selbst weg.
 //!
@@ -47,10 +47,6 @@ const TETHER_WIDTH: f32 = 0.6;
 const TETHER_SHIMMER: f32 = 9.0;
 const TETHER_FADE_IN: f32 = 0.22;
 const TETHER_FADE_OUT: f32 = 0.3;
-/// Schildblase: wächst in einem Drittel der Zeit, leuchtet am Rand, verblasst am Ende.
-const BUBBLE_DURATION: f32 = 1.1;
-const BUBBLE_ALPHA: f32 = 0.85;
-const BUBBLE_RIM: f32 = 2.2;
 /// Einschlag: Blitz und Druckwelle.
 const FLASH_DURATION: f32 = 0.14;
 const RING_SIZE: f32 = 2.6;
@@ -458,14 +454,6 @@ pub struct ReleaseTether {
     pub entity: Entity,
 }
 
-/// Schildblase: eine Kugel, die am Rand leuchtet, auf `size` wächst, kurz steht und verblasst.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct Bubble {
-    pub position: Vec3,
-    pub color: Color,
-    pub size: f32,
-}
-
 /// Eine Leuchtkugel wächst auf `size` und verblasst dabei in `duration` Sekunden.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Pulse {
@@ -662,7 +650,6 @@ impl Plugin for EffectsPlugin {
             .add_observer(start_missile)
             .add_observer(start_tether)
             .add_observer(release_tether)
-            .add_observer(start_bubble)
             .add_observer(start_pulse)
             .add_observer(start_sprite)
             .add_observer(start_impact)
@@ -1003,27 +990,6 @@ fn hold_tethers(
             }
         }
     }
-}
-
-fn start_bubble(add: On<Add<Bubble>>, bubbles: Query<&Bubble>, mut fx: Fx) {
-    let bubble = *bubbles.get(add.entity).expect("Schildblase");
-    let material = fx.material(FxMaterial {
-        rim: BUBBLE_RIM,
-        ..FxMaterial::light(light(bubble.color).with_alpha(BUBBLE_ALPHA))
-    });
-    let mesh = Mesh3d(fx.assets.sphere.clone());
-    fx.commands.entity(add.entity).insert((
-        Name::new("Schildblase"),
-        mesh,
-        material,
-        Transform::from_translation(bubble.position),
-        Fade {
-            size: bubble.size,
-            scale: |t| EaseFunction::CubicOut.sample_clamped(t * 3.0),
-            alpha: |t| BUBBLE_ALPHA * ((1.0 - t) * 2.5).min(1.0),
-        },
-        Animation::new(BUBBLE_DURATION),
-    ));
 }
 
 fn start_pulse(add: On<Add<Pulse>>, pulses: Query<&Pulse>, mut fx: Fx) {

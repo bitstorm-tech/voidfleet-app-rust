@@ -7,7 +7,7 @@
 //! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu.
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
 //! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
-//! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildblase, Zielmarke und verpuffender Bolzen im Wechsel.
+//! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und verpuffender Bolzen im Wechsel.
 //! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
 //!
 //! Außer `board` und `report` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
@@ -32,8 +32,8 @@ use crate::{
         coords::SlotRef,
         destruction::DestroyShip,
         effects::{
-            Beam, Bolt, Bubble, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
-            TargetRing, Tether,
+            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether, TargetRing,
+            Tether,
         },
         floating_text::{FloatTone, FloatingText},
         motion::{Arrive, HitFlash, MoveShip},
@@ -379,11 +379,15 @@ fn run(
                     }
                 }
                 3 => {
-                    commands.spawn(Bubble {
-                        position: center(&layout, own(1)),
-                        color: palette::admiral_color(AdmiralId::Osei),
-                        size: 2.4,
-                    });
+                    // Schildhülle an und aus.
+                    if let Some((ship, _)) = ship_on(own(1)) {
+                        commands
+                            .entity(ship)
+                            .entry::<ShipStatus>()
+                            .and_modify(|mut status| {
+                                *status = status.with_shield(if status.shield > 0 { 0 } else { 4 });
+                            });
+                    }
                 }
                 4 => {
                     commands.spawn(TargetRing {

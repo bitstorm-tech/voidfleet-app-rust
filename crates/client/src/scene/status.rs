@@ -1,5 +1,5 @@
 //! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild über dem
-//! Modell, als Billboard zur Kamera gedreht, Krone des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der
+//! Modell, als Billboard zur Kamera gedreht, eine durchsichtige Schildhülle um das Modell, solange es Schild hat, Krone des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der
 //! Vorschau links daneben, und der Boden unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
 //! in [`ShipStatus`]; wer sie ändert, ändert die Balken.
 //!
@@ -22,7 +22,7 @@ use super::{
     board::SHIP_ANCHOR_HEIGHT,
     camera::MainCamera,
     formation::Hull,
-    fx::{Billboard, FxAssets, FxMaterial, linear, mix},
+    fx::{Billboard, FxAssets, FxMaterial, glowing, linear, mix},
     paint::{Canvas, disc, polygon, polyline, rect},
     ship::{BOARD_SCALE, ModelReady, Ship, ShipModel, Wreck},
     sync::SyncSystems,
@@ -52,6 +52,12 @@ const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
 const SKULL_SIZE: f32 = 0.62;
 const CROWN_SIZE: f32 = 0.62;
 const BADGE_TEXTURE: u32 = 128;
+/// Schildhülle: Deckkraft, Kantenleuchten (Exponent), Abstand zum Modell (Faktor der halben Ausdehnung) und kleinste
+/// Halbachse als Anteil der größten, damit flache Schiffe kein Diskus umgibt.
+const SHIELD_HULL_ALPHA: f32 = 0.35;
+const SHIELD_HULL_RIM: f32 = 2.5;
+const SHIELD_HULL_MARGIN: f32 = 1.3;
+const SHIELD_HULL_MIN_AXIS: f32 = 0.45;
 
 /// Werte über dem Schiff.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -136,6 +142,8 @@ pub struct ShipParts {
     values: [Entity; 2],
     crown: Option<Entity>,
     skull: Entity,
+    /// Schildhülle um das Modell (Raum des Schiffs), sichtbar, solange es Schild hat.
+    shield_hull: Entity,
     /// Boden unter dem Schiff in Welteinheiten (Nase −Z): Träger der Marken.
     pub floor: Entity,
 }
@@ -433,6 +441,20 @@ fn dress_ship(
             ChildOf(add.entity),
         ))
         .id();
+    // Ohne Grenzen keine Größe: [`measure`] legt die Hülle um das Modell.
+    let shield_hull = commands
+        .spawn((
+            Name::new("Schildhülle"),
+            Mesh3d(fx.sphere.clone()),
+            MeshMaterial3d(materials.add(FxMaterial {
+                rim: SHIELD_HULL_RIM,
+                ..FxMaterial::light(glowing(palette::SHIELD, SHIELD_HULL_ALPHA))
+            })),
+            Transform::from_scale(Vec3::ZERO),
+            Visibility::Hidden,
+            ChildOf(add.entity),
+        ))
+        .id();
     let values = [0, 1].map(|track| {
         commands
             .spawn((
@@ -477,6 +499,7 @@ fn dress_ship(
         values,
         crown,
         skull,
+        shield_hull,
         floor,
     },));
 }
@@ -532,6 +555,12 @@ fn measure(
             .insert(ShipBounds { min, max });
         if let Ok(mut overlay) = transforms.get_mut(ship_parts.overlay) {
             overlay.translation.y = BAR_MIN_HEIGHT.max(max.y + BAR_MARGIN);
+        }
+        if let Ok(mut hull) = transforms.get_mut(ship_parts.shield_hull) {
+            let half = (max - min) / 2.0 * SHIELD_HULL_MARGIN;
+            // Die Kugel hat den Durchmesser 1.
+            *hull = Transform::from_translation((min + max) / 2.0)
+                .with_scale(half.max(Vec3::splat(half.max_element() * SHIELD_HULL_MIN_AXIS)) * 2.0);
         }
     }
 }
@@ -619,6 +648,7 @@ fn update_bars(
             (ship_parts.bars, !status.hidden),
             (ship_parts.skull, status.doomed && !status.hidden),
             (ship_parts.floor, !status.hidden),
+            (ship_parts.shield_hull, status.shield > 0 && !status.hidden),
         ] {
             if let Ok((_, mut visibility)) = parts.get_mut(entity) {
                 visibility.set_if_neq(visible(shown));

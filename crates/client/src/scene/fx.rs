@@ -52,7 +52,7 @@ pub struct FxMaterial {
     pub on_top: bool,
     /// Beidseitig (flache Scheiben, Billboards); sonst nur die Vorderseiten.
     pub double_sided: bool,
-    /// Kantenleuchten (Exponent; 0 aus): Die Mitte bleibt dunkel, der Rand leuchtet (Schildblase).
+    /// Kantenleuchten (Exponent; 0 aus): Die Mitte bleibt dunkel, der Rand leuchtet (Schildhülle).
     pub rim: f32,
 }
 

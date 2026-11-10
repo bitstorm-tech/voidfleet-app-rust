@@ -3,7 +3,7 @@
 //! - **Spielerzug:** Station und Karte zeigen ihre Waffe (Railgun bei Kerr, Plasma bei Reyes, sonst Bolzen; Torpedo,
 //!   Wärmesucher und Sperrfeuer als Rakete, Orbitalschlag und Bombardement von oben, Gnadenstoß als heller Strahl,
 //!   Brandsatz mit Feuer), Salven auf mehrere Ziele kurz versetzt. Was keinen Schuss hat, zeigt sein Bild am Ziel oder
-//!   am Flaggschiff (Schildblase, Entladung, Störung, Zeit-Effekt), Doktrinen und Admiralsstationen ein Banner.
+//!   am Flaggschiff (Entladung, Störung, Zeit-Effekt), Doktrinen und Admiralsstationen ein Banner.
 //! - **Gegnerzug:** Je Einheit erst die Ansage (Kamera neigt sich zu ihr, Banner „Wachkreuzer: Zielfeuer“), dann die
 //!   Wirkung. Gebündelte Schritte (gemeinsam ausweichen, eintreffen, aussetzen) laufen gleichzeitig unter einem Banner.
 //! - **Treffer:** Einschlag, Blitz der Hülle, Balken, die Zahl (Schaden an der Hülle) und darunter ihre Rechnung; der
@@ -822,10 +822,6 @@ impl Planner<'_> {
                 amount,
                 after,
             } => beat.extend([
-                Cue::Fx(Fx::Bubble {
-                    at: Spot::Unit(target),
-                    color: palette::SHIELD,
-                }),
                 Cue::Unit(target, Job::Stats(after)),
                 Cue::float(Spot::Unit(target), format!("+{amount}"), FloatTone::Shield),
             ]),
