@@ -71,7 +71,7 @@ Regeln im Detail:
 
 ## Die Runde
 
-Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Das Flaggschiff beginnt jedes Gefecht in der mittleren Spalte.
+Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Das Flaggschiff beginnt jedes Gefecht in der mittleren Spalte. Gewonnen ist das Gefecht, wenn keine gegnerische Einheit mehr Schaden machen kann und keine Verstärkung mehr aussteht: Ein Spotter allein hält es nicht auf.
 
 | Abschnitt | Wer handelt | Was geschieht |
 | --- | --- | --- |

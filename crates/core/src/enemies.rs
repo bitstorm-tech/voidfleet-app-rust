@@ -71,6 +71,11 @@ impl EnemyId {
         }
     }
 
+    /// Unterstützer machen selbst keinen Schaden; bleiben nur sie übrig, ist das Gefecht gewonnen.
+    pub fn support(self) -> bool {
+        self == EnemyId::Spotter
+    }
+
     /// Hülle vor der Sektor-Skalierung.
     pub fn hull(self) -> i32 {
         use EnemyId::*;

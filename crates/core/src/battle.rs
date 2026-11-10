@@ -1084,7 +1084,10 @@ impl Battle {
     }
 
     fn check_won(&mut self, events: &mut Vec<BattleEvent>) {
-        if self.enemies.is_empty() && self.reinforcements.is_empty() && self.replacements.is_empty()
+        // Bleiben nur Unterstützer, die keinen Schaden machen, ist das Gefecht ebenso gewonnen.
+        if self.enemies.iter().all(|e| e.id.support())
+            && self.reinforcements.is_empty()
+            && self.replacements.is_empty()
         {
             self.end(BattleResult::Won, events);
         }

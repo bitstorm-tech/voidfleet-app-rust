@@ -748,6 +748,23 @@ fn battle_clock_and_spotter() {
 }
 
 #[test]
+fn won_when_only_spotter_remains() {
+    let mut b = battle(
+        AdmiralId::Vance,
+        &[
+            (EnemyId::Raiders, Row::Front, 1),
+            (EnemyId::Spotter, Row::Back, 1),
+        ],
+    );
+    unit(&mut b, EnemyId::Raiders).hull = 1;
+    let raiders = uid(&b, EnemyId::Raiders);
+    b.run_station(Station::Weapons, Target::Enemy(raiders))
+        .unwrap();
+    assert_eq!(b.result, Some(BattleResult::Won));
+    assert_eq!(b.enemies.len(), 1);
+}
+
+#[test]
 fn radio_silence_zeroes_charged_intent() {
     let mut b = example_round();
     let besieger = uid(&b, EnemyId::Besieger);
