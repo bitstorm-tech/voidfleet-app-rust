@@ -4,7 +4,8 @@
 //!   Spalte, im Kurzsprung fehlt es; fehlt ein Schiff, entsteht es, steht es woanders, wechselt es den Slot, ist es
 //!   weg, verschwindet es;
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel) und über
-//!   jedem Schiff Absicht und Zustände ([`ShipCaption`]);
+//!   jedem Schiff Absicht und Zustände ([`ShipCaption`]); das Ziel der Vorschau, also der Gegner unter dem Fadenkreuz,
+//!   mit roter Kontur;
 //! - der Geist des Flaggschiffs ([`Ghost`]) in der Spalte aus [`BoardFocus`] (unter dem Zeiger, solange die Wahl eine
 //!   Spalte braucht);
 //! - Zustände mit eigenem Bild: Brand und Aufladung als Partikel ([`ShipAura`]), der Schild im
@@ -28,6 +29,7 @@ use super::{
     labels::ShipCaption,
     ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
+    toon::OutlineMaterial,
 };
 use crate::{
     assets::AppState,
@@ -70,6 +72,7 @@ impl Plugin for SyncPlugin {
                 (sync_ships, sync_ghost).run_if(not(resource_exists::<Scripted>)),
             )
             .add_systems(OnEnter(BoardMode::Playback), (clear_preview, clear_ghost))
+            .add_systems(Update, mark_target.run_if(resource_changed::<BoardFocus>))
             .add_systems(
                 Update,
                 (sync_ships, sync_ghost)
@@ -319,6 +322,32 @@ fn clear_ghost(mut commands: Commands, ghosts: Query<Entity, With<Ghost>>) {
 }
 
 /// Die Wiedergabe übernimmt: Die Vorschau geht.
+/// Das Schiff, auf das die Vorschau zielt (gültiges Ziel unter dem Fadenkreuz), bekommt die rote Kontur.
+fn mark_target(
+    focus: Res<BoardFocus>,
+    ships: Query<(Entity, &Ship, &OnSlot)>,
+    children: Query<&Children>,
+    contours: Query<&MeshMaterial3d<OutlineMaterial>>,
+    mut materials: ResMut<Assets<OutlineMaterial>>,
+) {
+    let target = focus.preview.as_ref().map(|(uid, _)| *uid);
+    for (entity, ship, on) in &ships {
+        let targeted = on.0.side == Side::Enemy && target == Some(ship.uid);
+        for part in children.iter_descendants(entity) {
+            let Ok(contour) = contours.get(part) else {
+                continue;
+            };
+            if materials
+                .get(contour)
+                .is_some_and(|m| m.targeted != targeted)
+                && let Some(mut material) = materials.get_mut(contour)
+            {
+                material.targeted = targeted;
+            }
+        }
+    }
+}
+
 fn clear_preview(mut ships: Query<(&mut ShipStatus, &mut ShipCaption)>) {
     for (mut status, mut caption) in &mut ships {
         status.preview = None;
