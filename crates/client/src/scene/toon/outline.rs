@@ -5,7 +5,7 @@
 //! Pixeln geklemmt: klein auf dem Brett schmal, damit kleine Teile nicht in Schwarz verschwimmen, herangezoomt breiter.
 //! Die Farbe ist je Material ein abgedunkelter Ton der Fläche selbst (Schatten-Ton, bei Lichtern die Lichtfarbe), in
 //! der Lackierung der Gegner deren Ton. Hologramme und Geister haben keine Konturen. Das Ziel unter dem Fadenkreuz
-//! ([`OutlineMaterial::targeted`]) zeichnet seine Kontur rot und breiter.
+//! ([`OutlineMaterial::targeted`]) zeichnet seine Kontur rot.
 //!
 //! Das Original (Babylon) rechnet die Linien aus einem Kantenpuffer im Material selbst und zeichnet so auch Knicke im
 //! Inneren; die Hülle hier zeigt nur Umriss und Silhouetten.
@@ -30,8 +30,6 @@ use super::{
 use crate::palette;
 
 const SHADER: &str = "shaders/toon_outline.wesl";
-/// Breite der Kontur am Ziel unter dem Fadenkreuz in logischen Pixeln, fest, damit sie auch klein auf dem Brett auffällt.
-const TARGET_WIDTH: f32 = 1.5;
 
 /// Markiert die Konturhülle eines Primitivs (Kind des Primitivs).
 #[derive(Component, Reflect, Default, Clone, Copy, Debug)]
@@ -66,7 +64,7 @@ impl OutlineMaterial {
     /// Der Schatten-Ton der Fläche (bei Lichtern ihre Farbe), in Oklch um [`CONTOUR_DARKEN`] abgedunkelt.
     pub fn color(&self) -> Color {
         if self.targeted {
-            return palette::HP_EMPTY;
+            return palette::darkened(palette::HP_EMPTY, 0.3);
         }
         let tone = match &self.spec {
             ToonSpec::Light { color, .. } if self.livery => livery(color.0),
@@ -88,17 +86,12 @@ pub struct OutlineUniform {
 
 impl From<&OutlineMaterial> for OutlineUniform {
     fn from(material: &OutlineMaterial) -> Self {
-        let (min, max) = if material.targeted {
-            (TARGET_WIDTH, TARGET_WIDTH)
-        } else {
-            (CONTOUR_MIN, CONTOUR_MAX)
-        };
         Self {
             color: material.color().to_linear().to_vec4(),
             width: Vec4::new(
                 CONTOUR_WORLD,
-                min * material.scale,
-                max * material.scale,
+                CONTOUR_MIN * material.scale,
+                CONTOUR_MAX * material.scale,
                 0.0,
             ),
         }
