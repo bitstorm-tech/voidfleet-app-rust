@@ -331,11 +331,18 @@ impl Battle {
     pub fn announced(&self, uid: u32) -> [Intent; 2] {
         let enemy = self.enemy(uid).expect("Einheit steht");
         let [first, second] = enemy.intents;
-        let charged_after = first == Action::Charge || (enemy.charged && !fires(first));
+        // Funkstille und Stillstand lassen die erste Absicht ausfallen.
+        let idle = enemy.silenced || enemy.stasis;
+        let charged_after =
+            enemy.charged && (idle || !fires(first)) || !idle && first == Action::Charge;
         [
             Intent {
                 action: first,
-                damage: self.action_damage(enemy, first, enemy.charged),
+                damage: if idle {
+                    0
+                } else {
+                    self.action_damage(enemy, first, enemy.charged)
+                },
             },
             Intent {
                 action: second,

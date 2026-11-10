@@ -734,6 +734,16 @@ fn battle_clock_and_spotter() {
 }
 
 #[test]
+fn radio_silence_zeroes_charged_intent() {
+    let mut b = example_round();
+    let besieger = uid(&b, EnemyId::Besieger);
+    assert_eq!(b.announced(besieger)[0].damage, 16);
+    give(&mut b, &[CardId::RadioSilence]);
+    play(&mut b, CardId::RadioSilence, Target::Enemy(besieger));
+    assert_eq!(b.announced(besieger)[0].damage, 0);
+}
+
+#[test]
 fn upgrades() {
     let up = |id: CardId| (id.cost(true), id.value(true));
     assert_eq!(up(CardId::Torpedo), (2, 8));
