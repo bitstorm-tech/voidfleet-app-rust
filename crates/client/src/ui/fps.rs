@@ -39,11 +39,13 @@ fn show(settings: Res<Settings>, mut node: Single<&mut Node, With<FpsText>>) {
 }
 
 fn update(diagnostics: Res<DiagnosticsStore>, mut text: Single<&mut Text, With<FpsText>>) {
-    if let Some(fps) = diagnostics
-        .get(&FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(|fps| fps.smoothed())
+    // Die Bildzeit mitteln, nicht Bevys `FPS` (Mittel über 1/Δt): Das schießt bei schwankenden Bildabständen über die
+    // Bildwiederholrate hinaus, obwohl im Schnitt nicht mehr Bilder kommen.
+    if let Some(ms) = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FRAME_TIME)
+        .and_then(|frame_time| frame_time.smoothed())
     {
-        text.0 = format!("{fps:.0} FPS");
+        text.0 = format!("{:.0} FPS", 1000.0 / ms);
     }
 }
 
