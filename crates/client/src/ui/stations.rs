@@ -188,7 +188,7 @@ fn update_stations(
                 text.0.clone_from(&label);
             }
         }
-        tooltip.0 = locale.station_text(station, admiral);
+        tooltip.0 = locale.station_text(station, admiral, battle.flagship_attack());
         let chosen = hud.station == Some(station);
         if chosen && !lit {
             commands.entity(entity).insert(Lit);

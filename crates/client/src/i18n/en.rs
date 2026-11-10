@@ -18,7 +18,9 @@ use voidfleet_core::{
     run::{EventId, EventOption, NodeKind},
 };
 
-use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, signed};
+use super::{
+    AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, damage, signed,
+};
 use crate::{
     data::radio::RadioCue,
     settings::{AnimationSpeed, CursorId, WindowMode},
@@ -519,9 +521,12 @@ impl Messages for En {
         }
     }
 
-    fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
+    fn station_text(&self, station: Station, admiral: AdmiralId, attack: i32) -> String {
         match station {
-            Station::Weapons => "Fires your ATK at an enemy ship at once.".to_owned(),
+            Station::Weapons => format!(
+                "Fires {} damage at an enemy ship at once.",
+                damage(admiral, attack)
+            ),
             Station::Shields => format!(
                 "Absorbs {} in the next enemy turn.",
                 admiral.shield_station()

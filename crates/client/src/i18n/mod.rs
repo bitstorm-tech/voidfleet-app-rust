@@ -45,6 +45,16 @@ pub(super) fn signed(value: i64) -> String {
     }
 }
 
+/// Schaden der Waffen-Station: der Grundwert des Admirals, die tatsächliche ATK in Klammern, wenn sie abweicht.
+pub(super) fn damage(admiral: AdmiralId, attack: i32) -> String {
+    let base = admiral.attack();
+    if attack == base {
+        base.to_string()
+    } else {
+        format!("{base} ({attack})")
+    }
+}
+
 /// Alle Sprachen in der Reihenfolge der Sprachwahl.
 pub const LANGUAGES: [Language; 2] = [Language::En, Language::De];
 
@@ -281,7 +291,8 @@ pub trait Messages: Sync {
     fn stats_atk(&self) -> &'static str;
     /// Die Stationen; die Admiralsstation heißt je Admiral anders.
     fn station(&self, station: Station, admiral: AdmiralId) -> &'static str;
-    fn station_text(&self, station: Station, admiral: AdmiralId) -> String;
+    /// `attack` ist die ATK der Waffen-Station samt Boni; weicht sie vom Grundwert ab, steht sie dahinter in Klammern.
+    fn station_text(&self, station: Station, admiral: AdmiralId, attack: i32) -> String;
     fn column_name(&self, column: usize) -> &'static str;
     fn row_name(&self, row: Row) -> &'static str;
     fn card_name(&self, card: CardId) -> &'static str;
@@ -582,7 +593,7 @@ mod tests {
                     Station::Maneuver,
                     Station::Admiral,
                 ] {
-                    assert!(!locale.station_text(station, admiral).is_empty());
+                    assert!(!locale.station_text(station, admiral, 3).is_empty());
                 }
             }
             for enemy in crate::data::ship_models::ENEMIES {

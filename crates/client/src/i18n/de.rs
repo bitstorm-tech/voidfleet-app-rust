@@ -17,7 +17,9 @@ use voidfleet_core::{
     run::{EventId, EventOption, NodeKind},
 };
 
-use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, signed};
+use super::{
+    AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, damage, signed,
+};
 use crate::{
     data::radio::RadioCue,
     settings::{AnimationSpeed, CursorId, WindowMode},
@@ -528,9 +530,12 @@ impl Messages for De {
         }
     }
 
-    fn station_text(&self, station: Station, admiral: AdmiralId) -> String {
+    fn station_text(&self, station: Station, admiral: AdmiralId, attack: i32) -> String {
         match station {
-            Station::Weapons => "Feuert sofort deine ATK auf ein gegnerisches Schiff.".to_owned(),
+            Station::Weapons => format!(
+                "Feuert sofort {} Schaden auf ein gegnerisches Schiff.",
+                damage(admiral, attack)
+            ),
             Station::Shields => format!(
                 "Schluckt im nächsten Gegnerzug {}.",
                 admiral.shield_station()
