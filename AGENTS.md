@@ -27,7 +27,7 @@ Die gängigen Befehle stehen als Rezepte in der `justfile` (`just` listet sie).
 - `cargo run -p voidfleet-client` (`just play`) — startet das Spiel: Hauptmenü mit „Neuer Run“ und, bei Speicherstand, „Weiter“.
 - `just check` — alles, was vor einem Commit durchgehen muss: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
 - Das gebaute Binary sucht seine Assets in `$BEVY_ASSET_ROOT/assets`, sonst in `assets/` neben dem Binary bzw. in `Contents/Resources/assets` eines macOS-Bundles, sonst im Repository.
-- Die Cargo-Konfiguration des Rechners baut in einen gemeinsamen Ordner (`~/.cargo-target`); in der Bash-Sandbox ist der nicht beschreibbar, dann `CARGO_TARGET_DIR=$PWD/target` im Wurzelverzeichnis setzen (ein relativer Pfad aus einem Crate-Ordner heraus legt ein zweites `target` dort an).
+- Die Cargo-Konfiguration des Rechners (`build.target-dir` in `~/.cargo/config.toml`) baut für alle Projekte und Worktrees in einen gemeinsamen Ordner. Kein eigenes `target` je Worktree anlegen (kein `CARGO_TARGET_DIR`), das kostet jedes Mal viele GB; ist der gemeinsame Ordner in der Bash-Sandbox nicht beschreibbar, cargo ohne Sandbox laufen lassen. Meldet cargo falsche Fehler, weil ein anderer Worktree gerade einen neueren Stand von `voidfleet-core` in den gemeinsamen Ordner gebaut hat, `--config 'profile.dev.package.voidfleet-core.codegen-units=255'` anhängen: Das gibt Core und Client einen eigenen Hash.
 
 ## Dev-Szenen und Umgebungsvariablen (Client)
 
