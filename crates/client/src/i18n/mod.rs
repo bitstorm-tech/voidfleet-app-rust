@@ -296,8 +296,8 @@ pub trait Messages: Sync {
     fn column_name(&self, column: usize) -> &'static str;
     fn row_name(&self, row: Row) -> &'static str;
     fn card_name(&self, card: CardId) -> &'static str;
-    /// Effekttext mit den Zahlen der (aufgewerteten) Karte.
-    fn card_effect(&self, card: DeckCard) -> String;
+    /// Effekttext mit dem Hauptwert `v` der (aufgewerteten) Karte, samt Zuschlägen im Gefecht.
+    fn card_effect(&self, card: DeckCard, v: i32) -> String;
     /// Die Schlüsselwörter (`docs/karten.md`): Wort, wie es im Effekttext steht, und seine Erklärung.
     fn keywords(&self) -> &'static [(&'static str, &'static str)];
     fn card_type(&self, card_type: CardType) -> &'static str;
@@ -374,6 +374,11 @@ pub trait Messages: Sync {
 
     /// Name und Effekt einer Karte; aufgewertet mit „+“.
     fn card(&self, card: DeckCard) -> CardText {
+        self.card_with_bonus(card, 0)
+    }
+
+    /// Wie `card`, mit `bonus` auf den Hauptwert (Feuerleitdoktrin im Gefecht).
+    fn card_with_bonus(&self, card: DeckCard, bonus: i32) -> CardText {
         let name = self.card_name(card.id);
         CardText {
             name: if card.upgraded {
@@ -381,7 +386,7 @@ pub trait Messages: Sync {
             } else {
                 name.to_owned()
             },
-            effect: self.card_effect(card),
+            effect: self.card_effect(card, card.value() + bonus),
         }
     }
 

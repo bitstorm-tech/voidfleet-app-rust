@@ -794,6 +794,15 @@ impl Battle {
         value + self.flagship.fire_control + self.follow_up_bonus(enemy)
     }
 
+    /// Zuschlag der Feuerleitdoktrin auf den Kartenwert, wie ihn die Hand zeigt (Rammkurs rechnet über die ATK).
+    pub fn card_bonus(&self, card: CardId) -> i32 {
+        if card.card_type() == CardType::Attack && card != CardId::CollisionCourse {
+            self.flagship.fire_control
+        } else {
+            0
+        }
+    }
+
     /// Nachsetzen gibt Angriffskarten auf brennende Ziele +2, sobald es in dieser Runde lief.
     fn follow_up_bonus(&self, enemy: &Enemy) -> i32 {
         let ran = self.flagship.admiral.station() == AdmiralStation::FollowUp

@@ -709,6 +709,10 @@ fn deck_cycles_through_discard_and_doctrines_leave() {
     );
     assert_eq!(b.doctrines.len(), 1);
     assert_eq!(b.flagship.fire_control, 1);
+    // Die Hand zeigt den Zuschlag nur auf Angriffskarten mit fester Zahl.
+    assert_eq!(b.card_bonus(CardId::Torpedo), 1);
+    assert_eq!(b.card_bonus(CardId::CollisionCourse), 0);
+    assert_eq!(b.card_bonus(CardId::EmergencyShields), 0);
 }
 
 /// Ablativpanzerung bleibt als Doktrin liegen: Sie kommt nicht mit dem Deck zurück und stapelt sich nicht.

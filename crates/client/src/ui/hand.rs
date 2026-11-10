@@ -16,7 +16,9 @@ use voidfleet_core::cards::DeckCard;
 
 use super::{
     Fonts, HandCardPressed, HudState, UiIcons,
-    card::{CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card},
+    card::{
+        CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card_with_bonus,
+    },
     stations, theme,
     theme::UiOpacity,
 };
@@ -57,6 +59,8 @@ struct ShownHand {
     cards: Vec<DeckCard>,
     /// Die Runde, zu der die Karten gehören; 0 ohne Gefecht.
     round: u32,
+    /// Je Karte der Zuschlag auf ihren Wert (Feuerleitdoktrin).
+    bonuses: Vec<i32>,
 }
 
 /// Die neue Runde ist gerechnet, aber noch nicht abgespielt: Die alte Hand ist abgeworfen, die neue wartet.
@@ -252,12 +256,17 @@ fn rebuild_row(
     let next = match battle {
         None => ShownHand::default(),
         Some(battle) if awaits_playback(shown.round, battle.round, played) => ShownHand {
-            cards: Vec::new(),
             round: shown.round,
+            ..default()
         },
         Some(battle) => ShownHand {
             cards: battle.hand.clone(),
             round: battle.round,
+            bonuses: battle
+                .hand
+                .iter()
+                .map(|card| battle.card_bonus(card.id))
+                .collect(),
         },
     };
     if *shown == next && !assets.locale.is_changed() {
@@ -267,7 +276,7 @@ fn rebuild_row(
     commands.entity(*row).despawn_related::<Children>();
     for (card, indices) in stacks_of(&next.cards) {
         let mut entity = commands.spawn((
-            command_card(&assets, card, HAND_ZOOM),
+            command_card_with_bonus(&assets, card, next.bonuses[indices[0]], HAND_ZOOM),
             HandStack(indices.clone()),
             UiOpacity(1.0),
             CardHover::Zoom {

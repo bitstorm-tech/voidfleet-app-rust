@@ -597,8 +597,7 @@ impl Messages for De {
         }
     }
 
-    fn card_effect(&self, card: DeckCard) -> String {
-        let v = card.value();
+    fn card_effect(&self, card: DeckCard, v: i32) -> String {
         match card.id {
             CardId::Torpedo => format!("{v} Schaden auf ein gewähltes Schiff. Zielsuchend."),
             CardId::OrbitalStrike => format!("{v} Schaden auf ein gewähltes Schiff. Durchschlagend."),

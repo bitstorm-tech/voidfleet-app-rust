@@ -216,10 +216,20 @@ fn capitalized(word: &str) -> String {
 
 /// Eine Befehlskarte als Datapad.
 pub fn command_card(assets: &CardAssets, card: DeckCard, scale: f32) -> impl Bundle {
+    command_card_with_bonus(assets, card, 0, scale)
+}
+
+/// Eine Befehlskarte mit `bonus` auf ihren Hauptwert (Feuerleitdoktrin in der Hand).
+pub fn command_card_with_bonus(
+    assets: &CardAssets,
+    card: DeckCard,
+    bonus: i32,
+    scale: f32,
+) -> impl Bundle {
     let s = |value: f32| px(value * scale);
     let fonts = &assets.fonts;
     let locale = &assets.locale;
-    let text = locale.card(card);
+    let text = locale.card_with_bonus(card, bonus);
     let keywords = locale.keywords();
     // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
     let mut explained: Vec<String> = Vec::new();
