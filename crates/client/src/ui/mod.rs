@@ -189,7 +189,7 @@ pub struct HudState {
     pub selected: Option<usize>,
     /// Die Station, die auf ihr Ziel wartet.
     pub station: Option<Station>,
-    /// Das Gewählte wartet auf ein gegnerisches Ziel; der Mauszeiger wird zum Fadenkreuz.
+    /// Das Gewählte wartet auf ein gegnerisches Ziel; der Zielpfeil ([`aim_arrow`]) folgt dem Mauszeiger.
     pub aiming: bool,
 }
 

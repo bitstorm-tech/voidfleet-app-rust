@@ -87,8 +87,8 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
         smoothstep(0.0, 1.0, ribbon),
     );
     let scan = 0.84 + 0.16 * sin(p.y / px * 1.7 - globals.time * 7.0);
-    // Am Anfang blendet das Band ein.
-    let fade = smoothstep(0.0, 90.0, s);
+    // Am Anfang blendet das Band ein; die Spitze bleibt auch bei kurzem Pfeil voll sichtbar, sie ist der Zeiger.
+    let fade = max(smoothstep(0.0, min(90.0, 0.5 * total / px), s), smoothstep(-8.0, 0.0, head));
     let alpha = clamp((edge + inside * fill) * scan + glow, 0.0, 1.0) * fade * arrow.color.a;
     return vec4<f32>(mix(arrow.color.rgb, vec3<f32>(1.0), edge * 0.6), alpha);
 }

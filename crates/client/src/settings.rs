@@ -71,7 +71,6 @@ pub enum CursorId {
     Formation,
     Holo,
     Thruster,
-    /// Nicht wählbar: der Zeiger beim Zielen auf einen Gegner, siehe [`crate::ui::cursor`].
     Crosshair,
 }
 

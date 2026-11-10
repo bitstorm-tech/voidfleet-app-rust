@@ -1,6 +1,6 @@
-//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von neun Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
-//! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster. Wartet eine Karte oder Station im Gefecht
-//! auf ein gegnerisches Ziel ([`HudState::aiming`]), ist es in derselben Größe das Fadenkreuz.
+//! Der Mauszeiger (Port von `ui/cursor.ts`): einer von zehn Zeigern im Toon-Stil mit dunkler Kontur, gewählt in den
+//! Einstellungen samt Größe; ein Wechsel gilt sofort, überall im Fenster. Steht der Zielpfeil ([`AimArrowShown`]),
+//! ist seine Spitze der Zeiger und der Systemzeiger ein leeres Bild.
 //!
 //! Es ist der Systemzeiger mit eigenem Bild, den das Betriebssystem unabhängig vom Spielbild zeichnet, also ohne
 //! Verzögerung. `resvg` rastert das SVG (`assets/cursors/cursor_<id>.svg`, 32 × 32, ins Binary eingebettet) so,
@@ -25,14 +25,11 @@ use bevy::{
 use bevy::{ecs::system::NonSendMarker, window::WindowFocused};
 use resvg::{tiny_skia, usvg};
 
-use super::HudState;
-use crate::{
-    assets::AppState,
-    settings::{CursorId, Settings},
-};
+use super::aim_arrow::AimArrowShown;
+use crate::settings::{CursorId, Settings};
 
-/// Alle wählbaren Zeiger in der Reihenfolge der Auswahl; das Fadenkreuz ist dem Zielen vorbehalten.
-pub const CURSORS: [CursorId; 9] = [
+/// Alle wählbaren Zeiger in der Reihenfolge der Auswahl.
+pub const CURSORS: [CursorId; 10] = [
     CursorId::Arrow,
     CursorId::Fighter,
     CursorId::Delta,
@@ -42,6 +39,7 @@ pub const CURSORS: [CursorId; 9] = [
     CursorId::Formation,
     CursorId::Holo,
     CursorId::Thruster,
+    CursorId::Crosshair,
 ];
 
 /// Wählbare Größe in logischen Pixeln (Punkten): kleinste, größte, Schritt des Reglers.
@@ -79,13 +77,9 @@ const fn hotspot(cursor: CursorId) -> Vec2 {
     }
 }
 
-/// Der Zeiger, der gerade gilt: beim Zielen im Gefecht das Fadenkreuz, sonst der gewählte.
-fn shown(settings: &Settings, hud: &HudState, state: &AppState) -> CursorId {
-    if hud.aiming && *state == AppState::Match {
-        CursorId::Crosshair
-    } else {
-        settings.cursor
-    }
+/// Der Zeiger, der gerade gilt: der gewählte; keiner, solange der Zielpfeil steht.
+fn shown(settings: &Settings, arrow: AimArrowShown) -> Option<CursorId> {
+    (!arrow.0).then_some(settings.cursor)
 }
 
 /// Die gewählte Größe in Punkten, im erlaubten Bereich.
@@ -101,22 +95,24 @@ pub fn reach(settings: &Settings) -> (Vec2, Vec2) {
     (-spot * scale, (Vec2::splat(ART_SIZE) - spot) * scale)
 }
 
-/// Rastert einen Zeiger auf `pixels` × `pixels`.
-fn pixmap(cursor: CursorId, pixels: u32) -> tiny_skia::Pixmap {
-    let tree = usvg::Tree::from_str(svg(cursor), &usvg::Options::default())
-        .expect("eingebettetes SVG ist gültig");
+/// Rastert einen Zeiger auf `pixels` × `pixels`; ohne Zeiger bleibt das Bild leer.
+fn pixmap(cursor: Option<CursorId>, pixels: u32) -> tiny_skia::Pixmap {
     let mut pixmap = tiny_skia::Pixmap::new(pixels, pixels).expect("Fläche");
-    let scale = pixels as f32 / ART_SIZE;
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::from_scale(scale, scale),
-        &mut pixmap.as_mut(),
-    );
+    if let Some(cursor) = cursor {
+        let tree = usvg::Tree::from_str(svg(cursor), &usvg::Options::default())
+            .expect("eingebettetes SVG ist gültig");
+        let scale = pixels as f32 / ART_SIZE;
+        resvg::render(
+            &tree,
+            tiny_skia::Transform::from_scale(scale, scale),
+            &mut pixmap.as_mut(),
+        );
+    }
     pixmap
 }
 
 /// Rastert einen Zeiger auf `pixels` × `pixels` als Bild für Bevy.
-fn rasterize(cursor: CursorId, pixels: u32) -> Image {
+fn rasterize(cursor: Option<CursorId>, pixels: u32) -> Image {
     // tiny-skia rechnet mit vormultipliziertem Alpha, Bevy erwartet es gerade.
     let data = pixmap(cursor, pixels)
         .pixels()
@@ -150,7 +146,7 @@ impl FromWorld for CursorImages {
         Self(
             CURSORS
                 .into_iter()
-                .map(|cursor| images.add(rasterize(cursor, (PREVIEW_SIZE * 2.0) as u32)))
+                .map(|cursor| images.add(rasterize(Some(cursor), (PREVIEW_SIZE * 2.0) as u32)))
                 .collect(),
         )
     }
@@ -171,21 +167,20 @@ impl CursorImages {
 fn apply(
     mut commands: Commands,
     settings: Res<Settings>,
-    hud: Res<HudState>,
-    state: Res<State<AppState>>,
+    arrow: Res<AimArrowShown>,
     window: Single<(Entity, &Window), With<PrimaryWindow>>,
     mut images: ResMut<Assets<Image>>,
-    mut applied: Local<Option<(CursorId, u32)>>,
+    mut applied: Local<Option<(Option<CursorId>, u32)>>,
 ) {
     let (entity, window) = window.into_inner();
-    let cursor = shown(&settings, &hud, state.get());
+    let cursor = shown(&settings, *arrow);
     let pixels = (chosen_size(&settings) * window.scale_factor()).round() as u32;
     let wanted = (cursor, pixels);
     if *applied == Some(wanted) {
         return;
     }
     *applied = Some(wanted);
-    let spot = (hotspot(cursor) * pixels as f32 / ART_SIZE).round();
+    let spot = (cursor.map_or(Vec2::ZERO, hotspot) * pixels as f32 / ART_SIZE).round();
     commands
         .entity(entity)
         .insert(CursorIcon::Custom(CustomCursor::Image(CustomCursorImage {
@@ -201,11 +196,10 @@ fn apply(
 fn apply(
     _main_thread: NonSendMarker,
     settings: Res<Settings>,
-    hud: Res<HudState>,
-    state: Res<State<AppState>>,
-    mut applied: Local<Option<(CursorId, f32)>>,
+    arrow: Res<AimArrowShown>,
+    mut applied: Local<Option<(Option<CursorId>, f32)>>,
 ) {
-    let cursor = shown(&settings, &hud, state.get());
+    let cursor = shown(&settings, *arrow);
     let points = chosen_size(&settings);
     let wanted = (cursor, points);
     if *applied == Some(wanted) {
@@ -217,7 +211,11 @@ fn apply(
             .encode_png()
             .expect("PNG aus dem Zeigerbild")
     });
-    macos::install(pngs, points, hotspot(cursor) * points / ART_SIZE);
+    macos::install(
+        pngs,
+        points,
+        cursor.map_or(Vec2::ZERO, hotspot) * points / ART_SIZE,
+    );
 }
 
 pub(super) struct CursorPlugin;
@@ -230,8 +228,7 @@ impl Plugin for CursorPlugin {
             Update,
             apply.run_if(
                 resource_changed::<Settings>
-                    .or_else(resource_changed::<HudState>)
-                    .or_else(state_changed::<AppState>)
+                    .or_else(resource_changed::<AimArrowShown>)
                     .or_else(on_message::<WindowScaleFactorChanged>),
             ),
         );
@@ -240,9 +237,7 @@ impl Plugin for CursorPlugin {
             Update,
             (
                 apply.run_if(
-                    resource_changed::<Settings>
-                        .or_else(resource_changed::<HudState>)
-                        .or_else(state_changed::<AppState>),
+                    resource_changed::<Settings>.or_else(resource_changed::<AimArrowShown>),
                 ),
                 macos::reapply
                     .run_if(on_message::<CursorEntered>.or_else(on_message::<WindowFocused>)),
@@ -259,8 +254,8 @@ mod tests {
     /// Jeder Zeiger lässt sich rastern und zeichnet seine Spitze an den Hotspot.
     #[test]
     fn every_cursor_rasterizes() {
-        for cursor in CURSORS.into_iter().chain([CursorId::Crosshair]) {
-            let image = rasterize(cursor, 64);
+        for cursor in CURSORS {
+            let image = rasterize(Some(cursor), 64);
             let data = image.data.as_ref().expect("Pixel");
             let tip = hotspot(cursor) * 2.0;
             let alpha = data[(tip.y as usize * 64 + tip.x as usize) * 4 + 3];
