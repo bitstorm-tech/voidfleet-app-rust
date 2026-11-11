@@ -15,3 +15,7 @@
 - [Der Gefechtsbericht](inszenierung.md)
 - [Beispielrunde](beispielrunde.md)
 - [Offene Punkte und Risiken](offene-punkte.md)
+
+# Grafik
+
+- [Stilregeln der Schiffe](stilregeln.md)

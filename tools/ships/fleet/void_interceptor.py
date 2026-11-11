@@ -1,4 +1,5 @@
-"""Void Interceptor (Jäger) im Clean-Toon-Stil, detailreiche Fassung nach der Iron Dreadnought (STYLE.md).
+"""Void Interceptor (Jäger), detailreiche Fassung nach der Iron Dreadnought (docs/stilregeln.md), mit Kleinteilen für
+den dreckigen Look.
 
 Primärformen: runder Rumpf, der vorn in eine lange Nadelnase ausläuft, darauf eine Glaskanzel. Klingenflügel mit
 breitem Vorderkantenstreifen in Koralle, darunter zwei runde Triebwerksgondeln mit Lichtband, V-Leitwerk mit
@@ -12,13 +13,18 @@ dazwischen ruhig (Rumpfflanken, Flügel vor den Lüftern, Leitwerk):
 - Gondeln: Bugkappe vorn, Gehäusesegment und Düsenkranz an der Düse (`parts.engine_details`)
 - Unterseite: Bugfahrwerksklappen zwischen den Kanonen
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Raketen an
+Pylonen unter den Flügeln, Flügelspitzen-Schienen mit Positionslicht, Klappenspalt, Wartungsluken, zweiter Kanzelbügel,
+Blatt- und Peitschenantenne, Kabelkanal an der Rumpfflanke, Kühlrippen an Kanonen und Gondeln, Sensor und Staurohr am
+Bug.
 """
 
 import palette
 import vf
 from mathutils import Vector
 from parts import bellows, engine, engine_details, ring_at, vent
-from vf import Ship, box, loft, plate, sec, smooth, superellipse, tip, tube
+from vf import Ship, box, flank, loft, plate, post, rect, sec, segment, smooth, sphere, superellipse, sweep, tip, tube
 
 
 def edge_band(a, b, width, x0, x1, out=0.015):
@@ -51,6 +57,60 @@ def band(rings, y0, y1, off):
     """Band um einen Loft (Ringe wie aus `smooth`) von y0 bis y1, um `off` nach außen versetzt."""
     inner = [around(r, off) for r in rings if isinstance(r, list) and y0 < r[0].y < y1]
     return loft([around(ring_at(rings, y0), off)] + inner + [around(ring_at(rings, y1), off)])
+
+
+def details(s, m, hull, canopy, gx, gz):
+    """Kleinteile (Modulkommentar); `hull` und `canopy` sind die Ringe der Lofts, (gx, gz) die Gondeln."""
+
+    def top(y):
+        """Höhe des Rumpfrückens bei y."""
+        return max(p.z for p in ring_at(hull, y))
+
+    def under(x):
+        """Höhe der Flügelunterseite bei x (der Flügel steigt um 3° nach außen)."""
+        return -0.07 + 0.0523 * x
+
+    # ---------------------------------------------------------------- Raketen an Pylonen unter den Flügeln
+    for x, y0 in ((1.5, 0.1), (1.78, 0.4)):
+        z = under(x)
+        s.add(box(0.05, 0.45, 0.07), m["dark"], at=(x, y0 + 0.65, z - 0.03), mirror=True)
+        s.add(tube(8, 0.05, 0.05, y0, y0 + 1.0), m["armor_round"], at=(x, 0, z - 0.11), mirror=True)
+        s.add(tube(8, 0.0, 0.05, y0 - 0.2, y0), m["accent_round"], at=(x, 0, z - 0.11), mirror=True)
+        s.add(box(0.18, 0.1, 0.012), m["dark"], at=(x, y0 + 0.93, z - 0.11), mirror=True)
+        s.add(box(0.012, 0.1, 0.18), m["dark"], at=(x, y0 + 0.93, z - 0.11), mirror=True)
+
+    # ---------------------------------------------------------------- Flügel: Spitzenschiene mit Licht, Klappenspalt, Luke
+    tip_z = -0.02 + 0.0523 * 1.95
+    s.add(box(0.07, 0.75, 0.07), m["dark"], at=(1.95, 1.1, tip_z), mirror=True)
+    s.add(sphere(0.04, 1), m["glow"], at=(1.95, 0.71, tip_z), mirror=True)
+
+    def hinge(x):
+        return 1.75 - (x - 0.3) * 0.1818 - 0.12  # 0,12 vor der Hinterkante
+
+    gap = [(0.45, hinge(0.45) - 0.015), (1.85, hinge(1.85) - 0.015), (1.85, hinge(1.85) + 0.015), (0.45, hinge(0.45) + 0.015)]
+    s.add(plate(gap, 0.115, "xy"), m["dark"], at=(0, 0, -0.02), rot=(0, -3, 0), mirror=True)
+    s.add(box(0.26, 0.34, 0.03), m["armor"], at=(0.72, 0.1, 0.03 + 0.0523 * 0.72), rot=(0, -3, 0), mirror=True)
+
+    # ---------------------------------------------------------------- Kanzel und Rücken: Bügel, Luke, Antennen, Hecklicht
+    s.add(band(canopy, -1.06, -0.98, 0.02), m["hull_round"])
+    s.add(box(0.22, 0.3, 0.03), m["armor"], at=(0, 0.95, top(0.95) + 0.004))
+    s.add(box(0.025, 0.34, 0.2), m["dark"], at=(0, 0.35, top(0.35) + 0.08))
+    s.add(post(6, 0.012, 0.005, top(1.5) - 0.04, top(1.5) + 0.45), m["dark_round"], at=(0, 1.5, 0))
+    s.add(sphere(0.035, 1), m["glow"], at=(0, 2.42, top(2.42)))
+
+    # ---------------------------------------------------------------- Kabelkanal an der Flanke, über der Flügelwurzel
+    path = [p for p in flank(hull, 0.16, 0.02) if -0.6 <= p[1] <= 1.9]
+    s.add(sweep(path, rect(0.05, 0.06)), m["dark"], mirror=True)
+
+    # ---------------------------------------------------------------- Kühlrippen an Kanonen und Gondeln
+    for y in (-2.0, -2.12, -2.24):
+        s.add(tube(10, 0.125, 0.125, y, y + 0.035), m["dark_round"], at=(0.42, 0, -0.2), mirror=True)
+    for y in (1.35, 1.47, 1.59):
+        s.add(tube(12, 0.34, 0.34, y, y + 0.03, gx, gz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Bug: Sensor unter der Nase, Staurohr
+    s.add(sphere(0.06, 1), m["glass"], at=(0, -2.6, -0.12))
+    s.add(segment((0.08, -3.0, 0.03), (0.08, -3.55, 0.05), 0.01, 6), m["steel"])
 
 
 def build():
@@ -121,4 +181,5 @@ def build():
     s.add(tube(16, 0.13, 0.13, -2.82, -2.9), m["dark_round"], at=(cx, 0, cz), mirror=True)
     s.add(tube(16, 0.13, 0.13, -2.96, -3.04), m["dark_round"], at=(cx, 0, cz), mirror=True)
     s.add(tube(12, 0.08, 0.08, -3.04, -3.08), m["glow"], at=(cx, 0, cz), mirror=True)
+    details(s, m, hull, canopy, gx, gz)
     return s.finish()

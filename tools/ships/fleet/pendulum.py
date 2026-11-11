@@ -1,4 +1,5 @@
-"""Pendulum (Flaggschiff von Admiral Kerr, „der Uhrmacher“), Clean Toon in der detailreichen Fassung (STYLE.md).
+"""Pendulum (Flaggschiff von Admiral Kerr, „der Uhrmacher“), Clean Toon in der detailreichen Fassung
+(docs/stilregeln.md).
 
 Railgun-Schlachtschiff auf einem schmalen Keilrumpf. Die Railgun ist das Rückgrat: ein Gehäuse in der Akzentfarbe auf
 dem Deck, vorn ragen ihre Schienen weit über den Bug, umwickelt von fünf groben Spulen im Wechsel Messing und Signalblau,

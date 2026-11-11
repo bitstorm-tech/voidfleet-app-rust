@@ -1,4 +1,4 @@
-"""Titan Carrier (Schlachtschiff), Clean Toon, detailreiche Fassung nach der Iron Dreadnought (STYLE.md).
+"""Titan Carrier (Schlachtschiff), Clean Toon, detailreiche Fassung nach der Iron Dreadnought (docs/stilregeln.md).
 
 Breiter Rumpf unter einem großen Flugdeck: Deckrand in Stahlblau, dunkle Landebahn mit zwei Lichtbändern, drei geparkte
 Drohnen im Violett der Drohne, Insel achtern an Steuerbord aus drei Blöcken mit Fensterband und Mast. An beiden Flanken

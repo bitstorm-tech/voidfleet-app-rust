@@ -29,7 +29,7 @@ use super::{
     labels::ShipCaption,
     ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
-    toon::OutlineMaterial,
+    toon::ToonOutline,
 };
 use crate::{
     assets::AppState,
@@ -329,22 +329,19 @@ fn mark_target(
     focus: Res<BoardFocus>,
     ships: Query<(Entity, &Ship, &OnSlot)>,
     children: Query<&Children>,
-    contours: Query<&MeshMaterial3d<OutlineMaterial>>,
-    mut materials: ResMut<Assets<OutlineMaterial>>,
+    mut contours: Query<&mut Visibility, With<ToonOutline>>,
 ) {
     let target = focus.preview.as_ref().map(|(uid, _)| *uid);
     for (entity, ship, on) in &ships {
         let targeted = on.0.side == Side::Enemy && target == Some(ship.uid);
+        let visibility = if targeted {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
         for part in children.iter_descendants(entity) {
-            let Ok(contour) = contours.get(part) else {
-                continue;
-            };
-            if materials
-                .get(contour)
-                .is_some_and(|m| m.targeted != targeted)
-                && let Some(mut material) = materials.get_mut(contour)
-            {
-                material.targeted = targeted;
+            if let Ok(mut contour) = contours.get_mut(part) {
+                contour.set_if_neq(visibility);
             }
         }
     }
@@ -381,6 +378,41 @@ mod tests {
             wanted_ships(&battle, &*locale, &BoardFocus::default()).len(),
             3
         );
+    }
+
+    /// Nur das Ziel unter dem Fadenkreuz zeigt seine Kontur; ohne Vorschau ist sie wieder weg.
+    #[test]
+    fn target_shows_its_contour() {
+        use bevy::ecs::system::RunSystemOnce;
+        use voidfleet_core::{
+            board::{EnemySlot, Row},
+            enemies::EnemyId,
+        };
+
+        use crate::data::ship_models::ShipKind;
+
+        let mut world = World::new();
+        let mut contour_of = |uid, column| {
+            let contour = world.spawn((ToonOutline, Visibility::Hidden)).id();
+            let ship = Ship {
+                kind: ShipKind::Enemy(EnemyId::Raiders),
+                uid,
+            };
+            let slot = SlotRef::enemy(EnemySlot::new(Row::Front, column));
+            world.spawn((ship, OnSlot(slot))).add_child(contour);
+            contour
+        };
+        let (aimed, other) = (contour_of(1, 0), contour_of(2, 1));
+        world.insert_resource(BoardFocus {
+            preview: Some((1, Vec::new())),
+            ghost: None,
+        });
+        world.run_system_once(mark_target).unwrap();
+        assert_eq!(world.get::<Visibility>(aimed), Some(&Visibility::Inherited));
+        assert_eq!(world.get::<Visibility>(other), Some(&Visibility::Hidden));
+        world.insert_resource(BoardFocus::default());
+        world.run_system_once(mark_target).unwrap();
+        assert_eq!(world.get::<Visibility>(aimed), Some(&Visibility::Hidden));
     }
 
     #[test]

@@ -1,5 +1,5 @@
-"""Schrottkönig (Boss von Sektor 1), Clean Toon in der detailreichen Fassung (STYLE.md): der Hive-Rumpf, zusammengeflickt
-und geplündert.
+"""Schrottkönig (Boss von Sektor 1), Clean Toon in der detailreichen Fassung (docs/stilregeln.md): der Hive-Rumpf,
+zusammengeflickt und geplündert.
 
 Primärformen wie die Hive (fleet/hive.py): Zwei-Kammer-Rumpf mit Taille und zwei Kragen, Brutplattform mit zehn Waben,
 Sechseckturm, Sensorauge, Kiel, aber mit Schlachtschiff-Stahlblau statt Halvorsens Violett und ohne Gold. Offene Waben

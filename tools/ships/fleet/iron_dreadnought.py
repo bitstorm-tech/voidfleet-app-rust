@@ -1,4 +1,5 @@
-"""Iron Dreadnought (Schlachtschiff), Referenzschiff des Clean-Toon-Stils in der detailreichen Fassung (STYLE.md).
+"""Iron Dreadnought (Schlachtschiff), Referenzschiff der Stilregeln (docs/stilregeln.md), mit Kleinteilen für den
+dreckigen Look.
 
 Primärformen: breiter, kantiger Keilrumpf mit Dorsaldeck und zwei Lagen Panzerschürzen, drei große Zwillingstürme in
 Stahlblau (vorn, überhöht, seitlich), zwei schwere Belagerungskanonen am Bug mit magenta Mündung, ein Aufbau aus drei
@@ -13,12 +14,15 @@ Schürzen, Flächen des Aufbaus):
 - Achterdeck und Heck: Maschinenlüfter, Lagerkisten, Gehäusesegment und Düsenkranz je Düse (`parts.engine_details`)
 - Unterseite: Kinn mit Hangartor nach vorn, Spanten am V-Boden, Plattenlage unter der unteren Schürze
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`), seit der dreckige Look keine Konturringe mehr zeichnet: Fensterreihen aus Einzelfenstern,
+Flak-Türmchen, Nadel- und Schüsselantennen, Geländer, Leiter, Rohrleitungen, Kühlrippen an den Düsen, Positionslichter.
 """
 
 import palette
 import vf
-from parts import bellows, engine, engine_details, rcs, turret, turret_details, vent
-from vf import Ship, box, grow, keel, loft, octagon, plate, post, rbox, rect, sec, sphere, sweep, tube, wedge
+from parts import beam, bellows, engine, engine_details, rcs, turret, turret_details, vent
+from vf import Ship, box, dish, grow, keel, loft, octagon, pipe, plate, post, rbox, rect, sec, segment, sphere, sweep, tube, wedge
 
 # Rumpf: Querschnitte (y, Breite, Höhe) des Keilprofils, eingefügt um HULL_Z angehoben
 HULL = ((-4.0, 0.6, 0.5), (-2.8, 1.8, 0.9), (-1.2, 3.6, 1.3), (0.6, 4.4, 1.4), (2.4, 3.8, 1.3), (3.4, 2.6, 1.0))
@@ -40,6 +44,99 @@ def bottom_z(x, y):
     """Höhe des V-Bodens bei (x, y), x ≥ 0."""
     hw, _, low, keel_z = hull_at(y)
     return keel_z + (low - keel_z) * x / hw
+
+
+def flak(s, m, at, yaw):
+    """Zwillings-Flak, `at` auf Steuerbord und gespiegelt: Sockel, Gehäuse in der Akzentfarbe, Blende, zwei dünne Rohre
+    nach -Y, um `yaw` gedreht (positiv: nach außen)."""
+    x, y, z = at
+    s.add(post(8, 0.1, 0.09, -0.03, 0.05), m["dark_round"], at=at, mirror=True)
+    g = Ship("flak")
+    g.add(box(0.17, 0.2, 0.11), m["accent"], at=(0, 0.02, 0.055))
+    g.add(box(0.19, 0.05, 0.07), m["dark"], at=(0, -0.09, 0.05))
+    for dx in (-0.04, 0.04):
+        g.add(tube(6, 0.02, 0.016, -0.42, -0.08, dx, 0.06), m["steel"])
+    s.place(g, at=(x, y, z + 0.05), rot=(0, 0, yaw), mirror=True)
+    g.bm.free()
+
+
+def rail(s, m, a, b, posts, mirror=True, h=0.09):
+    """Geländer von a nach b (Punkte auf der Fläche): Handlauf in Höhe h auf `posts` Pfosten."""
+    (ax, ay, az), (bx, by, bz) = a, b
+    s.add(beam((ax, ay, az + h), (bx, by, bz + h), 0.014, 0.014), m["dark"], mirror=mirror)
+    for k in range(posts):
+        t = k / (posts - 1)
+        s.add(box(0.014, 0.014, h + 0.01), m["dark"], at=(ax + t * (bx - ax), ay + t * (by - ay), az + t * (bz - az) + h / 2 - 0.005),
+              mirror=mirror)
+
+
+def details(s, m, z):
+    """Kleinteile (Modulkommentar); `z` ist das Dach des Aufbaus."""
+    roof1, roof2 = 1.765, 2.215  # Dächer der beiden unteren Blöcke des Aufbaus
+
+    # ---------------------------------------------------------------- Fensterreihen: Aufbau und Wand des Dorsaldecks
+    def side_windows(x, ys, wz):
+        for y in ys:
+            s.add(box(0.03, 0.07, 0.045), m["window"], at=(x + 0.004, y, wz), mirror=True)
+
+    def rear_windows(xs, y, wz):
+        for x in xs:
+            s.add(box(0.07, 0.03, 0.045), m["window"], at=(x, y + 0.004, wz))
+
+    row = [1.86 + 0.12 * k for k in range(8)]
+    side_windows(0.85, row, 1.6)
+    side_windows(0.85, row[1::2], 1.42)
+    rear_windows([-0.6 + 0.2 * k for k in range(7)], 2.75, 1.6)
+    side_windows(0.625, [1.96 + 0.12 * k for k in range(6)], 2.03)
+    rear_windows([-0.4 + 0.2 * k for k in range(5)], 2.6, 2.03)
+    for y in [-0.3 + 0.12 * k for k in range(6)] + [1.6 + 0.12 * k for k in range(8)]:
+        s.add(box(0.03, 0.07, 0.045), m["window"], at=(0.9 + 0.2 * (y + 2.2) / 4.8 + 0.004, y, 0.99), mirror=True)
+
+    # ---------------------------------------------------------------- Flak: Hauptdeck und Dach des Aufbaus
+    for (x, y), yaw in (((1.6, -0.85), 30), ((1.85, -0.1), 40), ((1.85, 1.75), 140)):
+        flak(s, m, (x, y, hull_at(y)[1]), yaw)
+    flak(s, m, (0.74, 2.05, roof1), 90)
+
+    # ---------------------------------------------------------------- Antennen
+    s.add(post(6, 0.014, 0.006, z + 0.66, z + 1.2), m["dark_round"], at=(0.4, 2.15, 0), mirror=True)
+    s.add(segment((0.55, 2.55, roof2 - 0.02), (0.62, 3.05, 2.95), 0.012, 6), m["dark_round"], mirror=True)
+    s.add(segment((0.16, -3.9, 0.3), (0.16, -4.5, 0.34), 0.014, 6), m["steel"], mirror=True)
+    # Schüssel backbord, Gerätekasten mit Nadel steuerbord
+    s.add(post(8, 0.03, 0.025, roof1 - 0.02, roof1 + 0.14), m["dark_round"], at=(-0.74, 2.5, 0))
+    s.add(dish(0.13, 0.05, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.74, 2.5, roof1 + 0.13), rot=(-40, 0, 150))
+    s.add(box(0.14, 0.2, 0.12), m["armor"], at=(0.74, 2.5, roof1 + 0.06))
+    s.add(post(6, 0.012, 0.006, roof1 + 0.1, roof1 + 0.5), m["dark_round"], at=(0.74, 2.56, 0))
+
+    # ---------------------------------------------------------------- Geländer und Leiter am Aufbau
+    rail(s, m, (0.83, 2.27, roof1), (0.83, 2.73, roof1), 3)
+    rail(s, m, (-0.83, 2.73, roof1), (0.83, 2.73, roof1), 5, mirror=False)
+    rail(s, m, (0.61, 2.1, roof2), (0.61, 2.58, roof2), 3)
+    rail(s, m, (0.47, 1.79, z - 0.255), (0.99, 1.79, z - 0.255), 3)
+    rail(s, m, (0.99, 1.79, z - 0.255), (0.99, 2.05, z - 0.255), 2)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.5), m["dark"], at=(0.75 + dx, 2.757, 1.515))
+    for k in range(6):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.75, 2.757, 1.33 + 0.08 * k))
+
+    # ---------------------------------------------------------------- Rohrleitungen und Kisten auf dem Dorsaldeck
+    for x, (ex, ey) in ((0.62, (0.35, 0.05)), (0.7, (0.42, 0.0))):
+        s.add(pipe([(x, 1.3, 1.29), (x, 0.5, 1.29), (ex, ey, 1.29)], 0.028, 6), m["steel"], mirror=True)
+    s.add(box(0.22, 0.2, 0.14), m["armor"], at=(0.3, 1.12, 1.335))
+    s.add(box(0.2, 0.22, 0.16), m["dark"], at=(-0.34, 1.11, 1.345))
+    s.add(box(0.14, 0.14, 0.1), m["armor"], at=(-0.34, 1.1, 1.475))
+    # Luken auf dem Hauptdeck vor den Seitentürmen
+    s.add(box(0.3, 0.36, 0.04), m["armor"], at=(1.25, -0.45, hull_at(-0.45)[1] + 0.01), mirror=True)
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen
+    for dz in (0.45, -0.25):
+        for t in (0.37, 0.42, 0.47):
+            y = 3.3 + 0.7 * t
+            s.add(tube(12, 0.365, 0.365, y, y + 0.025, 0.6, dz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter
+    s.add(sphere(0.03, 1), m["glow"], at=(1.0, 1.92, z - 0.225), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(2.52, 1.0, 0.43), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(0, -4.05, 0.41))
 
 
 def build():
@@ -148,4 +245,5 @@ def build():
     for dz in (0.45, -0.25):
         engine(s, m, 0.32, 3.3, 4.0, dx=0.6, dz=dz, mirror=True)
         engine_details(s, m, 0.32, 3.3, 4.0, dx=0.6, dz=dz, mirror=True)
+    details(s, m, z)
     return s.finish()

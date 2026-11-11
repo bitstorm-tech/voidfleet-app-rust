@@ -1,4 +1,4 @@
-//! glTF-Erweiterung, die den Schiffen beim Laden ihre Toon-Materialien gibt (Port von `loadShipModels` in
+//! glTF-Erweiterung, die den Schiffen beim Laden ihre Materialien gibt (Port von `loadShipModels` in
 //! `scene/ship.ts`): Aus jedem glTF-Material mit `extras.vf` wird ein [`ToonMaterial`] (Label `<material>/toon`) und,
 //! außer bei Hologrammen, ein [`OutlineMaterial`] (Label `<material>/outline`); jedes Primitiv bekommt das eine und eine
 //! Konturhülle mit dem anderen als Kind (Label `<primitive>/outline`). Jedes
@@ -165,7 +165,7 @@ impl GltfExtensionHandler for ToonGltf {
         if !spec.is_hologram() {
             load_context.add_labeled_asset(
                 format!("{material_label}/outline"),
-                OutlineMaterial::new(spec.clone()),
+                OutlineMaterial::default(),
             );
         }
         load_context.add_labeled_asset(
@@ -225,6 +225,8 @@ impl GltfExtensionHandler for ToonGltf {
             entity.with_child((
                 Name::new("Kontur"),
                 ToonOutline,
+                // Sichtbar erst am Ziel unter dem Fadenkreuz (`mark_target` in `scene/sync.rs`)
+                Visibility::Hidden,
                 Mesh3d(outline),
                 MeshMaterial3d(color),
             ));

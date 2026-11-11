@@ -1,8 +1,8 @@
 """Verwitterung der Schiffe: Schmutz, Kantenabrieb und Plattenstruktur als gebackene Maske `<id>_weather`.
 
-Clean Toon bleibt; die Verwitterung kommt als weitere harte Tonflächen dazu, so wie ein Kolorist Schmutz mit flachen
-Formen malt. Die Maske selbst ist weich (kontinuierlich), die harten Stufen setzt erst der Shader mit den Schwellen aus
-look.py (im Spiel `toon.wesl`, über `fwidth` geglättet; in der Vorschau preview.py). So bleiben die Ränder bei jeder
+Die Maske selbst ist weich (kontinuierlich). Das Spiel (`toon.wesl`, dreckiger Look) liest Schmutz und Ruß als Verlauf
+mit Korn und setzt nur für die Rille der Fugen und den Kantenabrieb harte Stufen; die Vorschau (preview.py, noch Clean
+Toon) setzt für jeden Kanal eine harte Tonfläche mit den Schwellen aus look.py. So bleiben die Ränder bei jeder
 Vergrößerung scharf, und bei Verkleinerung fällt der Mip-Mittelwert unter die Schwelle, statt zu flimmern. Fugen und
 Kantenabrieb blendet der Shader zusätzlich nach der Mip-Stufe aus (look.FINE_LOD): Auf dem Brett bleiben Plattenton,
 Schmutz und Ruß.
@@ -80,6 +80,9 @@ def apply(obj):
     toon = [m for m in obj.data.materials if vf.spec(m)["kind"] == "toon"]
     if not toon or grade <= 0:
         return None
+    if obj.name in look.WEATHER_DENSITIES:  # vor dem Hash, der den Vertrag abdeckt
+        for mat in toon:
+            mat["vf"]["density"] = look.WEATHER_DENSITIES[obj.name]
     started = time.time()
     size, density = unwrap(obj)
     path = os.path.join(CACHE, f"{obj.name}-{fingerprint(obj, size)}.png")
@@ -104,11 +107,12 @@ def unwrap(obj):
         mesh.uv_layers.remove(mesh.uv_layers[0])
     mesh.uv_layers.new(name="UVMap")
     area = sum(p.area for p in mesh.polygons)
-    size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
+    target = look.WEATHER_DENSITIES.get(obj.name, look.WEATHER_DENSITY)
+    size = _round_size(target * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
     for _ in range(2):
         _smart_project(obj, MARGIN / size)
         uv_area = _uv_area(mesh)
-        size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / uv_area))
+        size = _round_size(target * math.sqrt(area / uv_area))
     return size, size * math.sqrt(uv_area / area)
 
 

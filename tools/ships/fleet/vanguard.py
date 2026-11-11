@@ -1,4 +1,5 @@
-"""Vanguard (Flaggschiff von Admiralin Vance, „der Hammer“), im Clean-Toon-Stil in der detailreichen Fassung (STYLE.md).
+"""Vanguard (Flaggschiff von Admiralin Vance, „der Hammer“), im Clean-Toon-Stil in der detailreichen Fassung
+(docs/stilregeln.md).
 
 Schlanker, kantiger Kreuzer, der nach vorn drängt: Keilrumpf mit Rückgrat, goldener Zierlinie und Fensterband, davor
 der Rammbug als Speerspitze mit leuchtenden Schneiden und Panzerlage in Karmin, darunter zwei schwere Bugkanonen. An den

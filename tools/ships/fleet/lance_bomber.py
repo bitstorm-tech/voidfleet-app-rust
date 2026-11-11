@@ -1,5 +1,5 @@
 """Lanzen-Bomber (Jäger, Torpedo-Staffel der Gegner) im Clean-Toon-Stil, detailreiche Fassung nach der Iron Dreadnought
-(STYLE.md).
+(docs/stilregeln.md).
 
 Primärformen: schlanker, runder Rumpf mit kurzer Glaskanzel, gepfeilte Flügel mit Koralle-Spitzen, eine hohe
 Seitenflosse und zwei Düsen. Kennzeichen ist die Lanze: ein langer Torpedo in Koralle, der an einem dunklen Pylon unter

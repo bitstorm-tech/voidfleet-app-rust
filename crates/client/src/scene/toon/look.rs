@@ -1,5 +1,7 @@
-//! Look-Parameter von Clean Toon, dieselben Werte wie `tools/ships/look.py` und `scene/toon.ts`. Die Konstanten des
-//! Fragment-Shaders (Stufen, Kantenlicht, Glanzpunkt, Blitzlicht) stehen in `assets/shaders/toon.wesl`.
+//! Look-Parameter der Schiffe im dreckigen Look. Die Konstanten des Fragment-Shaders (Verlauf, Verwitterung,
+//! Kantenlicht, Glanz, Blitzlicht) stehen in `assets/shaders/toon.wesl`. Die Vorschau in Blender
+//! (`tools/ships/look.py`, `preview.py`) rendert noch den früheren Clean-Toon-Look; gemeinsam sind Hauptlicht, Töne
+//! und die Maske der Verwitterung.
 
 use bevy::prelude::*;
 
@@ -9,24 +11,21 @@ pub const KEY: Vec3 = Vec3::new(0.75 / KEY_LENGTH, 0.62 / KEY_LENGTH, 0.25 / KEY
 /// Länge von (0,75, 0,62, 0,25).
 const KEY_LENGTH: f32 = 1.004_689;
 
-/// Schwellen des Kantenlichts auf N·R und facing und die Grenze auf N·oben, für eckige und runde Flächen. Eckige
-/// Flächen, die nach oben zeigen (weniger als 37° gegen die Waagrechte), bekommen keins.
-pub const RIM_FLAT: [f32; 3] = [0.28, 0.4, 0.8];
-pub const RIM_ROUND: [f32; 3] = [0.0, 0.62, 2.0];
-
-/// Breite der Außenkontur in Welt-Einheiten (eine Blender-Einheit sind auf dem Brett 0,3), geklemmt auf
-/// [`CONTOUR_MIN`, `CONTOUR_MAX`] logische Pixel: auf dem Brett (≈ 22 px je Blender-Einheit) etwa 1 px, herangezoomt
-/// bis 1,8 px (`LINES["board"]`).
+/// Breite der roten Kontur am Ziel unter dem Fadenkreuz in Welt-Einheiten (eine Blender-Einheit sind auf dem Brett
+/// 0,3), geklemmt auf [`CONTOUR_MIN`, `CONTOUR_MAX`] logische Pixel: auf dem Brett (≈ 22 px je Blender-Einheit)
+/// etwa 1 px, herangezoomt bis 1,8 px. Andere Konturen gibt es nicht.
 pub const CONTOUR_WORLD: f32 = 0.0135;
 pub const CONTOUR_MIN: f32 = 1.0;
 pub const CONTOUR_MAX: f32 = 1.8;
-/// Die Kontur ist der Schatten-Ton der Fläche mit diesem Anteil seiner Helligkeit (Oklch).
-pub const CONTOUR_DARKEN: f32 = 0.55;
+
+/// Texel der Verwitterungsmaske je Blender-Einheit (`WEATHER_DENSITY` in `look.py`); darauf beziehen sich die
+/// Schwellen `FINE_LOD` im Shader. Ein Schiff mit anderer Dichte nennt sie im Vertrag (`ToonSpec::Toon::density`).
+pub const WEATHER_DENSITY: f32 = 32.0;
 
 /// Lichter mit `glow` leuchten so viel heller als 1 und glühen dadurch im Bloom der Kamera.
 pub const GLOW_BOOST: f32 = 1.8;
 
-/// Geister eingeplanter Schiffe: bläuliches Hologramm in drei Tönen, ohne Konturen.
+/// Geister eingeplanter Schiffe: bläuliches Hologramm in drei Tönen.
 pub const GHOST_TONES: [Color; 3] = [
     Color::srgb(0x8f as f32 / 255.0, 0xdc as f32 / 255.0, 1.0),
     Color::srgb(

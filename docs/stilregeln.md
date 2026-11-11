@@ -1,10 +1,20 @@
-# Stilregeln für Neubauten (Clean Toon)
+# Stilregeln für Neubauten (dreckiger Look)
 
-Referenz ist die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär-
-und Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind; flache Farbflächen in drei Tönen, harte Schlagschatten,
-dunkle Konturen, ein paar leuchtende Akzente. Alle Schiffe, die das Spiel lädt, sind nach ihrem Vorbild gebaut; nur
-Hive, Mirage, Drohne, Repair Drone und Trugbild (im PvE-Run unbenutzt) stehen noch in der groben Fassung. Vor einem
-Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --sheet`).
+Der Look ist „Used Future“: dunkle, kantige, abgenutzte Schiffe. Das Spiel zeichnet matte Töne als Verlauf, kräftige
+Verwitterung aus der Maske, ein paar leuchtende Akzente und keine Konturen (`assets/shaders/toon.wesl`). Referenz ist
+die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär- und
+Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind, dazu Kleinteile, die den Maßstab zeigen (Fenster, Flak,
+Antennen, Geländer). Die Kleinteile tragen bisher nur die Dreadnought und der Void Interceptor (`details` in ihren
+Modulen); die übrigen Schiffe, die das Spiel lädt, sind noch nach den Regeln des früheren Clean-Toon-Looks gebaut und
+bekommen sie mit ihrem nächsten Umbau. Hive, Mirage, Drohne, Repair Drone und Trugbild (im PvE-Run unbenutzt) stehen
+noch in der groben Fassung.
+
+Die Schiffe baut `tools/ships/` in Blender (`just ships`, `just ship-preview`); Dateinamen ohne Verzeichnis auf dieser
+Seite (`build.py`, `fleet/<id>.py`, `renders/<id>/`) liegen dort.
+
+Die Vorschau (`preview.py`) rendert noch Clean Toon mit Linien: Sie taugt für Form, Maße und Umriss, den Look zeigt nur
+das Spiel (unten, „Prüfung“). Vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind
+--sheet`).
 
 ## Arbeitsweise
 
@@ -22,31 +32,31 @@ Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind --shee
   `bellows` (Blendenbalg um ein Rohr).
 - Vor einem Umbau die jetzige Fassung rendern und die Bilder wegkopieren (die Vorschau überschreibt `renders/<id>/`).
 - Kreislauf: `build.py -- <id>` (Dreiecke, KB, Maske, Warnungen) und `preview.py -- <id> --views board,zoom,behind,hero,wreck`,
-  bei asymmetrischen Schiffen auch `enemy_zoom`. Fertig ist ein Schiff erst ohne Warnungen und nach dem Blick auf `board`
-  in voller Größe (unten).
+  bei asymmetrischen Schiffen auch `enemy_zoom`. Fertig ist ein Schiff erst ohne Warnungen, nach dem Blick auf `board`
+  in voller Größe und nach dem Blick ins Spiel (unten).
 
 ## Was wegfällt
 
-Die grobe Fassung hatte nach einem zu kleinteiligen Vorgänger alles Feine gestrichen; zurück kommen nur Formen mit Zweck
-in Detailzonen (unten). Weiter weg bleibt, was auf dem Brett nur Rauschen ist oder im Spiel zum schwarzen Fleck wird:
+Weg bleibt, was als Geometrie nichts bringt oder nur Rauschen ist:
 
 - Plattenfugen, Nieten, Schmutz, Kantenabrieb und Plattentöne als Geometrie: Sie kommen aus der Verwitterungs-Textur
-  (gebackene Maske, im Shader hart gestuft). Die Geometrie liefert die Kanten und Stufen, an denen sie greift.
+  (gebackene Maske). Die Geometrie liefert die Kanten und Stufen, an denen sie greift.
 - Bevel; Fasen nur über `rbox` an Verschlüssen und Blenden.
 - Zufalls-Greebles: Kleinteile ohne erkennbaren Zweck, gestreut statt gruppiert, und gleich große Teile in gleichen
   Abständen über das ganze Schiff (gleichmäßiges Rauschen).
-- Fensterreihen aus Einzelkästen (ein durchgehendes Fensterband), Nadel-Antennen, Antennen mit Scheiben, Geländer,
-  Leitern.
-- Abstehende Kleinstteile unter 0,15 (Düsenkegel, Stummel, Bolzen): Im Spiel bekommt jedes erhabene Teil einen
-  Konturring fester Breite, ein Bündel davon wird zum schwarzen Fleck. Die ersten RCS-Blöcke der Dreadnought mit drei
-  Kegeldüsen sahen genau so aus; jetzt liegen die Düsenöffnungen flach auf (`parts.rcs`).
-- Rohrleitungsbündel und lose Leitungen, Radiatoren aus Lamellen, Kühlrippen an Düsen, mehr als zwei Ringe je Lauf.
-- Nebentürme, Flak-Türmchen und Raketenwerfer: Sie konkurrieren mit der Hauptbewaffnung, die die Klasse zeigt.
-- Eigene Lichter an Kleinteilen (Positionslichter, Lampen an Kisten): Ein rotes Positionslicht am Brückenflügel zog auf
-  dem Brett mehr Blick als die Klasse.
+- Nebenwaffen, die mit der Hauptbewaffnung konkurrieren: Flak und Nebentürme bleiben deutlich kleiner als die Waffe, die
+  die Klasse zeigt (an der Dreadnought Flak-Gehäuse 0,17 gegen Turmradius 0,5).
+- Lichter, die den Blick von der Klasse wegziehen: Fenster und Positionslichter bleiben klein (Fenster 0,07 × 0,045,
+  Positionslichter Radius 0,03 bis 0,04). Ein rotes Positionslicht am Brückenflügel der Dreadnought zog in einer
+  früheren Fassung auf dem Brett mehr Blick als die Klasse.
 
-Ausnahme: Ein solches Teil ist das Kennzeichen des Schiffs (die Schüssel des Signal Boosters, die Arme der Repair
-Drone); dann bleibt es, aber groß und grob.
+Früher fielen auch Fensterreihen aus Einzelfenstern, Nadel- und Schüsselantennen, Geländer, Leitern, Rohrleitungen,
+Kühlrippen und alle abstehenden Teile unter 0,15 weg: Das Spiel zeichnete um jedes erhabene Teil einen Konturring, und
+ein Bündel davon wurde zum schwarzen Fleck. Der dreckige Look zeichnet keine Konturen; diese Teile sind jetzt erwünscht
+(nächster Abschnitt).
+
+Ausnahme bei der Größe: Ist ein Teil das Kennzeichen des Schiffs (die Schüssel des Signal Boosters, die Arme der Repair
+Drone), bleibt es groß und grob.
 
 ## Was groß bleibt und was dazukommt
 
@@ -72,6 +82,13 @@ ist und benutzt wird:
   Platte in einem flachen Rahmen aus dem Material der Fläche liest als Vertiefung (`parts.vent`, Hangartor).
 - **Kleinteile an Baugruppen.** Wer `turret` oder `engine` benutzt, setzt `turret_details` bzw. `engine_details` mit
   denselben Argumenten dazu; Lichter bekommen die neuen Teile nicht.
+- **Kleinteile für den Maßstab.** In den Detailzonen sitzen Teile, die zeigen, wie groß das Schiff ist: Fensterreihen
+  aus Einzelfenstern an Aufbauten und Deckswänden, Flak-Türmchen an der Deckkante, Nadel-, Peitschen- und
+  Schüsselantennen am Mast und auf Dächern, Geländer und Leitern am Aufbau, Rohrleitungen und Kisten auf Decks,
+  Kühlrippen an Düsen und Läufen, Positionslichter an den äußersten Punkten; an Jägern Raketen an Pylonen,
+  Flügelspitzen-Schienen, Klappenspalt, Wartungsluken. Sie stehen in einer eigenen Funktion `details` am Ende von
+  `build()` (Vorbild: Dreadnought und Void Interceptor). Auch sie brauchen einen Ort mit Zweck und bleiben in Zonen;
+  zwischen den Zonen bleiben ruhige Flächen.
 
 Referenz sind die Detailzonen der Iron Dreadnought:
 
@@ -104,32 +121,29 @@ Schmutz und Ruß, im Zoom und auf der Karte kommen Fugen und Abrieb dazu.
 - Grad je Schiff in `look.WEATHER` (Schrott 2,2, Mirage 0,5, Trugbild 0), Anteile je Material in
   `look.WEATHER_MATERIALS`. Ein neuer Materialschlüssel gilt als lackiert (eckig mit Platten, rund ohne); unlackierte
   Sonderfarben (Metall, Glas, Rost) dort eintragen.
-- Die erste Vorschau eines geänderten Schiffs backt seine Maske (bis etwa 20 s), danach kommt sie aus dem Cache.
+- Die erste Vorschau eines geänderten Schiffs backt seine Maske (bis etwa 20 s, mit dichter Maske etwa 60 s), danach
+  kommt sie aus dem Cache.
+- Dichte der Maske: 32 Texel je Einheit (`look.WEATHER_DENSITY`), für die Schiffe mit Kleinteilen 64
+  (`look.WEATHER_DENSITIES`). Das Spiel liest Schmutz als Verlauf; bei 32 wirkt er in der Nahaufnahme weich. Die
+  doppelte Dichte kostet den vierfachen Texturspeicher. Ob alle Schiffe sie bekommen, ist offen (`TODO.md`).
 
-## Mindestgröße bei Brettgröße
+## Größen auf dem Brett
 
-Auf dem Brett ist eine Blender-Einheit etwa 22 px (Flaggschiffe 24 px), im Zoom etwa 70 px, auf der Karte 80–90 px. Die
-Vorschau zeichnet Linien von 0,7–1,8 px (Außenkontur, Silhouetten, Knicke über 40°); das Spiel zeichnet keine Knicke,
-aber um jedes erhabene Teil, das vor etwas anderem liegt, einen Konturring (Inverted Hull je Material,
-`crates/client/src/scene/toon/outline.rs`) in einem abgedunkelten Ton der Fläche, auf dem Brett etwa 1 px, im Zoom bis
-1,8 px. Daraus:
+Auf dem Brett ist eine Blender-Einheit etwa 22 px (Flaggschiffe 24 px), im Zoom etwa 70 px, auf der Karte 80–90 px;
+Jäger stehen als Staffel im Maßstab 0,42, also bei etwa 9 px je Einheit. Konturen zeichnet das Spiel nicht mehr, Teile
+dürfen deshalb klein sein und dicht stehen. Was man wo sieht (geprüft an Dreadnought und Void Interceptor, in
+Standbildern):
 
-- Flächen mit Tönen (Primär- und Sekundärformen): kleinste Abmessung mindestens 0,15 (≈ 3,3 px, neben der Kontur
-  bleiben etwa 1,5 px Ton), besser 0,2.
-- Flach aufliegend, Relief bis 0,05 (≈ 1 px): ab 0,06, also Stege, Luken, Linsen, Düsenöffnungen, Torflügel. Auf dem
-  Brett verschieben sie nur den Ton ihrer Fläche (ein Gitter wird ein dunkles Rechteck), deshalb nur auf einer
-  Sekundärform von mindestens 0,3, deren Ton als Ganzes liest; im Zoom sind 0,06 gut 4 px.
-- Erhabene Kleinteile unter 0,15 (Relief über 0,05) nur an einer größeren Form, deren Umriss sie verlängern (Ohren,
-  Bälge, Mündungsringe, Querträger), nie freistehend und höchstens zwei oder drei je Teil.
-- Rohre und Läufe: Durchmesser mindestens 0,18. Leisten und Kanäle dünner als 0,15 nur, wenn sie mindestens 0,8 lang
-  sind (Kabelkanal 0,1, Querträger 0,07).
-- Zwischen zwei erhabenen Teilen mindestens 0,1 Luft, sonst verschmelzen ihre Konturringe zu einem schwarzen Fleck.
-  Spalte innerhalb einer Sekundärform (Stege, Torflügel, Bremsscheiben) ab 0,06: Sie schließen sich auf dem Brett
-  absichtlich und öffnen sich im Zoom.
-- Lichter dürfen kleiner sein, weil sie leuchten: Punktlichter ab Radius 0,08, Lichtbänder ab 0,04 dick und 0,5 lang.
-- Neue Kleinteile einmal im Spiel ansehen, nur dort zeigen sich die Konturringe: Dev-Szenen in
-  `crates/client/src/dev/scenes.rs` (`hit` zeigt den Belagerer, also die Dreadnought), Screenshot mit
-  `VOIDFLEET_SMOKE_FRAMES` und `VOIDFLEET_SMOKE_SCREENSHOT`.
+- Primär- und Sekundärformen (ab etwa 0,15) lesen auf dem Brett als Form.
+- Fenster und Positionslichter lesen auf dem Brett als Lichtpunkte, auch bei 0,03 bis 0,07, weil sie leuchten.
+- Flak (Gehäuse 0,17, Rohre Radius 0,02) und Antennen (Radius 0,012 bis 0,014) lesen an Schlachtschiffen auf dem Brett
+  als kleine Formen und Striche; Geländer, Leitern und Rohrleitungen (0,014 bis 0,03) erst in der Nahaufnahme.
+- An Jägern in der Staffel sieht man auf dem Brett keines der Kleinteile. Sie stören dort nicht und zahlen sich aus,
+  wenn die Kamera herangeht.
+- Ob dünne Teile in Bewegung flimmern, ist ungeprüft. Flimmert eines, wird es dicker oder fällt weg.
+- Neue Kleinteile einmal im Spiel ansehen: Dev-Szenen in `crates/client/src/dev/scenes.rs` (`hit` zeigt den Belagerer,
+  also die Dreadnought, `board` eine Staffel Void Interceptor), Screenshot mit `VOIDFLEET_SMOKE_FRAMES` und
+  `VOIDFLEET_SMOKE_SCREENSHOT`.
 
 ## Palette und Akzent
 
@@ -151,20 +165,23 @@ aber um jedes erhabene Teil, das vor etwas anderem liegt, einen Konturring (Inve
 
 ## Normalen
 
-Rund oder eckig entscheidet das Material: eckig (`hull`, `armor`, `dark`, `accent`, `trim`) gibt einen Ton je Facette, rund
-(`hull_round`, `armor_round`, `dark_round`, `accent_round`, `steel`, `glass`) saubere Bänder; Kanten über 38° bleiben immer
-hart, Bevel gibt es nicht. Rohre, Türme, Barbetten, Masten, Düsen und runde Rümpfe also rund, Kisten, Platten, Keil- und
-Facettenrümpfe eckig. Nie einen runden Rumpf eckig (Facettenstreifen) und nie einen Keilrumpf rund (Verläufe quer über
-die Facetten).
+Rund oder eckig entscheidet das Material: eckig (`hull`, `armor`, `dark`, `accent`, `trim`) gibt einen Ton je Facette,
+rund (`hull_round`, `armor_round`, `dark_round`, `accent_round`, `steel`, `glass`) weiche Verläufe (in der Vorschau
+Bänder); Kanten über 38° bleiben immer hart, Bevel gibt es nicht. Rohre, Türme, Barbetten, Masten, Düsen und runde
+Rümpfe also rund, Kisten, Platten, Keil- und Facettenrümpfe eckig. Nie einen runden Rumpf eckig (Facettenstreifen) und
+nie einen Keilrumpf rund (Verläufe quer über die Facetten).
 
 ## Dreiecksbudget
 
-Obergrenzen: Schlachtschiffe 12k, Flaggschiffe 14k, Kreuzer 9k, Jäger und Unterstützer 7k, Drohne 3k, Trugbild 1,5k
-(bleibt flach). Die Dreadnought liegt bei 11,2k (grobe Fassung 6,5k); von den 4,7k für Details gehen etwa 2k in die vier
-Türme, 0,8k in die Bugkanonen, 0,6k in die Düsen, 0,4k in die Lüfter, 0,4k in die RCS-Blöcke und 0,5k in den Rest. Das
-meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8, `smooth` mit
-`subdiv` 1–2; Kasten, Platten und Stege kosten fast nichts. Die Wracks (wreck.py) entstehen automatisch und haben etwa
-das 1,5-Fache (Dreadnought 16,5k Dreiecke, 0,75 MB); ansehen (`wreck`) muss man sie trotzdem.
+Obergrenzen mit Kleinteilen: Schlachtschiffe 16k, Flaggschiffe 18k, Kreuzer 12k, Jäger und Unterstützer 9k, Drohne 3k,
+Trugbild 1,5k (bleibt flach). Die Dreadnought liegt bei 14,7k. Ohne Kleinteile sind es 11,2k (grobe Fassung 6,5k): Von
+den 4,7k für Details gehen etwa 2k in die vier Türme, 0,8k in die Bugkanonen, 0,6k in die Düsen, 0,4k in die Lüfter,
+0,4k in die RCS-Blöcke und 0,5k in den Rest. Die Kleinteile kosten 3,4k: Fenster 0,9k, Flak 0,7k, Kühlrippen 0,5k,
+Geländer und Leiter 0,5k, Rohre, Antennen, Kisten und Lichter 0,7k. Der Void Interceptor liegt bei 5,9k (4,7k ohne
+Kleinteile). Das meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8,
+dünne Rohre und Antennen mit 6, `smooth` mit `subdiv` 1–2; Kasten, Platten und Stege kosten fast nichts, in Mengen
+(Fenster) aber doch. Die Wracks (wreck.py) entstehen automatisch und haben etwa das 1,3- bis 1,5-Fache (Dreadnought
+19,1k Dreiecke, 2,7 MB mit der dichten Maske); ansehen (`wreck`) muss man sie trotzdem.
 
 ## Silhouette und Wiedererkennbarkeit
 
@@ -226,13 +243,19 @@ Kennzeichen bleiben und werden eher größer:
   und negativer Skalierung.
 - Budget und Größe stehen in der Ausgabe (Dreiecke, KB, Maße).
 
-## Prüfung im `board`-Render
+## Prüfung
 
-`renders/<id>/board.png` in voller Größe ansehen, nicht vergrößert, am besten neben der Dreadnought:
+Zuerst die Form im `board`-Render: `renders/<id>/board.png` in voller Größe ansehen, nicht vergrößert, am besten neben
+der Dreadnought. Die Vorschau zeigt noch Clean Toon mit Linien; Linienklumpen an Kleinteilen sind dort kein Befund mehr,
+das Spiel zeichnet keine Linien.
 
 1. Umriss und Klasse sind sofort lesbar, die Kennzeichen aus der Tabelle sind zu sehen.
-2. Keine Linienklumpen: Wo Konturen zu schwarzen Flecken verschmelzen, ist ein Teil zu klein oder zu dicht.
-3. Deck hell, Flanke halbhell, Schatten fallen nach achtern; keine fleckigen Schatten kleiner Teile.
-4. Lichter sind Akzente, keine Flächen; der Akzent ist zu sehen, ohne zu dominieren.
-5. Danach `zoom` (keine leeren Flächen, keine schwebenden Teile), `behind` (Wappen, Aufbauten), `enemy` (Steuerbordseite)
+2. Deck hell, Flanke halbhell, Schatten fallen nach achtern; keine fleckigen Schatten kleiner Teile.
+3. Lichter sind Akzente, keine Flächen; der Akzent ist zu sehen, ohne zu dominieren.
+4. Danach `zoom` (keine leeren Flächen, keine schwebenden Teile), `behind` (Wappen, Aufbauten), `enemy` (Steuerbordseite)
    und `hero` (Kartenvorlage, Unterseite nicht leer, keine weißen Flächen).
+
+Dann der Look im Spiel (Dev-Szene mit dem Schiff, Screenshot auf Brettgröße und herangezoomt):
+
+5. Die Kleinteile lesen in der Nahaufnahme, auf dem Brett stört keines.
+6. Schmutz und Fugen gliedern die ruhigen Flächen, ohne die Akzentfarbe zu verschlucken.

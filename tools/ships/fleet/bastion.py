@@ -1,4 +1,5 @@
-"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), im Clean-Toon-Stil in der detailreichen Fassung (STYLE.md).
+"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), im Clean-Toon-Stil in der detailreichen Fassung
+(docs/stilregeln.md).
 
 Fliegende Festung: breiter Kastenrumpf auf einem gestuften Sockel mit Kiel, davor ein Keilbug, drei Terrassendecks mit
 goldener Zierlinie und Panzerschürzen in Bernstein. Am Bug eine zurückgeneigte Schildwand im Bogen aus ebenen Facetten

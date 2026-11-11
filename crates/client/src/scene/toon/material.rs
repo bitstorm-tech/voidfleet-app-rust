@@ -1,5 +1,5 @@
-//! Das Toon-Material der Schiffe und Wracks (`assets/shaders/toon.wesl`), ein Material für alle Arten des
-//! Material-Vertrags aus `tools/ships/vf.py`.
+//! Das Material der Schiffe und Wracks im dreckigen Look (`assets/shaders/toon.wesl`), ein Material für alle Arten des
+//! Material-Vertrags aus `tools/ships/vf.py`. Der Vertrag nennt beleuchtete Flächen weiter `toon`.
 
 use bevy::{
     mesh::MeshVertexBufferLayoutRef,
@@ -14,7 +14,7 @@ use serde::{Deserialize, Deserializer};
 
 use super::look::{
     GHOST_ALPHA, GHOST_HOLOGRAM_ALPHA, GHOST_LIGHT, GHOST_TONES, GLOW_BOOST, KEY, LIVERY_ACCENT,
-    RIM_FLAT, RIM_ROUND, TONE_SPREAD,
+    TONE_SPREAD, WEATHER_DENSITY,
 };
 use crate::palette;
 
@@ -37,12 +37,16 @@ impl<'de> Deserialize<'de> for Hex {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ToonSpec {
-    /// Drei Töne (Licht, Halbschatten, Schatten), harte Stufen; `round` für geglättete Teile, `glint` Glanzpunkt. Dazu
+    /// Drei Töne (Licht, Halbschatten, Schatten) als matter Verlauf; `round` für geglättete Teile (nur für den Bau der
+    /// Normalen in Blender), `glint` Glanz. Dazu
     /// die Maske der Verwitterung (`baseColorTexture`, ein Bild je Modell), sofern das Schiff eine hat.
     Toon {
         tones: [Hex; 3],
         round: bool,
         glint: f32,
+        /// Texel der Maske je Blender-Einheit, wenn das Schiff von [`WEATHER_DENSITY`] abweicht.
+        #[serde(default)]
+        density: Option<f32>,
     },
     /// Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Kennzeichen; mit `glow` im Glühen.
     Light { color: Hex, glow: bool },
@@ -138,13 +142,11 @@ pub struct ToonUniform {
     flash: Vec4,
     /// xyz Richtung zum Hauptlicht.
     key: Vec4,
-    /// xyz Schwellen des Kantenlichts auf N·R und facing und das höchste N·oben.
-    rim_style: Vec4,
-    /// x gestuft beleuchtet (1) oder genau seine Farbe (0), y Glanzpunkt, z Helligkeit, w Deckkraft.
+    /// x beleuchtet (1) oder genau seine Farbe (0), y Glanz, z Helligkeit, w Deckkraft.
     surface: Vec4,
     /// rgb Farbe der Überlagerung, a ihr Anteil.
     overlay: Vec4,
-    /// x Verwitterung an (1) oder aus (0).
+    /// x Verwitterung an (1) oder aus (0), y log2(Dichte der Maske / [`WEATHER_DENSITY`]).
     weather: Vec4,
 }
 
@@ -175,18 +177,13 @@ pub fn livery(color: Color) -> Color {
 impl From<&ToonMaterial> for ToonUniform {
     fn from(material: &ToonMaterial) -> Self {
         let ghost_tones = GHOST_TONES.map(linear);
-        let (tones, lit, glint, power, opacity, rim) = match &material.spec {
-            ToonSpec::Toon {
-                tones,
-                round,
-                glint,
-            } => (
+        let (tones, lit, glint, power, opacity) = match &material.spec {
+            ToonSpec::Toon { tones, glint, .. } => (
                 spread(tones.map(|tone| tone.0)).map(linear),
                 true,
                 *glint,
                 1.0,
                 1.0,
-                if *round { RIM_ROUND } else { RIM_FLAT },
             ),
             ToonSpec::Wreck { tones, .. } => (
                 spread(tones.map(|tone| tone.0)).map(linear),
@@ -194,7 +191,6 @@ impl From<&ToonMaterial> for ToonUniform {
                 0.0,
                 1.0,
                 1.0,
-                RIM_FLAT,
             ),
             ToonSpec::Light { color, glow } => {
                 let color = match (material.ghost, material.livery) {
@@ -203,14 +199,7 @@ impl From<&ToonMaterial> for ToonUniform {
                     (false, false) => color.0,
                 };
                 let glow = if *glow { GLOW_BOOST } else { 1.0 };
-                (
-                    [linear(color); 3],
-                    false,
-                    0.0,
-                    glow * material.lights,
-                    1.0,
-                    RIM_FLAT,
-                )
+                ([linear(color); 3], false, 0.0, glow * material.lights, 1.0)
             }
             ToonSpec::Hologram { color, alpha, glow } => {
                 let glow = if *glow { GLOW_BOOST } else { 1.0 };
@@ -219,7 +208,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 } else {
                     *alpha
                 };
-                ([linear(color.0); 3], false, 0.0, glow, alpha, RIM_FLAT)
+                ([linear(color.0); 3], false, 0.0, glow, alpha)
             }
         };
         let tones = if material.ghost && lit {
@@ -242,6 +231,13 @@ impl From<&ToonMaterial> for ToonUniform {
         let weathered = matches!(material.spec, ToonSpec::Toon { .. })
             && material.weather_texture.is_some()
             && !material.ghost;
+        let lod_bias = match &material.spec {
+            ToonSpec::Toon {
+                density: Some(density),
+                ..
+            } => (density / WEATHER_DENSITY).log2(),
+            _ => 0.0,
+        };
         Self {
             tone_lit: tones[0],
             tone_mid: tones[1],
@@ -249,7 +245,6 @@ impl From<&ToonMaterial> for ToonUniform {
             heat,
             flash: material.flash,
             key: (KEY * Vec3::new(material.facing, 1.0, 1.0)).extend(0.0),
-            rim_style: Vec3::from_array(rim).extend(0.0),
             surface: Vec4::new(
                 if lit { 1.0 } else { 0.0 },
                 glint,
@@ -257,7 +252,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 opacity * material.opacity,
             ),
             overlay: material.overlay,
-            weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0),
+            weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, lod_bias, 0.0, 0.0),
         }
     }
 }
@@ -369,6 +364,7 @@ mod tests {
             tones: [Hex(Color::WHITE); 3],
             round: false,
             glint: 0.0,
+            density: Some(64.0),
         };
         let wreck = ToonSpec::Wreck {
             tones: [Hex(Color::WHITE); 3],
@@ -379,6 +375,8 @@ mod tests {
         hull.heat = Some(LinearRgba::RED);
         let uniform = ToonUniform::from(&hull);
         assert_eq!((uniform.heat, uniform.weather.x), (Vec4::ZERO, 1.0));
+        // Doppelte Dichte der Maske verschiebt die Schwellen der feinen Verwitterung um eine Mip-Stufe
+        assert_eq!(uniform.weather.y, 1.0);
         hull.ghost = true;
         assert_eq!(ToonUniform::from(&hull).weather.x, 0.0);
         let mut fracture = ToonMaterial::new(wreck, Some(Handle::default()), None);

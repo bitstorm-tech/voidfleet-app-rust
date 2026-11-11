@@ -1,17 +1,18 @@
-//! Clean Toon: Material, Konturen und Glühen der Schiffe und Wracks (Port von `scene/toon.ts` und `scene/glow.ts`),
-//! gebaut nach dem Material-Vertrag aus `tools/ships/vf.py` und den Werten aus `tools/ships/look.py`.
+//! Der dreckige Look der Schiffe und Wracks: Material, Zielkontur und Glühen, gebaut nach dem Material-Vertrag aus
+//! `tools/ships/vf.py`. Modul, Material und Vertrag heißen noch nach dem früheren Clean-Toon-Look.
 //!
 //! - **Material** ([`ToonMaterial`], `assets/shaders/toon.wesl`): ein Material für alle Arten des Vertrags (`toon`,
-//!   `light`, `hologram`, `wreck`). Licht ist gerechnet, nicht beleuchtet — die Szene hat keine Lichter: drei Töne
-//!   hart über N·L des Hauptlichts gestuft, Kantenlicht von hinten oben, Saum, Glanzpunkt; Lichter unbeleuchtet in
-//!   genau ihrer Farbe; Hologramme durchscheinend und beidseitig; Bruchflächen mit Glutmuster × Glut. Das Hauptlicht
-//!   hängt fest am Brett, je Seite gespiegelt; Drehen und Zoomen ändern keinen Ton. Das Blitzlicht der Explosionen
+//!   `light`, `hologram`, `wreck`). Licht ist gerechnet, nicht beleuchtet — die Szene hat keine Lichter: drei Töne als
+//!   matter Verlauf über N·L des Hauptlichts, Kantenlicht am Umriss, Glanz nur an Materialien mit Glanz und an blankem
+//!   Metall; Lichter unbeleuchtet in genau ihrer Farbe; Hologramme durchscheinend und beidseitig; Bruchflächen mit
+//!   Glutmuster × Glut. Das Hauptlicht hängt fest am Brett, je Seite gespiegelt. Das Blitzlicht der Explosionen
 //!   ([`ToonFlash`]) hellt die zugewandten Flächen in zwei harten Stufen auf.
-//! - **Verwitterung**: Die toon-Flächen eines Modells teilen eine gebackene Maske (`tools/ships/weather.py`), aus der
-//!   der Shader nach den drei Tönen weitere harte Tonflächen setzt: Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb.
-//!   Fugen und Abrieb verschwinden, wenn ein Texel kleiner als etwa ein Pixel wird, der Rest über die Mip-Kette.
-//! - **Konturen** ([`outline`]): Inverted Hull, Breite in Welt-Einheiten auf ein Pixelband geklemmt, Farbe ein
-//!   abgedunkelter Ton der Fläche.
+//! - **Verwitterung**: Die toon-Flächen eines Modells teilen eine gebackene Maske (`tools/ships/weather.py`):
+//!   Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb. Schmutz und Ruß setzen als Verlauf ein, den ein Korn aufbricht; die
+//!   harte Rille der Fugen und der Abrieb verschwinden, wenn ein Texel kleiner als etwa ein Pixel wird, der Rest über
+//!   die Mip-Kette.
+//! - **Zielkontur** ([`outline`]): Inverted Hull in Rot, nur am Ziel unter dem Fadenkreuz sichtbar. Andere Konturen
+//!   gibt es nicht; so dürfen die Modelle Kleinteile tragen, ohne dass Konturringe sie zu Flecken verschmelzen.
 //! - **Glühen**: Lichter mit `glow`, glühende Hologramme und heiße Bruchflächen leuchten heller als 1 und glühen im
 //!   Bloom der Kamera ([`crate::scene::camera`]).
 //!

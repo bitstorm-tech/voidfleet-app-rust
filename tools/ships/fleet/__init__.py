@@ -2,8 +2,8 @@
 das fertige Objekt liefert, auch für die Tokens (Drohne, Trugbild) und die Flaggschiffe der Admirale.
 
 Wer ein Schiff neu baut, ändert nur dessen Modul; neue Helfer gehören zuerst dorthin (parts.py erst, wenn ein zweites
-Schiff sie braucht). Stilregeln: STYLE.md. Module werden erst beim Bauen importiert, ein halbfertiges Modul stört die
-anderen Schiffe also nicht.
+Schiff sie braucht). Stilregeln: docs/stilregeln.md. Module werden erst beim Bauen importiert, ein halbfertiges Modul
+stört die anderen Schiffe also nicht.
 
 Größen in Blender-Einheiten; auf dem Brett wirkt MODEL_SCALE × BOARD_SCALE aus crates/client/src/scene/ship.rs.
 Jäger ~6, Kreuzer ~6-7.5, Schlachtschiffe ~8.5, Unterstützer ~5, Flaggschiffe 10-11 (die Mirage ~9) Einheiten lang.

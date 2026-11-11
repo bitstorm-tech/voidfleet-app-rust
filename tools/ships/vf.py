@@ -25,6 +25,7 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
       (weather.py, alle Schiffe außer dem Trugbild) dazu baseColorTexture = Maske `<id>_weather`: ein PNG je Modell
       (RGBA, 8 Bit, als Daten zu lesen, nicht als sRGB), eine Textur, die alle toon-Materialien teilen, Sampler
       CLAMP_TO_EDGE; R Schmutz, G Kantenabrieb, B Plattenton, A Fugen. Der Client baut beim Laden die Mip-Kette.
+      Schiffe mit anderer Texeldichte als look.WEATHER_DENSITY tragen sie als `"density"` (look.WEATHER_DENSITIES).
   {"kind": "light", "color": Farbe, "glow": bool}
       Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Positionslichter (`glow`: true = glüht im Spiel) und
       die Kennzeichen der Flaggschiffe `<id>_signal` in der UI-Farbe des Admirals (`glow`: false).

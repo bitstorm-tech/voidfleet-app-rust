@@ -1,6 +1,10 @@
-"""Look-Parameter von Clean Toon: Licht, Stufen, Schlagschatten, Kantenlicht, Saum, Glanzpunkt, Linien, Glühen.
+"""Look-Parameter der Vorschau (Clean Toon): Licht, Stufen, Schlagschatten, Kantenlicht, Saum, Glanzpunkt, Linien,
+Glühen.
 
-preview.py rendert damit in Cycles, das Spiel baut sie in Bevy nach (crates/client/src/scene/toon/look.rs); die
+Das Spiel zeigt die Schiffe seit November 2026 im dreckigen Look (matter Verlauf, Verwitterung mit Korn, keine
+Konturen; assets/shaders/toon.wesl). preview.py rendert weiter Clean Toon in Cycles und zeigt deshalb nicht, was das
+Spiel zeigt (TODO.md). Gemeinsam bleiben das Hauptlicht KEY, die Töne aus palette.py und die Maske der Verwitterung
+samt ihrer Dichte (WEATHER_DENSITY, WEATHER_DENSITIES; crates/client/src/scene/toon/look.rs). Die
 Farben der Schiffe stehen in palette.py, die Materialien liefern sie über `extras.vf` (vf.py). Reines Python ohne bpy.
 
 Alles Licht ist gerechnet, nicht beleuchtet: Jede toon-Fläche ist Emission mit Stärke 1, ohne Tone-Mapping (Ansicht
@@ -108,6 +112,12 @@ GLOW_MIX = (0.9, 0.55)
 # und preview.py setzen sie mit denselben Schwellen und Farben um; Farben linear, sie wirken als Faktor)
 
 WEATHER_DENSITY = 32  # Texel je Blender-Einheit (gleichmäßig über alle Schiffe)
+# Schiffe mit dichterer Maske (für den dreckigen Look, die übrigen folgen mit ihrem Detailpass). Ihre toon-Materialien
+# tragen die Dichte als `density` im Vertrag, damit das Spiel
+# FINE_LOD (auf WEATHER_DENSITY bezogen) um log2(Dichte / WEATHER_DENSITY) verschiebt.
+# shortcut: preview.py verschiebt FINE_LOD noch nicht, dort blenden Fugen und Abrieb dieser Schiffe eine Mip-Stufe zu
+# früh aus; nachziehen, sobald die doppelte Dichte bleibt (oder für alle gilt, dann FINE_LOD selbst verschieben).
+WEATHER_DENSITIES = {"iron_dreadnought": 64, "void_interceptor": 64}
 WEATHER = {"scrap_raider": 2.2, "scrap_king": 2.2, "mirage": 0.5, "decoy": 0.0}  # Grad je Schiff, sonst 1
 # Anteile je Material (Schlüssel aus vf.materials bzw. dem Schiffsmodul): Schmutz, Ruß, Kantenabrieb, Platten. Ohne
 # Eintrag gelten lackierte Flächen: eckig mit Platten, rund ohne. Lichter und Hologramme bleiben ohne.

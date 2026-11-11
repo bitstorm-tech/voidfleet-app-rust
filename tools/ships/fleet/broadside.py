@@ -1,5 +1,5 @@
-"""Broadside (Schlachtschiff) im Clean-Toon-Stil (STYLE.md), nach einer Konzeptvorlage: ein langes, flaches Linienschiff
-mit Pfeilbug, Mittelgrat, Plateau, Achterburg und vielen flachen Zwillingstürmen, olivgrau wie die Vorlage.
+"""Broadside (Schlachtschiff) im Clean-Toon-Stil (docs/stilregeln.md), nach einer Konzeptvorlage: ein langes, flaches
+Linienschiff mit Pfeilbug, Mittelgrat, Plateau, Achterburg und vielen flachen Zwillingstürmen, olivgrau wie die Vorlage.
 
 Primärformen: langer Rumpf mit senkrechten Flanken, der sich über das vordere Drittel gerade zu einem hohen, stumpfen
 Bug verjüngt, darunter überall ein eingezogenes Unterschiff. Auf dem Deck läuft ein schmaler Grat vom Bug in die

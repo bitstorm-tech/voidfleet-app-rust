@@ -1,5 +1,5 @@
-"""Siegel (Flaggschiff von Kommandantin Vey, Boss von Sektor 3), Clean Toon in der detailreichen Fassung (STYLE.md): der
-Mirage-Rumpf mit eigener Prägung.
+"""Siegel (Flaggschiff von Kommandantin Vey, Boss von Sektor 3), Clean Toon in der detailreichen Fassung
+(docs/stilregeln.md): der Mirage-Rumpf mit eigener Prägung.
 
 Rumpf, Rückengrat mit Nähten, Diamantflügel, Unterseite und Heck wie die Mirage (fleet/mirage.py), in Veys Karmin statt
 Türkis. Anders als die Mirage: keine Projektorflossen in der Schiffsmitte, sondern zwei hohe, senkrechte Heckflossen

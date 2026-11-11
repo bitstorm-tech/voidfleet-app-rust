@@ -1,5 +1,5 @@
 """Scrap Raider (Jäger, Brander) im Clean-Toon-Stil, bewusst asymmetrisch, detailreiche Fassung nach der Iron
-Dreadnought (STYLE.md).
+Dreadnought (docs/stilregeln.md).
 
 Primärformen: kantiger Rumpf in warmem Schrottgrau mit stumpfem Bug, davor ein dunkler Rammbalken mit schwerem
 Stahlsporn, Glaskanzel nach steuerbord versetzt, backbord eine schwere Kanonengondel in Koralle mit langem Lauf,

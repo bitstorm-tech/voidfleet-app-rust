@@ -16,6 +16,14 @@
 - [ ] **Toon-Material** kann weiterhin Geister zeichnen, obwohl die Planung keine Geister mehr kennt; die Marken in `scene/markers.rs` (auch `DropMarker`) liegen nur noch in der Probe, das Gefecht legt keine.
 - [ ] **`docs/architektur.html`** beschreibt die PvP-Architektur mit Server und ist veraltet.
 
+## Dreckiger Look (Umstellung vom 11.11.2026)
+
+- [ ] **Vorschau** (`tools/ships/preview.py`, `look.py`) rendert noch Clean Toon mit Linien und zeigt nicht, was das Spiel zeigt; auf den dreckigen Look umstellen (Verlauf, Verwitterung mit Korn, keine Linien), dann passen auch die `hero`-Renders als Kartenvorlage wieder. Für Schiffe mit dichter Maske verschiebt sie `FINE_LOD` noch nicht.
+- [ ] **Kleinteile und dichte Maske** tragen erst Iron Dreadnought und Void Interceptor; die übrigen Schiffe folgen einzeln (`docs/stilregeln.md`).
+- [ ] **Maskendichte**: 64 statt 32 Texel je Einheit vervierfachen den Texturspeicher je Schiff (Maske der Dreadnought 2016 statt 1056 px), und der Client belegt schon etwa 1,8 GB Grafikspeicher. Vor dem Umbau aller Schiffe entscheiden: Zwischenwert, Maske von Schiff und Wrack teilen, verdeckte Texel sparen.
+- [ ] **Flimmern** dünner Kleinteile (Antennen, Geländer, Raketenflossen) und des Korns in Bewegung ist ungeprüft.
+- [ ] **Namen**: Modul `scene/toon`, `ToonMaterial`, `toon.wesl` und die Vertragsart `toon` heißen noch nach dem früheren Look.
+
 ## Schiffsmodelle (Detailpass und Verwitterung, 06.11.2026)
 
 - [ ] **Kartenbilder der Flaggschiffe** (`assets/images/cards/bastion.jpg`, `vanguard.jpg`, `pendulum.jpg`, `pyre.jpg`) zeigen noch die glatten Modelle; neu über fal.ai mit dem `hero`-Render als Vorlage.

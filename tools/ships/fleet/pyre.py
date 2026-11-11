@@ -1,4 +1,4 @@
-"""Pyre (Flaggschiff von Admiralin Reyes, „die Glut“), Clean Toon in der detailreichen Fassung (STYLE.md).
+"""Pyre (Flaggschiff von Admiralin Reyes, „die Glut“), Clean Toon in der detailreichen Fassung (docs/stilregeln.md).
 
 Schweres, breites Schlachtschiff, das heiß wirkt. Ein Keilrumpf mit hohem Rückendeck und goldener Zierlinie, davor der
 Plasmawerfer als Bug: ein Gehäuse in Glutorange mit Fensterband, darauf ein dunkler Kühlmantel und ein Emitterkegel,

@@ -1,5 +1,5 @@
 """Wächter (Boss von Sektor 2): unbewegliche automatische Verteidigungsstation, Schlachtschiff-Palette, Clean Toon,
-detailreiche Fassung nach der Iron Dreadnought (STYLE.md).
+detailreiche Fassung nach der Iron Dreadnought (docs/stilregeln.md).
 
 Kein Schiff, also keine Düsen: ein runder Stationskern mit Kragen, um ihn ein waagrechter Schildring aus vier Segmenten
 auf dunklen Streben, mit Lichtband und stahlblauen Emitterblöcken. Vorn, durch die Lücke im Ring, das eine riesige
@@ -57,7 +57,7 @@ def flank_at(rings, y, z, dx=0.03):
 def build():
     s = Ship("warden")
     m = vf.materials(s.name, "battleship")
-    # Das Sensorband läuft ganz um die Trommel: großes Licht ohne Glühen (STYLE.md, Große Lichter)
+    # Das Sensorband läuft ganz um die Trommel: großes Licht ohne Glühen (docs/stilregeln.md, Große Lichter)
     m["sensor"] = vf.light(f"{s.name}_sensor", palette.WINDOW, glow=False)
 
     # ---------------------------------------------------------------- Kern und Kragen
