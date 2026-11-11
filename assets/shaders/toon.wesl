@@ -144,8 +144,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
             }
         }
 
-        // `facing` fällt durch Rundung knapp unter 0: pow gäbe NaN, und ein einziges NaN-Pixel zerlegt den Bloom in
-        // Blöcke
+        // `facing` fällt durch Rundung knapp unter 0: pow gäbe NaN, also ein schwarzes Pixel
         let facing = max(1.0 - abs(dot(normal, to_camera)), 0.0);
         let half_way = max(dot(normal, normalize(to_camera + key)), 0.0);
         color = mix(color * EXPOSURE, RIM_COLOR, RIM.y * pow(facing, RIM.x));
