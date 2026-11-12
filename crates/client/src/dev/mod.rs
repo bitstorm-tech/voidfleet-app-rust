@@ -10,9 +10,9 @@
 //! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
 //! `VOIDFLEET_SMOKE_SCREENSHOT`). Rauchtest und Vorschau-Szenen speichern keinen Run ([`RunSave`] ohne Pfad).
 //!
-//! `VOIDFLEET_DEV_SCREEN=menu|admirals|market|gallery|abandon|won|lost|models` lässt den Rauchtest statt am ersten
-//! Gefecht an einem Bildschirm um den Run beginnen (Hauptmenü, Admiralswahl, Schwarzmarkt, Deckgalerie, „Run
-//! abbrechen“, Run-Ende, Modellschau), zum Ansehen per Screenshot.
+//! `VOIDFLEET_DEV_SCREEN=menu|runs|admirals|market|gallery|abandon|won|lost|models` lässt den Rauchtest statt am
+//! ersten Gefecht an einem Bildschirm um den Run beginnen (Hauptmenü ohne und mit drei Speicherständen, Admiralswahl,
+//! Schwarzmarkt, Deckgalerie, „Run abbrechen“, Run-Ende, Modellschau), zum Ansehen per Screenshot.
 //!
 //! `VOIDFLEET_DEV_SCENE` startet statt des Gefechts eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne die
 //! Variablen tut das Plugin nichts außer der Modellschau ([`viewer`]), die der Tab „Dev“ der Einstellungen öffnet.
@@ -35,7 +35,7 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
-use voidfleet_core::{admirals::AdmiralId, battle::BattleResult, run::NodeKind};
+use voidfleet_core::{admirals::AdmiralId, battle::BattleResult, modules::ModuleId, run::NodeKind};
 
 use crate::{
     assets::AppState,
@@ -168,6 +168,22 @@ fn start_screen(mut commands: Commands, screen: Res<DevScreen>, mut view: ResMut
     let mut run = dev_run(AdmiralId::Osei, false);
     match screen.0.as_str() {
         "menu" => return,
+        "runs" => {
+            // Das Hauptmenü mit drei Speicherständen in einem Wegwerf-Ordner.
+            let save = RunSave(Some(std::env::temp_dir().join("voidfleet-dev-runs")));
+            for (seed, admiral) in [AdmiralId::Osei, AdmiralId::Kerr, AdmiralId::Reyes]
+                .into_iter()
+                .enumerate()
+            {
+                let mut run = new_run(admiral, DEV_SEED + seed as u64).0;
+                run.victories = 4 - seed as u32;
+                run.modules =
+                    [ModuleId::FireControlComputer, ModuleId::SalvageCrane][..seed].to_vec();
+                save.store(&run).expect("Wegwerf-Ordner ist schreibbar");
+            }
+            commands.insert_resource(save);
+            return;
+        }
         "admirals" => {
             view.choosing = true;
             return;

@@ -1040,8 +1040,20 @@ impl Messages for En {
         "Continue"
     }
 
-    fn menu_saved_run(&self, admiral: &str, sector: u32, row: usize) -> String {
-        format!("{admiral} · Sector {sector}, row {row}")
+    fn menu_quit(&self) -> &'static str {
+        "Quit"
+    }
+
+    fn menu_main(&self) -> &'static str {
+        "Main menu"
+    }
+
+    fn menu_no_runs(&self) -> &'static str {
+        "No admiral is under way yet. “New run” commissions the first flagship."
+    }
+
+    fn menu_victories(&self, battles: u32) -> String {
+        format!("Victories {battles}")
     }
 
     fn sector_name(&self, sector: u32) -> &'static str {

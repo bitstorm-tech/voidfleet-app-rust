@@ -24,7 +24,7 @@ Ein Cargo-Workspace (Edition 2024, Toolchain in `rust-toolchain.toml`), die Asse
 
 Die gängigen Befehle stehen als Rezepte in der `justfile` (`just` listet sie).
 
-- `cargo run -p voidfleet-client` (`just play`) — startet das Spiel: Hauptmenü mit „Neuer Run“ und, bei Speicherstand, „Weiter“.
+- `cargo run -p voidfleet-client` (`just play`) — startet das Spiel: Hauptmenü mit den gespeicherten Runs zum Blättern, „Neuer Run“, „Weiter“, „Spielregeln“, „Einstellungen“ und „Beenden“.
 - `just check` — alles, was vor einem Commit durchgehen muss: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
 - Abhängigkeiten und Features mit `cargo add` hinzufügen, nicht von Hand in `Cargo.toml`. Die API einer Abhängigkeit (vor allem Bevy) im Quellcode der verwendeten Version unter `~/.cargo/registry/src/` nachsehen, nicht aus dem Gedächtnis.
 - Das gebaute Binary sucht seine Assets in `$BEVY_ASSET_ROOT/assets`, sonst in `assets/` neben dem Binary bzw. in `Contents/Resources/assets` eines macOS-Bundles, sonst im Repository.

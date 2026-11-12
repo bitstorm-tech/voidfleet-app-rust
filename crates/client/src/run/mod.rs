@@ -6,8 +6,8 @@
 //! (alles, was den Run ändert); [`RunSystems`] führt sie aus, vor dem Gefecht ([`GameSystems`]). Steht ein Gefecht an
 //! und läuft keins, geht [`StartBattle`] mit `run.start_battle()` hinaus. Meldet die Wiedergabe nach Gefechtsende
 //! [`PlaybackFinished`], übernimmt `finish_battle` das Gefecht; „Weiter“ im Ergebnis ([`LeaveBattle`]) führt dann zur
-//! Beute oder zum Run-Ende. Nach jeder Änderung von [`ActiveRun`] wird gespeichert, nach dem Ende gelöscht; beim Start
-//! geht es ohne Hauptmenü mit dem Speicherstand weiter.
+//! Beute oder zum Run-Ende. Nach jeder Änderung von [`ActiveRun`] wird gespeichert, nach dem Ende gelöscht. Mehrere
+//! Runs stehen nebeneinander, jeder mit eigenem Speicherstand; das Spiel beginnt im Hauptmenü, das sie zeigt.
 
 pub mod save;
 
@@ -51,14 +51,16 @@ pub enum RunAction {
 /// Der Weg um den Run herum.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunFlow {
-    /// „Neuer Run“: ein laufender Run endet, die Admiralswahl öffnet.
+    /// „Neuer Run“: die Admiralswahl öffnet.
     NewRun,
-    /// „Weiter“ im Hauptmenü: der Speicherstand.
-    Continue,
+    /// „Weiter“ im Hauptmenü: der Speicherstand des Runs mit diesem Seed.
+    Continue(u64),
     /// Das Ergebnis eines Ereignisses ist gesehen.
     Dismiss,
     /// Run abbrechen: Speicherstand weg, zurück ins Hauptmenü.
     Abandon,
+    /// Zurück ins Hauptmenü; der Run bleibt gespeichert.
+    Menu,
 }
 
 /// Was eine Entscheidung im Ereignis gebracht hat, zum Zeigen.
@@ -184,13 +186,6 @@ impl Plugin for RunPlugin {
             .init_resource::<Screen>()
             .add_message::<RunAction>()
             .add_message::<RunFlow>()
-            // Beim Start geht es mit dem Speicherstand weiter, ohne Hauptmenü; ohne Speicherstand bleibt es.
-            .add_systems(
-                OnEnter(AppState::Match),
-                |mut flow: MessageWriter<RunFlow>| {
-                    flow.write(RunFlow::Continue);
-                },
-            )
             .configure_sets(
                 Update,
                 RunSystems
@@ -218,22 +213,27 @@ fn follow_flow(
     mut flow: MessageReader<RunFlow>,
     mut admirals: MessageReader<AdmiralChosen>,
     save: Res<RunSave>,
+    run: Option<Res<ActiveRun>>,
     mut view: ResMut<RunView>,
     mut leave: MessageWriter<LeaveBattle>,
 ) {
     for &step in flow.read() {
         match step {
-            RunFlow::NewRun | RunFlow::Abandon => {
+            RunFlow::NewRun | RunFlow::Abandon | RunFlow::Menu => {
+                if step == RunFlow::Abandon
+                    && let Some(run) = &run
+                {
+                    save.clear(run.seed);
+                }
                 commands.remove_resource::<ActiveRun>();
-                save.clear();
                 leave.write(LeaveBattle);
                 *view = RunView {
                     choosing: step == RunFlow::NewRun,
                     ..RunView::default()
                 };
             }
-            RunFlow::Continue => {
-                if let Some(run) = save.load() {
+            RunFlow::Continue(seed) => {
+                if let Some(run) = save.list().into_iter().find(|run| run.seed == seed) {
                     info!(
                         "Run geladen: Sektor {}, Reihe {}",
                         run.sector,
@@ -326,7 +326,7 @@ fn start_battle(
 
 fn save_run(run: Res<ActiveRun>, save: Res<RunSave>) {
     if run.result.is_some() {
-        save.clear();
+        save.clear(run.seed);
     } else if let Err(error) = save.store(&run) {
         error!("Run nicht gespeichert: {error}");
     }
@@ -398,6 +398,7 @@ mod tests {
         battle.result = Some(BattleResult::Won);
         let loot = run.finish_battle(&battle);
         assert_eq!(loot.cards.len(), 3);
+        assert_eq!(run.victories, 1);
         assert_eq!(screen(Some(&run), false, &view), Screen::Loot);
         apply(&mut run, RunAction::TakeLoot(Some(0))).unwrap();
         assert_eq!(run.deck.last().unwrap().id, loot.cards[0]);

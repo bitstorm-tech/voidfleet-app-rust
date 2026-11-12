@@ -50,6 +50,7 @@ use voidfleet_core::admirals::{AdmiralId, Station};
 use crate::{
     assets::{AppState, LoadingPhase, Preload},
     i18n::Locale,
+    run::Screen,
 };
 
 /// Die Schriften (OFL, latin-Untermenge von Google Fonts): Exo 2 für Fließtext, Rajdhani (600 und 700) für Titel,
@@ -231,7 +232,8 @@ pub struct HideBanner;
 #[derive(Message, Clone, Copy, Debug)]
 pub struct ShowRoundBanner(pub u32);
 
-/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht, Einstellungen, Regeln.
+/// Die Leiste der Icon-Knöpfe oben rechts, von rechts nach links: Log, Vollbild, Ansicht, Einstellungen, Regeln. Im
+/// Hauptmenü fehlt sie.
 #[derive(Component, Debug)]
 pub struct IconBar;
 
@@ -283,6 +285,7 @@ impl Plugin for InterfacePlugin {
             ))
             .add_plugins(fps::FpsPlugin)
             .add_systems(OnEnter(AppState::Match), spawn_icon_bar)
+            .add_systems(Update, hide_icon_bar_in_menu)
             .add_systems(OnEnter(LoadingPhase::Rehearsal), set_window_icon);
         #[cfg(target_os = "macos")]
         app.add_systems(Startup, set_dock_icon);
@@ -312,6 +315,15 @@ fn spawn_icon_bar(mut commands: Commands, icons: Res<UiIcons>, locale: Res<Local
             dialogs::dialog_button(dialogs::Dialog::Rules, &icons, &locale),
         ],
     ));
+}
+
+/// Im Hauptmenü fehlt die Leiste; die Einstellungen stehen dort im Pult.
+fn hide_icon_bar_in_menu(screen: Res<Screen>, mut bar: Single<&mut Visibility, With<IconBar>>) {
+    bar.set_if_neq(if *screen == Screen::Menu {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    });
 }
 
 /// Setzt das Icon, sobald alle Dateien geladen sind (`winit` erlaubt das nur im Haupt-Thread).

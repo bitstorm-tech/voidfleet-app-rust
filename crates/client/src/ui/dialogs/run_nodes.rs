@@ -119,7 +119,7 @@ fn key_node() -> Node {
 }
 
 /// Wie [`message_button`] in der Größe `node`.
-fn sized_message_button<M: Message + Clone>(
+pub(super) fn sized_message_button<M: Message + Clone>(
     fonts: &Fonts,
     label: &str,
     key: Key,
@@ -715,13 +715,22 @@ fn ended(parent: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, run:
                 Pickable::IGNORE,
             ));
             panel.spawn(body(fonts, text, palette::TEXT));
-            panel.spawn(message_button(
-                fonts,
-                locale.result_new_run(),
-                Key::PRIMARY,
-                true,
-                RunFlow::NewRun,
-            ));
+            panel.spawn(row(12.0)).with_children(|keys| {
+                keys.spawn(message_button(
+                    fonts,
+                    locale.result_new_run(),
+                    Key::PRIMARY,
+                    true,
+                    RunFlow::NewRun,
+                ));
+                keys.spawn(message_button(
+                    fonts,
+                    locale.menu_main(),
+                    Key::NORMAL,
+                    true,
+                    RunFlow::Menu,
+                ));
+            });
         });
 }
 

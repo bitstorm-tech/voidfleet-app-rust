@@ -203,6 +203,8 @@ pub struct Run {
     pub burning: bool,
     /// Lotse bezahlt: der nächste gewählte Knoten außer dem Boss wird eine Werft.
     pub pilot: bool,
+    /// Gewonnene Gefechte dieses Runs.
+    pub victories: u32,
     pub result: Option<BattleResult>,
 }
 
@@ -224,6 +226,7 @@ impl Run {
             stage: Stage::Map,
             burning: false,
             pilot: false,
+            victories: 0,
             result: None,
         };
         run.map = generate_map(&mut run.rng());
@@ -335,6 +338,7 @@ impl Run {
             self.stage = Stage::Map;
             return Loot::default();
         }
+        self.victories += 1;
         let mut rng = self.rng();
         let mut loot = Loot {
             scrap: match kind {

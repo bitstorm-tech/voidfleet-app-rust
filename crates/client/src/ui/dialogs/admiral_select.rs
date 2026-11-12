@@ -52,10 +52,10 @@ struct AdmiralCard(AdmiralId);
 struct ChooseLabel;
 
 /// Grund der Karte, beim Überfahren etwas heller.
-const CARD_FACE: Color = theme::rgba(22, 26, 34, 0.96);
+pub(super) const CARD_FACE: Color = theme::rgba(22, 26, 34, 0.96);
 const CARD_FACE_HOVER: Color = theme::rgba(26, 30, 40, 0.98);
 /// Überschriften der Abschnitte (`h4`).
-const SECTION_LABEL: Color = theme::rgba(199, 219, 250, 0.6);
+pub(super) const SECTION_LABEL: Color = theme::rgba(199, 219, 250, 0.6);
 
 /// Text mit hervorgehobenem Anfang (`<b>…</b> …`).
 fn lead_text(

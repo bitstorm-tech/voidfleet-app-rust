@@ -27,7 +27,7 @@ use crate::{
     audio::{PlayUiSound, UiSound},
     i18n::{LANGUAGES, Locale, SettingsTab},
     palette,
-    run::{ActiveRun, RunView},
+    run::{ActiveRun, RunFlow, RunView, Screen},
     settings::{AnimationSpeed, Antialiasing, CursorId, Language, Settings, WindowMode},
     ui::{
         Fonts,
@@ -608,6 +608,7 @@ pub(super) fn spawn(
     cursors: Res<CursorImages>,
     adapter: Res<RenderAdapter>,
     run: Option<Res<ActiveRun>>,
+    screen: Res<Screen>,
 ) {
     let fonts = &*fonts;
     let locale = &*locale;
@@ -778,6 +779,11 @@ pub(super) fn spawn(
                                 .then(|| abandon_button(fonts, locale))
                                 .into_iter(),
                         ),
+                        SpawnIter(
+                            (*screen != Screen::Menu)
+                                .then(|| menu_button(fonts, locale))
+                                .into_iter(),
+                        ),
                         Spawn(footer_close(fonts, locale, 0.0)),
                     )),
                 )),
@@ -800,6 +806,25 @@ fn abandon_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
         ),
         observe(|_: On<Activate>, mut commands: Commands| {
             commands.insert_resource(AbandonPrompt);
+        }),
+        observe(close_dialogs),
+    )
+}
+
+/// „Hauptmenü“: schließt die Einstellungen und verlässt den Run, der gespeichert bleibt (oder die Admiralswahl).
+fn menu_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
+    (
+        button::text_button(
+            fonts.display_bold(18.0),
+            locale.menu_main(),
+            Key::NORMAL,
+            Node {
+                padding: UiRect::axes(px(22), px(9)),
+                ..default()
+            },
+        ),
+        observe(|_: On<Activate>, mut flow: MessageWriter<RunFlow>| {
+            flow.write(RunFlow::Menu);
         }),
         observe(close_dialogs),
     )

@@ -1,38 +1,59 @@
-//! Der Speicherstand des Runs: `run.json` im Konfigurationsordner neben `settings.json`, geschrieben nach jeder
-//! Änderung des Runs, gelöscht, wenn er endet oder abgebrochen wird. Eine unlesbare Datei gilt als keine.
+//! Die Speicherstände der Runs: je Run eine Datei `runs/<seed>.json` im Konfigurationsordner neben `settings.json`,
+//! geschrieben nach jeder Änderung des Runs, gelöscht, wenn er endet oder abgebrochen wird. Eine unlesbare Datei gilt
+//! als keine.
 
-use std::{fs, io, path::PathBuf};
+use std::{cmp::Reverse, fs, io, path::PathBuf};
 
 use bevy::prelude::*;
 use voidfleet_core::run::Run;
 
 use crate::settings::config_file;
 
-/// Wo der Run gespeichert wird; `None` speichert nichts (Rauchtest, Vorschau-Szenen).
+/// Der Ordner der Speicherstände; `None` speichert nichts (Rauchtest, Vorschau-Szenen).
 #[derive(Resource, Clone, Debug)]
 pub struct RunSave(pub Option<PathBuf>);
 
 impl Default for RunSave {
     fn default() -> Self {
-        Self(config_file("run.json"))
+        Self(config_file("runs"))
     }
 }
 
 impl RunSave {
-    /// Der gespeicherte, nicht beendete Run; ohne Datei, bei unlesbarer Datei oder beendetem Run keiner.
-    pub fn load(&self) -> Option<Run> {
-        let json = fs::read_to_string(self.0.as_ref()?).ok()?;
-        match serde_json::from_str::<Run>(&json) {
-            Ok(run) => run.result.is_none().then_some(run),
-            Err(error) => {
-                warn!("Speicherstand unlesbar, wie keiner: {error}");
-                None
-            }
-        }
+    fn file(&self, seed: u64) -> Option<PathBuf> {
+        Some(self.0.as_ref()?.join(format!("{seed}.json")))
+    }
+
+    /// Die gespeicherten, nicht beendeten Runs, der zuletzt gespielte zuerst; unlesbare Dateien zählen nicht.
+    pub fn list(&self) -> Vec<Run> {
+        let Some(entries) = self.0.as_ref().and_then(|dir| fs::read_dir(dir).ok()) else {
+            return Vec::new();
+        };
+        let mut runs: Vec<_> = entries
+            .flatten()
+            .filter_map(|entry| {
+                let json = fs::read_to_string(entry.path()).ok()?;
+                match serde_json::from_str::<Run>(&json) {
+                    Ok(run) => run
+                        .result
+                        .is_none()
+                        .then_some((entry.metadata().and_then(|file| file.modified()).ok()?, run)),
+                    Err(error) => {
+                        warn!(
+                            "Speicherstand {:?} unlesbar, wie keiner: {error}",
+                            entry.path()
+                        );
+                        None
+                    }
+                }
+            })
+            .collect();
+        runs.sort_by_key(|&(played, _)| Reverse(played));
+        runs.into_iter().map(|(_, run)| run).collect()
     }
 
     pub fn store(&self, run: &Run) -> io::Result<()> {
-        let Some(path) = &self.0 else {
+        let Some(path) = self.file(run.seed) else {
             return Ok(());
         };
         if let Some(dir) = path.parent() {
@@ -41,8 +62,9 @@ impl RunSave {
         fs::write(path, serde_json::to_string(run)?)
     }
 
-    pub fn clear(&self) {
-        if let Some(path) = &self.0
+    /// Löscht den Speicherstand des Runs mit diesem Seed.
+    pub fn clear(&self, seed: u64) {
+        if let Some(path) = self.file(seed)
             && let Err(error) = fs::remove_file(path)
             && error.kind() != io::ErrorKind::NotFound
         {
@@ -60,38 +82,41 @@ mod tests {
     fn temp_save(name: &str) -> RunSave {
         let dir = std::env::temp_dir().join(format!("voidfleet-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        RunSave(Some(dir.join("run.json")))
+        RunSave(Some(dir))
     }
 
     #[test]
-    fn store_load_clear() {
+    fn store_list_clear() {
         let save = temp_save("save");
-        assert_eq!(save.load(), None);
+        assert_eq!(save.list(), []);
         let mut run = Run::new(AdmiralId::Vance, 42);
         run.advance(run.choices()[0]).unwrap();
         save.store(&run).unwrap();
-        assert_eq!(save.load(), Some(run.clone()));
+        assert_eq!(save.list(), [run.clone()]);
         // Dasselbe Gefecht nach dem Laden.
         assert_eq!(
-            save.load().unwrap().start_battle().enemies,
+            save.list()[0].start_battle().enemies,
             run.start_battle().enemies
         );
-        save.clear();
-        assert_eq!(save.load(), None);
-        save.clear();
+        // Ein zweiter Run steht daneben; jeder wird für sich gelöscht.
+        let other = Run::new(AdmiralId::Kerr, 43);
+        save.store(&other).unwrap();
+        assert_eq!(save.list().len(), 2);
+        save.clear(run.seed);
+        assert_eq!(save.list(), [other]);
+        save.clear(run.seed);
     }
 
     #[test]
     fn unreadable_or_finished_is_none() {
         let save = temp_save("broken");
-        let path = save.0.clone().unwrap();
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "{ kein json").unwrap();
-        assert_eq!(save.load(), None);
-        let mut run = Run::new(AdmiralId::Osei, 1);
+        let dir = save.0.clone().unwrap();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("1.json"), "{ kein json").unwrap();
+        let mut run = Run::new(AdmiralId::Osei, 2);
         run.result = Some(voidfleet_core::battle::BattleResult::Lost);
         save.store(&run).unwrap();
-        assert_eq!(save.load(), None);
-        assert_eq!(RunSave(None).load(), None);
+        assert_eq!(save.list(), []);
+        assert_eq!(RunSave(None).list(), []);
     }
 }

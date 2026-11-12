@@ -217,7 +217,12 @@ pub trait Messages: Sync {
     fn menu_tagline(&self) -> &'static str;
     fn menu_new_run(&self) -> &'static str;
     fn menu_continue(&self) -> &'static str;
-    fn menu_saved_run(&self, admiral: &str, sector: u32, row: usize) -> String;
+    fn menu_quit(&self) -> &'static str;
+    /// Der Weg zurück ins Hauptmenü (Einstellungen, Run-Ende).
+    fn menu_main(&self) -> &'static str;
+    /// Statt eines Runs, solange keiner gespeichert ist.
+    fn menu_no_runs(&self) -> &'static str;
+    fn menu_victories(&self, battles: u32) -> String;
     fn sector_name(&self, sector: u32) -> &'static str;
     fn map_title(&self, sector: u32) -> String;
     fn map_hint(&self) -> &'static str;

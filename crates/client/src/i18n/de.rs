@@ -1062,8 +1062,20 @@ impl Messages for De {
         "Weiter"
     }
 
-    fn menu_saved_run(&self, admiral: &str, sector: u32, row: usize) -> String {
-        format!("{admiral} · Sektor {sector}, Reihe {row}")
+    fn menu_quit(&self) -> &'static str {
+        "Beenden"
+    }
+
+    fn menu_main(&self) -> &'static str {
+        "Hauptmenü"
+    }
+
+    fn menu_no_runs(&self) -> &'static str {
+        "Noch ist kein Admiral unterwegs. „Neuer Run“ stellt das erste Flaggschiff in Dienst."
+    }
+
+    fn menu_victories(&self, battles: u32) -> String {
+        format!("Siege {battles}")
     }
 
     fn sector_name(&self, sector: u32) -> &'static str {
