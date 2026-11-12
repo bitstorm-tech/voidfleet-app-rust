@@ -1,7 +1,8 @@
 //! Die Sternenkarte des Sektors als Overlay über dem leeren Brett: Titel „Sektor n: Name“, neun Reihen von unten nach
 //! oben, Knoten als Tasten mit Zeichen und Farbe ihrer Art (Tooltip: Art und was dort geschieht), Kanten als dünne,
 //! gedrehte Knoten dahinter. Der besuchte Pfad leuchtet, der aktuelle Knoten trägt einen Ring, die wählbaren Knoten
-//! (`run.choices()`) pulsieren und melden [`RunAction::Advance`], alle anderen sind gesperrt.
+//! (`run.choices()`) pulsieren und melden [`RunAction::Advance`], alle anderen sind gesperrt. Rechts unten neben der
+//! Karte erklärt eine Legende die Zeichen der Knotenarten.
 //!
 //! Die Lage der Knoten und Kanten rechnet [`layout`] ohne Bevy-Welt (getestet).
 
@@ -34,6 +35,17 @@ use crate::{
 const MARGIN: f32 = 36.0;
 const NODE: f32 = 44.0;
 const BOSS_NODE: f32 = 62.0;
+/// Platz der Legende neben der Karte (Breite samt Abstand).
+const LEGEND: f32 = 200.0;
+/// Die Knotenarten in der Reihenfolge der Legende.
+const KINDS: [NodeKind; 6] = [
+    NodeKind::Battle,
+    NodeKind::Elite,
+    NodeKind::Event,
+    NodeKind::Shipyard,
+    NodeKind::Market,
+    NodeKind::Boss,
+];
 
 /// Lage der Knoten (Mitte, UI-Pixel in der Karte, y nach unten) und der Kanten.
 #[derive(Clone, Debug, PartialEq)]
@@ -152,7 +164,7 @@ struct MapOverlay(Language, Vec2);
 /// Größe der Karte im Fenster: so hoch wie möglich, etwas schmaler als hoch.
 fn map_size(window: &Window) -> Vec2 {
     let height = (window.height() - 64.0 - 120.0).max(360.0);
-    Vec2::new((height * 0.8).min(window.width() - 80.0), height)
+    Vec2::new((height * 0.8).min(window.width() - 80.0 - LEGEND), height)
 }
 
 fn show(
@@ -195,37 +207,144 @@ fn show(
                 theme::text(fonts.body(16.0), locale.map_hint(), palette::TEXT_DIM),
                 Pickable::IGNORE,
             ));
-            root.spawn((
+            let mut row = root.spawn((
                 Node {
-                    width: px(size.x),
-                    height: px(size.y),
-                    flex_shrink: 0.0,
-                    border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(6)),
+                    align_items: AlignItems::FlexEnd,
+                    column_gap: px(24),
                     ..default()
                 },
-                BackgroundColor(theme::rgba(8, 12, 20, 0.7)),
-                BorderColor::all(palette::PLAYER.with_alpha(0.25)),
                 Pickable::IGNORE,
-            ))
-            .with_children(|board| {
-                for edge in &map.edges {
-                    board.spawn(edge_node(edge, edge_state(&run, edge)));
-                }
-                for (row, nodes) in run.map.iter().enumerate() {
-                    for (column, node) in nodes.iter().enumerate() {
-                        let center = map.nodes[row][column];
-                        let state = node_state(&run, row, column);
-                        if state == NodeState::Current {
-                            board.spawn(current_ring(center, node.kind));
-                        }
-                        spawn_node(
-                            board, &fonts, &icons, &locale, node.kind, center, state, column,
-                        );
+            ));
+            row.with_children(|row| {
+                row.spawn((
+                    Node {
+                        width: px(size.x),
+                        height: px(size.y),
+                        flex_shrink: 0.0,
+                        border: UiRect::all(px(1)),
+                        border_radius: BorderRadius::all(px(6)),
+                        ..default()
+                    },
+                    BackgroundColor(theme::rgba(8, 12, 20, 0.7)),
+                    BorderColor::all(palette::PLAYER.with_alpha(0.25)),
+                    Pickable::IGNORE,
+                ))
+                .with_children(|board| {
+                    for edge in &map.edges {
+                        board.spawn(edge_node(edge, edge_state(&run, edge)));
                     }
-                }
+                    for (row, nodes) in run.map.iter().enumerate() {
+                        for (column, node) in nodes.iter().enumerate() {
+                            let center = map.nodes[row][column];
+                            let state = node_state(&run, row, column);
+                            if state == NodeState::Current {
+                                board.spawn(current_ring(center, node.kind));
+                            }
+                            spawn_node(
+                                board, &fonts, &icons, &locale, node.kind, center, state, column,
+                            );
+                        }
+                    }
+                });
+                row.spawn(legend_box()).with_children(|legend| {
+                    for kind in KINDS {
+                        spawn_legend_entry(legend, &fonts, &icons, &locale, kind);
+                    }
+                });
             });
         });
+}
+
+fn legend_box() -> impl Bundle {
+    (
+        Node {
+            width: px(LEGEND - 24.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10),
+            padding: UiRect::all(px(14)),
+            border: UiRect::all(px(1)),
+            border_radius: BorderRadius::all(px(6)),
+            ..default()
+        },
+        BackgroundColor(theme::rgba(8, 12, 20, 0.7)),
+        BorderColor::all(palette::PLAYER.with_alpha(0.25)),
+        Pickable::IGNORE,
+    )
+}
+
+/// Ein Eintrag der Legende: das Zeichen der Art auf einem Feld in ihrer Farbe, daneben ihr Name.
+fn spawn_legend_entry(
+    legend: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    icons: &UiIcons,
+    locale: &Locale,
+    kind: NodeKind,
+) {
+    const SIZE: f32 = 28.0;
+    let (color, _) = kind_look(kind, icons);
+    legend
+        .spawn((
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: px(10),
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|entry| {
+            entry
+                .spawn((
+                    Node {
+                        width: px(SIZE),
+                        height: px(SIZE),
+                        flex_shrink: 0.0,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(px(1)),
+                        ..default()
+                    },
+                    BackgroundColor(Key::tinted(color).face),
+                    BorderColor::all(color.with_alpha(0.7)),
+                    Pickable::IGNORE,
+                ))
+                .with_children(|swatch| spawn_glyph(swatch, fonts, icons, kind, SIZE, color));
+            entry.spawn((
+                theme::text(fonts.body(15.0), locale.node_kind(kind), palette::TEXT),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+/// Zeichen einer Knotenart (Icon oder Buchstabe) für ein Feld der Kantenlänge `size`.
+fn spawn_glyph(
+    key: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    icons: &UiIcons,
+    kind: NodeKind,
+    size: f32,
+    tint: Color,
+) {
+    // Die drei Sterne des Bosses füllen nur ein Drittel der Höhe ihres Icons.
+    let icon_size = size * if kind == NodeKind::Boss { 0.85 } else { 0.5 };
+    match kind_look(kind, icons).1 {
+        Ok(icon) => {
+            key.spawn((
+                Node {
+                    width: px(icon_size),
+                    height: px(icon_size),
+                    ..default()
+                },
+                ImageNode::new(icon).with_color(tint),
+                Pickable::IGNORE,
+            ));
+        }
+        Err(text) => {
+            key.spawn((
+                theme::caps(fonts.display_bold(size * 0.6), text, 0.0, tint),
+                Pickable::IGNORE,
+            ));
+        }
+    }
 }
 
 fn edge_node(edge: &MapEdge, state: EdgeState) -> impl Bundle {
@@ -294,7 +413,7 @@ fn spawn_node(
     column: usize,
 ) {
     let size = node_size(kind);
-    let (color, glyph) = kind_look(kind, icons);
+    let (color, _) = kind_look(kind, icons);
     let tint = if state == NodeState::Locked {
         color.with_alpha(0.4)
     } else {
@@ -331,27 +450,7 @@ fn spawn_node(
         }
         NodeState::Locked => {}
     }
-    // Die drei Sterne des Bosses füllen nur ein Drittel der Höhe ihres Icons.
-    let icon_size = size * if kind == NodeKind::Boss { 0.85 } else { 0.5 };
-    node.with_children(|key| match glyph {
-        Ok(icon) => {
-            key.spawn((
-                Node {
-                    width: px(icon_size),
-                    height: px(icon_size),
-                    ..default()
-                },
-                ImageNode::new(icon).with_color(tint),
-                Pickable::IGNORE,
-            ));
-        }
-        Err(text) => {
-            key.spawn((
-                theme::caps(fonts.display_bold(size * 0.6), text, 0.0, tint),
-                Pickable::IGNORE,
-            ));
-        }
-    });
+    node.with_children(|key| spawn_glyph(key, fonts, icons, kind, size, tint));
 }
 
 pub(super) struct StarMapPlugin;
