@@ -1,5 +1,5 @@
-"""Siegel (Flaggschiff von Kommandantin Vey, Boss von Sektor 3), Clean Toon in der detailreichen Fassung
-(docs/stilregeln.md): der Mirage-Rumpf mit eigener Prägung.
+"""Siegel (Flaggschiff von Kommandantin Vey, Boss von Sektor 3) in der detailreichen Fassung (docs/stilregeln.md), mit
+Kleinteilen für den dreckigen Look: der Mirage-Rumpf mit eigener Prägung.
 
 Rumpf, Rückengrat mit Nähten, Diamantflügel, Unterseite und Heck wie die Mirage (fleet/mirage.py), in Veys Karmin statt
 Türkis. Anders als die Mirage: keine Projektorflossen in der Schiffsmitte, sondern zwei hohe, senkrechte Heckflossen
@@ -14,6 +14,11 @@ Rückengrat, Turm, Flossen und die Flügelspitzen mit den Klingen:
 - Unterseite: Bugkanonen in flachen Gondeln unter den Flügelwurzeln, die Mündung bündig in der Stirn
 - Heck: Gehäusesegment und Düsenkranz an beiden Düsen (`parts.engine_details`)
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`), weiter nach Tarnkappen-Logik, also fast alles bündig: Einzelfenster an der Kabine unter dem
+Turm, Wartungsluken auf Rumpffacetten und Flügelwurzeln, Klappenspalt an der Flügelhinterkante, Fahrwerksklappen und
+Kühlschlitze der Kanonengondeln an der Unterseite, Kühlrippen an den Düsen. Abstehen dürfen nur Antennen (Peitschen
+auf dem Turm, Blattantenne auf der Kabine, Staurohr am Bug) und die Positionslichter an den Flügelspitzen.
 """
 
 import math
@@ -23,8 +28,8 @@ from mathutils.bvhtree import BVHTree
 
 import palette
 import vf
-from parts import block, engine, engine_details, on_surface, stealth, trim_line
-from vf import Ship, grow, loft, ngon, plate, post, sec, sphere, sweep, tip, tube
+from parts import block, engine, engine_details, on_surface, stealth, trim_line, windows
+from vf import Ship, box, grow, loft, ngon, plate, post, sec, segment, sphere, sweep, tip, tube
 
 # Rumpfstationen (y, Breite an der Kimm, Höhe des Grats, Tiefe des Bodens)
 STATIONS = [(-3.4, 0.9, 0.18, 0.12), (-1.8, 1.8, 0.32, 0.22), (0.2, 2.2, 0.38, 0.26), (2.4, 2.0, 0.36, 0.26),
@@ -79,6 +84,43 @@ def bay(s, m, outline, split, z):
     s.add(frame(outline, 0.06, z - 0.02, z + 0.05), m["phantom"], mirror=True)
     for front in (True, False):
         s.add(block(grow(clip(outline, split, front), -0.035), [(z - 0.02, 0.0), (z + 0.035, 0.0)]), m["dark"], mirror=True)
+
+
+def details(s, m, tree):
+    """Kleinteile (Modulkommentar); `tree` ist der BVH-Baum des Rumpfs."""
+    # ---------------------------------------------------------------- Kommandoturm: Einzelfenster an der Kabine,
+    # Peitschenantennen neben dem Mast, Blattantenne auf dem Kabinendach
+    windows(s, m, [(0.45 + 0.03 * (y + 0.95) / 1.35, y, 0.62) for y in (-0.55 + 0.14 * j for j in range(5))])
+    s.add(post(6, 0.012, 0.005, 1.4, 1.95), m["dark_round"], at=(0.14, 0.32, 0), mirror=True)
+    s.add(box(0.02, 0.22, 0.14), m["dark"], at=(0, -1.15, 0.98))
+
+    # ---------------------------------------------------------------- Bug: Staurohr
+    s.add(segment((0, -4.6, 0.02), (0, -4.95, 0.02), 0.012, 6), m["steel"])
+
+    # ---------------------------------------------------------------- Wartungsluken, bündig: Rumpffacette neben der
+    # Kabine, Flügelwurzel vorn
+    hit, rot = on_surface(tree, 0.67, -0.3)
+    s.add(box(0.2, 0.36, 0.03), m["dark"], at=tuple(hit), rot=rot, mirror=True)
+    s.add(box(0.14, 0.3, 0.03), m["dark"], at=(0.92, -1.6, 0.08), mirror=True)
+
+    # ---------------------------------------------------------------- Flügel: Klappenspalt vor der Hinterkante,
+    # Positionslicht an der Spitze
+    (ax, ay), (bx, by), (nx, ny) = (1.53, 1.6), (0.855, 2.534), (-0.0122, -0.0088)  # Spalt a→b, halbe Breite quer dazu
+    gap = [(ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)]
+    s.add(plate(gap, 0.03, "xy"), m["dark"], at=(0, 0, 0.075), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(2.31, 0.95, 0.0), mirror=True)
+
+    # ---------------------------------------------------------------- Unterseite: Fahrwerksklappen (hell, damit sie in
+    # der Karte nicht im dunklen Boden versinken), Kühlschlitze unter den Kanonengondeln
+    for y in (0.8, 1.8):
+        s.add(box(0.3, 0.55, 0.03), m["hull"], at=(0.42, y, -0.265), mirror=True)
+    s.add(box(0.24, 0.5, 0.03), m["hull"], at=(0, -2.4, -0.1875), rot=(-3.58, 0, 0))
+    for y in (-1.9, -1.75, -1.6):
+        s.add(box(0.2, 0.03, 0.02), m["hull"], at=(0.8, y, -0.305), mirror=True)
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen
+    for t in (0.41, 0.455, 0.5):
+        s.add(tube(12, 0.342, 0.342, 3.6 + t, 3.625 + t, 0.55, -0.02), m["steel"], mirror=True)
 
 
 def build():
@@ -157,4 +199,5 @@ def build():
     s.add(block([(0.95, 2.9), (0.95, 3.9), (-0.95, 3.9), (-0.95, 2.9)], [(-0.3, 0.1), (-0.2, 0.0), (0.22, 0.0), (0.3, 0.1)]), m["dark"])
     engine(s, m, 0.3, 3.6, 4.6, dx=0.55, dz=-0.02, mirror=True)
     engine_details(s, m, 0.3, 3.6, 4.6, dx=0.55, dz=-0.02, mirror=True)
+    details(s, m, tree)
     return s.finish()

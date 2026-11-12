@@ -10,6 +10,7 @@ use std::{fs, path::PathBuf};
 
 use bevy::{
     prelude::*,
+    render::{render_resource::TextureFormat, renderer::RenderAdapter},
     window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode as BevyWindowMode},
 };
 use directories::ProjectDirs;
@@ -47,6 +48,42 @@ pub enum WindowMode {
     #[default]
     Maximized,
     Fullscreen,
+}
+
+/// Kantenglättung der 3D-Szene (MSAA), der Wert ist die Zahl der Abtastpunkte je Pixel. Mehr glättet dünne Teile
+/// besser und kostet Grafikspeicher: Bild und Tiefe der Szene wachsen mit der Zahl.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Antialiasing {
+    Off = 1,
+    X2 = 2,
+    #[default]
+    X4 = 4,
+    X8 = 8,
+}
+
+impl Antialiasing {
+    pub const ALL: [Self; 4] = [Self::Off, Self::X2, Self::X4, Self::X8];
+
+    /// Diese Stufe oder die nächstkleinere, die die Grafikkarte für Bild und Tiefe der Szene kann: 2- und 8-fach gibt
+    /// es nicht überall, und eine Stufe, die fehlt, beendete das Spiel mit einem Renderfehler.
+    pub fn usable(self, adapter: &RenderAdapter) -> Self {
+        let supported = |level: Self| {
+            [TextureFormat::Rgba16Float, TextureFormat::Depth32Float]
+                .into_iter()
+                .all(|format| {
+                    adapter
+                        .get_texture_format_features(format)
+                        .flags
+                        .sample_count_supported(level as u32)
+                })
+        };
+        Self::ALL
+            .into_iter()
+            .rev()
+            .find(|&level| level <= self && supported(level))
+            .unwrap_or(Self::Off)
+    }
 }
 
 /// Sprache der Oberfläche; ohne Wahl gilt die Systemsprache.
@@ -117,6 +154,8 @@ pub struct Settings {
     /// Kantenlänge des Mauszeigers in logischen Pixeln (Punkten), siehe [`crate::ui::cursor`].
     pub cursor_size: f32,
     pub window_mode: WindowMode,
+    /// Gilt für die Kamera der Szene, siehe [`crate::scene::camera`].
+    pub antialiasing: Antialiasing,
     /// FPS-Anzeige oben links, siehe [`crate::ui::fps`].
     pub show_fps: bool,
     /// Bildaufbau im Takt des Monitors (`PresentMode::Fifo`), sonst ungebremst.
@@ -137,6 +176,7 @@ impl Default for Settings {
             cursor: CursorId::Arrow,
             cursor_size: 32.0,
             window_mode: WindowMode::Maximized,
+            antialiasing: Antialiasing::X4,
             show_fps: false,
             vsync: true,
             language: None,
@@ -240,14 +280,17 @@ mod tests {
     fn json_round_trip() {
         let settings = Settings {
             attack_speed: AnimationSpeed::VeryFast,
+            antialiasing: Antialiasing::X2,
             language: Some(Language::De),
             ..default()
         };
         let json = serde_json::to_string(&settings).unwrap();
         assert!(json.contains("\"attackSpeed\":\"veryFast\""));
+        assert!(json.contains("\"antialiasing\":\"x2\""));
         assert_eq!(serde_json::from_str::<Settings>(&json).unwrap(), settings);
         let partial: Settings = serde_json::from_str(r#"{"musicVolume":0.1}"#).unwrap();
         assert_eq!(partial.music_volume, 0.1);
         assert_eq!(partial.window_mode, WindowMode::Maximized);
+        assert_eq!(partial.antialiasing, Antialiasing::X4);
     }
 }

@@ -8,7 +8,8 @@
 //! Dazu Maus-Parallaxe, Kamerawackeln ([`CameraCommand::Shake`]), eine leichte Neigung zum Handelnden der Wiedergabe
 //! ([`CameraCommand::Lean`]) und Glühen über Bloom: Was heller als 1 leuchtet
 //! (Lichter der Schiffe, Effekte), glüht; alles andere bleibt scharf. Ohne Tone-Mapping, wie im Original.
-//! Stand und Zoom merkt sich die Kamera in den Einstellungen, sobald sie ruht.
+//! Stand und Zoom merkt sich die Kamera in den Einstellungen, sobald sie ruht; die Kantenglättung (MSAA) nimmt sie von
+//! dort.
 //!
 //! Maus wie im Original ([`CameraInput`]): Mausrad zoomt auf den Brettpunkt unter dem Zeiger, die mittlere Maustaste
 //! dreht (das Brett folgt dem Zeiger wie gegriffen), herangezoomt verschiebt Ziehen mit der linken Taste das Brett.
@@ -23,7 +24,10 @@ use bevy::{
     picking::{hover::HoverMap, mesh_picking::MeshPickingCamera, pointer::PointerId},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
-    render::view::{NoIndirectDrawing, Tonemapping},
+    render::{
+        renderer::RenderAdapter,
+        view::{NoIndirectDrawing, Tonemapping},
+    },
     window::PrimaryWindow,
 };
 
@@ -504,9 +508,12 @@ impl Plugin for CameraPlugin {
             .add_systems(Startup, spawn_camera)
             .add_systems(
                 Update,
-                (read_mouse, handle_commands, update_rig, remember_camera)
-                    .chain()
-                    .in_set(CameraSystems),
+                (
+                    (read_mouse, handle_commands, update_rig, remember_camera)
+                        .chain()
+                        .in_set(CameraSystems),
+                    apply_antialiasing.run_if(resource_changed::<Settings>),
+                ),
             );
     }
 }
@@ -515,7 +522,26 @@ impl Plugin for CameraPlugin {
 #[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CameraSystems;
 
-fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
+/// Die Kamera folgt der Einstellung sofort; Bevy legt Bild und Tiefe dann neu an. Eine Stufe, die die Grafikkarte nicht
+/// kann, weicht auch in den Einstellungen der nächstkleineren, damit der Dialog zeigt, was gilt.
+fn apply_antialiasing(
+    mut settings: ResMut<Settings>,
+    adapter: Res<RenderAdapter>,
+    mut camera: Single<&mut Msaa, With<MainCamera>>,
+) {
+    let level = settings.antialiasing.usable(&adapter);
+    if settings.antialiasing != level {
+        settings.antialiasing = level;
+    }
+    camera.set_if_neq(Msaa::from_samples(level as u32));
+}
+
+fn spawn_camera(
+    mut commands: Commands,
+    rig: Res<CameraRig>,
+    settings: Res<Settings>,
+    adapter: Res<RenderAdapter>,
+) {
     commands.spawn((
         Name::new("Kamera"),
         MainCamera,
@@ -541,7 +567,7 @@ fn spawn_camera(mut commands: Commands, rig: Res<CameraRig>) {
             composite_mode: BloomCompositeMode::Additive,
             ..Bloom::NATURAL
         },
-        Msaa::Sample4,
+        Msaa::from_samples(settings.antialiasing.usable(&adapter) as u32),
         // Fast jedes Schiffsteil hat ein eigenes Toon-Material, Multidraw bündelt also nichts; mit GPU-Culling schriebe
         // Bevy trotzdem jedes Bild je Material Puffer und Bind-Groups neu (gemessen: ~10 ms Render-Thread je Bild).
         NoIndirectDrawing,

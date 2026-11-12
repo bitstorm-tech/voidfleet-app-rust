@@ -1,5 +1,5 @@
-"""Pendulum (Flaggschiff von Admiral Kerr, „der Uhrmacher“), Clean Toon in der detailreichen Fassung
-(docs/stilregeln.md).
+"""Pendulum (Flaggschiff von Admiral Kerr, „der Uhrmacher“), detailreiche Fassung nach der Iron Dreadnought
+(docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Railgun-Schlachtschiff auf einem schmalen Keilrumpf. Die Railgun ist das Rückgrat: ein Gehäuse in der Akzentfarbe auf
 dem Deck, vorn ragen ihre Schienen weit über den Bug, umwickelt von fünf groben Spulen im Wechsel Messing und Signalblau,
@@ -20,6 +20,12 @@ liegende Flanken, Gehäuse zwischen Gimbal und Verschluss, Flächen der Brücke)
 - Heck: Lüfter auf dem Düsenblock, Gehäusesegment und Düsenkranz je Düse (`parts.engine_details`)
 - Unterseite: Pendelbock mit Lagerdeckeln an der Pendelachse, Spanten am V-Boden des Bugs
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern an den beiden unteren Blöcken der
+Brücke, Geländer, Leiter, Nadel-, Peitschen- und Schüsselantenne; Messing-Zuleitungen von jedem Kondensator ins
+Railgun-Gehäuse und je zwei Stromschienen von den Kondensatorbänken zum Verschluss; neben dem Verschluss Flak, Luke und
+Lagerkisten, Flak auch auf dem Düsenblock; Kühlrippen an den Düsen; Positionslichter auf den äußersten Zähnen des
+Zahnkranzes (oben, backbord, steuerbord).
 """
 
 import math
@@ -28,8 +34,8 @@ from mathutils import Vector
 
 import palette
 import vf
-from parts import engine, engine_details, rcs, trim_line, vent
-from vf import Ship, box, flank, hoop, keel, loft, octagon, plate, post, rect, revolve, sec, segment, sphere, sweep, tube, wedge
+from parts import engine, engine_details, flak, rail, rcs, trim_line, vent, windows
+from vf import Ship, box, dish, flank, hoop, keel, loft, octagon, pipe, plate, post, rect, revolve, sec, segment, sphere, sweep, tube, wedge
 
 ZC = 1.0  # Rumpfmitte; Deck bei ZC + 0,75
 DECK = ZC + 0.75
@@ -104,6 +110,68 @@ def capacitors(s, m, x, y):
     s.add(box(0.36, 0.9, 0.36), m["armor"], at=(x, y, DECK + 0.15))
     for dy in (-0.3, 0.0, 0.3):
         s.add(post(16, 0.11, 0.11, DECK + 0.31, DECK + 0.44), m["dark_round"], at=(x + side * 0.055, y + dy, 0))
+
+
+def details(s, m, z, by):
+    """Kleinteile (Modulkommentar); `z` ist das Dach der Brücke, `by` ihre Mitte."""
+    roof1, roof2 = DECK + 0.5, DECK + 0.95  # Dächer der beiden unteren Blöcke der Brücke
+
+    # ---------------------------------------------------------------- Fensterreihen an der Brücke
+    row = [by - 0.15 + 0.13 * k for k in range(7)]
+    windows(s, m, [(0.85, y, roof1 - 0.17) for y in row])
+    windows(s, m, [(0.85, y, roof1 - 0.35) for y in row[1::2]])
+    windows(s, m, [(-0.6 + 0.2 * k, by + 0.7, roof1 - 0.17) for k in range(7)], out="y")
+    windows(s, m, [(0.625, by - 0.08 + 0.13 * k, roof2 - 0.2) for k in range(5)])
+    windows(s, m, [(-0.4 + 0.2 * k, by + 0.525, roof2 - 0.2) for k in range(5)], out="y")
+
+    # ---------------------------------------------------------------- Antennen
+    s.add(post(6, 0.014, 0.006, z + 0.66, z + 1.2), m["dark_round"], at=(0.4, by + 0.15, 0), mirror=True)
+    s.add(segment((0.55, by + 0.42, roof2 - 0.02), (0.62, by + 0.92, roof2 + 0.75), 0.012, 6), m["dark_round"], mirror=True)
+    # Schüssel backbord, Gerätekasten mit Nadel steuerbord
+    s.add(post(8, 0.03, 0.025, roof1 - 0.02, roof1 + 0.14), m["dark_round"], at=(-0.74, by + 0.5, 0))
+    s.add(dish(0.13, 0.05, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.74, by + 0.5, roof1 + 0.13), rot=(-40, 0, 150))
+    s.add(box(0.14, 0.2, 0.12), m["armor"], at=(0.74, by + 0.5, roof1 + 0.06))
+    s.add(post(6, 0.012, 0.006, roof1 + 0.1, roof1 + 0.5), m["dark_round"], at=(0.74, by + 0.56, 0))
+
+    # ---------------------------------------------------------------- Geländer und Leiter an der Brücke
+    rail(s, m, (0.83, by + 0.22, roof1), (0.83, by + 0.68, roof1), 3)
+    rail(s, m, (-0.83, by + 0.68, roof1), (0.83, by + 0.68, roof1), 5, mirror=False)
+    rail(s, m, (0.61, by + 0.1, roof2), (0.61, by + 0.51, roof2), 3)
+    wing = z - 0.255
+    rail(s, m, (0.47, by - 0.21, wing), (0.96, by - 0.21, wing), 3)
+    rail(s, m, (0.96, by - 0.21, wing), (0.96, by + 0.05, wing), 2)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.5), m["dark"], at=(0.72 + dx, by + 0.707, DECK + 0.25))
+    for k in range(6):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.72, by + 0.707, DECK + 0.07 + 0.08 * k))
+
+    # ---------------------------------------------------------------- Railgun: Zuleitungen der Kondensatoren, Stromschienen
+    # Bänke wie in `build`: backbord vor dem Gimbal, steuerbord dahinter
+    for x, y in ((-0.68, -2.0), (0.68, -0.4)):
+        side = 1 if x > 0 else -1
+        for dy in (-0.3, 0.0, 0.3):
+            cx = x + side * 0.055
+            s.add(pipe([(cx, y + dy, DECK + 0.42), (cx, y + dy, ZR + 0.3), (side * 0.4, y + dy, ZR + 0.3)], 0.022, 6), m["brass_round"])
+        for dx in (-0.05, 0.05):
+            s.add(segment((x + dx, y + 0.43, DECK + 0.028), (x + dx, 0.56, DECK + 0.028), 0.028, 6), m["steel"])
+
+    # ---------------------------------------------------------------- Deck neben dem Verschluss: Flak, Luke, Lagerkisten
+    for at, yaw in (((1.42, 0.5, DECK), 60), ((1.42, 2.4, DECK), 130), ((0.85, 4.25, ZC + 0.89), 165)):
+        flak(s, m, at, yaw)
+    s.add(box(0.3, 0.36, 0.04), m["armor"], at=(1.12, 0.05, DECK + 0.01), mirror=True)
+    s.add(box(0.22, 0.2, 0.14), m["armor"], at=(1.09, 0.95, DECK + 0.07))
+    s.add(box(0.2, 0.22, 0.16), m["dark"], at=(-1.08, 0.93, DECK + 0.08))
+    s.add(box(0.14, 0.14, 0.1), m["armor"], at=(-1.08, 0.92, DECK + 0.21))
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen (wie in `build`)
+    for r, y1, dx, dz, ts in ((0.44, 5.05, 0.6, ZC + 0.05, (0.35, 0.4, 0.45)), (0.3, 4.85, 1.25, ZC + 0.5, (0.37, 0.44))):
+        for t in ts:
+            y = 4.3 + (y1 - 4.3) * t
+            s.add(tube(12, r * 1.1, r * 1.1, y, y + 0.02, dx, dz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter auf dem Zahnkranz
+    s.add(sphere(0.035, 1), m["glow"], at=(0, GY, GZ + 2.27))
+    s.add(sphere(0.035, 1), m["glow"], at=(2.27, GY, GZ), mirror=True)
 
 
 def build():
@@ -210,4 +278,5 @@ def build():
     for r, y1, dx, dz in ((0.44, 5.05, 0.6, ZC + 0.05), (0.3, 4.85, 1.25, ZC + 0.5)):
         engine(s, m, r, 4.3, y1, dx=dx, dz=dz, mirror=True)
         engine_details(s, m, r, 4.3, y1, dx=dx, dz=dz, mirror=True)
+    details(s, m, z, by)
     return s.finish()

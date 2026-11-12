@@ -17,12 +17,31 @@ dazwischen ruhig (Deck, Rückenflosse, Gondelflanke):
 - Heck: Maschinenlüfter auf dem Düsenbuckel, Gehäusesegment und Düsenkranz an jeder der drei Düsen
   (`parts.engine_details`)
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`), seit der dreckige Look keine Konturringe mehr zeichnet: Überrollbügel über der Kanzel,
+Steigeisen an der Steuerbordflanke, Wartungsluke, Schweißleiste und zwei ungleiche Peitschenantennen auf dem Rücken,
+Einfüllstutzen und lose verlegte Brandstoffleitung am Tank, Stützstreben und eine Rakete unter dem Stummelflügel,
+Klappenspalt, lose Leitung mit Schelle auf der Kanonengondel, Kühlrippen an Kanone und Buckeldüse, zwei Auspuffstutzen
+an der Steuerbordflanke, Staurohr am Rammbalken, Klappe am Boden, Positionslichter an Flossen- und Flügelspitze.
 """
 
 import palette
 import vf
-from parts import bellows, engine, engine_details, vent
-from vf import Ship, box, hexagon, loft, octagon, plate, rbox, rect, revolve, sec, smooth, superellipse, tube, wedge
+from mathutils import Vector
+from parts import beam, bellows, engine, engine_details, ring_at, vent
+from vf import Ship, box, hexagon, loft, octagon, pipe, plate, post, rbox, rect, revolve, sec, segment, smooth, sphere, superellipse, tube, wedge
+
+# Rumpf: Querschnitte (y, Breite, Höhe) des Achtkants
+HULL = ((-2.8, 0.46, 0.46), (-2.2, 0.86, 0.66), (-1.1, 1.32, 0.86), (0.8, 1.42, 0.9), (2.1, 1.18, 0.76), (2.45, 0.98, 0.62))
+
+
+def hull_at(y):
+    """Rumpf bei y: halbe Breite und halbe Höhe (Deck oben, Boden unten; die Flanke steht bis 70 % der Höhe senkrecht)."""
+    for (y0, w0, h0), (y1, w1, h1) in zip(HULL, HULL[1:]):
+        if y0 <= y <= y1:
+            t = (y - y0) / (y1 - y0)
+            return (w0 + t * (w1 - w0)) / 2, (h0 + t * (h1 - h0)) / 2
+    raise ValueError(f"y = {y} liegt außerhalb des Rumpfs")
 
 
 def patch(w, l, cut=0.18):
@@ -37,6 +56,74 @@ def canister(r, l, nose=0.0):
                     (r * 0.88, h - r * 0.4), (r * 0.55, h - 0.04), (0.0, h)], 16)
 
 
+def details(s, m, canopy, px, pz):
+    """Kleinteile (Modulkommentar); `canopy` sind die Ringe der Kanzel (um 0,27 nach steuerbord versetzt), (px, pz) die
+    Achse der Kanonengondel."""
+
+    def deck(y):
+        return hull_at(y)[1]
+
+    def wing_top(x):
+        """Oberseite des Stummelflügels bei x (er steigt um 6° nach außen)."""
+        return 0.28 + 0.1045 * x
+
+    # ---------------------------------------------------------------- Kanzel: Überrollbügel, Steigeisen, Schweißleiste dahinter
+    bow = []
+    for y in (-1.56, -1.5):
+        ring = ring_at(canopy, y)
+        c = sum(ring, Vector()) / len(ring)
+        bow.append([p + Vector((p.x - c.x, 0.0, p.z - c.z)).normalized() * 0.02 for p in ring])
+    s.add(loft(bow), m["dark_round"], at=(0.27, 0, 0))
+    for z in (-0.2, -0.08, 0.04, 0.16):
+        s.add(box(0.05, 0.12, 0.02), m["steel_flat"], at=(hull_at(-0.95)[0] + 0.01, -0.95, z))
+    s.add(box(0.9, 0.035, 0.03), m["steel_flat"], at=(0, -0.62, deck(-0.62) + 0.005))
+
+    # ---------------------------------------------------------------- Rücken: Wartungsluke, zwei ungleiche Antennen, Flossenlicht
+    s.add(box(0.3, 0.34, 0.03), m["armor"], at=(0.2, 0.15, deck(0.15) + 0.005))
+    s.add(post(6, 0.012, 0.005, deck(0.62) - 0.03, deck(0.62) + 0.7, 0.3, 0.62), m["dark_round"])
+    s.add(segment((0.38, 0.55, 0.42), (0.52, 0.8, 0.85), 0.012, 6), m["dark_round"])
+    s.add(sphere(0.035, 1), m["glow"], at=(-0.007, 0.1, 1.32))
+
+    # ---------------------------------------------------------------- Brandstofftank: Einfüllstutzen, lose Leitung in den Rumpf
+    tx, ty, tz = 1.02, 0.3, wing_top(1.02) + 0.19
+    s.add(post(8, 0.055, 0.055, tz + 0.2, tz + 0.27, tx, ty - 0.2), m["dark_round"])
+    s.add(pipe([(0.86, 0.72, tz + 0.1), (0.7, 1.0, 0.62), (0.5, 1.25, 0.36)], 0.035, 6), m["dark_round"])
+
+    # ---------------------------------------------------------------- Stummelflügel: Stützstreben, Rakete, Klappenspalt, Positionslicht
+    s.add(beam((0.6, -0.2, -0.15), (1.15, -0.2, 0.26), 0.05, 0.05), m["steel_flat"])
+    s.add(beam((0.6, 1.0, -0.15), (1.3, 1.0, 0.27), 0.05, 0.05), m["steel_flat"])
+    rx, rz = 1.35, wing_top(1.35) - 0.16 - 0.13  # Unterseite des Flügels, darunter die Rakete
+    s.add(box(0.05, 0.4, 0.09), m["dark"], at=(rx, 0.45, rz + 0.095))
+    s.add(tube(8, 0.055, 0.055, 0.0, 0.85), m["armor_round"], at=(rx, 0, rz))
+    s.add(tube(8, 0.0, 0.055, -0.2, 0.0), m["steel"], at=(rx, 0, rz))
+    s.add(box(0.2, 0.1, 0.012), m["dark"], at=(rx, 0.78, rz))
+    s.add(box(0.012, 0.1, 0.2), m["dark"], at=(rx, 0.78, rz))
+
+    def hinge(x):
+        return 1.3 - (x - 0.5) * 0.1724 - 0.12  # 0,12 vor der Hinterkante
+
+    gap = [(0.65, hinge(0.65) - 0.015), (1.55, hinge(1.55) - 0.015), (1.55, hinge(1.55) + 0.015), (0.65, hinge(0.65) + 0.015)]
+    s.add(plate(gap, 0.175, "xy"), m["dark"], at=(0, 0, 0.2), rot=(0, -6, 0))
+    s.add(sphere(0.035, 1), m["glow"], at=(1.62, 1.0, wing_top(1.62)))
+
+    # ---------------------------------------------------------------- Kanonengondel: Kühlrippen, lose Leitung mit Schelle
+    for y in (-2.62, -2.46, -2.3):
+        s.add(tube(12, 0.235, 0.235, y, y + 0.035), m["steel"], at=(px, 0, pz))
+    s.add(pipe([(px + 0.12, -1.4, pz + 0.2), (px + 0.06, -1.05, pz + 0.35), (px + 0.08, -0.55, pz + 0.35), (px + 0.3, -0.3, pz + 0.43)], 0.03, 6),
+          m["dark_round"])
+    s.add(box(0.11, 0.06, 0.07), m["steel_flat"], at=(px + 0.07, -0.8, pz + 0.35))
+
+    # ---------------------------------------------------------------- Heck: Kühlrippen an der Buckeldüse, Auspuffstutzen steuerbord
+    for y in (2.21, 2.255, 2.3):
+        s.add(tube(12, 0.365, 0.365, y, y + 0.02, 0.06, 0.3), m["steel"])
+    s.add(tube(8, 0.045, 0.045, 1.55, 2.02), m["steel"], at=(0.6, 0, 0.14))
+    s.add(tube(8, 0.045, 0.045, 1.55, 1.95), m["steel"], at=(0.6, 0, 0.02))
+
+    # ---------------------------------------------------------------- Bug und Boden: Staurohr am Rammbalken, Klappe
+    s.add(segment((0.3, -2.75, 0.1), (0.36, -3.35, 0.14), 0.012, 6), m["steel"])
+    s.add(box(0.22, 0.5, 0.03), m["armor"], at=(-0.14, 1.25, -deck(1.25)))
+
+
 def build():
     s = Ship("scrap_raider")
     m = vf.materials(s.name, "fighter")
@@ -47,14 +134,7 @@ def build():
     m["rust"] = vf.toon(f"{s.name}_rust", palette.RUST, round=True)
 
     # ---------------------------------------------------------------- Kantiger Rumpf, vorn stumpf
-    s.add(loft([
-        sec(-2.8, octagon(0.46, 0.46), dz=-0.04),
-        sec(-2.2, octagon(0.86, 0.66)),
-        sec(-1.1, octagon(1.32, 0.86)),
-        sec(0.8, octagon(1.42, 0.9)),
-        sec(2.1, octagon(1.18, 0.76)),
-        sec(2.45, octagon(0.98, 0.62)),
-    ]), m["hull"])
+    s.add(loft([sec(y, octagon(w, h), dz=-0.04 if k == 0 else 0.0) for k, (y, w, h) in enumerate(HULL)]), m["hull"])
 
     # ---------------------------------------------------------------- Ramme: Rammbalken, Stahlkeil, Laschen an den Flanken
     s.add(rbox(0.8, 0.2, 0.58, 0.05, 1), m["dark"], at=(0, -2.8, -0.06))
@@ -65,12 +145,13 @@ def build():
         s.add(loft([sec(-2.86, rect(0.06, 0.3), dx=sx * 0.39, dz=-0.04), sec(y1, rect(0.06, 0.26), dx=sx * x1, dz=-0.02)]), m["steel_flat"])
 
     # ---------------------------------------------------------------- Kanzel steuerbord
-    s.add(loft(smooth([
+    canopy = smooth([
         sec(-2.25, superellipse(0.14, 0.08, 16), dz=0.3),
         sec(-1.85, superellipse(0.38, 0.3, 16), dz=0.4),
         sec(-1.25, superellipse(0.42, 0.36, 16), dz=0.44),
         sec(-0.7, superellipse(0.3, 0.16, 16), dz=0.45),
-    ], 2)), m["glass"], at=(0.27, 0, 0))
+    ], 2)
+    s.add(loft(canopy), m["glass"], at=(0.27, 0, 0))
 
     # ---------------------------------------------------------------- Backbord: schwere Kanonengondel in Koralle
     # Lichtband, Verschluss, Blendenbalg, Lauf mit Kühlmantel und Mündungsbremse
@@ -122,4 +203,5 @@ def build():
     for r, y0, y1, dx, dz in ((0.34, 1.9, 2.75, 0.06, 0.3), (0.27, 2.0, 2.55, -0.42, -0.24), (0.2, 2.05, 2.88, 0.4, -0.4)):
         engine(s, m, r, y0, y1, dx=dx, dz=dz)
         engine_details(s, m, r, y0, y1, dx=dx, dz=dz)
+    details(s, m, canopy, px, pz)
     return s.finish()

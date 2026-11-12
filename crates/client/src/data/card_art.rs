@@ -4,7 +4,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use voidfleet_core::{admirals::FlagshipId, cards::CardId};
 
 use super::{FileKey, ship_models::FLAGSHIPS};
-use crate::assets::Preload;
+use crate::assets::{Preload, gpu_image};
 
 /// Ein Bild: Befehlskarte oder Flaggschiff.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -47,7 +47,7 @@ impl FromWorld for CardArt {
         let mut preload = world.resource_mut::<Preload>();
         Self(
             cards()
-                .map(|card| (card, preload.track(server.load(card_art_path(card)))))
+                .map(|card| (card, preload.track(gpu_image(&server, card_art_path(card)))))
                 .collect(),
         )
     }

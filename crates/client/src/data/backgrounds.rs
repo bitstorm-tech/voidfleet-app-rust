@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::assets::Preload;
+use crate::assets::{Preload, gpu_image};
 
 pub const BACKGROUNDS: [&str; 10] = [
     "01-nebelschlucht",
@@ -32,7 +32,7 @@ impl FromWorld for Backgrounds {
         Self(
             BACKGROUNDS
                 .into_iter()
-                .map(|name| preload.track(server.load(background_path(name))))
+                .map(|name| preload.track(gpu_image(&server, background_path(name))))
                 .collect(),
         )
     }

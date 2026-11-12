@@ -25,7 +25,8 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
       (weather.py, alle Schiffe außer dem Trugbild) dazu baseColorTexture = Maske `<id>_weather`: ein PNG je Modell
       (RGBA, 8 Bit, als Daten zu lesen, nicht als sRGB), eine Textur, die alle toon-Materialien teilen, Sampler
       CLAMP_TO_EDGE; R Schmutz, G Kantenabrieb, B Plattenton, A Fugen. Der Client baut beim Laden die Mip-Kette.
-      Schiffe mit anderer Texeldichte als look.WEATHER_DENSITY tragen sie als `"density"` (look.WEATHER_DENSITIES).
+      Im Wrack tragen die toon-Materialien statt der Textur `"mask": "<id>"` (weather.share): dieselben UVs, das Bild
+      nimmt der Client aus `<id>.glb`, wo es die einzige Textur ist.
   {"kind": "light", "color": Farbe, "glow": bool}
       Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Positionslichter (`glow`: true = glüht im Spiel) und
       die Kennzeichen der Flaggschiffe `<id>_signal` in der UI-Farbe des Admirals (`glow`: false).
@@ -789,7 +790,8 @@ def _tidy_gltf(path):
     """Räumt nach dem Exporter auf; Reihenfolge und Inhalt von allem anderen bleiben:
     - Gleiche Texturen (Bild und Sampler) gibt es nur einmal. Der Exporter legt je Material eine an, und der Bevy-Loader
       dekodiert je Textur: Das gemeinsame Bild der Verwitterung läge sonst je Material im Speicher.
-    - TEXCOORD_n bleibt nur an Primitiven, deren Material eine Textur nutzt. Der Exporter schreibt die UV-Ebene in jedes
+    - TEXCOORD_n bleibt nur an Primitiven, deren Material eine Textur nutzt (auch die des Schiffs, `mask` im Vertrag
+      der Wrackstücke). Der Exporter schreibt die UV-Ebene in jedes
       Primitive des Meshes, auch in Lichter und Hologramme. Danach wird der Binärteil neu gepackt."""
     with open(path, "rb") as f:
         data = f.read()
@@ -802,7 +804,7 @@ def _tidy_gltf(path):
     if len(unique) < len(textures):
         _remap_textures(gltf["materials"], [unique.index(t) for t in textures])
         gltf["textures"] = unique
-    textured = {i for i, mat in enumerate(gltf.get("materials", [])) if _uses_texture(mat)}
+    textured = {i for i, mat in enumerate(gltf.get("materials", [])) if _uses_texture(mat) or "mask" in mat.get("extras", {}).get("vf", {})}
     primitives = [p for mesh in gltf.get("meshes", []) for p in mesh["primitives"]]
     stale = [(p, name) for p in primitives if p.get("material") not in textured for name in p["attributes"] if name.startswith("TEXCOORD_")]
     if not (stale or len(unique) < len(textures)) or "animations" in gltf or "skins" in gltf:

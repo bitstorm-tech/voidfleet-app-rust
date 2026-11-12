@@ -1,5 +1,5 @@
-"""Signal Booster (im Spiel der Spotter, ein Kreuzer) im Clean-Toon-Stil, detailreiche
-Fassung nach der Iron Dreadnought.
+"""Signal Booster (im Spiel der Spotter, ein Kreuzer), detailreiche Fassung nach der Iron Dreadnought
+(docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Primärformen: kantiger Rumpf mit dunklem Gerätedeck (blaue Deckplatte), blauer Bauchplatte und einem
 Lichtband an jeder Flanke. Darauf eine große Schüssel mit leuchtendem Cyan-Rand, blauer Mitte und Sender, auf einem
@@ -17,14 +17,20 @@ groben Fassung.
 - Paneele: Holm über jedem Paneel als Fortsetzung des Auslegers
 - Heck: Gehäusesegment und Düsenkranz an beiden Düsen (`parts.engine_details`)
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought; Waffen trägt das Schiff keine): Fensterreihen aus Einzelfenstern,
+Geländer und Leiter am Gerätedeck, kleine Schüssel und Gerätekasten mit Peitschenantenne auf der Deckplatte achtern,
+drei Streben vom Rand der großen Schüssel zum Sender, Querträger mit Nadelantennen an den Relaismasten, Wellenleiter
+vom Gerätedeck zum Bugemitter, Kühlrippen an den Düsen, Positionslichter an den Außenkanten der Paneele.
 """
 
 import math
 
 import palette
 import vf
-from parts import axle, beam, engine, engine_details, ring_at
-from vf import Ship, box, dish, hoop, loft, octagon, plate, post, rounded, sec, smooth, sphere, superellipse, tip, tube, wedge
+from parts import axle, beam, engine, engine_details, rail, ring_at, windows
+from vf import (Ship, box, dish, hoop, loft, octagon, plate, post, rect, rounded, sec, segment, smooth, sphere, superellipse, sweep, tip, tube,
+                wedge)
 
 RING = (0.15, 0.26, 1.79)  # Signalring: Mitte (y, z) und mittlerer Radius
 
@@ -34,6 +40,52 @@ def relay_mast(s, m, x, y, z0, z1):
     s.add(post(10, 0.11, 0.075, z0, z1), m["hull_round"], at=(x, y, 0))
     s.add(box(0.24, 0.24, 0.34), m["dark"], at=(x, y, z0 + (z1 - z0) * 0.5))
     s.add(sphere(0.09, 1), m["glow"], at=(x, y, z1 + 0.05))
+
+
+def details(s, m, deck, hub, nacelle):
+    """Kleinteile (Modulkommentar); `deck(y)` ist die Höhe des Rumpfdecks, `hub` die Achse der Schüssel (x, y, z),
+    `nacelle` die Achse der Gondeln (x, z)."""
+    roof = deck(0.3) + 0.29  # Dach des Gerätedecks
+    top = roof + 0.04  # Deckplatte darauf
+
+    # ---------------------------------------------------------------- Gerätedeck: Fensterreihen, Geländer, Leiter
+    windows(s, m, [(0.55, 0.3 + 0.12 * k, roof - 0.14) for k in range(5)])
+    windows(s, m, [(-0.2 + 0.2 * k, 1.25, roof - 0.14) for k in range(3)], out="y")
+    rail(s, m, (0.535, 0.05, roof), (0.535, 1.235, roof), 4)
+    rail(s, m, (-0.535, 1.235, roof), (0.535, 1.235, roof), 5, mirror=False)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.34), m["dark"], at=(0.42 + dx, 1.257, roof - 0.16))
+    for k in range(4):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.42, 1.257, roof - 0.28 + 0.08 * k))
+
+    # ---------------------------------------------------------------- Geräte auf der Deckplatte achtern
+    s.add(post(8, 0.03, 0.025, top - 0.02, top + 0.12), m["dark_round"], at=(0.3, 0.98, 0))
+    s.add(dish(0.11, 0.045, n=12, rings=3, thickness=0.02), m["armor_round"], at=(0.3, 0.98, top + 0.11), rot=(-40, 0, 150))
+    s.add(box(0.2, 0.24, 0.14), m["armor"], at=(-0.26, 0.95, top + 0.065))
+    s.add(post(6, 0.012, 0.006, top + 0.1, top + 0.6), m["dark_round"], at=(-0.26, 1.02, 0))
+
+    # ---------------------------------------------------------------- Große Schüssel: drei Streben vom Rand zum Sender
+    g = Ship("feed")
+    for a in (90, 210, 330):
+        x, z = 1.2 * math.cos(math.radians(a)), 1.2 * math.sin(math.radians(a))
+        g.add(segment((x, -0.68, z), (0, -1.14, 0), 0.018, 6), m["dark_round"])
+    s.place(g, at=hub, rot=(-40, 0, 0))
+    g.bm.free()
+
+    # ---------------------------------------------------------------- Relaismasten: Querträger mit Nadelantennen
+    for x, y, z in ((-0.5, 1.35, 2.02), (0.5, -1.95, 1.32)):
+        s.add(box(0.34, 0.035, 0.035), m["hull"], at=(x, y, z))
+        for dx in (-0.15, 0.15):
+            s.add(post(6, 0.01, 0.005, z, z + 0.3), m["dark_round"], at=(x + dx, y, 0))
+
+    # ---------------------------------------------------------------- Wellenleiter vom Gerätedeck zum Bugemitter
+    s.add(sweep([(0.2, y, deck(y) + 0.02) for y in (-0.5, -1.75, -2.48)], rect(0.06, 0.05)), m["dark"])
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen, Lichter an den Paneelen
+    for t in (0.37, 0.44):
+        y = 1.5 + 0.6 * t
+        s.add(tube(10, 0.274, 0.274, y, y + 0.022, *nacelle), m["steel"], mirror=True)
+    s.add(sphere(0.035, 1), m["glow"], at=(2.27, 1.15, 0.445), mirror=True)
 
 
 def build():
@@ -110,4 +162,5 @@ def build():
     s.add(box(0.46, 0.8, 0.22), m["dark"], at=(0.9, 0.55, gz - 0.02), mirror=True)
     engine(s, m, 0.24, 1.5, 2.1, dx=gx, dz=gz, n=14, mirror=True)
     engine_details(s, m, 0.24, 1.5, 2.1, dx=gx, dz=gz, n=14, mirror=True)
+    details(s, m, deck, (0, my, hub), (gx, gz))
     return s.finish()

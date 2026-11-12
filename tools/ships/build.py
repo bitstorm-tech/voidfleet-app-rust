@@ -1,6 +1,6 @@
 """Baut die Schiffe und exportiert sie nach assets/models/ships/<id>.glb, dazu ihre Wrackteile (wreck.py) nach
 <id>_wreck.glb (nicht für die Geschosse, fleet.PROJECTILES). Vor dem Export bekommt jedes Schiff seine UVs und die Maske der Verwitterung (weather.py, gebacken oder
-aus dem Cache); die Stücke des Wracks erben beides.
+aus dem Cache); die Stücke des Wracks erben die UVs und nennen statt des Bilds das Schiff (weather.share).
 
 Headless:   <blender> -b --factory-startup -P tools/ships/build.py -- [ids...]
             <blender> ist auf dem Mac /Applications/Blender.app/Contents/MacOS/Blender, auf dem Linux-Server ohne GPU
@@ -50,6 +50,7 @@ def build_all(ids=None):
         pieces = [] if ship_id in fleet.PROJECTILES else wreck.build(obj)
         wreck_path = os.path.join(OUT_DIR, f"{ship_id}_wreck.glb")
         if pieces:
+            weather.share(obj)
             vf.export_glb(pieces, wreck_path)
         shells = vf.bad_shells(obj) + [shell for piece in pieces for shell in vf.bad_shells(piece)]
         report[ship_id] = {**vf.stats(obj), "kb": os.path.getsize(path) / 1024, "loose": vf.loose_parts(obj), "shells": shells,

@@ -1,5 +1,5 @@
-"""Wächter (Boss von Sektor 2): unbewegliche automatische Verteidigungsstation, Schlachtschiff-Palette, Clean Toon,
-detailreiche Fassung nach der Iron Dreadnought (docs/stilregeln.md).
+"""Wächter (Boss von Sektor 2): unbewegliche automatische Verteidigungsstation, Schlachtschiff-Palette, detailreiche
+Fassung nach der Iron Dreadnought (docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Kein Schiff, also keine Düsen: ein runder Stationskern mit Kragen, um ihn ein waagrechter Schildring aus vier Segmenten
 auf dunklen Streben, mit Lichtband und stahlblauen Emitterblöcken. Vorn, durch die Lücke im Ring, das eine riesige
@@ -19,14 +19,20 @@ vor und hinter der Deckplatte, Flanken des Geschützgehäuses, Energieblock):
 - Unterseite: Bodenplatte mit zweiter Lage, Ankerflansch und Ankerdorn, Plattenlage und Lafettenkiel unter dem
   Geschützgehäuse
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought; Wartungstechnik statt Fenster, die Station hat keine Besatzung):
+Kühlrippen am Kühlmantel, Kühlmittelleitungen von den Ladebänken zum Kühlmantel, Flak an den Ecken der Deckplatte,
+Geländer an ihren Kanten und an den Andockstegen, Peitschenantennen auf der Kappe und den Emitterblöcken, Schüssel und
+Gerätekasten hinter dem Sensorkopf, Kühlrippen am Energieblock, Sonden unter der Bodenplatte, Positionslichter an den
+Andockflanschen und am Heck.
 """
 
 import math
 
 import palette
 import vf
-from parts import beam, bellows, ring_at, vent
-from vf import Ship, box, flank, grow, loft, octagon, plate, post, rect, sec, smooth, sphere, superellipse, sweep, tube
+from parts import beam, bellows, flak, rail, ring_at, vent
+from vf import Ship, box, dish, flank, grow, loft, octagon, pipe, plate, post, rect, sec, smooth, sphere, superellipse, sweep, tube
 
 ZC = 0.5  # Höhe der Kernmitte und des Rings
 RING = (2.55, 3.0)  # Innen- und Außenradius des Rings
@@ -52,6 +58,51 @@ def polar(r, a, z=0.0):
 def flank_at(rings, y, z, dx=0.03):
     """Punkt auf der Steuerbordflanke des Kerns bei (y, z), um dx nach außen versetzt."""
     return flank([ring_at(rings, y)], z, dx)[0]
+
+
+def details(s, m, top):
+    """Kleinteile (Modulkommentar); `top` ist die Bezugshöhe des Sensorkopfs."""
+    rim, lid = ZC + 1.52, ZC + 1.56  # Rand und zweite Lage der Deckplatte (Oberseiten)
+
+    # ---------------------------------------------------------------- Hauptgeschütz: Kühlrippen am Kühlmantel,
+    # Kühlmittelleitungen von den Ladebänken über das Gehäuse an den Mantel
+    for y in (-4.55, -4.35, -4.15, -3.95):
+        s.add(tube(20, 0.77, 0.77, y, y + 0.04, dz=ZC), m["armor_round"])
+    s.add(pipe([(1.05, -3.2, 1.14), (1.05, -3.45, 1.14), (0.567, -3.8, ZC + 0.476), (0.567, -4.6, ZC + 0.476)], 0.035, 6), m["steel"],
+          mirror=True)
+
+    # ---------------------------------------------------------------- Deckplatte: Flak an den Ecken, Geländer an der
+    # Vorderkante und den Fasen, Schüssel und Gerätekasten mit Nadel achtern
+    for y, yaw in ((-0.98, 35), (0.98, 145)):
+        flak(s, m, (0.78, y, lid), yaw)
+    rail(s, m, (-0.75, -1.31, rim), (0.75, -1.31, rim), 5, mirror=False)
+    for side in (-1, 1):
+        rail(s, m, (1.12, side * 0.92, rim), (0.775, side * 1.324, rim), 3)
+    s.add(post(8, 0.03, 0.025, lid - 0.02, lid + 0.14), m["dark_round"], at=(-0.4, 1.14, 0))
+    s.add(dish(0.14, 0.05, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.4, 1.14, lid + 0.13), rot=(-40, 0, 180))
+    s.add(box(0.16, 0.14, 0.12), m["armor"], at=(0.4, 1.14, lid + 0.055))
+    s.add(post(6, 0.012, 0.006, lid + 0.1, lid + 0.5), m["dark_round"], at=(0.4, 1.14, 0))
+
+    # ---------------------------------------------------------------- Peitschenantennen: Kappe des Sensorkopfs,
+    # Emitterblöcke
+    s.add(post(6, 0.012, 0.005, top + 0.5, top + 1.2), m["dark_round"], at=(0.3, 0.25, 0), mirror=True)
+    for a in (45, 315):
+        x, y, _ = polar(3.05, a)
+        s.add(post(6, 0.012, 0.005, ZC + 0.28, ZC + 0.75), m["dark_round"], at=(x, y, 0), mirror=True)
+
+    # ---------------------------------------------------------------- Andockstege: Geländer, Positionslicht am Flansch
+    for y in (-0.13, 0.13):
+        rail(s, m, (1.92, y, ZC + 0.15), (2.34, y, ZC + 0.15), 3)
+    s.add(sphere(0.035, 1), m["glow"], at=(2.45, 0, ZC + 0.41), mirror=True)
+
+    # ---------------------------------------------------------------- Energieblock: Kühlrippen an den Flanken, Hecklicht
+    for y in (2.45, 2.6, 2.75, 2.9):
+        s.add(box(0.16, 0.03, 0.6), m["armor"], at=(0.86, y, ZC), mirror=True)
+    s.add(sphere(0.035, 1), m["glow"], at=(0, 3.58, ZC + 0.44))
+
+    # ---------------------------------------------------------------- Sonden unter der Bodenplatte
+    for y in (-0.75, 0.75):
+        s.add(post(6, 0.006, 0.012, -1.38, -1.15), m["dark_round"], at=(0.55, y, 0), mirror=True)
 
 
 def build():
@@ -144,4 +195,5 @@ def build():
     s.add(plate(grow(octagon(2.0, 2.4), -0.13), 0.07, "xy"), m["hull"], at=(0, 0, -1.135))
     s.add(post(24, 0.62, 0.62, -1.26, -1.15), m["armor_round"])
     s.add(post(16, 0.5, 0.0, -1.24, -1.39), m["dark_round"])
+    details(s, m, top)
     return s.finish()

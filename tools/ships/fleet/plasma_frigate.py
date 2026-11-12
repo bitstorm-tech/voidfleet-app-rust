@@ -1,5 +1,5 @@
-"""Plasma Frigate (Kreuzer, im Spiel der Plasmakreuzer) im Clean-Toon-Stil, detailreiche Fassung nach der Iron
-Dreadnought.
+"""Plasma Frigate (Kreuzer, im Spiel der Plasmakreuzer), detailreiche Fassung nach der Iron Dreadnought
+(docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Primärformen: gedrungener runder Rumpf, dessen Bug die Plasmakanone ist: dunkler Lagerkragen, Stahllauf mit drei breiten
 violetten Leuchtringen, Mündung mit Plasmakern. Vier runde Gondeln an kurzen Trägern, je mit Nase in Kornblumenblau und
@@ -15,16 +15,72 @@ bleiben; dazwischen ruhige Flächen (Rumpfflanken vor und hinter dem Tragring, R
 - Unterseite: Kinn mit der Kondensatorbank der Kanone und Lüfter nach vorn, aus dem der Kiel wächst; Tragring und
   Schellen laufen unten durch
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern an der Brücke und an der Wand des
+Rückendecks, Flak vor der Brücke, Geländer, Leiter, Querträger mit Nadelantennen am Mast, Schüssel und Gerätekasten auf
+dem Brückendach, Leitungen vom Rückendeck in den Reaktor, Kisten, vier Leitungen am Lauf der Kanone unter den
+Leuchtringen, Zieloptik auf dem Lagerkragen, Kühlrippen an allen sechs Düsen, Positionslichter an den oberen Gondeln.
 """
+
+import math
 
 import palette
 import vf
 from mathutils import Vector
-from parts import engine, engine_details, ring_at, vent
-from vf import Ship, box, loft, octagon, plate, post, revolve, sec, smooth, sphere, superellipse, tip, tube, wedge
+from parts import engine, engine_details, flak, rail, ring_at, vent, windows
+from vf import Ship, box, dish, loft, ngon, octagon, plate, post, revolve, sec, smooth, sphere, superellipse, sweep, tip, tube, wedge
 
 GX = 1.27  # Gondeln: Abstand zur Mittelachse
 GZ = (0.43, -0.43)  # Gondeln: Höhen der Achsen
+
+
+def details(s, m):
+    """Kleinteile (Modulkommentar)."""
+    deck, roof = 0.68, 0.99  # Rückendeck und Dach der Brücke
+
+    # ---------------------------------------------------------------- Fensterreihen: Brücke, Wand des Rückendecks
+    windows(s, m, [(0.35, -0.75 + 0.12 * k, 0.84) for k in range(4)])
+    windows(s, m, [(-0.15 + 0.15 * k, -0.25, 0.84) for k in range(3)], out="y")
+    windows(s, m, [(0.46, -1.3 + 0.12 * k, 0.585) for k in range(5)])
+
+    # ---------------------------------------------------------------- Flak vor der Brücke
+    flak(s, m, (0.18, -1.4, deck), 15)
+
+    # ---------------------------------------------------------------- Brücke: Geländer, Leiter, Antennen, Schüssel, Kasten
+    rail(s, m, (0.335, -0.8, roof), (0.335, -0.265, roof), 3)
+    rail(s, m, (-0.335, -0.265, roof), (0.335, -0.265, roof), 4, mirror=False)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.32), m["dark"], at=(0.27 + dx, -0.243, 0.835))
+    for k in range(4):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.27, -0.243, 0.72 + 0.08 * k))
+    s.add(box(0.44, 0.04, 0.04), m["hull"], at=(0, -0.5, 1.34))
+    s.add(post(6, 0.012, 0.006, 1.32, 1.72), m["dark_round"], at=(0.2, -0.5, 0), mirror=True)
+    s.add(post(8, 0.03, 0.025, roof - 0.02, roof + 0.12), m["dark_round"], at=(-0.23, -0.38, 0))
+    s.add(dish(0.1, 0.04, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.23, -0.38, roof + 0.11), rot=(-40, 0, 150))
+    s.add(box(0.12, 0.16, 0.1), m["armor"], at=(0.22, -0.4, roof + 0.045))
+
+    # ---------------------------------------------------------------- Rückendeck: Leitungen in den Reaktor, Kisten
+    for x in (-0.22, -0.29):
+        s.add(sweep([(x, -0.3, deck + 0.02), (x, 0.8, deck + 0.02), (x, 1.02, deck + 0.12)], ngon(6, 0.025)), m["steel"])
+    s.add(box(0.18, 0.22, 0.13), m["armor"], at=(0.2, 0.66, deck + 0.06))
+    s.add(box(0.14, 0.16, 0.1), m["dark"], at=(0.24, 0.47, deck + 0.045))
+
+    # ---------------------------------------------------------------- Kanone: Leitungen am Lauf, Zieloptik auf dem Kragen
+    for a in (45, 135, 225, 315):
+        dx, dz = 0.315 * math.cos(math.radians(a)), 0.315 * math.sin(math.radians(a))
+        s.add(tube(6, 0.022, 0.022, -3.97, -2.84, dx, dz), m["dark_round"])
+    s.add(box(0.12, 0.2, 0.08), m["armor"], at=(0, -2.72, 0.46))
+    s.add(box(0.07, 0.02, 0.045), m["dark"], at=(0, -2.825, 0.465))
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen (Gondeln und Heck)
+    for r, y0, dx, heights in ((0.26, 1.65, GX, GZ), (0.3, 2.4, 0.42, (-0.1,))):
+        for dz in heights:
+            for t in (0.37, 0.44):
+                y = y0 + 0.65 * t
+                s.add(tube(10, r * 1.14, r * 1.14, y, y + 0.025, dx, dz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter an den oberen Gondeln
+    s.add(sphere(0.03, 1), m["glow"], at=(GX + 0.34, 0.25, GZ[0]), mirror=True)
 
 
 def build():
@@ -84,4 +140,5 @@ def build():
     # Zwei Heckdüsen, so weit nach achtern, dass ihr Gehäusesegment hinter dem Heck liegt
     engine(s, m, 0.3, 2.4, 3.05, dx=0.42, dz=-0.1, n=16, mirror=True)
     engine_details(s, m, 0.3, 2.4, 3.05, dx=0.42, dz=-0.1, n=16, mirror=True)
+    details(s, m)
     return s.finish()

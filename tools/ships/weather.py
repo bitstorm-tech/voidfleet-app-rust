@@ -80,9 +80,6 @@ def apply(obj):
     toon = [m for m in obj.data.materials if vf.spec(m)["kind"] == "toon"]
     if not toon or grade <= 0:
         return None
-    if obj.name in look.WEATHER_DENSITIES:  # vor dem Hash, der den Vertrag abdeckt
-        for mat in toon:
-            mat["vf"]["density"] = look.WEATHER_DENSITIES[obj.name]
     started = time.time()
     size, density = unwrap(obj)
     path = os.path.join(CACHE, f"{obj.name}-{fingerprint(obj, size)}.png")
@@ -107,12 +104,11 @@ def unwrap(obj):
         mesh.uv_layers.remove(mesh.uv_layers[0])
     mesh.uv_layers.new(name="UVMap")
     area = sum(p.area for p in mesh.polygons)
-    target = look.WEATHER_DENSITIES.get(obj.name, look.WEATHER_DENSITY)
-    size = _round_size(target * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
+    size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
     for _ in range(2):
         _smart_project(obj, MARGIN / size)
         uv_area = _uv_area(mesh)
-        size = _round_size(target * math.sqrt(area / uv_area))
+        size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / uv_area))
     return size, size * math.sqrt(uv_area / area)
 
 
@@ -201,6 +197,17 @@ def attach(mat, image):
     links.new(texture.outputs["Color"], vf._socket(multiply.inputs, "A_Color"))
     vf._socket(multiply.inputs, "B_Color").default_value = bsdf.inputs["Base Color"].default_value
     links.new(vf._socket(multiply.outputs, "Result_Color"), bsdf.inputs["Base Color"])
+
+
+def share(obj):
+    """Fürs Wrack von `obj`: nimmt die Maske von den toon-Materialien und nennt im Vertrag stattdessen das Schiff
+    (`"mask": <id>`). Die Stücke behalten ihre UVs; der Client nimmt das Bild aus dem GLB des Schiffs, statt dieselbe
+    Maske zweimal im Speicher zu halten. Erst nach dem Export des Schiffs aufrufen."""
+    for mat in obj.data.materials:
+        if image_of(mat):
+            for node in [n for n in mat.node_tree.nodes if n.name.startswith("VF Weather")]:
+                mat.node_tree.nodes.remove(node)
+            mat["vf"]["mask"] = obj.name
 
 
 def image_of(mat):

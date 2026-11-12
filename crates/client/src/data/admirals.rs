@@ -5,7 +5,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId, FlagshipId};
 
 use super::FileKey;
-use crate::assets::Preload;
+use crate::assets::{Preload, gpu_image};
 
 /// Asset-Pfad des Porträts.
 pub fn portrait_path(admiral: AdmiralId) -> String {
@@ -37,7 +37,12 @@ impl FromWorld for AdmiralPortraits {
         Self(
             ADMIRAL_IDS
                 .into_iter()
-                .map(|admiral| (admiral, preload.track(server.load(portrait_path(admiral)))))
+                .map(|admiral| {
+                    (
+                        admiral,
+                        preload.track(gpu_image(&server, portrait_path(admiral))),
+                    )
+                })
                 .collect(),
         )
     }

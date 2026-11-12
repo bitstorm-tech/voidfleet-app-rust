@@ -1,5 +1,5 @@
-"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), im Clean-Toon-Stil in der detailreichen Fassung
-(docs/stilregeln.md).
+"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), detailreiche Fassung nach docs/stilregeln.md, mit Kleinteilen
+für den dreckigen Look.
 
 Fliegende Festung: breiter Kastenrumpf auf einem gestuften Sockel mit Kiel, davor ein Keilbug, drei Terrassendecks mit
 goldener Zierlinie und Panzerschürzen in Bernstein. Am Bug eine zurückgeneigte Schildwand im Bogen aus ebenen Facetten
@@ -17,6 +17,11 @@ mit Schürze und Fensterband, Deck um das Wappen, Flächen des Bergfrieds):
 - Achterdeck und Heck: Maschinenlüfter über den Düsen, RCS an den hinteren Rumpfecken, Gehäusesegment und Düsenkranz je
   Düse (`parts.engine_details`)
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern am Bergfried, an der Wand des
+obersten Decks und an der Heckwand, Geländer um die Krone, am obersten Deck und am Sockel, Leiter an der Heckwand, Flak
+auf dem Bugsims, der mittleren Terrasse und dem Achterdeck, Peitschenantennen, Schüssel und Gerätekasten am Bergfried,
+Rohrleitungen vom Eckturm mit Anschlusskasten, Kisten, Luken, Kühlrippen an den Düsen, Positionslichter.
 """
 
 import math
@@ -24,8 +29,8 @@ import math
 from mathutils import Vector
 
 import vf
-from parts import badge, engine, engine_details, rcs, sym, trim_line, trim_loop, vent
-from vf import Ship, box, crystal, grow, keel, loft, octagon, plate, post, rect, sec, sphere, sweep, tube, wedge
+from parts import badge, beam, engine, engine_details, flak, rail, rcs, sym, trim_line, trim_loop, vent, windows
+from vf import Ship, box, crystal, dish, grow, keel, loft, octagon, pipe, plate, post, rect, sec, segment, sphere, sweep, tube, wedge
 
 # Schildwand: ein Bogen vom Radius WALL_R um den Bug, aus ebenen, senkrechten Facetten zwischen den Stützstellen WALL_X;
 # in ihrer Baugruppe liegt die Vorderfläche bei y = wall_y(x), eingebaut wird sie bei WALL_AT, um WALL_LEAN Grad nach
@@ -148,6 +153,71 @@ def gate(s, m, mat, at, w, h, rot, mirror=False):
     g.bm.free()
 
 
+def details(s, m, ky):
+    """Kleinteile (Modulkommentar); `ky` ist die Achse des Bergfrieds."""
+
+    def keep(z):
+        """Abstand der Wandflächen des Bergfrieds von seiner Achse in Höhe z (er verjüngt sich nach oben)."""
+        return (0.86 - 0.08 * (z - 2.5) / 1.2) * math.cos(math.radians(22.5))
+
+    # ---------------------------------------------------------------- Bergfried: Fenster, Geländer um die Krone, Antennen
+    four = (-0.18, -0.06, 0.06, 0.18)
+    for z in (3.12, 3.36):
+        windows(s, m, [(keep(z), ky + d, z) for d in four])
+        windows(s, m, [(d, ky + keep(z), z) for d in four], out="y")
+    corners = [(1.06 * math.cos(a), ky + 1.06 * math.sin(a)) for a in (math.radians(22.5 + 45 * k) for k in range(8))]
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+        s.add(beam((ax, ay, 4.24), (bx, by, 4.24), 0.014, 0.014), m["dark"])
+        for x, y in ((ax, ay), ((ax + bx) / 2, (ay + by) / 2)):
+            s.add(box(0.014, 0.014, 0.1), m["dark"], at=(x, y, 4.195))
+    s.add(post(6, 0.014, 0.006, 4.33, 4.92), m["dark_round"], at=(0.36, ky - 0.12, 0), mirror=True)
+    s.add(segment((0.4, ky + 0.98, 4.12), (0.5, ky + 1.5, 4.72), 0.012, 6), m["dark_round"], mirror=True)
+    # Sockel: Schüssel backbord (zeigt nach achtern außen), Gerätekasten mit Nadel steuerbord
+    s.add(post(8, 0.03, 0.025, 2.49, 2.65), m["dark_round"], at=(-1.02, ky - 0.15, 0))
+    s.add(dish(0.13, 0.05, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-1.02, ky - 0.15, 2.64), rot=(-40, 0, -150))
+    s.add(box(0.14, 0.2, 0.12), m["armor"], at=(1.02, ky - 0.15, 2.57))
+    s.add(post(6, 0.012, 0.006, 2.61, 3.0), m["dark_round"], at=(1.02, ky - 0.09, 0))
+
+    # ---------------------------------------------------------------- Heckwand (Decks und Sockel bündig bei y 3,85)
+    for z in (1.93, 2.3):
+        windows(s, m, [(sx * (0.3 + 0.2 * k), 3.85, z) for sx in (-1, 1) for k in range(4)], out="y")
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 1.0), m["dark"], at=(dx, 3.857, 2.0))
+    for k in range(12):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0, 3.857, 1.56 + 0.08 * k))
+    rail(s, m, (-1.15, 3.8, 2.51), (1.15, 3.8, 2.51), 7, mirror=False)
+
+    # ---------------------------------------------------------------- Oberstes Deck: Fenster in der Wand, Geländer, Luken
+    windows(s, m, [(1.55, y + 0.12 * k, 1.93) for y in (-1.5, -0.1) for k in range(6)])
+    rail(s, m, (1.5, -1.9, 2.06), (1.5, -0.3, 2.06), 5)
+    rail(s, m, (1.5, 0.5, 2.06), (1.5, 3.1, 2.06), 7)
+    s.add(box(0.3, 0.36, 0.04), m["hull"], at=(0.85, 0.75, 2.07), mirror=True)
+
+    # ---------------------------------------------------------------- Flak: Bugsims, mittlere Terrasse, Achterdeck
+    for at, yaw in (((0.45, -5.25, 0.585), 15), ((1.95, -1.25, 1.8), 50), ((1.95, 0.35, 1.8), 100), ((1.75, 4.0, 1.5), 150)):
+        flak(s, m, at, yaw)
+
+    # ---------------------------------------------------------------- Mittlere Terrasse: Rohre vom Eckturm, Kasten, Kisten
+    for x, (ex, ey) in ((1.62, (1.8, 2.7)), (1.69, (1.84, 2.62))):
+        s.add(pipe([(x, 1.1, 1.828), (x, ey - 0.25, 1.828), (ex, ey, 1.828)], 0.028, 6), m["steel"], mirror=True)
+    s.add(box(0.22, 0.24, 0.14), m["armor"], at=(1.66, 1.0, 1.87), mirror=True)
+    s.add(box(0.22, 0.2, 0.14), m["armor"], at=(-2.0, 0.95, 1.87))
+    s.add(box(0.2, 0.22, 0.16), m["dark"], at=(-2.0, 1.2, 1.88))
+    s.add(box(0.14, 0.14, 0.1), m["armor"], at=(-2.0, 1.19, 2.01))
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen
+    for dx in (0.0, 1.15):
+        for y in (4.63, 4.69, 4.75):
+            s.add(tube(12, 0.57, 0.57, y, y + 0.03, dx, 0.45), m["steel"], mirror=dx > 0)
+    for y in (4.12, 4.17, 4.22):
+        s.add(tube(10, 0.342, 0.342, y, y + 0.025, 2.05, 1.0), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter: Tortürme, hintere Deckecken, Heck
+    s.add(sphere(0.035, 1), m["glow"], at=(3.09, GATE[1], 0.9), mirror=True)
+    s.add(sphere(0.035, 1), m["glow"], at=(2.83, 3.28, 1.51), mirror=True)
+    s.add(sphere(0.035, 1), m["glow"], at=(0, 4.44, 1.36))
+
+
 def build():
     s = Ship("bastion")
     m = vf.materials(s.name, "battleship")
@@ -253,4 +323,5 @@ def build():
         engine_details(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, mirror=dx > 0)
     engine(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
     engine_details(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
+    details(s, m, ky)
     return s.finish()

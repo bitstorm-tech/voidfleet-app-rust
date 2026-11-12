@@ -22,8 +22,7 @@ struct ToonMaterial {
     surface: vec4<f32>,
     // rgb: Farbe der Überlagerung (Treffer-Blitz, Warp, Verdunkeln), a: ihr Anteil
     overlay: vec4<f32>,
-    // x: Maske der Verwitterung an (1) oder aus (0), y: log2(Dichte der Maske / 32), verschiebt FINE_LOD für Schiffe
-    // mit dichterer Maske
+    // x: Maske der Verwitterung an (1) oder aus (0)
     weather: vec4<f32>,
 }
 
@@ -51,7 +50,7 @@ const FLASH_HIGH: f32 = 6.0;
 const FLASH_LIFT: f32 = 0.22;
 // Verwitterung aus der Maske `<id>_weather` (`tools/ships/weather.py`): R Schmutz, G Kantenabrieb, B Plattenton,
 // A Fugen; Farben wirken als Faktor. Schmutz und Ruß setzen als Verlauf ein (von x bis y), den ein Korn aufbricht: Die
-// Maske hat nur 32 bis 64 Texel je Einheit, ohne Korn wäre der Rand in der Nahaufnahme Nebel.
+// Maske hat nur 64 Texel je Einheit, ohne Korn wäre der Rand in der Nahaufnahme Nebel.
 const PLATE_TONE: f32 = 0.14;
 // Fuge: harte Rille unter SEAM_STEP mit Helligkeit SEAM_DARK, darum eine weiche Schulter (Reichweite x auf Kanal A,
 // Helligkeit y an der Rille).
@@ -70,8 +69,8 @@ const WEAR_LIFT: f32 = 1.6;
 // stark fleckt es die offene Fläche.
 const GRAIN: vec2<f32> = vec2<f32>(0.3, 0.3);
 const MOTTLE: f32 = 0.12;
-// Harte Rille und Abrieb nach der Mip-Stufe (log2 der Texel je Pixel bei 32 Texeln je Einheit): von voll bis weg.
-const FINE_LOD: vec2<f32> = vec2<f32>(-0.6, 0.2);
+// Harte Rille und Abrieb nach der Mip-Stufe (log2 der Texel je Pixel bei 64 Texeln je Einheit): von voll bis weg.
+const FINE_LOD: vec2<f32> = vec2<f32>(0.4, 1.2);
 const LUMA: vec3<f32> = vec3<f32>(0.2126, 0.7152, 0.0722);
 
 // Harte Stufe, deren Kante über die Bildableitung geglättet ist: auf flachen Facetten exakt, auf runden Teilen ohne
@@ -138,7 +137,7 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
                 let mask = textureSample(weather_texture, weather_sampler, in.uv);
                 let texels = vec2<f32>(textureDimensions(weather_texture));
                 let footprint = max(length(dpdx(in.uv) * texels), length(dpdy(in.uv) * texels));
-                let fine = 1.0 - smoothstep(FINE_LOD.x, FINE_LOD.y, log2(footprint) - material.weather.y);
+                let fine = 1.0 - smoothstep(FINE_LOD.x, FINE_LOD.y, log2(footprint));
                 color = weathered(color, mask, light, fine, in.uv * texels, footprint);
                 gloss = max(gloss, fine * band(WEAR_STEP, mask.g)) * (1.0 - smoothstep(DIRT.x, DIRT.y, mask.r));
             }

@@ -22,6 +22,13 @@ Detailzonen mit Zweck:
   allen vier Düsen (`parts.engine_details`)
 Ruhig bleiben der Rücken der vorderen Kammer, die Taille zwischen den Kragen, die Außenwand des Moduls, die Flanken des
 Sponsons und die Brutplattform. Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`), seit der dreckige Look keine Konturringe mehr zeichnet: am Turm Einzelfenster in der unteren
+Stufe, Geländer vorn am Absatz, zwei ungleiche Peitschenantennen und eine Schüssel achtern; am Steuerbord-Modul zwei
+Flak, Fenster an Stirn und Außenwand, Geländer, Leiter, Luke, Fässer und ein lose verlegtes Kabel vom Turm an die Wand
+der Brutplattform; Geländer an beiden Längskanten der Brutplattform; Flacheisen über den Schweißnähten der Kammern;
+Kühlrippen an Beutekanone und Düsen, Staurohre am Sensorauge, Stützstreben am Sponson und an der fremden Düse,
+Peitschenantenne am Hangarmaul, Positionslichter am Heck von Sponson und Modul.
 """
 
 import math
@@ -31,8 +38,8 @@ from mathutils.bvhtree import BVHTree
 
 import palette
 import vf
-from parts import axle, beam, bellows, engine, engine_details, on_surface, ring_at, turret, turret_details, vent
-from vf import Ship, box, grow, hoop, loft, ngon, plate, post, rbox, sec, segment, smooth, superellipse, sweep, tube, wedge
+from parts import axle, beam, bellows, engine, engine_details, flak, on_surface, rail, ring_at, turret, turret_details, vent, windows
+from vf import Ship, box, dish, grow, hoop, loft, ngon, pipe, plate, post, rbox, sec, segment, smooth, sphere, superellipse, sweep, tube, wedge
 
 HEX = math.radians(30)  # Phase eines Sechsecks mit Spitze oben bzw. vorn
 
@@ -166,6 +173,82 @@ def container(s, m, at, size, mat, yaw=0.0):
     g.bm.free()
 
 
+def details(s, m, rings, tree, ty, ledge):
+    """Kleinteile (Modulkommentar); `rings` und `tree` sind der Rumpf, `ty` die Lage des Turms, `ledge` die Höhe des
+    Absatzes zwischen seinen beiden Stufen."""
+
+    def on(x, y, up):
+        """Punkt um `up` über dem Rumpf bei (x, y)."""
+        hit, _ = on_surface(tree, x, y)
+        return (x, y, hit.z + up)
+
+    def corner(a, r=0.76):
+        """Punkt auf dem Turmabsatz bei Winkel a (Grad, 0 Steuerbord, 90 achtern) im Abstand r von der Turmachse."""
+        return Vector((r * math.cos(math.radians(a)), ty + r * math.sin(math.radians(a)), ledge))
+
+    # ---------------------------------------------------------------- Turm: Fenster, Geländer vorn, Antennen und Schüssel achtern
+    for a in range(30, 360, 60):  # je Wand der unteren Stufe drei Fenster
+        n = Vector((math.cos(math.radians(a)), math.sin(math.radians(a)), 0.0))
+        for o in (-0.2, 0.0, 0.2):
+            s.add(box(0.07, 0.03, 0.045), m["window"], at=Vector((0, ty, ledge - 0.28)) + n * 0.721 + Vector((-n.y, n.x, 0.0)) * o,
+                  rot=(0, 0, a - 90))
+    rail(s, m, corner(240), corner(300), 4, mirror=False)
+    rail(s, m, corner(300).lerp(corner(0), 0.1), corner(0), 3)
+    s.add(post(6, 0.014, 0.006, ledge - 0.02, ledge + 1.15, 0.3, ty + 0.65), m["dark_round"])
+    s.add(segment((-0.3, ty + 0.65, ledge - 0.02), (-0.44, ty + 0.92, ledge + 0.75), 0.012, 6), m["dark_round"])
+    s.add(post(8, 0.03, 0.025, ledge - 0.02, ledge + 0.16, -0.57, ty + 0.33), m["dark_round"])
+    s.add(dish(0.15, 0.055, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.57, ty + 0.33, ledge + 0.15), rot=(-40, 0, -150))
+
+    # ---------------------------------------------------------------- Steuerbord-Modul: Flak, Fenster, Geländer, Leiter, Luke, Fässer
+    roof, lid = 0.3, 0.37  # Dach des Moduls, Oberseite des Schrottdeckels
+    flak(s, m, (2.55, -0.05, roof), 30, mirror=False)
+    flak(s, m, (1.74, -0.05, roof), -25, mirror=False)
+    windows(s, m, [(2.75, -0.02 + 0.12 * k, 0.1) for k in range(5)], mirror=False)
+    windows(s, m, [(2.25 + 0.14 * k, -0.25, -0.05) for k in range(3)], out="-y")
+    rail(s, m, (2.64, 0.2, roof), (2.64, 0.68, roof), 3, mirror=False)
+    rail(s, m, (2.72, 1.8, lid), (2.72, 3.25, lid), 5, mirror=False)
+    for dy in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.9), m["dark"], at=(2.757, 3.1 + dy, -0.25))
+    for k in range(9):
+        s.add(box(0.014, 0.1, 0.014), m["dark"], at=(2.757, 3.1, -0.6 + 0.1 * k))
+    s.add(box(0.36, 0.32, 0.04), m["hull"], at=(2.2, 0.3, roof + 0.012))
+    s.add(post(8, 0.09, 0.09, lid - 0.01, lid + 0.23, 1.95, 2.25), m["rust"])
+    s.add(post(8, 0.09, 0.09, lid - 0.01, lid + 0.19, 1.92, 2.47), m["dark_round"])
+    # Kabel vom Turmsockel über die Flicken hinweg an die Wand der Brutplattform, dort entlang und hinein
+    cable = [(1.82, 1.5, 0.52), on(1.72, 1.56, 0.15), on(1.56, 1.66, 0.15), (1.43, 1.8, 1.15), (1.43, 2.9, 1.15), (1.3, 2.96, 1.15)]
+    s.add(pipe(cable, 0.035, 6), m["dark_round"])
+    for y in (2.1, 2.6):
+        s.add(box(0.07, 0.06, 0.11), m["armor"], at=(1.425, y, 1.15))
+
+    # ---------------------------------------------------------------- Brutplattform: Geländer an beiden Längskanten
+    rail(s, m, (1.36, 1.4, 1.3), (1.36, 3.1, 1.3), 6)
+
+    # ---------------------------------------------------------------- Flacheisen über den Schweißnähten der Kammern
+    for y, a0, a1 in ((-1.95, 20, 58), (-1.75, 125, 168), (0.12, 16, 74), (3.55, 20, 56)):
+        s.add(shell(rings, [(y, a0, a1), (y + 0.07, a0, a1)], lift=0.035, depth=0.05), m["steel_flat"])
+
+    # ---------------------------------------------------------------- Bug: Kühlrippen an der Beutekanone, Staurohre am Sensorauge
+    for y in (-4.44, -4.32, -4.2):
+        s.add(tube(12, 0.305, 0.305, y, y + 0.035), m["steel"], at=(0, 0, -1.0))
+    s.add(segment((0.25, -4.9, 0.0), (0.3, -5.6, 0.06), 0.014, 6), m["steel"])
+    s.add(segment((-0.25, -4.9, -0.3), (-0.31, -5.35, -0.36), 0.012, 6), m["steel"])
+
+    # ---------------------------------------------------------------- Backbord-Sponson: Stützstreben zur Taille, Antenne, Hecklicht
+    s.add(beam((-1.0, -0.2, 0.15), (-1.9, -0.35, -0.1), 0.09, 0.09), m["steel_flat"])
+    s.add(beam((-1.0, 0.15, -0.3), (-1.9, 0.0, -0.5), 0.09, 0.09), m["steel_flat"])
+    s.add(segment((-2.3, -0.64, 0.46), (-2.42, -0.95, 1.15), 0.012, 6), m["dark_round"])
+    s.add(sphere(0.04, 1), m["glow"], at=(-2.3, 4.15, -0.32))
+    s.add(sphere(0.04, 1), m["glow"], at=(2.72, 3.31, lid))
+
+    # ---------------------------------------------------------------- Heck: Kühlrippen an den Düsen, Streben der fremden Düse
+    for y in (4.85, 4.89, 4.93):
+        s.add(tube(16, 0.545, 0.545, y, y + 0.02, 0.0, 0.05), m["steel"])
+    for y in (4.65, 4.7):
+        s.add(tube(12, 0.37, 0.37, y, y + 0.02, 0.8, -0.45), m["steel"], mirror=True)
+    s.add(beam((-0.35, 4.55, 0.6), (-0.7, 4.75, 1.0), 0.07, 0.07), m["steel_flat"])
+    s.add(beam((-1.0, 4.4, 0.5), (-0.92, 4.75, 0.98), 0.07, 0.07), m["steel_flat"])
+
+
 def build():
     s = Ship("scrap_king")
     m = vf.materials(s.name, "battleship")
@@ -239,6 +322,7 @@ def build():
     s.add(hoop(6, 0.55, 0.62, 0.11), m["window"], at=(0, ty, z + 0.36))
     s.add(post(6, 0.66, 0.66, 0.0, 0.14), m["dark"], at=(0, ty, z + 0.56))
     crown(s, m, (0, ty, z + 0.62), 0.55)
+    ledge = z
 
     # ---------------------------------------------------------------- Bug: Sensorauge, Bergungsgreifer, Beutekanone
     s.add(tube(6, 0.44, 0.44, -4.97, -4.7, dz=-0.15, phase=HEX), m["dark"])
@@ -275,9 +359,9 @@ def build():
     container(s, m, (2.33, 2.14, 0.37), (0.5, 0.62, 0.4), m["rust"])
     container(s, m, (2.3, 2.92, 0.37), (0.46, 0.52, 0.34), m["scrap"], yaw=9)
     # Leitung aus der vorderen Kammer an der Taille entlang in die Stirn des Moduls, unter den Rohren des Turms
-    pipe = [(1.12, -1.66, 0.2), (1.42, -1.48, 0.22), (1.5, -1.0, 0.18), (1.58, -0.6, 0.12), (1.76, -0.32, 0.04), (1.9, -0.1, 0.0)]
-    s.add(sweep(pipe, ngon(12, 0.11)), m["dark_round"])
-    for a, b in ((pipe[2], pipe[3]), (pipe[3], pipe[4])):
+    duct = [(1.12, -1.66, 0.2), (1.42, -1.48, 0.22), (1.5, -1.0, 0.18), (1.58, -0.6, 0.12), (1.76, -0.32, 0.04), (1.9, -0.1, 0.0)]
+    s.add(sweep(duct, ngon(12, 0.11)), m["dark_round"])
+    for a, b in ((duct[2], duct[3]), (duct[3], duct[4])):
         a, b = Vector(a), Vector(b)
         mid, d = (a + b) / 2, (b - a).normalized()
         s.add(sweep([mid - d * 0.05, mid + d * 0.05], ngon(12, 0.145)), m["armor_round"])
@@ -298,4 +382,5 @@ def build():
     engine_details(s, m, 0.3, 4.3, 5.1, dx=-0.78, dz=1.15, n=16)
     # Treibstoffleitung der fremden Düse, außen an der Backbordflanke vorbei in ihr Gehäuse
     s.add(sweep([(-1.25, 3.5, 0.8), (-1.42, 3.85, 1.0), (-1.3, 4.25, 1.17), (-1.0, 4.5, 1.2)], ngon(12, 0.1)), m["dark_round"])
+    details(s, m, rings, tree, ty, ledge)
     return s.lift(0.25).finish()

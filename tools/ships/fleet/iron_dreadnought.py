@@ -21,7 +21,7 @@ Flak-Türmchen, Nadel- und Schüsselantennen, Geländer, Leiter, Rohrleitungen, 
 
 import palette
 import vf
-from parts import beam, bellows, engine, engine_details, rcs, turret, turret_details, vent
+from parts import bellows, engine, engine_details, flak, rail, rcs, turret, turret_details, vent, windows
 from vf import Ship, box, dish, grow, keel, loft, octagon, pipe, plate, post, rbox, rect, sec, segment, sphere, sweep, tube, wedge
 
 # Rumpf: Querschnitte (y, Breite, Höhe) des Keilprofils, eingefügt um HULL_Z angehoben
@@ -46,51 +46,18 @@ def bottom_z(x, y):
     return keel_z + (low - keel_z) * x / hw
 
 
-def flak(s, m, at, yaw):
-    """Zwillings-Flak, `at` auf Steuerbord und gespiegelt: Sockel, Gehäuse in der Akzentfarbe, Blende, zwei dünne Rohre
-    nach -Y, um `yaw` gedreht (positiv: nach außen)."""
-    x, y, z = at
-    s.add(post(8, 0.1, 0.09, -0.03, 0.05), m["dark_round"], at=at, mirror=True)
-    g = Ship("flak")
-    g.add(box(0.17, 0.2, 0.11), m["accent"], at=(0, 0.02, 0.055))
-    g.add(box(0.19, 0.05, 0.07), m["dark"], at=(0, -0.09, 0.05))
-    for dx in (-0.04, 0.04):
-        g.add(tube(6, 0.02, 0.016, -0.42, -0.08, dx, 0.06), m["steel"])
-    s.place(g, at=(x, y, z + 0.05), rot=(0, 0, yaw), mirror=True)
-    g.bm.free()
-
-
-def rail(s, m, a, b, posts, mirror=True, h=0.09):
-    """Geländer von a nach b (Punkte auf der Fläche): Handlauf in Höhe h auf `posts` Pfosten."""
-    (ax, ay, az), (bx, by, bz) = a, b
-    s.add(beam((ax, ay, az + h), (bx, by, bz + h), 0.014, 0.014), m["dark"], mirror=mirror)
-    for k in range(posts):
-        t = k / (posts - 1)
-        s.add(box(0.014, 0.014, h + 0.01), m["dark"], at=(ax + t * (bx - ax), ay + t * (by - ay), az + t * (bz - az) + h / 2 - 0.005),
-              mirror=mirror)
-
-
 def details(s, m, z):
     """Kleinteile (Modulkommentar); `z` ist das Dach des Aufbaus."""
     roof1, roof2 = 1.765, 2.215  # Dächer der beiden unteren Blöcke des Aufbaus
 
     # ---------------------------------------------------------------- Fensterreihen: Aufbau und Wand des Dorsaldecks
-    def side_windows(x, ys, wz):
-        for y in ys:
-            s.add(box(0.03, 0.07, 0.045), m["window"], at=(x + 0.004, y, wz), mirror=True)
-
-    def rear_windows(xs, y, wz):
-        for x in xs:
-            s.add(box(0.07, 0.03, 0.045), m["window"], at=(x, y + 0.004, wz))
-
     row = [1.86 + 0.12 * k for k in range(8)]
-    side_windows(0.85, row, 1.6)
-    side_windows(0.85, row[1::2], 1.42)
-    rear_windows([-0.6 + 0.2 * k for k in range(7)], 2.75, 1.6)
-    side_windows(0.625, [1.96 + 0.12 * k for k in range(6)], 2.03)
-    rear_windows([-0.4 + 0.2 * k for k in range(5)], 2.6, 2.03)
-    for y in [-0.3 + 0.12 * k for k in range(6)] + [1.6 + 0.12 * k for k in range(8)]:
-        s.add(box(0.03, 0.07, 0.045), m["window"], at=(0.9 + 0.2 * (y + 2.2) / 4.8 + 0.004, y, 0.99), mirror=True)
+    windows(s, m, [(0.85, y, 1.6) for y in row])
+    windows(s, m, [(0.85, y, 1.42) for y in row[1::2]])
+    windows(s, m, [(-0.6 + 0.2 * k, 2.75, 1.6) for k in range(7)], out="y")
+    windows(s, m, [(0.625, 1.96 + 0.12 * k, 2.03) for k in range(6)])
+    windows(s, m, [(-0.4 + 0.2 * k, 2.6, 2.03) for k in range(5)], out="y")
+    windows(s, m, [(0.9 + 0.2 * (y + 2.2) / 4.8, y, 0.99) for y in [-0.3 + 0.12 * k for k in range(6)] + [1.6 + 0.12 * k for k in range(8)]])
 
     # ---------------------------------------------------------------- Flak: Hauptdeck und Dach des Aufbaus
     for (x, y), yaw in (((1.6, -0.85), 30), ((1.85, -0.1), 40), ((1.85, 1.75), 140)):

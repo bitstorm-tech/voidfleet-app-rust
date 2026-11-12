@@ -20,7 +20,7 @@ use voidfleet_core::{
 use super::{AdmiralText, Condition, Messages, RulesChapter, RulesSection, SettingsTab, signed};
 use crate::{
     data::radio::RadioCue,
-    settings::{AnimationSpeed, CursorId, WindowMode},
+    settings::{AnimationSpeed, Antialiasing, CursorId, WindowMode},
 };
 
 pub struct De;
@@ -91,6 +91,19 @@ impl Messages for De {
             WindowMode::Windowed => "Fenster",
             WindowMode::Maximized => "Maximiert",
             WindowMode::Fullscreen => "Vollbild",
+        }
+    }
+
+    fn settings_antialiasing(&self) -> &'static str {
+        "Kantenglättung"
+    }
+
+    fn antialiasing(&self, level: Antialiasing) -> &'static str {
+        match level {
+            Antialiasing::Off => "Aus",
+            Antialiasing::X2 => "Zweifach",
+            Antialiasing::X4 => "Vierfach",
+            Antialiasing::X8 => "Achtfach",
         }
     }
 

@@ -1,7 +1,7 @@
-"""Gemeinsame Helfer der Schiffe im Clean-Toon-Stil: Baugruppen mit dem Materialsatz aus `vf.materials` (Turm, Düse,
-Wappenplatte, Zierlinien), Kleinteile nach dem Vorbild der Iron Dreadnought (Turm- und Düsendetails, Lüftungsgitter,
-RCS-Blöcke) und Formen, die mehrere Schiffe teilen (Profile, Streben, Walzen, Facettenblöcke, Bänder auf Lofts,
-Blendenbalg).
+"""Gemeinsame Helfer der Schiffe: Baugruppen mit dem Materialsatz aus `vf.materials` (Turm, Düse, Wappenplatte,
+Zierlinien), Kleinteile nach dem Vorbild der Iron Dreadnought (Turm- und Düsendetails, Lüftungsgitter, RCS-Blöcke,
+Flak, Geländer, Fensterreihen) und Formen, die mehrere Schiffe teilen (Profile, Streben, Walzen, Facettenblöcke, Bänder
+auf Lofts, Blendenbalg).
 
 Ein Helfer kommt erst hierher, wenn ein zweites Schiff ihn braucht; bis dahin lebt er im Modul seines Schiffs
 (fleet/<id>.py), damit parallel arbeitende Agents sich nicht in die Quere kommen. Wer hier etwas ändert, ändert alle
@@ -105,6 +105,41 @@ def rcs(s, m, at, along, size=0.28):
     for dy in (-0.07, 0.07):
         s.add(tube(8, 0.05, 0.05, -0.02, 0.02), m["dark_round"], at=(x + h, y + dy, z), rot=(0, 0, -90), mirror=True)
     s.add(tube(8, 0.05, 0.05, -0.02, 0.02), m["dark_round"], at=(x, y + along * h, z), mirror=True)
+
+
+def flak(s, m, at, yaw, mirror=True):
+    """Zwillings-Flak, `at` auf Steuerbord und gespiegelt: Sockel, Gehäuse in der Akzentfarbe, Blende, zwei dünne Rohre
+    nach -Y, um `yaw` gedreht (positiv: nach außen)."""
+    x, y, z = at
+    s.add(post(8, 0.1, 0.09, -0.03, 0.05), m["dark_round"], at=at, mirror=mirror)
+    g = Ship("flak")
+    g.add(box(0.17, 0.2, 0.11), m["accent"], at=(0, 0.02, 0.055))
+    g.add(box(0.19, 0.05, 0.07), m["dark"], at=(0, -0.09, 0.05))
+    for dx in (-0.04, 0.04):
+        g.add(tube(6, 0.02, 0.016, -0.42, -0.08, dx, 0.06), m["steel"])
+    s.place(g, at=(x, y, z + 0.05), rot=(0, 0, yaw), mirror=mirror)
+    g.bm.free()
+
+
+def rail(s, m, a, b, posts, mirror=True, h=0.09):
+    """Geländer von a nach b (Punkte auf der Fläche): Handlauf in Höhe h auf `posts` Pfosten."""
+    (ax, ay, az), (bx, by, bz) = a, b
+    s.add(beam((ax, ay, az + h), (bx, by, bz + h), 0.014, 0.014), m["dark"], mirror=mirror)
+    for k in range(posts):
+        t = k / (posts - 1)
+        s.add(box(0.014, 0.014, h + 0.01), m["dark"], at=(ax + t * (bx - ax), ay + t * (by - ay), az + t * (bz - az) + h / 2 - 0.005),
+              mirror=mirror)
+
+
+def windows(s, m, points, out="x", mirror=None):
+    """Fensterreihe aus Einzelfenstern (0,07 breit, 0,045 hoch, `window`), je eines an jedem Punkt (x, y, z) auf einer
+    senkrechten Wand. `out` ist die Seite, nach der die Wand schaut: "x" eine Flanke (gespiegelt auf beide Seiten),
+    "y" eine Rückwand, "-y" eine Stirnwand (beide ungespiegelt, außer `mirror` sagt es anders)."""
+    side = out == "x"
+    size = (0.03, 0.07, 0.045) if side else (0.07, 0.03, 0.045)
+    dx, dy = (0.004, 0.0) if side else (0.0, 0.004 if out == "y" else -0.004)
+    for x, y, z in points:
+        s.add(box(*size), m["window"], at=(x + dx, y + dy, z), mirror=side if mirror is None else mirror)
 
 
 def badge(s, m, at, outline, symbol, rim=0.08, dy=0.0):

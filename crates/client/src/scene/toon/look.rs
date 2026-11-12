@@ -18,10 +18,6 @@ pub const CONTOUR_WORLD: f32 = 0.0135;
 pub const CONTOUR_MIN: f32 = 1.0;
 pub const CONTOUR_MAX: f32 = 1.8;
 
-/// Texel der Verwitterungsmaske je Blender-Einheit (`WEATHER_DENSITY` in `look.py`); darauf beziehen sich die
-/// Schwellen `FINE_LOD` im Shader. Ein Schiff mit anderer Dichte nennt sie im Vertrag (`ToonSpec::Toon::density`).
-pub const WEATHER_DENSITY: f32 = 32.0;
-
 /// Lichter mit `glow` leuchten so viel heller als 1 und glühen dadurch im Bloom der Kamera.
 pub const GLOW_BOOST: f32 = 1.8;
 

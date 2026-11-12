@@ -4,7 +4,11 @@
 //!
 //! Jeder Katalog meldet seine Handles bei [`Preload`] an; [`LoadingProgress`] zeigt der Ladebildschirm.
 
-use bevy::{asset::UntypedAssetId, prelude::*};
+use bevy::{
+    asset::{RenderAssetUsages, UntypedAssetId},
+    image::ImageLoaderSettings,
+    prelude::*,
+};
 
 use crate::data::DataPlugin;
 
@@ -33,6 +37,17 @@ const REHEARSAL_FRAMES: u32 = 30;
 /// Alle Assets, auf die der Ladebildschirm wartet. Die Handles bleiben hier, damit nichts wieder entladen wird.
 #[derive(Resource, Default)]
 pub struct Preload(Vec<UntypedHandle>);
+
+/// Lädt ein Bild, das nur die Grafikkarte braucht (Karten, Porträts, Hintergründe): Die Kopie im Hauptspeicher fällt nach
+/// dem Hochladen weg, Größe und Format bleiben lesbar.
+pub fn gpu_image(server: &AssetServer, path: String) -> Handle<Image> {
+    server
+        .load_builder()
+        .with_settings(|settings: &mut ImageLoaderSettings| {
+            settings.asset_usage = RenderAssetUsages::RENDER_WORLD;
+        })
+        .load(path)
+}
 
 impl Preload {
     /// Meldet ein Asset an und gibt den Handle zurück.

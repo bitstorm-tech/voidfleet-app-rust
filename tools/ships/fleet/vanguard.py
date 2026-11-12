@@ -1,5 +1,5 @@
-"""Vanguard (Flaggschiff von Admiralin Vance, „der Hammer“), im Clean-Toon-Stil in der detailreichen Fassung
-(docs/stilregeln.md).
+"""Vanguard (Flaggschiff von Admiralin Vance, „der Hammer“), detailreiche Fassung nach der Iron Dreadnought
+(docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Schlanker, kantiger Kreuzer, der nach vorn drängt: Keilrumpf mit Rückgrat, goldener Zierlinie und Fensterband, davor
 der Rammbug als Speerspitze mit leuchtenden Schneiden und Panzerlage in Karmin, darunter zwei schwere Bugkanonen. An den
@@ -18,11 +18,17 @@ Panzerklingen, Rückgrat um das Wappen, Flächen der Brücke):
   (`parts.engine_details`, an der großen Düse schmaler, weil die kleinen dicht an ihr sitzen)
 - Unterseite: Spanten am V-Boden, zweite Lage unter den unteren Klingen
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern an den beiden unteren Blöcken der
+Brücke, Flak an der Deckkante neben dem Rückgrat, Munitionsluke über dem Magazin, Nadel-, Peitschen- und
+Schüsselantenne, Geländer und Leiter an der Brücke, auf dem Düsengehäuse Treibstoffleitungen zu den oberen Düsen,
+Lagerkisten und Heckgeländer, Kühlrippen an den Bugkanonen und den vier kleinen Düsen, Positionslichter an den
+Klingenspitzen und unter dem Kiel.
 """
 
 import vf
-from parts import badge, bellows, engine, engine_details, rcs, sym, trim_line, turret, turret_details, vent
-from vf import Ship, box, grow, hexagon, keel, loft, octagon, plate, post, rbox, sec, sphere, tip, tube, wedge
+from parts import badge, bellows, engine, engine_details, flak, rail, rcs, sym, trim_line, turret, turret_details, vent, windows
+from vf import Ship, box, dish, grow, hexagon, keel, loft, octagon, plate, post, rbox, sec, segment, sphere, tip, tube, wedge
 
 # Abzeichen von Admiralin Vance wie auf ihrer Uniform: Pfeilspitze mit Schaft und Fiederung, zeigt zum Bug
 PLATE = sym([(0.0, -0.85), (0.58, -0.3), (0.58, 0.52), (0.0, 0.82)])
@@ -56,6 +62,69 @@ def core_details(s, m, r, y0, y1):
     ya = y0 + 0.6 * length
     s.add(tube(20, r * 1.09, r * 1.09, y0 + 0.24 * length, y0 + 0.34 * length), m["armor_round"])
     s.add(tube(20, r * 1.04, r * 1.04, ya - 0.12 * r, ya + 0.1 * r), m["dark_round"])
+
+
+def details(s, m, top, z, gun):
+    """Kleinteile (Modulkommentar); `top` ist das Rückgrat unter den Türmen, `z` das Dach der Brücke, `gun` die Achse
+    (x, z) der Bugkanonen."""
+    roof1, roof2 = top + 0.5, top + 0.95  # Dächer der beiden unteren Blöcke der Brücke
+    plate_z = 0.83  # Panzerplatte auf dem Düsengehäuse
+
+    # ---------------------------------------------------------------- Fensterreihen an der Brücke
+    row = [2.52 + 0.13 * k for k in range(7)]
+    windows(s, m, [(0.8, y, roof1 - 0.17) for y in row])
+    windows(s, m, [(0.8, y, roof1 - 0.35) for y in row[1::2]])
+    windows(s, m, [(-0.6 + 0.2 * k, 3.4, roof1 - 0.17) for k in range(7)], out="y")
+    windows(s, m, [(0.625, 2.85 + 0.13 * k, roof2 - 0.2) for k in range(5)])
+    windows(s, m, [(-0.4 + 0.2 * k, 3.505, roof2 - 0.2) for k in range(5)], out="y")
+
+    # ---------------------------------------------------------------- Flak und Munitionsluke auf dem Deck neben dem Rückgrat
+    # Flak nur vor und hinter dem Fensterband des Rückgrats: Davor verdeckten ihre Gehäuse von der Seite das Band
+    for y, yaw, inset in ((-1.62, 25, 0.11), (2.25, 140, 0.17)):
+        _, w, h = lerp(HULL, y)
+        flak(s, m, (w / 2 - inset, y, h / 2), yaw)
+    _, w, h = lerp(HULL, 0.9)
+    s.add(box(0.2, 0.36, 0.04), m["armor"], at=(w / 2 - 0.19, 0.9, h / 2 + 0.01), mirror=True)
+
+    # ---------------------------------------------------------------- Antennen
+    s.add(post(6, 0.014, 0.006, z + 0.48, z + 0.98), m["dark_round"], at=(0.3, 3.35, 0), mirror=True)
+    s.add(segment((0.57, 3.44, roof2 - 0.02), (0.64, 3.95, roof2 + 0.75), 0.012, 6), m["dark_round"], mirror=True)
+    # Schüssel backbord, Gerätekasten mit Nadel steuerbord
+    s.add(post(8, 0.03, 0.025, roof1 - 0.02, roof1 + 0.14), m["dark_round"], at=(-0.725, 2.64, 0))
+    s.add(dish(0.11, 0.045, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.725, 2.64, roof1 + 0.13), rot=(-40, 0, 150))
+    s.add(box(0.12, 0.2, 0.12), m["armor"], at=(0.72, 2.64, roof1 + 0.06))
+    s.add(post(6, 0.012, 0.006, roof1 + 0.1, roof1 + 0.42), m["dark_round"], at=(0.72, 2.7, 0))
+
+    # ---------------------------------------------------------------- Geländer und Leiter an der Brücke
+    rail(s, m, (0.79, 2.85, roof1), (0.79, 3.38, roof1), 3)
+    wing = z - 0.255
+    rail(s, m, (0.49, 2.99, wing), (0.97, 2.99, wing), 3)
+    rail(s, m, (0.97, 2.99, wing), (0.97, 3.25, wing), 2)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.56), m["dark"], at=(0.72 + dx, 3.407, top + 0.26))
+    for k in range(6):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.72, 3.407, top + 0.05 + 0.08 * k))
+
+    # ---------------------------------------------------------------- Düsengehäuse: Treibstoffleitungen, Kisten, Geländer
+    for x in (0.78, 0.9):
+        s.add(segment((x, 3.6, plate_z + 0.028), (x, 4.375, plate_z + 0.028), 0.028, 6), m["steel"], mirror=True)
+    s.add(box(0.3, 0.16, 0.12), m["armor"], at=(0.84, 3.66, plate_z + 0.06), mirror=True)
+    s.add(box(0.22, 0.2, 0.14), m["armor"], at=(0.3, 3.74, plate_z + 0.07))
+    s.add(box(0.2, 0.22, 0.16), m["dark"], at=(-0.34, 3.75, plate_z + 0.08))
+    s.add(box(0.14, 0.14, 0.1), m["armor"], at=(-0.34, 3.74, plate_z + 0.21))
+    rail(s, m, (-0.7, 4.27, plate_z), (0.7, 4.27, plate_z), 5, mirror=False)
+
+    # ---------------------------------------------------------------- Kühlrippen an Bugkanonen und kleinen Düsen
+    gx, gz = gun
+    for y in (-3.42, -3.29, -3.16):
+        s.add(tube(12, 0.3, 0.3, y, y + 0.03), m["steel"], at=(gx, 0, gz), mirror=True)
+    for dz in (0.45, -0.45):
+        for y in (4.366, 4.4085, 4.451):
+            s.add(tube(12, 0.433, 0.433, y, y + 0.025, 0.85, dz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter
+    s.add(sphere(0.035, 1), m["glow"], at=(2.15, 3.72, 0.32), mirror=True)
+    s.add(sphere(0.035, 1), m["glow"], at=(0, 3.5, -1.05))
 
 
 def build():
@@ -160,4 +229,5 @@ def build():
         x0, x1 = 0.02, 0.74
         z0, z1 = bottom_z(x0, y), bottom_z(x1, y)
         s.add(plate([(x0, z0 + 0.04), (x1, z1 + 0.04), (x1, z1 - 0.08), (x0, z0 - 0.08)], 0.12, "xz"), m["hull"], at=(0, y, 0), mirror=True)
+    details(s, m, top, z, (gx, gz))
     return s.finish()

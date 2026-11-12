@@ -1,4 +1,5 @@
-"""Pyre (Flaggschiff von Admiralin Reyes, „die Glut“), Clean Toon in der detailreichen Fassung (docs/stilregeln.md).
+"""Pyre (Flaggschiff von Admiralin Reyes, „die Glut“), detailreiche Fassung nach docs/stilregeln.md, mit Kleinteilen
+für den dreckigen Look.
 
 Schweres, breites Schlachtschiff, das heiß wirkt. Ein Keilrumpf mit hohem Rückendeck und goldener Zierlinie, davor der
 Plasmawerfer als Bug: ein Gehäuse in Glutorange mit Fensterband, darauf ein dunkler Kühlmantel und ein Emitterkegel,
@@ -17,13 +18,18 @@ zwischen ihnen, Flanken über den Kühlkörpern, Gehäuse des Werfers, Flächen 
 - Heck: Maschinenlüfter hinter der Brücke, Gehäusesegment und Düsenkranz je Düse (`parts.engine_details`)
 - Unterseite: zweite Plattenlage unter den Schürzen
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern an der Brücke und an der Wand des
+Rückendecks, Geländer und Leiter an der Brücke, Flak auf den Schultern und dem Brückendach, Peitschenantennen, Schüssel
+und Gerätekasten, Rohre von den Tanks zur Brücke, Tankdeckel, Luke und Kisten vor der Brücke, Kühlrippen auf den
+Kühlkörpern, am Kühlmantel des Werfers und an den Düsen, Positionslichter.
 """
 
 from mathutils import Vector
 
 import vf
-from parts import axle, badge, engine, engine_details, rcs, sym, trim_line, vent
-from vf import Ship, box, grow, keel, loft, ngon, octagon, plate, post, revolve, sec, segment, sphere, sweep, tube, wedge
+from parts import axle, badge, engine, engine_details, flak, rail, rcs, sym, trim_line, vent, windows
+from vf import Ship, box, dish, grow, keel, loft, ngon, octagon, pipe, plate, post, revolve, sec, segment, sphere, sweep, tube, wedge
 
 # Rumpf: Querschnitte (y, Breite, Höhe) des Keilprofils um z = 0
 HULL = ((-3.4, 2.0, 1.1), (-2.4, 3.4, 1.5), (2.2, 3.6, 1.6), (3.9, 2.8, 1.3), (4.5, 2.0, 1.0))
@@ -56,6 +62,73 @@ def claw(m):
     g.add(axle(0.13, 0.42), m["dark_round"], at=(0, -4.6, 0.6))
     g.add(plate(CLAW_TIP, 0.34, "yz"), m["armor"])
     return g
+
+
+def details(s, m, z, by):
+    """Kleinteile (Modulkommentar); `z` ist das Dach der Brücke, `by` ihre Mitte."""
+    roof1, roof2, wing = TOP + 0.55, TOP + 1.0, z - 0.255  # Dächer der beiden unteren Keile, Oberseite der Brückenflügel
+    tx, ty, tz = TANK
+
+    # ---------------------------------------------------------------- Fensterreihen: Brücke und Wand des Rückendecks
+    row = [by - 0.14 + 0.12 * k for k in range(8)]
+    windows(s, m, [(0.9, y, roof1 - 0.215) for y in row])
+    windows(s, m, [(0.9, y, roof1 - 0.395) for y in row[1::2]])
+    windows(s, m, [(-0.6 + 0.2 * k, by + 0.75, roof1 - 0.215) for k in range(7)], out="y")
+    windows(s, m, [(0.675, by - 0.09 + 0.12 * k, roof2 - 0.185) for k in range(6)])
+    windows(s, m, [(-0.4 + 0.2 * k, by + 0.55, roof2 - 0.185) for k in range(5)], out="y")
+    # Wand des Rückendecks über der Zuleitung: vorn und neben der Brücke
+    windows(s, m, [(1.1 + 0.05 * (y + 2.3) / 5.9, y, 1.03) for y in [-2.0 + 0.12 * k for k in range(5)] + [2.9 + 0.12 * k for k in range(6)]])
+
+    # ---------------------------------------------------------------- Flak: Schultern vorn und achtern, Dach des unteren Keils
+    for (x, y), yaw in (((1.6, -1.6), 30), ((1.36, 3.15), 140)):
+        flak(s, m, (x, y, hull_at(y)[1]), yaw)
+    flak(s, m, (0.79, by + 0.22, roof1), 90)
+
+    # ---------------------------------------------------------------- Antennen
+    s.add(post(6, 0.014, 0.006, z + 0.58, z + 1.1), m["dark_round"], at=(0.4, by + 0.15, 0), mirror=True)
+    s.add(segment((0.58, by + 0.5, roof2 - 0.02), (0.66, by + 1.0, roof2 + 0.7), 0.012, 6), m["dark_round"], mirror=True)
+    # Schüssel backbord (zeigt nach achtern außen), Gerätekasten mit Nadel steuerbord
+    s.add(post(8, 0.03, 0.025, roof1 - 0.02, roof1 + 0.14), m["dark_round"], at=(-0.79, by + 0.55, 0))
+    s.add(dish(0.13, 0.05, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.79, by + 0.55, roof1 + 0.13), rot=(-40, 0, -150))
+    s.add(box(0.14, 0.2, 0.12), m["armor"], at=(0.79, by + 0.58, roof1 + 0.06))
+    s.add(post(6, 0.012, 0.006, roof1 + 0.1, roof1 + 0.5), m["dark_round"], at=(0.79, by + 0.64, 0))
+
+    # ---------------------------------------------------------------- Geländer und Leiter an der Brücke
+    rail(s, m, (0.88, by + 0.4, roof1), (0.88, by + 0.73, roof1), 3)
+    rail(s, m, (-0.88, by + 0.73, roof1), (0.88, by + 0.73, roof1), 5, mirror=False)
+    rail(s, m, (0.655, by + 0.1, roof2), (0.655, by + 0.53, roof2), 3)
+    rail(s, m, (0.45, by - 0.15, wing), (0.99, by - 0.15, wing), 3)
+    rail(s, m, (0.99, by - 0.15, wing), (0.99, by + 0.09, wing), 2)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.5), m["dark"], at=(-0.75 + dx, by + 0.757, TOP + 0.25))
+    for k in range(6):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(-0.75, by + 0.757, TOP + 0.065 + 0.08 * k))
+
+    # ---------------------------------------------------------------- Brennstoff: Rohre von den Tanks in die Brücke, Tankdeckel
+    for x, y in ((0.62, 1.47), (0.7, 1.56)):  # zwischen Tankboden und vorderem Spannband
+        s.add(pipe([(1.1, y, TOP + 0.028), (x, y, TOP + 0.028), (x, by - 0.63, TOP + 0.028)], 0.028, 6), m["steel"], mirror=True)
+    s.add(post(8, 0.07, 0.07, tz + 0.27, tz + 0.34), m["dark_round"], at=(tx, ty, 0), mirror=True)
+    # Luke und Lagerkisten vor der Brücke
+    s.add(box(0.36, 0.3, 0.04), m["armor"], at=(0, 1.5, TOP + 0.01))
+    s.add(box(0.22, 0.2, 0.14), m["armor"], at=(-0.3, by - 0.86, TOP + 0.07))
+    s.add(box(0.2, 0.22, 0.16), m["dark"], at=(0.32, by - 0.87, TOP + 0.08))
+    s.add(box(0.14, 0.14, 0.1), m["armor"], at=(0.32, by - 0.87, TOP + 0.21))
+
+    # ---------------------------------------------------------------- Kühlrippen: Kühlkörper, Kühlmantel des Werfers, Düsen
+    for y0 in (-0.62, 0.32, 1.28):  # je drei zwischen den Glutschlitzen
+        for dy in (-0.1, 0.0, 0.1):
+            s.add(box(0.26, 0.03, 0.07), m["armor"], at=(1.92, y0 + dy, 0.48), mirror=True)
+    for y in (-4.24, -4.12, -4.0):  # ohne Glanz: die Ringflächen schauen in `hero` zur Kamera
+        r = 0.7 - 0.08 * (y + 4.4) / 0.65 + 0.035
+        s.add(tube(20, r, r, y, y + 0.04, dz=PZ), m["armor_round"])
+    for r, ys, dx, dz, mirror in ((0.52, (4.742, 4.78, 4.818), 0.0, 0.25, False), (0.4, (4.675, 4.705, 4.735), 0.95, 0.15, True)):
+        for y in ys:
+            s.add(tube(12, r * 1.14, r * 1.14, y, y + 0.02, dx, dz), m["steel"], mirror=mirror)
+
+    # ---------------------------------------------------------------- Positionslichter: Brückenflügel, Kühlkörper achtern, Heck
+    s.add(sphere(0.03, 1), m["glow"], at=(1.0, by - 0.03, z - 0.225), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(2.04, 2.28, 0.46), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(0, 4.64, 0.81))
 
 
 def build():
@@ -143,4 +216,5 @@ def build():
     for r, y1, dx, dz, mirror in ((0.52, 5.35, 0.0, 0.25, False), (0.4, 5.15, 0.95, 0.15, True)):
         engine(s, m, r, 4.4, y1, dx=dx, dz=dz, mirror=mirror)
         engine_details(s, m, r, 4.4, y1, dx=dx, dz=dz, mirror=mirror)
+    details(s, m, z, by)
     return s.finish()

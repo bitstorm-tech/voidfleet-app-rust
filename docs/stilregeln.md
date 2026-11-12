@@ -4,10 +4,8 @@ Der Look ist „Used Future“: dunkle, kantige, abgenutzte Schiffe. Das Spiel z
 Verwitterung aus der Maske, ein paar leuchtende Akzente und keine Konturen (`assets/shaders/toon.wesl`). Referenz ist
 die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär- und
 Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind, dazu Kleinteile, die den Maßstab zeigen (Fenster, Flak,
-Antennen, Geländer). Die Kleinteile tragen bisher nur die Dreadnought und der Void Interceptor (`details` in ihren
-Modulen); die übrigen Schiffe, die das Spiel lädt, sind noch nach den Regeln des früheren Clean-Toon-Looks gebaut und
-bekommen sie mit ihrem nächsten Umbau. Hive, Mirage, Drohne, Repair Drone und Trugbild (im PvE-Run unbenutzt) stehen
-noch in der groben Fassung.
+Antennen, Geländer). Die Kleinteile tragen alle Schiffe, die das Spiel lädt (`details` in ihren Modulen). Hive, Mirage,
+Drohne, Repair Drone, Trugbild und der Entwurf Broadside (im PvE-Run unbenutzt) stehen noch ohne sie da.
 
 Die Schiffe baut `tools/ships/` in Blender (`just ships`, `just ship-preview`); Dateinamen ohne Verzeichnis auf dieser
 Seite (`build.py`, `fleet/<id>.py`, `renders/<id>/`) liegen dort.
@@ -26,7 +24,8 @@ das Spiel (unten, „Prüfung“). Vor einem Umbau die Kontaktbögen ansehen (`p
 - `build()` beginnt mit `m = vf.materials(s.name, "<klasse>")` und endet mit `return s.finish()`.
 - Gemeinsame Helfer in `parts.py`: Baugruppen `turret`, `engine` (`n` Segmente für kleine Düsen), `badge` (Wappenplatte
   der Flaggschiffe), `trim_loop`, `trim_line`, `on_surface`; Kleinteile `turret_details` und `engine_details` (mit
-  denselben Argumenten wie `turret` bzw. `engine` aufrufen), `vent` (Lüftungsgitter), `rcs` (Steuerdüsenblock); Formen
+  denselben Argumenten wie `turret` bzw. `engine` aufrufen), `vent` (Lüftungsgitter), `rcs` (Steuerdüsenblock), `flak`
+  (Zwillings-Flak), `rail` (Geländer), `windows` (Fensterreihe aus Einzelfenstern); Formen
   `sym` (symmetrischer Umriss aus einer Hälfte), `stealth` (Tarnkappenprofil), `block` (Facettenblock auf Lagen), `beam`
   (kantige Strebe), `axle` (Walze entlang X), `ring_at` (Querschnitt eines Lofts, für Bänder, die dem Rumpf folgen),
   `bellows` (Blendenbalg um ein Rohr).
@@ -121,11 +120,12 @@ Schmutz und Ruß, im Zoom und auf der Karte kommen Fugen und Abrieb dazu.
 - Grad je Schiff in `look.WEATHER` (Schrott 2,2, Mirage 0,5, Trugbild 0), Anteile je Material in
   `look.WEATHER_MATERIALS`. Ein neuer Materialschlüssel gilt als lackiert (eckig mit Platten, rund ohne); unlackierte
   Sonderfarben (Metall, Glas, Rost) dort eintragen.
-- Die erste Vorschau eines geänderten Schiffs backt seine Maske (bis etwa 20 s, mit dichter Maske etwa 60 s), danach
-  kommt sie aus dem Cache.
-- Dichte der Maske: 32 Texel je Einheit (`look.WEATHER_DENSITY`), für die Schiffe mit Kleinteilen 64
-  (`look.WEATHER_DENSITIES`). Das Spiel liest Schmutz als Verlauf; bei 32 wirkt er in der Nahaufnahme weich. Die
-  doppelte Dichte kostet den vierfachen Texturspeicher. Ob alle Schiffe sie bekommen, ist offen (`TODO.md`).
+- Die erste Vorschau eines geänderten Schiffs backt seine Maske (Jäger etwa 15 s, Schlachtschiffe 1 bis 2 min, die
+  Bastion 4 min), danach kommt sie aus dem Cache.
+- Dichte der Maske: 64 Texel je Einheit für alle Schiffe (`look.WEATHER_DENSITY`). Das Spiel liest Schmutz als Verlauf;
+  bei 32 wirkte er in der Nahaufnahme weich. Die Masken sind 800 px (Lance Bomber) bis 3008 px (Bastion) groß und
+  belegen im Spiel zusammen etwa 240 MB Grafikspeicher. Das Wrack bettet die Maske deshalb nicht ein: Seine Stücke
+  tragen dieselben UVs und nennen im Vertrag das Schiff (`weather.share`), der Client nimmt dessen Bild.
 
 ## Größen auf dem Brett
 
@@ -178,10 +178,12 @@ Trugbild 1,5k (bleibt flach). Die Dreadnought liegt bei 14,7k. Ohne Kleinteile s
 den 4,7k für Details gehen etwa 2k in die vier Türme, 0,8k in die Bugkanonen, 0,6k in die Düsen, 0,4k in die Lüfter,
 0,4k in die RCS-Blöcke und 0,5k in den Rest. Die Kleinteile kosten 3,4k: Fenster 0,9k, Flak 0,7k, Kühlrippen 0,5k,
 Geländer und Leiter 0,5k, Rohre, Antennen, Kisten und Lichter 0,7k. Der Void Interceptor liegt bei 5,9k (4,7k ohne
-Kleinteile). Das meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8,
+Kleinteile). Stand vom 12.11.2026: Scrap King 12,1k, Vanguard 11,3k, Pendulum 10,7k, Bastion 10,6k, Pyre 8,7k, Plasma
+Frigate 7,5k, Horizon Cruiser 7,2k, Titan Carrier 6,8k, Warden 6,3k, Signal Booster 5,0k, Scrap Raider 4,6k, Seal 3,5k
+(bleibt als Tarnkappenschiff glatt), Lance Bomber 3,4k. Das meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8,
 dünne Rohre und Antennen mit 6, `smooth` mit `subdiv` 1–2; Kasten, Platten und Stege kosten fast nichts, in Mengen
 (Fenster) aber doch. Die Wracks (wreck.py) entstehen automatisch und haben etwa das 1,3- bis 1,5-Fache (Dreadnought
-19,1k Dreiecke, 2,7 MB mit der dichten Maske); ansehen (`wreck`) muss man sie trotzdem.
+19,1k Dreiecke, 1,2 MB, weil die Maske nur im GLB des Schiffs liegt); ansehen (`wreck`) muss man sie trotzdem.
 
 ## Silhouette und Wiedererkennbarkeit
 

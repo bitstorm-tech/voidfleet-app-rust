@@ -1,7 +1,8 @@
 //! Einstellungen (Port von `ui/settingsDialog.ts`): Zahnrad in der Icon-Leiste, ein Pult mit einer Tastenreihe oben,
 //! die eines von vier eingelassenen Feldern wählt: „Spiel“ mit je einer Geschwindigkeitswahl für Angriffe,
 //! Schiffsbewegungen und die übrigen Animationen, dem Mauszeiger als Raster aus Vorschaubildern samt Regler für seine
-//! Größe und der Sprache; „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), VSync und der FPS-Anzeige;
+//! Größe und der Sprache; „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), der Kantenglättung (nur die
+//! Stufen, die die Grafikkarte kann), VSync und der FPS-Anzeige;
 //! „Sound“ mit den Reglern für Musik, Effekte und Bordfunk; „Dev“ mit dem Weg in die Modellschau
 //! ([`crate::dev::viewer`]). Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den
 //! Einstellungen, auch wenn sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der
@@ -10,6 +11,7 @@
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
+    render::renderer::RenderAdapter,
     ui::Pressed,
     ui_widgets::{
         Activate, Button, Slider, SliderDragState, SliderRange, SliderStep, SliderThumb,
@@ -26,7 +28,7 @@ use crate::{
     i18n::{LANGUAGES, Locale, SettingsTab},
     palette,
     run::{ActiveRun, RunView},
-    settings::{AnimationSpeed, CursorId, Language, Settings, WindowMode},
+    settings::{AnimationSpeed, Antialiasing, CursorId, Language, Settings, WindowMode},
     ui::{
         Fonts,
         button::{self, Key},
@@ -104,6 +106,7 @@ enum Choice {
     Cursor(CursorId),
     Language(Language),
     WindowMode(WindowMode),
+    Antialiasing(Antialiasing),
     ShowFps(bool),
     Vsync(bool),
 }
@@ -116,6 +119,7 @@ impl Choice {
             Self::Cursor(cursor) => settings.cursor == cursor,
             Self::Language(language) => locale.language == language,
             Self::WindowMode(mode) => settings.window_mode == mode,
+            Self::Antialiasing(level) => settings.antialiasing == level,
             Self::ShowFps(show) => settings.show_fps == show,
             Self::Vsync(on) => settings.vsync == on,
         }
@@ -128,6 +132,7 @@ impl Choice {
             Self::Cursor(cursor) => settings.cursor = cursor,
             Self::Language(language) => settings.language = Some(language),
             Self::WindowMode(mode) => settings.window_mode = mode,
+            Self::Antialiasing(level) => settings.antialiasing = level,
             Self::ShowFps(show) => settings.show_fps = show,
             Self::Vsync(on) => settings.vsync = on,
         }
@@ -601,6 +606,7 @@ pub(super) fn spawn(
     locale: Res<Locale>,
     settings: Res<Settings>,
     cursors: Res<CursorImages>,
+    adapter: Res<RenderAdapter>,
     run: Option<Res<ActiveRun>>,
 ) {
     let fonts = &*fonts;
@@ -638,6 +644,11 @@ pub(super) fn spawn(
     let window_modes = WINDOW_MODES
         .into_iter()
         .map(|mode| (Choice::WindowMode(mode), locale.window_mode(mode)))
+        .collect();
+    let antialiasing = Antialiasing::ALL
+        .into_iter()
+        .filter(|level| level.usable(&adapter) == *level)
+        .map(|level| (Choice::Antialiasing(level), locale.antialiasing(level)))
         .collect();
     let volumes: Vec<_> = Level::VOLUMES
         .into_iter()
@@ -710,6 +721,11 @@ pub(super) fn spawn(
                                             fonts,
                                             locale.settings_window_mode(),
                                             options(window_modes)
+                                        ),
+                                        choice(
+                                            fonts,
+                                            locale.settings_antialiasing(),
+                                            options(antialiasing)
                                         ),
                                         choice(
                                             fonts,

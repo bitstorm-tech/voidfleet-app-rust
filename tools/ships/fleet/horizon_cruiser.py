@@ -1,5 +1,5 @@
-"""Horizon Cruiser (Kreuzer, im Spiel der Wachkreuzer) im Clean-Toon-Stil, detailreiche Fassung nach der Iron
-Dreadnought.
+"""Horizon Cruiser (Kreuzer, im Spiel der Wachkreuzer), detailreiche Fassung nach der Iron Dreadnought
+(docs/stilregeln.md), mit Kleinteilen für den dreckigen Look.
 
 Primärformen: langer, schlanker Facettenrumpf, der zum Bug flach wie ein Spatel ausläuft; darauf ein großer
 Zwillingsturm in Kornblumenblau und ein Rückendeck mit dem Brückenturm achtern (drei Blöcke, Fensterband, Mast mit
@@ -15,11 +15,16 @@ die Konturen dabei gleich breit bleiben; dazwischen ruhige Flächen (Bugdeck vor
 - Unterseite: Kinn unter dem Bug mit zweiflügeligem Bootstor nach vorn, aus dem der Kiel wächst; drei Spanten je Seite
   auf der unteren Fase vor den Pylonen
 Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+
+Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern am Brückenturm und an der Wand
+des Rückendecks, Flak hinter dem Turm, Querträger mit Nadelantennen am Mast, Peitschenantenne und Schüssel auf dem
+Brückenturm, Geländer und Leiter, Kisten hinter der Brücke, Kabelkanal an der Flanke zum Pylon, Kühlrippen an allen
+vier Düsen, Positionslichter an Bug und Flossenspitzen.
 """
 
 import vf
-from parts import engine, engine_details, turret, turret_details, vent
-from vf import Ship, box, loft, ngon, octagon, plate, post, sec, smooth, sphere, wedge
+from parts import engine, engine_details, flak, rail, turret, turret_details, vent, windows
+from vf import Ship, box, dish, loft, ngon, octagon, plate, post, rect, sec, segment, smooth, sphere, sweep, tube, wedge
 
 NX = 1.18  # Gondeln: Abstand zur Mittelachse
 NZ = 0.02  # Gondeln: Höhe der Achse
@@ -43,6 +48,58 @@ def hull_at(y):
             t = (y - y0) / (y1 - y0)
             return tuple(p + t * (q - p) for p, q in zip(a, b))
     raise ValueError(f"y = {y} liegt außerhalb des Rumpfs")
+
+
+def details(s, m, z):
+    """Kleinteile (Modulkommentar); `z` ist das Dach des Brückenturms."""
+    roof1, roof2 = 1.07, 1.43  # Dächer der beiden unteren Blöcke des Brückenturms
+
+    # ---------------------------------------------------------------- Fensterreihen: Brückenturm und Wand des Rückendecks
+    windows(s, m, [(0.49, 1.5 + 0.12 * k, 0.9) for k in range(5)])
+    windows(s, m, [(0.37, 1.6 + 0.12 * k, 1.27) for k in range(4)])
+    windows(s, m, [(-0.3 + 0.2 * k, 2.2, 0.9) for k in range(4)], out="y")
+    for y0, n in ((-0.6, 4), (0.25, 3)):
+        windows(s, m, [(0.41 + 0.02 * (y0 + 0.12 * k + 0.9) / 3.4, y0 + 0.12 * k, 0.5) for k in range(n)])
+
+    # ---------------------------------------------------------------- Flak hinter dem Turm, an der Deckkante
+    w, h, dz = hull_at(-1.2)
+    flak(s, m, (0.39, -1.2, dz + h / 2), 25)
+
+    # ---------------------------------------------------------------- Antennen: Querträger am Mast, Peitsche, Schüssel
+    s.add(box(0.56, 0.05, 0.05), m["hull"], at=(0, 1.72, z + 0.62))
+    s.add(post(6, 0.012, 0.006, z + 0.6, z + 1.0), m["dark_round"], at=(0.26, 1.72, 0), mirror=True)
+    s.add(segment((0.28, 2.0, roof2 - 0.02), (0.32, 2.4, roof2 + 0.55), 0.012, 6), m["dark_round"])
+    s.add(post(8, 0.03, 0.025, roof2 - 0.02, roof2 + 0.12), m["dark_round"], at=(-0.2, 2.0, 0))
+    s.add(dish(0.11, 0.045, n=12, rings=3, thickness=0.02), m["armor_round"], at=(-0.2, 2.0, roof2 + 0.11), rot=(-40, 0, 150))
+
+    # ---------------------------------------------------------------- Geländer und Leiter am Brückenturm, Kisten dahinter
+    rail(s, m, (0.475, 1.38, roof1), (0.475, 2.185, roof1), 4)
+    rail(s, m, (-0.475, 2.185, roof1), (0.475, 2.185, roof1), 5, mirror=False)
+    rail(s, m, (0.645, 1.42, z - 0.15), (0.645, 1.66, z - 0.15), 2)
+    for dx in (-0.05, 0.05):
+        s.add(box(0.014, 0.014, 0.42), m["dark"], at=(0.42 + dx, 2.207, 0.87))
+    for k in range(5):
+        s.add(box(0.1, 0.014, 0.014), m["dark"], at=(0.42, 2.207, 0.7 + 0.08 * k))
+    s.add(box(0.18, 0.2, 0.13), m["armor"], at=(0.12, 2.36, 0.72))
+    s.add(box(0.14, 0.16, 0.1), m["dark"], at=(-0.14, 2.35, 0.705))
+
+    # ---------------------------------------------------------------- Kabelkanal an der Flanke, vom Turm zum Pylon
+    pts = []
+    for y in (-1.9, -1.5, -0.45):
+        w, h, dz = hull_at(y)
+        pts.append((w / 2 + 0.02, y, dz + 0.3 * h - 0.09))
+    s.add(sweep(pts, rect(0.06, 0.06)), m["dark"], mirror=True)
+    s.add(box(0.1, 0.2, 0.12), m["armor"], at=(pts[-1][0] + 0.01, -0.38, pts[-1][2]), mirror=True)
+
+    # ---------------------------------------------------------------- Kühlrippen an den Düsen (Gondeln und Heck)
+    for r, y0, length, dx, dz in ((0.27, 2.35, 0.85, NX, NZ), (0.24, 3.25, 0.75, 0.34, -0.02)):
+        for t in (0.38, 0.44, 0.5):
+            y = y0 + length * t
+            s.add(tube(10, r * 1.14, r * 1.14, y, y + 0.025, dx, dz), m["steel"], mirror=True)
+
+    # ---------------------------------------------------------------- Positionslichter: Flossenspitzen und Bug
+    s.add(sphere(0.035, 1), m["glow"], at=(0.822, 3.35, 1.095), mirror=True)
+    s.add(sphere(0.03, 1), m["glow"], at=(0, -3.93, 0.0))
 
 
 def build():
@@ -94,4 +151,5 @@ def build():
     # Zwei Hauptdüsen, so weit nach achtern, dass ihr Gehäusesegment hinter dem Heck liegt
     engine(s, m, 0.24, 3.25, 4.0, dx=0.34, dz=-0.02, mirror=True)
     engine_details(s, m, 0.24, 3.25, 4.0, dx=0.34, dz=-0.02, mirror=True)
+    details(s, m, z)
     return s.finish()
