@@ -9,7 +9,7 @@ default:
 # Spiel starten (weitere Argumente gehen an den Client)
 play *args:
     git pull
-    cargo run -p voidfleet-client -- {{ args }}
+    cargo run -p voidfleet-client --features dynamic_linking -- {{ args }}
 
 # Spiel im Release-Build starten
 play-release *args:
@@ -40,12 +40,12 @@ test *args:
 
 # Vorschau-Szene: board, hit, destroy, arrive, move, effects
 scene name="board":
-    VOIDFLEET_DEV_SCENE={{ name }} cargo run -p voidfleet-client
+    VOIDFLEET_DEV_SCENE={{ name }} cargo run -p voidfleet-client --features dynamic_linking
 
 # Rauchtest: ein Run über den Controller, Screenshots je Station unter <dir>
 smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":
     mkdir -p "{{ dir }}"
-    VOIDFLEET_SMOKE_FRAMES=200000 VOIDFLEET_SMOKE_PLAY={{ rounds }} VOIDFLEET_SMOKE_SCREENSHOT="{{ dir }}/play.png" cargo run -p voidfleet-client
+    VOIDFLEET_SMOKE_FRAMES=200000 VOIDFLEET_SMOKE_PLAY={{ rounds }} VOIDFLEET_SMOKE_SCREENSHOT="{{ dir }}/play.png" cargo run -p voidfleet-client --features dynamic_linking
 
 # Wiki aus docs/ im Browser, lädt bei Änderungen neu (braucht mdBook: `cargo install mdbook`)
 docs *args:

@@ -26,3 +26,5 @@ debug = false
 
 [profile.dev]
 opt-level = 1
+# Zeilennummern reichen für Backtraces; volle Debuginfo kostet beim Codegen und Linken.
+debug = "line-tables-only"

@@ -56,5 +56,10 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
 # ohne PNG-Unterstützung mit.
 tiny-skia = { version = "0.12", default-features = false, features = ["png-format"] }
 
+# Bevy als eigene Bibliothek statt statisch: schnelleres Linken beim Entwickeln (die `just`-Rezepte im Dev-Profil).
+# Das Binary läuft dann nur mit der Bibliothek daneben, also nie für Release-Builds.
+[features]
+dynamic_linking = ["bevy/dynamic_linking"]
+
 [lints]
 workspace = true

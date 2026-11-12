@@ -1,0 +1,3 @@
+# mold linkt deutlich schneller als GNU ld, das rustc unter Linux auf ARM sonst nimmt (`pacman -S mold`).
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
