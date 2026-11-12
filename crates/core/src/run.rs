@@ -1,9 +1,8 @@
 //! Der Run (`docs/run.md`, `docs/gegner.md`): drei Sektoren mit je einer Sternenkarte, die Gefechte gegen die Verbände
-//! des Sektors, Beute, Werft, Schwarzmarkt und Ereignisse. Der Zustand liegt in öffentlichen Feldern, jeder Schritt
-//! ist eine Methode, die eine ungültige Wahl mit [`RunError`] ablehnt. Der Zufall hängt nur an `seed` und `rolls`,
-//! also ist ein Run mit Seed wiederholbar und nach dem Laden derselbe.
-
-use std::ops::RangeInclusive;
+//! ihrer Knoten, Beute, Werft, Schwarzmarkt und Ereignisse. Die Sternenkarten sind entworfen ([`SectorMap`], eine
+//! Datei je Karte in `assets/data/maps/`); der Run zieht je Sektor eine. Der Zustand liegt in öffentlichen Feldern,
+//! jeder Schritt ist eine Methode, die eine ungültige Wahl mit [`RunError`] ablehnt. Der Zufall hängt nur an `seed`
+//! und `rolls`, also ist ein Run mit Seed und denselben Karten wiederholbar und nach dem Laden derselbe.
 
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
@@ -11,39 +10,13 @@ use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::AdmiralId;
-use crate::battle::{Battle, BattleResult, BattleSetup, Encounter, Reinforcement};
-use crate::board::{COLUMNS, EnemySlot, Row};
+use crate::battle::{Battle, BattleResult, BattleSetup, Encounter};
+use crate::board::MAX_ENEMIES;
 use crate::cards::{CardId, DeckCard, LOOT_POOL, starter_deck};
-use crate::enemies::{EnemyClass, EnemyId};
-use crate::modules::{ModuleId, REINFORCED_FRAMES_HULL, SALVAGE_CRANE_SCRAP};
+use crate::data::{rules, span};
+use crate::modules::ModuleId;
 
 pub const SECTORS: u32 = 3;
-/// Reihen je Sektor; die letzte ist der Boss.
-pub const ROWS: usize = 9;
-pub const NODES_PER_ROW: RangeInclusive<usize> = 3..=4;
-pub const BATTLE_SCRAP: RangeInclusive<u32> = 10..=20;
-pub const ELITE_SCRAP: RangeInclusive<u32> = 25..=40;
-pub const BOSS_SCRAP: u32 = 60;
-pub const CARD_OFFER: usize = 3;
-pub const COMBAT_SIMULATOR_OFFER: usize = 4;
-pub const MODULE_OFFER: usize = 3;
-/// Werft und Boss: so viel Prozent der maximalen Hülle, aufgerundet.
-pub const SHIPYARD_REPAIR_PERCENT: i32 = 30;
-pub const MARKET_CARDS: usize = 3;
-pub const MARKET_MODULES: usize = 2;
-pub const CARD_PRICE: RangeInclusive<u32> = 40..=70;
-pub const MODULE_PRICE: RangeInclusive<u32> = 120..=180;
-pub const REMOVAL_PRICE: u32 = 60;
-/// Reparatur im Schwarzmarkt: so viel Hülle für so viel Schrott.
-pub const MARKET_REPAIR: i32 = 10;
-pub const MARKET_REPAIR_PRICE: u32 = 25;
-pub const RESOLUTE_SCRAP: u32 = 40;
-pub const PILOT_PRICE: u32 = 50;
-pub const PILOT_DAMAGE: i32 = 6;
-/// Ab Sektor 2 je Sektor ein Viertel mehr Hülle für die Gegner.
-pub const SECTOR_HULL_PERCENT: u32 = 25;
-/// Angesagte Verstärkung in Sektor 3 trifft in dieser Runde ein („in zwei Runden“).
-pub const REINFORCEMENT_ROUND: u32 = 3;
 
 /// Alle Module, aus denen Angebote und die Logbücher der Resolute ziehen.
 pub const MODULES: [ModuleId; 9] = {
@@ -73,11 +46,86 @@ pub enum NodeKind {
 }
 
 /// Ein Knoten der Sternenkarte; Reihe und Spalte sind seine Indizes in [`Run::map`], `next` die Spalten der
-/// verbundenen Knoten in der nächsten Reihe (aufsteigend).
+/// verbundenen Knoten in der nächsten Reihe (aufsteigend). Gefecht, Elite und Boss tragen ihren Verband.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MapNode {
     pub kind: NodeKind,
     pub next: Vec<usize>,
+    #[serde(default)]
+    pub encounter: Option<Encounter>,
+}
+
+/// Eine entworfene Sternenkarte, Reihe für Reihe; die letzte Reihe ist der Boss.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SectorMap {
+    /// 1 bis [`SECTORS`].
+    pub sector: u32,
+    pub rows: Vec<Vec<MapNode>>,
+}
+
+/// Was an einer Sternenkarte nicht stimmt; Knoten als (Reihe, Spalte).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapError {
+    Sector,
+    /// Die letzte Reihe ist nicht genau ein Boss, oder ein Boss steht in einer anderen Reihe.
+    Boss,
+    EmptyRow(usize),
+    /// Keine Kante hinaus, eine Kante ins Leere oder Kanten nicht aufsteigend.
+    Edges(usize, usize),
+    /// Keine Kante führt zu diesem Knoten.
+    Unreachable(usize, usize),
+    /// Gefecht ohne Verband, Verband ohne Gefecht, Verband leer oder größer als das Brett erlaubt, oder eine
+    /// Back-Einheit ohne Vordermann.
+    Encounter(usize, usize),
+}
+
+impl SectorMap {
+    pub fn check(&self) -> Result<(), MapError> {
+        if !(1..=SECTORS).contains(&self.sector) {
+            return Err(MapError::Sector);
+        }
+        let Some((last, rows)) = self.rows.split_last() else {
+            return Err(MapError::Boss);
+        };
+        let boss = |node: &MapNode| node.kind == NodeKind::Boss;
+        if last.len() != 1 || !boss(&last[0]) || rows.iter().flatten().any(boss) {
+            return Err(MapError::Boss);
+        }
+        if let Some(r) = self.rows.iter().position(Vec::is_empty) {
+            return Err(MapError::EmptyRow(r));
+        }
+        for (r, row) in self.rows.iter().enumerate() {
+            let below = self.rows.get(r + 1).map_or(0, Vec::len);
+            for (c, node) in row.iter().enumerate() {
+                let ascending = node.next.windows(2).all(|pair| pair[0] < pair[1]);
+                let dangling = node.next.iter().any(|&next| next >= below);
+                if !ascending || dangling || (node.next.is_empty() && below > 0) {
+                    return Err(MapError::Edges(r, c));
+                }
+                if r > 0 && !self.rows[r - 1].iter().any(|from| from.next.contains(&c)) {
+                    return Err(MapError::Unreachable(r, c));
+                }
+                let battle = matches!(
+                    node.kind,
+                    NodeKind::Battle | NodeKind::Elite | NodeKind::Boss
+                );
+                let valid = match &node.encounter {
+                    None => !battle,
+                    Some(encounter) => {
+                        let covered = (encounter.back.iter().zip(&encounter.front))
+                            .all(|(back, front)| back.is_none() || front.is_some());
+                        battle && covered && (1..=MAX_ENEMIES).contains(&encounter.units().count())
+                    }
+                };
+                if !valid {
+                    return Err(MapError::Encounter(r, c));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Das Wrack der Resolute, der Lotse, Flackern.
@@ -156,9 +204,9 @@ pub struct Market {
 pub enum Stage {
     /// Auf der Sternenkarte: der nächste Knoten ist zu wählen.
     Map,
-    /// Ein Gefecht, Elite oder Boss: [`Run::start_battle`], danach [`Run::finish_battle`].
+    /// Ein Gefecht, Elite oder Boss gegen den Verband des Knotens: [`Run::start_battle`], danach
+    /// [`Run::finish_battle`].
     Battle {
-        encounter: Encounter,
         seed: u64,
     },
     Loot(Loot),
@@ -196,6 +244,8 @@ pub struct Run {
     pub sector: u32,
     /// Die Sternenkarte des Sektors, Reihe für Reihe; die letzte Reihe ist der Boss.
     pub map: Vec<Vec<MapNode>>,
+    /// Die Sternenkarten der folgenden Sektoren, die nächste zuerst.
+    pub upcoming: Vec<Vec<Vec<MapNode>>>,
     /// Die Spalte des besuchten Knotens je Reihe; der letzte ist der aktuelle, leer vor Reihe 1.
     pub path: Vec<usize>,
     pub stage: Stage,
@@ -209,7 +259,9 @@ pub struct Run {
 }
 
 impl Run {
-    pub fn new(admiral: AdmiralId, seed: u64) -> Self {
+    /// Zieht je Sektor eine der geprüften ([`SectorMap::check`]) Karten aus `maps`. Panikt, wenn für einen Sektor
+    /// keine da ist.
+    pub fn new(admiral: AdmiralId, seed: u64, maps: &[SectorMap]) -> Self {
         let mut run = Run {
             admiral,
             seed,
@@ -222,6 +274,7 @@ impl Run {
             emergency_generator_used: false,
             sector: 1,
             map: Vec::new(),
+            upcoming: Vec::new(),
             path: Vec::new(),
             stage: Stage::Map,
             burning: false,
@@ -229,7 +282,15 @@ impl Run {
             victories: 0,
             result: None,
         };
-        run.map = generate_map(&mut run.rng());
+        let mut rng = run.rng();
+        let mut drawn = (1..=SECTORS).map(|sector| {
+            let of_sector: Vec<&SectorMap> =
+                maps.iter().filter(|map| map.sector == sector).collect();
+            let map = of_sector.choose(&mut rng).expect("eine Karte je Sektor");
+            map.rows.clone()
+        });
+        run.map = drawn.next().expect("Sektor 1");
+        run.upcoming = drawn.collect();
         run
     }
 
@@ -274,26 +335,26 @@ impl Run {
         let node = &mut self.map[row][column];
         if self.pilot && node.kind != NodeKind::Boss {
             node.kind = NodeKind::Shipyard;
+            node.encounter = None;
             self.pilot = false;
         }
         let kind = node.kind;
         let mut rng = self.rng();
         self.stage = match kind {
-            NodeKind::Battle | NodeKind::Elite | NodeKind::Boss => Stage::Battle {
-                encounter: encounter(kind, self.sector, &mut rng),
-                seed: rng.random(),
-            },
+            NodeKind::Battle | NodeKind::Elite | NodeKind::Boss => {
+                Stage::Battle { seed: rng.random() }
+            }
             NodeKind::Event => Stage::Event(*EventId::ALL.choose(&mut rng).expect("drei")),
             NodeKind::Shipyard => Stage::Shipyard,
             NodeKind::Market => Stage::Market(Market {
                 cards: LOOT_POOL
-                    .choose_multiple(&mut rng, MARKET_CARDS)
-                    .map(|&card| (card, rng.random_range(CARD_PRICE)))
+                    .choose_multiple(&mut rng, rules().run.market_cards)
+                    .map(|&card| (card, rng.random_range(span(rules().run.card_price))))
                     .collect(),
                 modules: self
                     .missing_modules()
-                    .choose_multiple(&mut rng, MARKET_MODULES)
-                    .map(|&module| (module, rng.random_range(MODULE_PRICE)))
+                    .choose_multiple(&mut rng, rules().run.market_modules)
+                    .map(|&module| (module, rng.random_range(span(rules().run.module_price))))
                     .collect(),
                 removal: true,
             }),
@@ -306,9 +367,11 @@ impl Run {
     /// Baut das Gefecht des aktuellen Knotens. Ändert den Run nicht, also liefert ein erneuter Aufruf (etwa nach
     /// dem Laden) dasselbe Gefecht. Panikt, wenn kein Gefecht ansteht.
     pub fn start_battle(&self) -> Battle {
-        let Stage::Battle { encounter, seed } = &self.stage else {
+        let Stage::Battle { seed } = self.stage else {
             panic!("kein Gefecht an diesem Knoten");
         };
+        let (row, column) = self.current().expect("auf der Karte");
+        let encounter = self.map[row][column].encounter.clone();
         let mut battle = Battle::new(
             BattleSetup {
                 admiral: self.admiral,
@@ -318,9 +381,10 @@ impl Run {
                 modules: self.modules.clone(),
                 emergency_generator_available: self.has(ModuleId::EmergencyGenerator)
                     && !self.emergency_generator_used,
-                encounter: encounter.clone(),
+                encounter: encounter.expect("Gefechtsknoten mit Verband"),
+                hull_percent: 100 + rules().run.sector_hull_percent * (self.sector - 1),
             },
-            *seed,
+            seed,
         );
         battle.flagship.burning = self.burning;
         battle
@@ -342,14 +406,14 @@ impl Run {
         let mut rng = self.rng();
         let mut loot = Loot {
             scrap: match kind {
-                NodeKind::Elite => rng.random_range(ELITE_SCRAP),
-                NodeKind::Boss => BOSS_SCRAP,
-                _ => rng.random_range(BATTLE_SCRAP),
+                NodeKind::Elite => rng.random_range(span(rules().run.elite_scrap)),
+                NodeKind::Boss => rules().run.boss_scrap,
+                _ => rng.random_range(span(rules().run.battle_scrap)),
             },
             ..Loot::default()
         };
         if self.has(ModuleId::SalvageCrane) {
-            loot.scrap += SALVAGE_CRANE_SCRAP * battle.kills;
+            loot.scrap += rules().modules.salvage_crane_scrap * battle.kills;
         }
         self.scrap += loot.scrap;
         if kind == NodeKind::Boss && self.sector == SECTORS {
@@ -362,7 +426,7 @@ impl Run {
         } else {
             loot.modules = self
                 .missing_modules()
-                .choose_multiple(&mut rng, MODULE_OFFER)
+                .choose_multiple(&mut rng, rules().run.module_offer)
                 .copied()
                 .collect();
         }
@@ -395,9 +459,14 @@ impl Run {
 
     // --- Werft ---
 
-    /// +30 % der maximalen Hülle, aufgerundet.
+    /// Flackern: so viel Hülle kostet es.
+    pub fn flicker_damage(&self) -> i32 {
+        (self.max_hull * rules().run.flicker_hull_percent + 99) / 100
+    }
+
+    /// Ein Anteil der maximalen Hülle, aufgerundet.
     pub fn shipyard_repair(&self) -> i32 {
-        (self.max_hull * SHIPYARD_REPAIR_PERCENT + 99) / 100
+        (self.max_hull * rules().run.shipyard_repair_percent + 99) / 100
     }
 
     pub fn repair_at_shipyard(&mut self) -> Result<(), RunError> {
@@ -456,17 +525,17 @@ impl Run {
         if index >= self.deck.len() {
             return Err(RunError::OutOfRange);
         }
-        self.pay(REMOVAL_PRICE)?;
+        self.pay(rules().run.removal_price)?;
         self.market()?.removal = false;
         self.deck.remove(index);
         Ok(())
     }
 
-    /// 10 Hülle für 25 Schrott, beliebig oft.
+    /// Hülle für Schrott, beliebig oft.
     pub fn buy_repair(&mut self) -> Result<(), RunError> {
         self.market()?;
-        self.pay(MARKET_REPAIR_PRICE)?;
-        self.repair(MARKET_REPAIR);
+        self.pay(rules().run.market_repair_price)?;
+        self.repair(rules().run.market_repair);
         Ok(())
     }
 
@@ -487,7 +556,7 @@ impl Run {
         let mut gain = Gain::Nothing;
         match option {
             EventOption::Salvage => {
-                self.scrap += RESOLUTE_SCRAP;
+                self.scrap += rules().run.resolute_scrap;
                 self.burning = true;
             }
             EventOption::Logbooks => {
@@ -497,11 +566,11 @@ impl Run {
                 }
             }
             EventOption::PayPilot => {
-                self.pay(PILOT_PRICE)?;
+                self.pay(rules().run.pilot_price)?;
                 self.pilot = true;
             }
             EventOption::FlyYourself => {
-                self.hull = (self.hull - PILOT_DAMAGE).max(1);
+                self.hull = (self.hull - rules().run.pilot_damage).max(1);
                 let mut rng = self.rng();
                 let cards = self.card_offer(&mut rng);
                 self.stage = Stage::Loot(Loot {
@@ -511,7 +580,7 @@ impl Run {
                 return Ok(gain);
             }
             EventOption::Embrace => {
-                self.hull = (self.hull - (self.max_hull + 3) / 4).max(1);
+                self.hull = (self.hull - self.flicker_damage()).max(1);
                 let open: Vec<usize> = (0..self.deck.len())
                     .filter(|&i| !self.deck[i].upgraded)
                     .collect();
@@ -545,9 +614,9 @@ impl Run {
 
     fn card_offer(&self, rng: &mut StdRng) -> Vec<CardId> {
         let size = if self.has(ModuleId::CombatSimulator) {
-            COMBAT_SIMULATOR_OFFER
+            rules().run.combat_simulator_offer
         } else {
-            CARD_OFFER
+            rules().run.card_offer
         };
         LOOT_POOL.choose_multiple(rng, size).copied().collect()
     }
@@ -555,8 +624,8 @@ impl Run {
     fn add_module(&mut self, module: ModuleId) {
         self.modules.push(module);
         if module == ModuleId::ReinforcedFrames {
-            self.max_hull += REINFORCED_FRAMES_HULL;
-            self.hull += REINFORCED_FRAMES_HULL;
+            self.max_hull += rules().modules.reinforced_frames_hull;
+            self.hull += rules().modules.reinforced_frames_hull;
         }
     }
 
@@ -592,193 +661,7 @@ impl Run {
         if self.current_kind() == NodeKind::Boss {
             self.sector += 1;
             self.path.clear();
-            self.map = generate_map(&mut self.rng());
+            self.map = self.upcoming.remove(0);
         }
     }
-}
-
-/// Neun Reihen: Reihe 1 nur Gefechte, Reihen 2 bis 8 nach Anteilen (Elite erst ab Reihe 3), mindestens eine Werft,
-/// zuletzt der Boss. Kanten verbinden benachbarte Reihen als Treppe ohne Überkreuzung: Jeder Knoten hat mindestens
-/// eine Kante hinein und hinaus.
-fn generate_map(rng: &mut StdRng) -> Vec<Vec<MapNode>> {
-    let mut kinds: Vec<Vec<NodeKind>> = (0..ROWS - 1)
-        .map(|row| {
-            (0..rng.random_range(NODES_PER_ROW))
-                .map(|_| match (row, rng.random_range(0..100)) {
-                    (0, _) => NodeKind::Battle,
-                    (_, 0..50) => NodeKind::Battle,
-                    (1, 50..62) => NodeKind::Battle,
-                    (_, 50..62) => NodeKind::Elite,
-                    (_, 62..82) => NodeKind::Event,
-                    (_, 82..94) => NodeKind::Shipyard,
-                    _ => NodeKind::Market,
-                })
-                .collect()
-        })
-        .collect();
-    if !kinds.iter().flatten().any(|&k| k == NodeKind::Shipyard) {
-        let row = rng.random_range(1..ROWS - 1);
-        let column = rng.random_range(0..kinds[row].len());
-        kinds[row][column] = NodeKind::Shipyard;
-    }
-    kinds.push(vec![NodeKind::Boss]);
-    let mut map: Vec<Vec<MapNode>> = kinds
-        .iter()
-        .map(|row| {
-            row.iter()
-                .map(|&kind| MapNode {
-                    kind,
-                    next: Vec::new(),
-                })
-                .collect()
-        })
-        .collect();
-    for row in 0..ROWS - 1 {
-        let (from, to) = (map[row].len() - 1, map[row + 1].len() - 1);
-        let (mut i, mut j) = (0, 0);
-        map[row][0].next.push(0);
-        while (i, j) != (from, to) {
-            match (i == from, j == to, rng.random_range(0..3)) {
-                (true, _, _) | (false, false, 0) => j += 1,
-                (_, true, _) | (false, false, 1) => i += 1,
-                _ => (i, j) = (i + 1, j + 1),
-            }
-            map[row][i].next.push(j);
-        }
-    }
-    map
-}
-
-/// Der Verband eines Knotens: Gefecht nach Sektor, Elite und Boss fest.
-fn encounter(kind: NodeKind, sector: u32, rng: &mut StdRng) -> Encounter {
-    use EnemyId::*;
-    use Row::*;
-    let fixed = |units: &[(EnemyId, Row, usize)]| -> Vec<(EnemyId, EnemySlot)> {
-        units
-            .iter()
-            .map(|&(id, row, column)| (id, EnemySlot::new(row, column)))
-            .collect()
-    };
-    let mut reinforcements = Vec::new();
-    let mut replacements = Vec::new();
-    let units = match (kind, sector) {
-        (NodeKind::Elite, 1) => fixed(&[(Besieger, Front, 1)]),
-        (NodeKind::Elite, 2) => fixed(&[
-            (GuardCruiser, Front, 1),
-            (GuardCruiser, Front, 0),
-            (Besieger, Back, 1),
-        ]),
-        (NodeKind::Elite, _) => fixed(&[
-            (Besieger, Front, 1),
-            (Besieger, Front, 0),
-            (Spotter, Back, 1),
-        ]),
-        (NodeKind::Boss, 1) => fixed(&[
-            (Raiders, Front, 1),
-            (Raiders, Front, 0),
-            (ScrapKing, Back, 1),
-        ]),
-        (NodeKind::Boss, 2) => fixed(&[
-            (GuardCruiser, Front, 1),
-            (GuardCruiser, Front, 0),
-            (Warden, Back, 1),
-        ]),
-        (NodeKind::Boss, _) => {
-            replacements = vec![GuardCruiser, GuardCruiser];
-            fixed(&[
-                (GuardCruiser, Front, 1),
-                (PlasmaCruiser, Front, 0),
-                (Seal, Back, 1),
-                (Spotter, Back, 0),
-            ])
-        }
-        _ => {
-            let (pool, sizes): (&[EnemyId], RangeInclusive<usize>) = match sector {
-                1 => (&[Raiders, GuardCruiser, Fireship], 1..=2),
-                2 => (
-                    &[
-                        Raiders,
-                        Fireship,
-                        TorpedoWing,
-                        GuardCruiser,
-                        PlasmaCruiser,
-                        Spotter,
-                        Besieger,
-                    ],
-                    2..=3,
-                ),
-                _ => (
-                    &[
-                        Raiders,
-                        TorpedoWing,
-                        GuardCruiser,
-                        PlasmaCruiser,
-                        Spotter,
-                        Besieger,
-                        Carrier,
-                    ],
-                    3..=4,
-                ),
-            };
-            let mut size = rng.random_range(sizes);
-            // Sektor 3: bei der Hälfte der Verbände kommen ein oder zwei Wachkreuzer als angesagte Verstärkung.
-            if sector == SECTORS && rng.random_bool(0.5) {
-                let count = rng.random_range(1..=size - 2);
-                size -= count;
-                reinforcements = vec![
-                    Reinforcement {
-                        round: REINFORCEMENT_ROUND,
-                        unit: GuardCruiser,
-                    };
-                    count
-                ];
-            }
-            // Höchstens ein Spotter und ein Schlachtschiff je Verband.
-            let limited = |id: EnemyId| id == Spotter || id.class() == EnemyClass::Battleship;
-            let mut units: Vec<EnemyId> = Vec::new();
-            while units.len() < size {
-                let id = *pool.choose(rng).expect("nicht leer");
-                if !limited(id) || !units.iter().any(|&u| limited(u) && u.class() == id.class()) {
-                    units.push(id);
-                }
-            }
-            formation(&units)
-        }
-    };
-    Encounter {
-        units,
-        hull_percent: 100 + SECTOR_HULL_PERCENT * (sector - 1),
-        reinforcements,
-        replacements,
-    }
-}
-
-/// Die Aufstellung eines Verbands: Jäger und Schlachtschiffe vorn, Spotter hinten, Kreuzer hinter Jägern. Hinten
-/// steht nur, wer einen Vordermann hat (gedeckt); vorn höchstens drei. Die Mitte zuerst, dann links, dann rechts.
-pub fn formation(units: &[EnemyId]) -> Vec<(EnemyId, EnemySlot)> {
-    const ORDER: [usize; COLUMNS] = [1, 0, 2];
-    let fighters = units.iter().any(|u| u.class() == EnemyClass::Fighter);
-    let (mut back, mut front): (Vec<EnemyId>, Vec<EnemyId>) = units
-        .iter()
-        .copied()
-        .partition(|&u| u == EnemyId::Spotter || (fighters && u.class() == EnemyClass::Cruiser));
-    while front.len() > COLUMNS {
-        back.push(front.pop().expect("vier vorn"));
-    }
-    while back.len() > front.len() {
-        let i = back
-            .iter()
-            .rposition(|&u| u != EnemyId::Spotter)
-            .expect("höchstens ein Spotter");
-        front.push(back.remove(i));
-    }
-    let place = |row, units: Vec<EnemyId>| {
-        units
-            .into_iter()
-            .zip(ORDER)
-            .map(move |(id, column)| (id, EnemySlot::new(row, column)))
-    };
-    place(Row::Front, front)
-        .chain(place(Row::Back, back))
-        .collect()
 }

@@ -1,6 +1,7 @@
 //! Das Regelwerk von Voidfleet: ein Flaggschiff gegen die gegnerische Flotte (Regeln in `docs/`).
 //!
 //! - [`board`]: Reihen, Spalten und Slots.
+//! - [`data`]: die Zahlen des Spiels aus `assets/data/*.json`.
 //! - [`cards`]: das Befehlsdeck samt Aufwertungen und Startdecks.
 //! - [`admirals`]: Admirale, Flaggschiffe und Stationen.
 //! - [`enemies`]: Gegner, ihre Werte und Muster.
@@ -13,6 +14,7 @@ pub mod admirals;
 pub mod battle;
 pub mod board;
 pub mod cards;
+pub mod data;
 pub mod enemies;
 pub mod events;
 pub mod modules;

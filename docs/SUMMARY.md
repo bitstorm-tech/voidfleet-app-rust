@@ -9,6 +9,7 @@
 - [Das Befehlsdeck](karten.md)
 - [Die Gegner](gegner.md)
 - [Der Run](run.md)
+- [Daten](daten.md)
 
 # Entwurf
 

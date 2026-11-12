@@ -65,7 +65,7 @@ pub(crate) struct Playback {
 
 impl Playback {
     /// Übersprungen: Die übrigen Schritte kommen nur noch als Log-Zeilen.
-    fn skip_rest(&mut self, locale: &dyn Messages, admiral: AdmiralId) -> Vec<String> {
+    fn skip_rest(&mut self, locale: &Messages, admiral: AdmiralId) -> Vec<String> {
         self.steps
             .drain(..)
             .flatten()
@@ -150,13 +150,13 @@ fn drive(
         return finish(&mut commands, &mut clock, &mut camera, &mut finished);
     };
     if playback.skipped {
-        let lines = playback.skip_rest(&**locale, admiral);
+        let lines = playback.skip_rest(&locale, admiral);
         if !lines.is_empty() {
             logs.write(AppendLog(lines));
         }
     }
     let planner = Planner {
-        locale: &**locale,
+        locale: &locale,
         admiral,
     };
     if let Some(step) = playback.steps.pop_front() {
@@ -202,7 +202,7 @@ mod tests {
             skipped: true,
         };
         let locale = Locale::new(Language::En);
-        let lines = playback.skip_rest(&*locale, AdmiralId::Osei);
+        let lines = playback.skip_rest(&locale, AdmiralId::Osei);
         assert_eq!(lines.len(), events.len());
         assert!(playback.steps.is_empty());
     }

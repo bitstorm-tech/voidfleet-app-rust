@@ -501,7 +501,7 @@ fn show_round_banner(
         TimerMode::Once,
     ));
     *visibility = Visibility::Inherited;
-    let bonus = round.saturating_sub(voidfleet_core::battle::CLOCK_START - 1) as i32;
+    let bonus = round.saturating_sub(voidfleet_core::data::rules().battle.clock_start - 1) as i32;
     let rising = (bonus > 0).then(|| {
         (
             theme::text(

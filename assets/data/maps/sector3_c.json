@@ -1,0 +1,54 @@
+{
+  "sector": 3,
+  "rows": [
+    [
+      { "kind": "battle", "next": [0, 1], "encounter": { "front": ["besieger", "torpedo_wing", null], "back": ["plasma_cruiser", "plasma_cruiser", null] } },
+      { "kind": "battle", "next": [2], "encounter": { "front": ["raiders", "carrier", null], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "battle", "next": [2, 3], "encounter": { "front": ["torpedo_wing", "carrier", "torpedo_wing"], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } }
+    ],
+    [
+      { "kind": "event", "next": [0, 1, 2] },
+      { "kind": "market", "next": [2, 3] },
+      { "kind": "battle", "next": [3], "encounter": { "front": ["carrier", "raiders", "torpedo_wing"], "back": [null, "plasma_cruiser", null] } },
+      { "kind": "shipyard", "next": [3] }
+    ],
+    [
+      { "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null], "back": [null, "guard_cruiser", null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }, { "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "market", "next": [2, 3] },
+      { "kind": "battle", "next": [3], "encounter": { "front": ["torpedo_wing", "torpedo_wing", "besieger"], "back": [null, null, null] } },
+      { "kind": "battle", "next": [3], "encounter": { "front": ["plasma_cruiser", "guard_cruiser", null], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }, { "round": 3, "unit": "guard_cruiser" }] } }
+    ],
+    [
+      { "kind": "event", "next": [0] },
+      { "kind": "elite", "next": [1], "encounter": { "front": ["besieger", "besieger", null], "back": [null, "spotter", null] } },
+      { "kind": "battle", "next": [1], "encounter": { "front": ["raiders", "besieger", null], "back": [null, "guard_cruiser", null] } },
+      { "kind": "shipyard", "next": [1, 2, 3] }
+    ],
+    [
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, "torpedo_wing", null], "back": [null, "spotter", null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "battle", "next": [0, 1, 2], "encounter": { "front": ["besieger", "torpedo_wing", null], "back": ["plasma_cruiser", "guard_cruiser", null] } },
+      { "kind": "market", "next": [3] },
+      { "kind": "battle", "next": [3], "encounter": { "front": ["carrier", "raiders", null], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } }
+    ],
+    [
+      { "kind": "event", "next": [0] },
+      { "kind": "event", "next": [0] },
+      { "kind": "market", "next": [1] },
+      { "kind": "event", "next": [2, 3] }
+    ],
+    [
+      { "kind": "battle", "next": [0], "encounter": { "front": ["guard_cruiser", "carrier", null], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }, { "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "event", "next": [1, 2] },
+      { "kind": "battle", "next": [2], "encounter": { "front": ["torpedo_wing", "besieger", null], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "battle", "next": [2], "encounter": { "front": ["raiders", "carrier", null], "back": [null, "spotter", null] } }
+    ],
+    [
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, "besieger", null], "back": [null, "spotter", null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }, { "round": 3, "unit": "guard_cruiser" }] } },
+      { "kind": "battle", "next": [0], "encounter": { "front": ["torpedo_wing", "raiders", "carrier"], "back": [null, "torpedo_wing", null] } },
+      { "kind": "event", "next": [0] }
+    ],
+    [
+      { "kind": "boss", "next": [], "encounter": { "front": ["plasma_cruiser", "guard_cruiser", null], "back": ["spotter", "seal", null], "replacements": ["guard_cruiser", "guard_cruiser"] } }
+    ]
+  ]
+}

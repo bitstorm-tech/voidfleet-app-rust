@@ -7,28 +7,15 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 
-use crate::admirals::{
-    AdmiralId, AdmiralStation, COUNTERFIRE_DAMAGE, COUNTERFIRE_SHIELD, DAMAGE_CONTROL_REPAIR,
-    FOCUS_FIRE_VULNERABILITY, FOLLOW_UP_CARD_BONUS, MAX_MOMENTUM, Station,
-};
+use crate::admirals::{AdmiralId, AdmiralStation, Station};
 use crate::board::{COLUMNS, EnemySlot, MAX_ENEMIES};
-use crate::cards::{
-    COUP_DE_GRACE_EMERGENCY_BONUS, CardId, CardTarget, CardType, DeckCard,
-    HEAT_SEEKER_EVADING_BONUS, HOLD_THE_LINE_RETALIATION, OVERCHARGE_SELF_DAMAGE, SCAVENGE_DRAW,
-};
-use crate::enemies::{Action, BOLT_SHIELD, CANNIBALIZE_HEAL, EnemyClass, EnemyId, RAM_DAMAGE};
+use crate::cards::{CardId, CardTarget, CardType, DeckCard};
+use crate::data::rules;
+use crate::enemies::{Action, EnemyClass, EnemyId};
 use crate::events::{
     BattleEvent, Breakdown, DestroyCause, Hit, IdleReason, Intent, MissReason, UnitRef, UnitStats,
 };
-use crate::modules::{ModuleId, RESERVE_REACTOR_POINTS, SUPPLY_POD_HAND};
-
-pub const HAND_SIZE: usize = 5;
-pub const COMMAND_POINTS: u32 = 3;
-/// Brandschaden je Auflösung; bei Gegnern von Reyes (Glutkern) mehr.
-pub const BURN_DAMAGE: i32 = 2;
-pub const EMBER_BURN_DAMAGE: i32 = 3;
-/// Ab dieser Runde bekommen alle Gegner +1 ATK je Runde (Gefechtsuhr).
-pub const CLOCK_START: u32 = 8;
+use crate::modules::ModuleId;
 
 /// Was der Run dem Gefecht mitgibt.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,20 +28,37 @@ pub struct BattleSetup {
     /// Das Modul Notaggregat ist da und im Run noch nicht verbraucht.
     pub emergency_generator_available: bool,
     pub encounter: Encounter,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Encounter {
-    pub units: Vec<(EnemyId, EnemySlot)>,
     /// Hülle der Gegner in Prozent (Sektor 1 100, Sektor 2 125, Sektor 3 150), aufgerundet.
     pub hull_percent: u32,
+}
+
+/// Ein Verband, wie er zu Beginn auf dem Brett steht: je Reihe die drei Spalten von links nach rechts. So steht
+/// er auch an den Knoten der Sternenkarten (`assets/data/maps/`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Encounter {
+    pub front: [Option<EnemyId>; COLUMNS],
+    #[serde(default)]
+    pub back: [Option<EnemyId>; COLUMNS],
+    #[serde(default)]
     pub reinforcements: Vec<Reinforcement>,
     /// Gegenflotte: Fällt eine Eskorte, rückt die nächste in ihren Slot nach.
+    #[serde(default)]
     pub replacements: Vec<EnemyId>,
+}
+
+impl Encounter {
+    /// Die Einheiten samt Slot in der Reihenfolge von [`EnemySlot::ALL`].
+    pub fn units(&self) -> impl Iterator<Item = (EnemyId, EnemySlot)> {
+        let ids = self.front.into_iter().chain(self.back);
+        ids.zip(EnemySlot::ALL)
+            .filter_map(|(id, slot)| Some((id?, slot)))
+    }
 }
 
 /// Angesagte Verstärkung: trifft im Gegnerzug der Runde `round` ein.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Reinforcement {
     pub round: u32,
     pub unit: EnemyId,
@@ -129,7 +133,7 @@ pub struct Flagship {
 
 impl Flagship {
     pub fn emergency(&self) -> bool {
-        self.hull * 4 <= self.max_hull
+        at_most(self.hull, self.max_hull, rules().battle.emergency_percent)
     }
 
     pub fn stats(&self) -> UnitStats {
@@ -163,7 +167,7 @@ pub struct Enemy {
 
 impl Enemy {
     pub fn emergency(&self) -> bool {
-        self.hull * 4 <= self.max_hull
+        at_most(self.hull, self.max_hull, rules().battle.emergency_percent)
     }
 
     /// Ausweichen gilt in der Runde, in der es angesagt ist, schon im Spielerzug; im Notfall weicht ein Gegner nicht
@@ -196,6 +200,11 @@ struct Shot {
     ignore_cover: bool,
     ignite: bool,
     rammed: bool,
+}
+
+/// Ob `hull` höchstens `percent` Prozent von `max_hull` ist.
+fn at_most(hull: i32, max_hull: i32, percent: i32) -> bool {
+    hull * 100 <= max_hull * percent
 }
 
 #[derive(Debug, Clone)]
@@ -257,25 +266,25 @@ impl Battle {
             draw_pile: setup.deck,
             discard_pile: Vec::new(),
             doctrines: Vec::new(),
-            points: COMMAND_POINTS,
+            points: rules().battle.command_points,
             kills: 0,
             emergency_generator_available: setup.emergency_generator_available,
             emergency_generator_used: false,
-            reinforcements: setup.encounter.reinforcements,
-            replacements: setup.encounter.replacements,
-            hull_percent: setup.encounter.hull_percent,
+            reinforcements: setup.encounter.reinforcements.clone(),
+            replacements: setup.encounter.replacements.clone(),
+            hull_percent: setup.hull_percent,
             result: None,
             next_uid: 1,
             rng: StdRng::seed_from_u64(seed),
             modules: setup.modules,
         };
         if battle.has(ModuleId::ReserveReactor) {
-            battle.points = RESERVE_REACTOR_POINTS;
+            battle.points = rules().modules.reserve_reactor_points;
         }
         let mut events = Vec::new();
         battle.draw_pile.shuffle(&mut battle.rng);
         battle.draw(battle.hand_size(), &mut events);
-        for (id, slot) in setup.encounter.units {
+        for (id, slot) in setup.encounter.units() {
             battle.spawn(id, slot, false, &mut events);
         }
         battle
@@ -298,12 +307,13 @@ impl Battle {
 
     /// Gefechtsuhr: ATK-Zuschlag der Gegner in dieser Runde.
     pub fn clock(&self) -> i32 {
-        self.round.saturating_sub(CLOCK_START - 1) as i32
+        self.round.saturating_sub(rules().battle.clock_start - 1) as i32
     }
 
     /// Panzerung des Flaggschiffs: Ablativpanzerung und Panzerplatten.
     pub fn flagship_armor(&self) -> i32 {
-        self.flagship.ablative + self.has(ModuleId::ArmorPlates) as i32
+        self.flagship.ablative
+            + self.has(ModuleId::ArmorPlates) as i32 * rules().modules.armor_plates_armor
     }
 
     /// ATK der Waffen-Station samt allen Boni.
@@ -353,9 +363,9 @@ impl Battle {
 
     fn hand_size(&self) -> usize {
         if self.has(ModuleId::SupplyPod) {
-            SUPPLY_POD_HAND
+            rules().modules.supply_pod_hand
         } else {
-            HAND_SIZE
+            rules().battle.hand_size
         }
     }
 
@@ -375,7 +385,8 @@ impl Battle {
             + momentum
             + f.attack_bonus
             + f.fire_control
-            + self.has(ModuleId::FireControlComputer) as i32;
+            + self.has(ModuleId::FireControlComputer) as i32
+                * rules().modules.fire_control_computer_attack;
         if f.emergency() {
             half_up(attack)
         } else {
@@ -390,7 +401,7 @@ impl Battle {
             Action::ColumnFire { .. } => {
                 attack * (1 + (charged || enemy.id == EnemyId::TorpedoWing) as i32)
             }
-            Action::Ram => RAM_DAMAGE,
+            Action::Ram => rules().enemies.ram_damage,
             _ => 0,
         }
     }
@@ -517,7 +528,7 @@ impl Battle {
             Station::Shields => {
                 self.shield_flagship(self.flagship.admiral.shield_station(), events)
             }
-            Station::DamageControl => self.repair(DAMAGE_CONTROL_REPAIR, events),
+            Station::DamageControl => self.repair(rules().stations.damage_control_repair, events),
             Station::Maneuver => {
                 let Target::Column(column) = target else {
                     unreachable!("geprüft")
@@ -527,7 +538,7 @@ impl Battle {
             Station::Admiral => match self.flagship.admiral.station() {
                 AdmiralStation::Counterfire => {
                     self.flagship.counterfire = true;
-                    self.shield_flagship(COUNTERFIRE_SHIELD, events);
+                    self.shield_flagship(rules().stations.counterfire_shield, events);
                 }
                 AdmiralStation::FocusFire => {
                     self.fire(uid, true, events);
@@ -660,7 +671,7 @@ impl Battle {
                 let base = self.card_damage(
                     value
                         + if evading {
-                            HEAT_SEEKER_EVADING_BONUS
+                            rules().cards.heat_seeker_evading_bonus
                         } else {
                             0
                         },
@@ -678,7 +689,7 @@ impl Battle {
                 let base = self.card_damage(
                     value
                         + if emergency {
-                            COUP_DE_GRACE_EMERGENCY_BONUS
+                            rules().cards.coup_de_grace_emergency_bonus
                         } else {
                             0
                         },
@@ -740,13 +751,13 @@ impl Battle {
             }
             CardId::EmergencyShields => self.shield_flagship(value, events),
             CardId::HoldTheLine => {
-                self.flagship.hold_the_line += HOLD_THE_LINE_RETALIATION;
+                self.flagship.hold_the_line += rules().cards.hold_the_line_retaliation;
                 self.shield_flagship(value, events);
             }
             CardId::AblativeArmor => self.flagship.ablative += value,
             CardId::Overcharge => {
                 self.flagship.attack_bonus += value;
-                self.flagship.overcharge += OVERCHARGE_SELF_DAMAGE;
+                self.flagship.overcharge += rules().cards.overcharge_self_damage;
             }
             CardId::PowerSurge => self.flagship.attack_bonus += value,
             CardId::RepairCrew => self.repair(value, events),
@@ -781,7 +792,7 @@ impl Battle {
                 self.maneuver(column, events);
             }
             CardId::Countermeasures => self.flagship.countermeasures += 1,
-            CardId::Scavenge => self.draw(SCAVENGE_DRAW, events),
+            CardId::Scavenge => self.draw(rules().cards.scavenge_draw, events),
             CardId::RedAlert => self.flagship.station_slots += 1,
             CardId::FireControlDoctrine => self.flagship.fire_control += value,
             CardId::BattleStations => self.flagship.battle_stations += value,
@@ -808,7 +819,7 @@ impl Battle {
         let ran = self.flagship.admiral.station() == AdmiralStation::FollowUp
             && self.flagship.stations_used.contains(&Station::Admiral);
         if ran && enemy.burning {
-            FOLLOW_UP_CARD_BONUS
+            rules().stations.follow_up_card_bonus
         } else {
             0
         }
@@ -919,7 +930,9 @@ impl Battle {
         enemy.hull -= breakdown.hull;
         enemy.hit = true;
         breakdown.lethal = enemy.hull == 0;
-        let ignite = ignite || (breakdown.hull > 0 && 2 * enemy.hull <= enemy.max_hull);
+        let ignite = ignite
+            || (breakdown.hull > 0
+                && at_most(enemy.hull, enemy.max_hull, rules().battle.burn_percent));
         events.push(BattleEvent::Hit {
             source: UnitRef::Flagship,
             target: enemy.unit(),
@@ -988,7 +1001,10 @@ impl Battle {
             .filter(|e| e.id == EnemyId::ScrapKing)
         {
             let was = king.emergency();
-            let amount = CANNIBALIZE_HEAL.min(king.max_hull - king.hull);
+            let amount = rules()
+                .enemies
+                .cannibalize_heal
+                .min(king.max_hull - king.hull);
             king.hull += amount;
             events.push(BattleEvent::Cannibalized {
                 unit: king.unit(),
@@ -1047,11 +1063,12 @@ impl Battle {
             breakdown,
             after: f.stats(),
         });
-        let threshold = if plasma {
-            10 * f.hull <= 6 * f.max_hull
+        let percent = if plasma {
+            rules().enemies.plasma_burn_percent
         } else {
-            2 * f.hull <= f.max_hull
+            rules().battle.burn_percent
         };
+        let threshold = at_most(f.hull, f.max_hull, percent);
         if breakdown.hull > 0 && f.hull > 0 && threshold && !f.burning {
             f.burning = true;
             events.push(BattleEvent::Ignited {
@@ -1133,7 +1150,8 @@ impl Battle {
             events.push(BattleEvent::EnemyAction { unit, action });
             match action {
                 Action::Fire | Action::ColumnFire { .. } | Action::Ram => {
-                    let focus = self.flagship.focus_vulnerable as i32 * FOCUS_FIRE_VULNERABILITY;
+                    let focus = self.flagship.focus_vulnerable as i32
+                        * rules().stations.focus_fire_vulnerability;
                     let damage = self.action_damage(enemy, action, enemy.charged) + focus;
                     let plasma = enemy.id == EnemyId::PlasmaCruiser;
                     self.enemies[i].charged = false;
@@ -1177,11 +1195,11 @@ impl Battle {
                 Action::Call(unit) => self.reinforce(unit, events),
                 Action::Bolt => {
                     for enemy in &mut self.enemies {
-                        enemy.shield += BOLT_SHIELD;
+                        enemy.shield += rules().enemies.bolt_shield;
                         let (target, after) = (enemy.unit(), enemy.stats());
                         events.push(BattleEvent::Shielded {
                             target,
-                            amount: BOLT_SHIELD,
+                            amount: rules().enemies.bolt_shield,
                             after,
                         });
                     }
@@ -1200,7 +1218,7 @@ impl Battle {
             let i = self.index(uid).expect("Schütze steht");
             self.drain(
                 i,
-                COUNTERFIRE_DAMAGE,
+                rules().stations.counterfire_damage,
                 cause,
                 events,
                 |target, amount, after| BattleEvent::Counterfire {
@@ -1275,7 +1293,7 @@ impl Battle {
                     .iter()
                     .all(|s| matches!(s, Station::Weapons | Station::Admiral));
             f.momentum = if pressed {
-                (f.momentum + 1).min(MAX_MOMENTUM)
+                (f.momentum + 1).min(rules().stations.max_momentum)
             } else {
                 0
             };
@@ -1318,23 +1336,23 @@ impl Battle {
 
         self.discard_pile.append(&mut self.hand);
         self.draw(self.hand_size(), events);
-        self.points = COMMAND_POINTS;
+        self.points = rules().battle.command_points;
     }
 
     /// Was ein Brand der Einheit je Auflösung kostet; 0, wenn er nicht tickt (Brandschutz).
     pub fn burn_damage(&self, unit: UnitRef) -> i32 {
         match unit {
             UnitRef::Flagship if self.modules.contains(&ModuleId::FireSuppression) => 0,
-            UnitRef::Flagship => BURN_DAMAGE,
+            UnitRef::Flagship => rules().battle.burn_damage,
             UnitRef::Enemy { .. } => self.enemy_burn_damage(),
         }
     }
 
     fn enemy_burn_damage(&self) -> i32 {
         if self.flagship.admiral == AdmiralId::Reyes {
-            EMBER_BURN_DAMAGE
+            rules().battle.ember_burn_damage
         } else {
-            BURN_DAMAGE
+            rules().battle.burn_damage
         }
     }
 

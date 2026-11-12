@@ -12,6 +12,13 @@ use voidfleet_core::events::{
 const MID: [bool; 3] = [false, true, false];
 
 fn battle(admiral: AdmiralId, units: &[(EnemyId, Row, usize)]) -> Battle {
+    let mut encounter = Encounter::default();
+    for &(id, row, column) in units {
+        match row {
+            Row::Front => encounter.front[column] = Some(id),
+            Row::Back => encounter.back[column] = Some(id),
+        }
+    }
     Battle::new(
         BattleSetup {
             admiral,
@@ -20,15 +27,8 @@ fn battle(admiral: AdmiralId, units: &[(EnemyId, Row, usize)]) -> Battle {
             deck: starter_deck(admiral),
             modules: vec![],
             emergency_generator_available: false,
-            encounter: Encounter {
-                units: units
-                    .iter()
-                    .map(|&(id, row, c)| (id, EnemySlot::new(row, c)))
-                    .collect(),
-                hull_percent: 100,
-                reinforcements: vec![],
-                replacements: vec![],
-            },
+            encounter,
+            hull_percent: 100,
         },
         7,
     )
@@ -476,7 +476,9 @@ fn order_matters() {
         .base;
     assert_eq!(
         after - before,
-        voidfleet_core::cards::COUP_DE_GRACE_EMERGENCY_BONUS
+        voidfleet_core::data::rules()
+            .cards
+            .coup_de_grace_emergency_bonus
     );
 
     // Energiestoß nach dem Schuss ändert ihn nicht mehr, davor schon.

@@ -1,0 +1,834 @@
+{
+  "language_name": "Deutsch",
+  "hud_round": "Runde {round}",
+  "hud_new_round": "Neue Runde",
+  "hud_end_turn": "Zug beenden",
+  "hud_skip": "Animation überspringen",
+  "hud_show_log": "Log einblenden",
+  "hud_hide_log": "Log ausblenden",
+  "admiral_select_title": "Wähle deinen Admiral",
+  "admiral_select_choose": "Wählen",
+  "settings_title": "Einstellungen",
+  "settings_tab": {
+    "game": "Spiel",
+    "video": "Video",
+    "sound": "Sound",
+    "dev": "Dev"
+  },
+  "settings_window_mode": "Darstellung",
+  "window_mode": {
+    "windowed": "Fenster",
+    "maximized": "Maximiert",
+    "fullscreen": "Vollbild"
+  },
+  "settings_antialiasing": "Kantenglättung",
+  "antialiasing": {
+    "off": "Aus",
+    "x2": "2x",
+    "x4": "4x",
+    "x8": "8x"
+  },
+  "settings_models": "3D-Modelle",
+  "models_hint": "Mausrad: Zoom · Linke Maustaste ziehen: verschieben · Rechte Maustaste ziehen: drehen · Klick auf ein Schiff: Zerstörung",
+  "settings_show_fps": "FPS-Anzeige",
+  "on_off": {
+    "on": "An",
+    "off": "Aus"
+  },
+  "settings_music_volume": "Musik",
+  "settings_effects_volume": "Soundeffekte",
+  "settings_voice_volume": "Bordfunk",
+  "settings_attack_speed": "Geschwindigkeit der Angriffe",
+  "settings_movement_speed": "Geschwindigkeit der Bewegungen",
+  "settings_animation_speed": "Übrige Animationen",
+  "settings_language": "Sprache",
+  "speed": {
+    "slow": "Langsam",
+    "normal": "Normal",
+    "fast": "Schnell",
+    "very_fast": "Sehr schnell"
+  },
+  "settings_cursor": "Mauszeiger",
+  "settings_cursor_size": "Zeigergröße",
+  "cursor": {
+    "arrow": "Toon-Pfeil",
+    "fighter": "Jäger",
+    "delta": "Delta-Gleiter",
+    "flagship": "Flaggschiff",
+    "needle": "Navigationsnadel",
+    "shard": "Kristallsplitter",
+    "formation": "Formation",
+    "holo": "Holo-Pfeil",
+    "thruster": "Triebwerk",
+    "crosshair": "Zielkreuz"
+  },
+  "rules_title": "Spielregeln",
+  "dialog_close": "Schließen",
+  "fullscreen_enter": "Vollbild (F)",
+  "fullscreen_exit": "Vollbild beenden (F)",
+  "camera_view_toggle": "Ansicht wechseln (V); stufenlos drehen mit ← → oder der mittleren Maustaste",
+  "loading_assets": "Lade Assets … {percent} %",
+  "loading_failed": "Laden fehlgeschlagen — starte das Spiel neu.",
+  "radio_speaker": {
+    "fleet": "Flottenfunk",
+    "intercepted": "Abgehört"
+  },
+  "log_round_header": "— Runde {round} —",
+  "stats_atk": "ATK",
+  "hud_clock": "Gefechtsuhr +{bonus} ATK",
+  "hud_clock_hint": "Ab Runde {rules.battle.clock_start} feuert jeder Gegner je Runde mit +1 ATK mehr; jetzt +{bonus}.",
+  "hud_hull": "Hülle {hull}/{max_hull}",
+  "hud_points": "Befehlspunkte",
+  "hud_draw_pile": "Nachziehstapel",
+  "hud_discard_pile": "Ablagestapel",
+  "hud_stations": "Stationen",
+  "checklist_free_stations": {
+    "one": "1 Station frei",
+    "other": "{count} Stationen frei"
+  },
+  "checklist_station": "Station: {station}",
+  "checklist_points": {
+    "one": "1 Befehlspunkt offen",
+    "other": "{points} Befehlspunkte offen"
+  },
+  "admiral_select_hint": "Ein Flaggschiff gegen ihre Flotte. Dein Admiral bringt das Schiff, ein Passiv, eine Admiralsstation und zwei Kennkarten im Startdeck mit.",
+  "label_flagship": "Flaggschiff",
+  "label_weapon": "Waffe",
+  "label_passive": "Passiv",
+  "label_station": "Admiralsstation",
+  "label_signature": "Kennkarte",
+  "rules_section": {
+    "board": {
+      "heading": "Brett",
+      "paragraphs": [
+        "Dein Flaggschiff steht allein in einer von drei Spalten. Gegenüber hält die gegnerische Flotte zwei Reihen, Front und Back, mit je drei Spalten und höchstens vier Einheiten.",
+        "Eine Einheit in der Back-Reihe ist gedeckt, solange in ihrer Spalte vorn eine Einheit steht: Der Vordermann fängt von jedem Treffer die aufgerundete Hälfte ab, das Ziel bekommt den Rest.",
+        "Gegner feuern auf zwei Arten. Zielfeuer folgt deinem Flaggschiff, wohin es auch fliegt. Spaltenfeuer wird mit Spalte angesagt und trifft, was im Gegnerzug dort steht."
+      ]
+    },
+    "round": {
+      "heading": "Runde",
+      "paragraphs": [
+        "Eine Runde ist dein Zug, der Gegnerzug und die Auflösung. Vor Runde 1 siehst du Formation und Absichten und darfst mit einem Klick auf deine Seite deine Spalte wählen.",
+        "In deinem Zug wirken Karten und Station sofort, in deiner Reihenfolge. Karten kosten Befehlspunkte: {rules.battle.command_points} je Runde, was übrig bleibt, verfällt. Beende den Zug, wenn du fertig bist; eine Runde ohne Station ist erlaubt.",
+        "Im Gegnerzug tut jede Einheit, was sie angesagt hat, Front vor Back, links nach rechts. Dann ticken Brände, Schilde verfallen, die Hand wird abgeworfen und du ziehst {rules.battle.hand_size} neue Karten.",
+        "Ab Runde {rules.battle.clock_start} gibt die Gefechtsuhr allen Gegnern je Runde +1 ATK."
+      ]
+    },
+    "stations": {
+      "heading": "Stationen",
+      "paragraphs": [
+        "Dein Flaggschiff löst eine Station je Runde aus, mit Alarmstufe Rot eine zweite, andere. Sie wird wie eine Karte ausgelöst und bekommt dabei ihr Ziel: Waffen, Fokusfeuer und Stillstand ein gegnerisches Schiff, Manöver eine andere Spalte; die übrigen Stationen brauchen keins. Sie wirkt sofort.",
+        "Waffen feuern deine ATK auf das Ziel. Schilde schlucken im nächsten Gegnerzug {admirals.vance.shield_station} (Osei {admirals.osei.shield_station}). Schadenskontrolle löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
+        "Die Admiralsstation hängt von deinem Admiral ab und geht nicht, solange die Brücke getroffen ist (Hülle bei {rules.battle.emergency_percent} % oder weniger)."
+      ]
+    },
+    "damage": {
+      "heading": "Schaden",
+      "paragraphs": [
+        "Jeder Schuss trifft, und jede Zahl steht fest: Was die Vorschau zeigt, geschieht.",
+        "Vom Schaden eines Schusses geht in dieser Reihenfolge ab: Ausweichen halbiert, Panzerung zieht ab, Deckung gibt die Hälfte an den Vordermann, Schilde schlucken den Rest, bis sie aufgebraucht sind.",
+        "Spaltenfeuer und Rammkurs treffen voll oder gar nicht; Ausweichen zählt für sie nicht."
+      ]
+    },
+    "conditions": {
+      "heading": "Zustände",
+      "paragraphs": [
+        "Brand: Ein Treffer, der eine Einheit auf {rules.battle.burn_percent} % Hülle oder weniger bringt, setzt sie in Brand. Wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle; den eigenen Brand löschen Schadenskontrolle und Reparaturtrupp.",
+        "Notfall: Bei {rules.battle.emergency_percent} % Hülle oder weniger feuert eine Einheit mit halber ATK und weicht nicht mehr aus. Dein Flaggschiff kann dann seine Admiralsstation nicht auslösen.",
+        "Zerstört: Ein Gegner mit Hülle 0 fällt sofort und handelt nie mehr. Fällt dein Flaggschiff, ist das Gefecht verloren."
+      ]
+    },
+    "admirals": {
+      "heading": "Admirale",
+      "paragraphs": [
+        "Osei, die Mauer: Bastion, {admirals.osei.hull} Hülle, {admirals.osei.attack} ATK. Schilde schlucken {admirals.osei.shield_station}. Gegenfeuer: Schilde {rules.stations.counterfire_shield}, Abwehrfeuer {rules.stations.counterfire_damage}.",
+        "Vance, der Hammer: Vanguard, {admirals.vance.hull} Hülle, {admirals.vance.attack} ATK. Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +{rules.stations.max_momentum}. Fokusfeuer: doppelter Vorstoß, zielsuchend, dafür je Treffer {rules.stations.focus_fire_vulnerability} mehr.",
+        "Kerr, der Uhrmacher: Pendulum, {admirals.kerr.hull} Hülle, {admirals.kerr.attack} ATK. Die Railgun ist zielsuchend und durchschlagend; er sieht die Absichten zwei Runden voraus. Stillstand: Ein Gegner handelt in dieser Runde nicht.",
+        "Reyes, die Glut: Pyre, {admirals.reyes.hull} Hülle, {admirals.reyes.attack} ATK. Der Plasmawerfer setzt jedes Ziel in Brand, Brände bei Gegnern ticken {rules.battle.ember_burn_damage}. Nachsetzen: Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens, Angriffskarten auf brennende Ziele +{rules.stations.follow_up_card_bonus}."
+      ]
+    },
+    "cards": {
+      "heading": "Karten",
+      "paragraphs": [
+        "Jede Runde ziehst du {rules.battle.hand_size} Befehle. Angriffskarten treffen mit festem Schaden und den üblichen Abzügen; Verstärkungen stärken dein Flaggschiff, Schwächungen einen Gegner, Taktiken verändern das Brett. Doktrinen bleiben bis zum Gefechtsende liegen.",
+        "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) machen oder schlucken 2 mehr oder kosten 1 weniger.",
+        "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle."
+      ]
+    },
+    "enemies": {
+      "heading": "Gegner und Absichten",
+      "paragraphs": [
+        "Jeder Gegner folgt einem festen Muster und zeigt, was er als Nächstes tut: Zielfeuer mit Schaden, Spaltenfeuer mit Spalte und Schaden, Schilde, Ausweichen, Aufladen, Zielerfassung oder Verstärkung rufen.",
+        "Du handelst zuerst: Ein Gegner, der in deinem Zug fällt, führt seine Absicht nie aus, einer im Notfall mit halber ATK. Ein Kurzsprung lässt jedes Feuer ins Leere gehen, ein Manöver nur das Spaltenfeuer auf die alte Spalte.",
+        "Jäger weichen aus und schirmen ab, Kreuzer sind das Rückgrat, Schlachtschiffe laden ihre Hauptgeschütze auf und tragen Panzerung."
+      ]
+    },
+    "controls": {
+      "heading": "Steuerung",
+      "paragraphs": [
+        "Klicke eine Karte, um sie zu spielen; eine Karte mit Ziel wartet auf einen Klick auf einen leuchtenden Gegner oder eine Spalte. Ein zweiter Klick auf die Karte, Rechtsklick oder Escape bricht ab.",
+        "Stationen gehen genauso: Klicke eine Station im Stationen-Feld an; ohne Ziel wirkt sie sofort, sonst leuchten die gültigen Ziele, und der Klick auf eines löst sie aus. Unter dem Zeiger zeigt ein leuchtender Gegner den Schaden der gewählten Karte oder Station.",
+        "Leertaste überspringt die Wiedergabe, V wechselt die Ansicht, ← → drehen, ↑ ↓ zoomen, F schaltet das Vollbild, Escape öffnet die Einstellungen."
+      ]
+    }
+  },
+  "radio_lines": {
+    "battle_start": [
+      "Alle Schiffe auf Gefechtsstation. Wir erwarten Ihre Befehle, Admiral.",
+      "Flotte in Position. Bereit, sobald Sie es sind, Admiral."
+    ],
+    "victory": [
+      "Feindliche Flotte vernichtet. Der Sektor gehört uns, Admiral!",
+      "Das war der Letzte von ihnen. Sieg, Admiral!"
+    ],
+    "defeat": [
+      "Wir haben die Flotte verloren. Alle Mann von Bord!",
+      "Unsere Flotte ist vernichtet. Alle Überlebenden: Rückzug!"
+    ],
+    "enemy_destroyed": [
+      "Feindschiff zerstört!",
+      "Ziel ausgeschaltet!",
+      "Einer weniger!",
+      "Abschuss bestätigt!"
+    ],
+    "hull_critical": [
+      "Hüllenintegrität kritisch!",
+      "Das Schiff ist schwer getroffen, Admiral!"
+    ],
+    "incoming_fire": [
+      "Feindfeuer im Anflug! Festhalten!",
+      "Sie eröffnen das Feuer auf uns!"
+    ],
+    "column_fire_incoming": [
+      "Strahlwaffen laden auf unsere Linie!",
+      "Sie haben unsere Spalte im Visier! Bringt uns da raus!"
+    ],
+    "fire_onboard": [
+      "Feuer auf Deck vier! Schadenskontrolle, los!",
+      "Feuer im Hauptkorridor!"
+    ],
+    "fire_out": [
+      "Feuer gelöscht. Wir lüften den Rauch ab.",
+      "Brand eingedämmt, Admiral."
+    ],
+    "shields_up": [
+      "Schilde hoch!",
+      "Alle Energie auf die Frontschilde!"
+    ],
+    "maneuver": [
+      "Ruder hart Backbord! Wir wechseln die Bahn!",
+      "Wir drehen bei, neuer Kurs!"
+    ],
+    "micro_jump": [
+      "Antrieb läuft an. Sprung in drei, zwei, eins!",
+      "Kurzsprung, jetzt!"
+    ],
+    "jump_return": [
+      "Sprung beendet. Wir sind zurück im Gefecht.",
+      "Zurück auf dem Feld. Waffen scharf."
+    ],
+    "ram_incoming": [
+      "Brander auf Rammkurs!",
+      "Der rammt uns! Auf Aufprall gefasst machen!"
+    ],
+    "reinforcements_sighted": [
+      "Neue Kontakte! Feindliche Verstärkung springt ein!",
+      "Es werden mehr, Admiral. Frische Feinde auf dem Feld."
+    ],
+    "emergency_generator": [
+      "Hauptenergie weg! Das Notaggregat hält uns!",
+      "Notstrom an! Wir atmen noch!"
+    ],
+    "repairs": [
+      "Reparaturtrupps an der Hüllenbresche.",
+      "Schadenskontrolle, flickt sie zusammen!"
+    ],
+    "target_locked": [
+      "Ziel erfasst. Feuer!",
+      "Feuerlösung steht. Geschütze feuern!"
+    ],
+    "direct_hit": [
+      "Volltreffer!",
+      "Guter Treffer! Hülle des Ziels aufgerissen!"
+    ],
+    "enemy_burning": [
+      "Ziel brennt!",
+      "Der brennt! Weiter so!"
+    ],
+    "torpedo_away": [
+      "Torpedo los!",
+      "Torpedo läuft!"
+    ],
+    "orbital_strike": [
+      "Orbitalschlag kommt!",
+      "Wir holen es von oben runter!"
+    ],
+    "railgun_fire": [
+      "Railgun geladen. Feuer!",
+      "Projektil raus!"
+    ],
+    "plasma_fire": [
+      "Plasma bereit. Brennt sie nieder!",
+      "Plasma ablassen, jetzt!"
+    ],
+    "counterfire": [
+      "Gegenfeuer! Zahlt es ihnen heim!",
+      "Sie treffen uns, wir schlagen zurück!"
+    ],
+    "enemy_panic": [
+      "Mayday, Mayday! Wir brechen auseinander!",
+      "Der Reaktor versagt! Helft uns doch!"
+    ],
+    "enemy_charging": [
+      "Hauptbatterie lädt. Feuer halten.",
+      "Volle Energie aufs Hauptgeschütz. Auf mein Zeichen."
+    ],
+    "enemy_calls_reinforcements": [
+      "An alle Schiffe: Sammeln auf meiner Position!",
+      "Wir brauchen Verstärkung! Schickt alles, was ihr habt!"
+    ],
+    "enemy_breaking": [
+      "Abdrehen! Abdrehen! Alle weg hier!",
+      "Wir können sie nicht halten! Rückzug!"
+    ]
+  },
+  "result_title": {
+    "won": "Sieg",
+    "lost": "Niederlage"
+  },
+  "result_won_subtitle": {
+    "text": "{kills} feindliche {units} in {rounds} {round_word} zerstört.",
+    "units": {
+      "one": "Einheit",
+      "other": "Einheiten"
+    },
+    "round_word": {
+      "one": "Runde",
+      "other": "Runden"
+    }
+  },
+  "result_lost_subtitle": "Die {flagship} ist verloren. Der Run ist vorbei.",
+  "result_view_board": "Brett ansehen",
+  "result_continue": "Weiter",
+  "result_new_run": "Neuer Run",
+  "rule_error": {
+    "battle_over": "Das Gefecht ist vorbei.",
+    "not_enough_points": "Nicht genug Befehlspunkte.",
+    "target_invalid": "Kein gültiges Ziel.",
+    "admiral_station_in_emergency": "Brücke getroffen: keine Admiralsstation.",
+    "jumped": "Das Flaggschiff ist im Kurzsprung.",
+    "station_used": "Diese Station lief in dieser Runde schon.",
+    "no_station_slot": "Keine Station mehr frei in dieser Runde."
+  },
+  "stats_hull": "Hülle",
+  "station": {
+    "weapons": "Waffen",
+    "shields": "Schilde",
+    "damage_control": "Schadenskontrolle",
+    "maneuver": "Manöver"
+  },
+  "station_text": {
+    "weapons": "Feuert sofort {attack} Schaden auf ein gegnerisches Schiff.",
+    "shields": "Schluckt im nächsten Gegnerzug {shields}.",
+    "damage_control": "Löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle.",
+    "maneuver": "Wechselt sofort in eine andere Spalte und entgeht dem Spaltenfeuer auf die alte."
+  },
+  "column_name": [
+    "links",
+    "Mitte",
+    "rechts"
+  ],
+  "row_name": {
+    "front": "Front",
+    "back": "Back"
+  },
+  "card": {
+    "torpedo": {
+      "name": "Torpedo",
+      "effect": "{v} Schaden auf ein gewähltes Schiff. Zielsuchend."
+    },
+    "orbital_strike": {
+      "name": "Orbitalschlag",
+      "effect": "{v} Schaden auf ein gewähltes Schiff. Durchschlagend."
+    },
+    "volley_fire": {
+      "name": "Salvenfeuer",
+      "effect": "{v} Schaden auf jede gegnerische Einheit. Durchschlagend."
+    },
+    "barrage": {
+      "name": "Sperrfeuer",
+      "effect": "{v} Schaden auf jedes gegnerische Schiff, das gerade ausweicht. Zielsuchend."
+    },
+    "heat_seeker": {
+      "name": "Wärmesucher",
+      "effect": "{v} Schaden auf ein gewähltes Schiff, {evading}, wenn es ausweicht. Zielsuchend, durchschlagend."
+    },
+    "coup_de_grace": {
+      "name": "Gnadenstoß",
+      "effect": "{v} Schaden auf ein gewähltes Schiff, {emergency}, wenn es im Notfall ist."
+    },
+    "bombardment": {
+      "name": "Bombardement",
+      "effect": "{v} Schaden auf jede Einheit in der gegnerischen Back-Reihe. Durchschlagend."
+    },
+    "collision_course": {
+      "name": "Rammkurs",
+      "effect": "Rammt ein gewähltes Schiff: Es nimmt das Doppelte deiner ATK{bonus}, dein Flaggschiff seine ATK. Zielsuchend, durchschlagend."
+    },
+    "firebomb": {
+      "name": "Brandsatz",
+      "effect": "{v} Schaden auf ein gewähltes Schiff, Brand."
+    },
+    "emergency_shields": {
+      "name": "Notschilde",
+      "effect": "Schilde {v}."
+    },
+    "hold_the_line": {
+      "name": "Standhalten",
+      "effect": "Schilde {v}, Abwehrfeuer {rules.cards.hold_the_line_retaliation}."
+    },
+    "ablative_armor": {
+      "name": "Ablativpanzerung",
+      "effect": "Doktrin: Panzerung {v}."
+    },
+    "overcharge": {
+      "name": "Überladung",
+      "effect": "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {rules.cards.overcharge_self_damage} Schaden."
+    },
+    "power_surge": {
+      "name": "Energiestoß",
+      "effect": "+{v} ATK in dieser Runde."
+    },
+    "repair_crew": {
+      "name": "Reparaturtrupp",
+      "effect": "Löscht den Brand und repariert {v} Hülle, zusätzlich zur Station."
+    },
+    "emp_blast": {
+      "name": "EMP-Stoß",
+      "effect": "Ein gewähltes Schiff verliert Schilde und Aufladung."
+    },
+    "targeting_jammer": {
+      "name": "Zielstörer",
+      "effect": "Alle gegnerischen Schüsse im Gegnerzug −1 ATK."
+    },
+    "radio_silence": {
+      "name": "Funkstille",
+      "effect": "Ein gewähltes Schiff feuert in dieser Runde nicht und setzt seine Sonderaktion aus; eine Aufladung bricht ab."
+    },
+    "tractor_beam": {
+      "name": "Traktorstrahl",
+      "effect": "Zieht ein gewähltes Schiff (kein Flaggschiff) in einen freien Slot seiner Reihe; Deckung bricht."
+    },
+    "micro_jump": {
+      "name": "Kurzsprung",
+      "effect": "Dein Flaggschiff verlässt das Brett: danach in dieser Runde keine Station mehr, kein Ziel im Gegnerzug; es kehrt in der Auflösung zurück."
+    },
+    "evasive_action": {
+      "name": "Ausweichmanöver",
+      "effect": "Dein Flaggschiff wechselt sofort die Spalte, ohne eine Station zu verbrauchen."
+    },
+    "countermeasures": {
+      "name": "Gegenmaßnahmen",
+      "effect": "Der erste gegnerische Angriff im Gegnerzug macht halben Schaden."
+    },
+    "scavenge": {
+      "name": "Plündern",
+      "effect": "{rules.cards.scavenge_draw} Befehle ziehen."
+    },
+    "red_alert": {
+      "name": "Alarmstufe Rot",
+      "effect": "Löse in dieser Runde eine zweite, andere Station aus."
+    },
+    "fire_control_doctrine": {
+      "name": "Feuerleitdoktrin",
+      "effect": "Doktrin: Alle eigenen Schüsse und Angriffskarten +{v} Schaden."
+    },
+    "battle_stations": {
+      "name": "Alarmbereitschaft",
+      "effect": "Doktrin: In jedem Gegnerzug Schilde {v}."
+    }
+  },
+  "card_bonus": "{card}: +{bonus} Schaden.",
+  "keywords": [
+    {
+      "word": "Zielsuchend",
+      "text": "Ausweichen zählt nicht."
+    },
+    {
+      "word": "Durchschlagend",
+      "text": "Deckung zählt nicht."
+    },
+    {
+      "word": "Schilde",
+      "text": "Schluckt so viel Schaden im folgenden Gegnerzug."
+    },
+    {
+      "word": "Panzerung",
+      "text": "Jeder Treffer macht so viel weniger."
+    },
+    {
+      "word": "Abwehrfeuer",
+      "text": "Jeder Schütze, der dein Flaggschiff trifft, verliert so viel Hülle."
+    },
+    {
+      "word": "Brand",
+      "text": "Wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle."
+    },
+    {
+      "word": "Notfall",
+      "text": "Bei {rules.battle.emergency_percent} % Hülle oder weniger: halbe ATK, kein Ausweichen."
+    },
+    {
+      "word": "Doktrin",
+      "text": "Gilt für den Rest des Gefechts."
+    }
+  ],
+  "card_type": {
+    "attack": "Angriff",
+    "buff": "Verstärkung",
+    "debuff": "Schwächung",
+    "tactic": "Taktik",
+    "doctrine": "Doktrin"
+  },
+  "card_target": {
+    "none": "Ohne Ziel",
+    "enemy": "Gegnerisches Schiff",
+    "column": "Eigene Spalte"
+  },
+  "admiral": {
+    "osei": {
+      "name": "Osei",
+      "epithet": "Die Mauer",
+      "weapon": "Flakbatterien",
+      "passive": "Wächterschild: Schilde schlucken {admirals.osei.shield_station} statt {admirals.vance.shield_station}.",
+      "station": "Gegenfeuer",
+      "station_text": "Feuert nicht. Schilde {rules.stations.counterfire_shield}, Abwehrfeuer {rules.stations.counterfire_damage}."
+    },
+    "vance": {
+      "name": "Vance",
+      "epithet": "Der Hammer",
+      "weapon": "Schwere Geschütze",
+      "passive": "Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +{rules.stations.max_momentum}; jede andere Station setzt zurück.",
+      "station": "Fokusfeuer",
+      "station_text": "Feuert mit doppeltem Vorstoß, zielsuchend; nimmt im nächsten Gegnerzug je Treffer {rules.stations.focus_fire_vulnerability} mehr."
+    },
+    "kerr": {
+      "name": "Kerr",
+      "epithet": "Der Uhrmacher",
+      "weapon": "Railgun: zielsuchend, durchschlagend",
+      "passive": "Uhrwerk: sieht die Absichten der Gegner zwei Runden voraus.",
+      "station": "Stillstand",
+      "station_text": "Feuert nicht. Ein gewählter Gegner handelt in dieser Runde nicht; seine Absicht verschiebt sich, eine Aufladung bleibt."
+    },
+    "reyes": {
+      "name": "Reyes",
+      "epithet": "Die Glut",
+      "weapon": "Plasmawerfer: jeder Treffer setzt das Ziel in Brand",
+      "passive": "Glutkern: Brände bei Gegnern ticken {rules.battle.ember_burn_damage} statt {rules.battle.burn_damage}.",
+      "station": "Nachsetzen",
+      "station_text": "Feuert nicht. Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens; Angriffskarten auf brennende Ziele +{rules.stations.follow_up_card_bonus} für den Rest der Runde."
+    }
+  },
+  "flagship": {
+    "bastion": "Bastion",
+    "vanguard": "Vanguard",
+    "pendulum": "Pendulum",
+    "pyre": "Pyre"
+  },
+  "enemy": {
+    "raiders": "Plünderer-Staffel",
+    "fireship": "Brander",
+    "torpedo_wing": "Torpedo-Staffel",
+    "guard_cruiser": "Wachkreuzer",
+    "plasma_cruiser": "Plasmakreuzer",
+    "spotter": "Spotter",
+    "besieger": "Belagerer",
+    "carrier": "Trägerschiff",
+    "scrap_king": "Schrottkönig",
+    "warden": "Wächter",
+    "seal": "Siegel"
+  },
+  "enemy_class": {
+    "fighter": "Jäger-Staffel",
+    "cruiser": "Kreuzer-Paar",
+    "battleship": "Schlachtschiff",
+    "flagship": "Flaggschiff"
+  },
+  "action": {
+    "fire": "Zielfeuer",
+    "column_fire": "Spaltenfeuer {columns}",
+    "ram": "Rammkurs",
+    "shields": "Schilde {amount}",
+    "evade": "Ausweichen",
+    "charge": "Aufladen",
+    "target_lock": "Zielerfassung",
+    "call": "Ruft {enemy}",
+    "bolt": "Riegel: alle Schild {rules.enemies.bolt_shield}"
+  },
+  "condition": {
+    "burning": "Brand",
+    "emergency": "Notfall",
+    "stasis": "Stillstand",
+    "silenced": "Funkstille",
+    "covered": "Deckung"
+  },
+  "action_hint": {
+    "fire": "Feuert auf dein Flaggschiff, wo immer es steht.",
+    "column_fire": "Feuert auf die angesagten Spalten; ein Manöver heraus weicht aus.",
+    "ram": "Rammt dein Flaggschiff und vergeht dabei.",
+    "shields": "Erhält {amount} Schild.",
+    "evade": "Weicht aus: Deine Schüsse richten nur halben Schaden an.",
+    "charge": "Lädt das Hauptgeschütz auf: Sein nächster Schuss richtet doppelten Schaden an.",
+    "target_lock": "Alle gegnerischen Schüsse +1 ATK, solange er steht.",
+    "call": "Ruft {enemy} als Verstärkung für die nächste Runde.",
+    "bolt": "Alle ihre Einheiten erhalten {rules.enemies.bolt_shield} Schild."
+  },
+  "condition_hint": {
+    "burning": "Verliert in jeder Auflösung Hülle.",
+    "emergency": "Hülle bei {rules.battle.emergency_percent} % oder weniger: halbe ATK, kein Ausweichen; dein Flaggschiff verliert die Admiralsstation.",
+    "stasis": "Handelt in dieser Runde nicht.",
+    "silenced": "Feuert in dieser Runde nicht und setzt seine Sonderaktion aus.",
+    "covered": "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
+  },
+  "armor_hint": "Panzerung: Jeder Treffer macht {amount} weniger Schaden.",
+  "burn_hint": {
+    "ticking": "Verliert {amount} Hülle in jeder Auflösung.",
+    "suppressed": "Brandschutz: Der Brand tickt nicht."
+  },
+  "caption_next": "Nächste Runde",
+  "module": {
+    "fire_control_computer": {
+      "name": "Feuerleitrechner",
+      "text": "+{rules.modules.fire_control_computer_attack} ATK auf die Schüsse des Flaggschiffs."
+    },
+    "fire_suppression": {
+      "name": "Löschanlage",
+      "text": "Der eigene Brand tickt nicht."
+    },
+    "reserve_reactor": {
+      "name": "Reservereaktor",
+      "text": "{rules.modules.reserve_reactor_points} Befehlspunkte in Runde 1."
+    },
+    "armor_plates": {
+      "name": "Panzerplatten",
+      "text": "Panzerung +{rules.modules.armor_plates_armor}."
+    },
+    "emergency_generator": {
+      "name": "Notaggregat",
+      "text": "Einmal im Run lässt ein tödlicher Schaden 1 Hülle."
+    },
+    "salvage_crane": {
+      "name": "Bergungskran",
+      "text": "Jede zerstörte gegnerische Einheit bringt {rules.modules.salvage_crane_scrap} Schrott."
+    },
+    "supply_pod": {
+      "name": "Nachschubkapsel",
+      "text": "{rules.modules.supply_pod_hand} statt {rules.battle.hand_size} Karten je Runde."
+    },
+    "combat_simulator": {
+      "name": "Kampfsimulator",
+      "text": "Kartenangebote zeigen {rules.run.combat_simulator_offer} statt {rules.run.card_offer}."
+    },
+    "reinforced_frames": {
+      "name": "Verstärkte Spanten",
+      "text": "+{rules.modules.reinforced_frames_hull} Hülle dauerhaft."
+    }
+  },
+  "breakdown_words": {
+    "evaded": "weicht aus",
+    "countermeasures": "Gegenmaßnahmen",
+    "armor": "Panzerung",
+    "covered": "gedeckt",
+    "shield": "Schild",
+    "lethal": "tödlich"
+  },
+  "log_battle_started": "Gefechtsstationen — {admiral} übernimmt das Kommando.",
+  "log_card": {
+    "target": "Karte: {card} auf {target}",
+    "plain": "Karte: {card}"
+  },
+  "log_station": "Station: {station}",
+  "log_hit": "{source} trifft {target}: {breakdown}",
+  "log_missed": {
+    "jumped": "{source} feuert ins Leere — das Flaggschiff ist gesprungen.",
+    "maneuvered": "{source} feuert auf eine leere Spalte."
+  },
+  "log_shielded": "{target} fährt Schilde hoch: {amount}",
+  "log_healed": "{target} repariert {amount} Hülle",
+  "log_ignited": "{target} brennt",
+  "log_extinguished": "Brand auf {target} gelöscht",
+  "log_emergency": {
+    "on": "{target} im Notfall",
+    "off": "{target} aus dem Notfall"
+  },
+  "log_destroyed": {
+    "shot": "{target} zerstört",
+    "burned_out": "{target} ausgebrannt",
+    "rammed": "{target} zerschellt am Rammstoß",
+    "retaliation": "{target} am Gegenfeuer zerschellt"
+  },
+  "log_fireship_spent": "{unit} ist verbraucht",
+  "log_rammed": "Das Flaggschiff rammt {target}",
+  "log_jumped": "Das Flaggschiff springt",
+  "log_returned": "Das Flaggschiff ist zurück",
+  "log_maneuvered": "Das Flaggschiff wechselt von {from} nach {to}",
+  "log_tractored": "Traktorstrahl zieht {unit} aus {from}",
+  "log_arrived": "{unit} trifft ein",
+  "log_enemy_action": "{unit}: {action}",
+  "log_idle": {
+    "stasis": "{unit} steht still",
+    "silenced": "{unit} hält Funkstille"
+  },
+  "log_counterfire": "Gegenfeuer trifft {target}: {amount}",
+  "log_hold_the_line": "Standhalten trifft {target}: {amount}",
+  "log_self_damage": "Überladung belastet das Flaggschiff: {amount}",
+  "log_burn": "{target} brennt: {amount}",
+  "log_cannibalized": "{unit} schlachtet das Wrack aus: +{amount} Hülle",
+  "log_emergency_generator": "Das Notaggregat hält das Flaggschiff bei 1 Hülle",
+  "log_shuffled": "Ablagestapel ins Deck gemischt",
+  "log_drawn": {
+    "one": "1 Karte gezogen",
+    "other": "{count} Karten gezogen"
+  },
+  "log_intents": "{unit} sagt an: {intents}",
+  "log_clock": "Gefechtsuhr: Gegner +{bonus} ATK",
+  "log_battle_ended": {
+    "won": "Die feindliche Flotte ist vernichtet.",
+    "lost": "Das Flaggschiff ist verloren."
+  },
+  "menu_tagline": "Ein Wurmloch hat dein Flaggschiff verschluckt. Drei Sektoren trennen dich von zu Hause.",
+  "menu_new_run": "Neuer Run",
+  "menu_continue": "Weiter",
+  "menu_quit": "Beenden",
+  "menu_main": "Hauptmenü",
+  "menu_no_runs": "Noch ist kein Admiral unterwegs. „Neuer Run“ stellt das erste Flaggschiff in Dienst.",
+  "menu_victories": "Siege {battles}",
+  "sector_name": [
+    "Das Trümmerfeld",
+    "Die Stille",
+    "Die Schwelle"
+  ],
+  "map_title": "Sektor {sector}: {name}",
+  "map_hint": "Wähle den nächsten Knoten. Oben wartet der Boss des Sektors.",
+  "sector_banner_hint": "Der Weg nach Hause führt weiter.",
+  "node_kind": {
+    "battle": "Gefecht",
+    "elite": "Elite",
+    "event": "Ereignis",
+    "shipyard": "Werft",
+    "market": "Schwarzmarkt",
+    "boss": "Boss"
+  },
+  "node_kind_hint": {
+    "battle": "Ein Verband des Sektors. Beute: Schrott und eine Befehlskarte.",
+    "elite": "Ein mächtiges Schlachtschiff. Beute: viel Schrott und ein Modul.",
+    "event": "Eine Szene über Funk mit einer Entscheidung.",
+    "shipyard": "Reparieren, eine Karte aufwerten oder eine ausmustern.",
+    "market": "Karten, Module, Reparatur und Ausmustern für Schrott.",
+    "boss": "Der Abschluss des Sektors. Beute: ein Modul und Reparatur."
+  },
+  "run_scrap": "Schrott {scrap}",
+  "run_deck": "Deck {cards}",
+  "run_show_deck": "Deck ansehen",
+  "run_modules": "Module {count}",
+  "run_no_modules": "Keine Module",
+  "run_position": "Sektor {sector} · Reihe {row}",
+  "run_scrap_change": "{scrap} Schrott",
+  "run_hull_change": "{hull} Hülle",
+  "run_module_gained": "Neues Modul: {module}",
+  "run_card_upgraded": "Aufgewertet: {card}",
+  "loot_title": "Beute",
+  "loot_cards_hint": "Eine Befehlskarte kommt ins Deck, oder keine.",
+  "loot_modules_hint": "Ein Modul wirkt bis zum Ende des Runs.",
+  "loot_take": "Nehmen",
+  "loot_skip": "Keine",
+  "event": {
+    "resolute": {
+      "title": "Das Wrack der Resolute",
+      "text": "Ein Kreuzer der eigenen Flotte treibt ausgebrannt im Feld: die Resolute. Das Wurmloch hat auch sie verschluckt. Ihr Reaktor glimmt noch, ihre Funkboje sendet in einer Schleife die letzte Meldung."
+    },
+    "pilot": {
+      "title": "Der Lotse",
+      "text": "Ein Händler meldet sich auf einer offenen Frequenz. Vor dir liegt ein Minenfeld, und er kennt den sicheren Weg hindurch, für einen Preis."
+    },
+    "flicker": {
+      "title": "Flackern",
+      "text": "Das Wurmloch meldet sich. Für einen Augenblick flackert der Raum um das Flaggschiff, und zwischen dem Rauschen liegt etwas Vertrautes."
+    }
+  },
+  "event_option": {
+    "salvage": {
+      "label": "Bergen",
+      "consequence": "+{rules.run.resolute_scrap} Schrott; das nächste Gefecht beginnt brennend.",
+      "outcome": "Die Bergungstrupps schneiden heraus, was sich tragen lässt. Beim Ablegen zündet ein Leck im Hangar."
+    },
+    "logbooks": {
+      "label": "Die Logbücher sichern",
+      "consequence": "Ein zufälliges Modul.",
+      "outcome": "In den Logbüchern stecken die Baupläne, die die Resolute nicht mehr braucht."
+    },
+    "move_on": {
+      "label": "Weiterfliegen und die Crew bestatten",
+      "consequence": "Nichts.",
+      "outcome": "Die Crew bekommt ihr Begräbnis im All. Über Funk die letzte Meldung der Resolute: „Wir halten die Linie.“"
+    },
+    "pay_pilot": {
+      "label": "Den Lotsen bezahlen",
+      "consequence": "{rules.run.pilot_price} Schrott; der nächste Knoten wird eine Werft.",
+      "outcome": "Der Händler überträgt seine Route. Am Ende wartet ein Dock."
+    },
+    "fly_yourself": {
+      "label": "Selbst fliegen",
+      "consequence": "−{rules.run.pilot_damage} Hülle, dafür ein Kartenangebot.",
+      "outcome": "Zwei Minen streifen die Hülle. Im Feld treiben Container mit Befehlssätzen."
+    },
+    "embrace": {
+      "label": "Ins Flackern fliegen",
+      "consequence": "−{flicker_damage} Hülle; eine zufällige Karte wird aufgewertet.",
+      "outcome": "Das Flackern brennt durch die Systeme und lässt etwas zurück."
+    },
+    "listen": {
+      "label": "Zuhören",
+      "consequence": "Nichts geschieht.",
+      "outcome": "Zum ersten Mal seit dem Sprung: der heimische Funk. Dann wieder Rauschen."
+    }
+  },
+  "shipyard_title": "Werft",
+  "shipyard_hint": "Ein Auftrag, dann geht es weiter.",
+  "shipyard_repair": "Reparieren",
+  "shipyard_repair_text": "+{hull} Hülle.",
+  "shipyard_upgrade": "Aufwerten",
+  "shipyard_upgrade_text": "Eine Karte des Decks wird stärker.",
+  "shipyard_remove": "Ausmustern",
+  "shipyard_remove_text": "Eine Karte verlässt das Deck.",
+  "gallery_deck": "Deck",
+  "gallery_upgrade_hint": "Wähle eine Karte, die noch nicht aufgewertet ist.",
+  "gallery_remove_hint": "Wähle die Karte, die das Deck verlässt.",
+  "gallery_back": "Zurück",
+  "market_title": "Schwarzmarkt",
+  "market_hint": "Bezahlt wird in Schrott. Fragen werden keine gestellt.",
+  "market_cards": "Befehlskarten",
+  "market_modules": "Module",
+  "market_services": "Dienste",
+  "market_buy": "Kaufen · {price}",
+  "market_removal": "Karte entfernen",
+  "market_repair": "{hull} Hülle reparieren",
+  "market_sold_out": "Verkauft",
+  "market_leave": "Verlassen",
+  "run_won_title": "Das Wurmloch nach Hause",
+  "run_won_text": "Kommandantin Vey ist gefallen, das Wurmloch steht offen. Auf der anderen Seite: die eigene Flotte.",
+  "run_lost_text": "Das Flaggschiff fiel in Sektor {sector}, Reihe {row}.",
+  "run_abandon": "Run abbrechen",
+  "run_abandon_title": "Run abbrechen?",
+  "run_abandon_text": "Der Speicherstand wird gelöscht. Das lässt sich nicht rückgängig machen.",
+  "run_abandon_confirm": "Abbrechen",
+  "run_abandon_back": "Weiterfliegen",
+  "mark_evaded": "weicht aus: {amount}",
+  "mark_countermeasures": "Gegenmaßnahmen −{amount}",
+  "mark_armor": "Panzerung −{amount}",
+  "mark_covered": "gedeckt: {amount} → {by}",
+  "mark_shielded": "Schild schluckt {amount}",
+  "report_missed": "ins Leere",
+  "report_burned_out": "{unit} ausgebrannt"
+}

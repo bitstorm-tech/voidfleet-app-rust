@@ -6,13 +6,24 @@
 - [ ] **Länge des Gegnerzugs**: Der erfundene Gegnerzug der Szene `report` dauert rund 21 s; mit Leertaste überspringbar, vielleicht zu lang.
 - [ ] **Funk-Dichte**: Die neuen Sprüche fallen vielleicht zu dicht; `direct_hit` ab 12 Hüllenschaden ist geschätzt, `incoming_fire` hängt am ersten Feuer eines Gegners (es gibt kein Ereignis für den Beginn des Gegnerzugs). Die Aufnahmen hat niemand angehört.
 
+## Daten und Editor (begonnen 12.11.2026)
+
+Alle Zahlen, Inhalte und Texte stehen als JSON in `assets/data/` (`docs/daten.md`): Gegner, Karten, Admirale, Stellgrößen, die Sternenkarten samt Verband je Knoten und die Texte beider Sprachen; der Kartengenerator ist weg, die neun Startkarten stammen noch aus ihm.
+
+- [ ] **Texte, die Inhalte nacherzählen**: Das Kapitel „Karten“ der Spielregeln (`rules_section.cards` in `assets/data/text/`) beschreibt das Startdeck („zehn Karten: dreimal Torpedo …“) und die Aufwertung („2 mehr oder 1 weniger“) in Worten; beides steht jetzt je Admiral und je Karte in den Daten und kann davon abweichen. Ebenso feste Wörter wie „doppelt“ und „halbe ATK“.
+- [ ] **Texte prüfen nur die Ids mit Liste**: Fehlt einer neuen Variante eines Enums ohne `ALL` der Text, fällt das erst im Test `every_id_has_text` auf, wenn die Variante dort eingetragen ist, sonst beim Anzeigen (Absturz mit „Text … fehlt“).
+- [ ] **Neuladen ohne Neubauen**: `enemies.json`, `cards.json`, `admirals.json` und `rules.json` sind eingebettet (`crates/core/src/data.rs`), die Texte ebenso (`crates/client/src/i18n/mod.rs`); der Editor im Spiel braucht sie zur Laufzeit.
+- [ ] **Dev-Einstieg auf eine Karte oder einen Knoten**: eine Dev-Szene, die eine bestimmte Kartendatei lädt und direkt das Gefecht eines Knotens startet, mit Neuladen bei Dateiänderung.
+- [ ] **Editor im Spiel** hinter einem Dev-Schalter: Knoten setzen, Kanten ziehen, Verband auf dem Brett stellen, Werte der Gegner stellen, probespielen; schreibt dieselben Dateien. Braucht einen Schreiber, der kurze Listen in einer Zeile lässt (`serde_json` bricht jede Liste um).
+- [ ] **Abwechslung**: Jeder Knoten hat genau einen Verband, mit drei Karten je Sektor wiederholen sich Runs. Mehr Karten entwerfen oder je Knoten mehrere Verbände zur Wahl erlauben.
+- [ ] **Mechanik mit festen Zahlen im Code**: was Regel und nicht Stellgröße ist, etwa Halbieren (Ausweichen, Deckung, Gegenmaßnahmen, Notfall), Verdoppeln (Aufladen, Torpedo-Staffel, Fokusfeuer auf den Vorstoß, Rammkurs), der Zielstörer mit −1 ATK je Karte, ein Stationsplatz je Alarmstufe Rot, und die Beute aus allen Karten.
+
 ## Nachziehen
 
 - [ ] **Icons auf der Sternenkarte**: Ereignis, Werft und Schwarzmarkt tragen nur Zeichen (`?`, `+`, `$`).
 - [ ] **Modellgruppen**: In der Ansicht von hinten oben verdeckt der Balken das vordere Jägerpaar etwas; das Spotter-Paar ragt bei Maßstab 0,72 trotz schmalerem Signal Booster (4,59 breit, der Signalring allein 3,72) noch etwa 0,11 je Seite über das Pad, ganz beheben nur über die Versätze in `formation.rs`.
 - [ ] **Beschriftungen**: In der Draufsicht steht die Absicht einer Back-Einheit über der Front-Einheit davor (etwa „Zielfeuer 2“ der Plünderer über dem Wachkreuzer-Paar); Lage der Captions je Reihe prüfen (`scene/labels.rs`).
 - [ ] **Wiedergabe**: Ausweichen zeigt nur den Triebwerksblitz, keinen Schlenker als Flugbahn; die Kamera neigt sich nur zum Handelnden, nicht zum Ziel; die Zeile „bricht auseinander, bevor er feuern kann“ für im Spielerzug gefallene Gegner fehlt; der Schild aus Alarmbereitschaft zu Beginn des Gegnerzugs hängt optisch am vorigen Schritt.
-- [ ] **Flackern-Formel** `(max_hull + 3) / 4` ist im Core nicht öffentlich; der Client rechnet sie für den Ereignistext nach (`crates/core/src/run.rs`, `EventOption::Embrace`).
 - [ ] **Toon-Material** kann weiterhin Geister zeichnen, obwohl die Planung keine Geister mehr kennt; die Marken in `scene/markers.rs` (auch `DropMarker`) liegen nur noch in der Probe, das Gefecht legt keine.
 - [ ] **`docs/architektur.html`** beschreibt die PvP-Architektur mit Server und ist veraltet.
 

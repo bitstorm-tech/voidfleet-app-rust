@@ -491,12 +491,15 @@ mod tests {
     /// Reihe 0 liegt unten, der Boss oben in der Mitte; jede Kante verbindet benachbarte Reihen und zeigt nach oben.
     #[test]
     fn nodes_bottom_to_top() {
-        let run = Run::new(AdmiralId::Kerr, 11);
+        let run = crate::run::new_run(AdmiralId::Kerr, 11).0;
         let size = Vec2::new(600.0, 800.0);
         let map = layout(&run.map, size);
-        assert_eq!(map.nodes.len(), voidfleet_core::run::ROWS);
+        assert_eq!(map.nodes.len(), run.map.len());
         assert_eq!(map.nodes[0][0].y, size.y - MARGIN);
-        assert_eq!(map.nodes[8], vec![Vec2::new(size.x / 2.0, MARGIN)]);
+        assert_eq!(
+            map.nodes[run.map.len() - 1],
+            vec![Vec2::new(size.x / 2.0, MARGIN)]
+        );
         for row in &map.nodes {
             assert!(row.windows(2).all(|pair| pair[0].x < pair[1].x));
             assert!(row.iter().all(|p| p.x > 0.0 && p.x < size.x));
@@ -513,7 +516,7 @@ mod tests {
     /// Vor Reihe 1 ist die ganze erste Reihe wählbar; danach leuchtet der Pfad, die Kanten zu den Wahlen sind offen.
     #[test]
     fn states_follow_path() {
-        let mut run = Run::new(AdmiralId::Osei, 5);
+        let mut run = crate::run::new_run(AdmiralId::Osei, 5).0;
         assert!((0..run.map[0].len()).all(|c| node_state(&run, 0, c) == NodeState::Choice));
         assert_eq!(node_state(&run, 1, 0), NodeState::Locked);
         let column = run.choices()[0];

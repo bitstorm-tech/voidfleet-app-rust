@@ -110,7 +110,7 @@ fn card_sound(card: CardId) -> Option<SoundId> {
 
 /// Übersetzt Schritte in Skripte.
 pub(super) struct Planner<'a> {
-    pub locale: &'a dyn Messages,
+    pub locale: &'a Messages,
     pub admiral: AdmiralId,
 }
 
@@ -1207,7 +1207,7 @@ mod tests {
             AdmiralId::Reyes,
         ] {
             let planner = Planner {
-                locale: &*locale,
+                locale: &locale,
                 admiral,
             };
             for event in all_events() {
@@ -1228,7 +1228,7 @@ mod tests {
     fn every_card_shows_something() {
         let locale = Locale::new(Language::En);
         let planner = Planner {
-            locale: &*locale,
+            locale: &locale,
             admiral: AdmiralId::Osei,
         };
         for id in voidfleet_core::cards::LOOT_POOL {
@@ -1282,7 +1282,7 @@ mod tests {
     fn covered_hit_has_one_projectile_and_two_numbers() {
         let locale = Locale::new(Language::De);
         let planner = Planner {
-            locale: &*locale,
+            locale: &locale,
             admiral: AdmiralId::Osei,
         };
         let back = UnitRef::Enemy {

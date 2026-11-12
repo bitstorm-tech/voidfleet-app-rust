@@ -132,7 +132,7 @@ fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
 }
 
 /// Was auf dem Brett stehen soll.
-fn wanted_ships(battle: &CoreBattle, locale: &dyn Messages, focus: &BoardFocus) -> Vec<Wanted> {
+fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> Vec<Wanted> {
     let preview_text = |uid: u32| {
         focus
             .preview
@@ -236,7 +236,7 @@ pub fn sync_ships(
 ) {
     let wanted = battle
         .as_ref()
-        .map_or_else(Vec::new, |battle| wanted_ships(battle, &**locale, &focus));
+        .map_or_else(Vec::new, |battle| wanted_ships(battle, &locale, &focus));
     let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
     let mut kept = Vec::new();
     for (entity, ship, on, mut status, caption, aura) in &mut ships {
@@ -402,13 +402,13 @@ mod tests {
     fn wanted_follows_battle() {
         let locale = Locale::new(Language::De);
         let mut battle = fixture_battle(AdmiralId::Kerr);
-        let ships = wanted_ships(&battle, &*locale, &BoardFocus::default());
+        let ships = wanted_ships(&battle, &locale, &BoardFocus::default());
         assert_eq!(ships.len(), 4);
         assert!(ships[..3].iter().all(|ship| ship.caption.next.is_some()));
         assert_eq!(ships[3].slot, SlotRef::player(1));
         battle.flagship.jumped = true;
         assert_eq!(
-            wanted_ships(&battle, &*locale, &BoardFocus::default()).len(),
+            wanted_ships(&battle, &locale, &BoardFocus::default()).len(),
             3
         );
     }

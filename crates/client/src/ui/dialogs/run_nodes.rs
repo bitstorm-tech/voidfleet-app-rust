@@ -16,11 +16,9 @@ use bevy::{
 use voidfleet_core::{
     battle::BattleResult,
     cards::DeckCard,
+    data::rules,
     modules::ModuleId,
-    run::{
-        EventOption, Gain, MARKET_REPAIR, MARKET_REPAIR_PRICE, PILOT_PRICE, REMOVAL_PRICE, Run,
-        Stage,
-    },
+    run::{EventOption, Gain, Run, Stage},
 };
 
 use super::{DIALOG_LAYER, FadeIn, OVERLAY_LAYER, PopIn, overlay_backdrop};
@@ -275,11 +273,6 @@ fn plate(fonts: &Fonts, name: &str, text: &str) -> impl Bundle {
     )
 }
 
-/// Hüllenverlust im Flackern: ein Viertel der maximalen Hülle, aufgerundet (wie `Run::choose`).
-fn flicker_damage(run: &Run) -> i32 {
-    (run.max_hull + 3) / 4
-}
-
 /// Baut das Overlay des Knotens neu, wenn Bildschirm, Sprache oder Run sich ändern.
 fn show(
     mut commands: Commands,
@@ -421,7 +414,8 @@ fn event(parent: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, run:
             console.spawn(body(fonts, locale.event_text(event), palette::TEXT));
             console.spawn(column(10.0)).with_children(|options| {
                 for (index, &option) in event.options().iter().enumerate() {
-                    let affordable = option != EventOption::PayPilot || run.scrap >= PILOT_PRICE;
+                    let affordable =
+                        option != EventOption::PayPilot || run.scrap >= rules().run.pilot_price;
                     options
                         .spawn((
                             Node {
@@ -449,7 +443,7 @@ fn event(parent: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, run:
                             line.spawn((
                                 theme::text(
                                     fonts.body(15.0),
-                                    locale.event_consequence(option, flicker_damage(run)),
+                                    locale.event_consequence(option, run.flicker_damage()),
                                     if affordable {
                                         palette::TEXT_DIM
                                     } else {
@@ -652,19 +646,26 @@ fn market(parent: &mut ChildSpawnerCommands, assets: &CardAssets, run: &Run) {
             console.spawn(row(12.0)).with_children(|services| {
                 services.spawn(resource_button(
                     fonts,
-                    &format!("{} · {REMOVAL_PRICE}", locale.market_removal()),
+                    &format!(
+                        "{} · {}",
+                        locale.market_removal(),
+                        rules().run.removal_price
+                    ),
                     Key::NORMAL,
-                    market.removal && run.scrap >= REMOVAL_PRICE && !run.deck.is_empty(),
+                    market.removal
+                        && run.scrap >= rules().run.removal_price
+                        && !run.deck.is_empty(),
                     Gallery::open(Purpose::BuyRemoval),
                 ));
                 services.spawn(message_button(
                     fonts,
                     &format!(
-                        "{} · {MARKET_REPAIR_PRICE}",
-                        locale.market_repair(MARKET_REPAIR)
+                        "{} · {}",
+                        locale.market_repair(rules().run.market_repair),
+                        rules().run.market_repair_price
                     ),
                     Key::NORMAL,
-                    run.scrap >= MARKET_REPAIR_PRICE && run.hull < run.max_hull,
+                    run.scrap >= rules().run.market_repair_price && run.hull < run.max_hull,
                     RunAction::BuyRepair,
                 ));
                 services.spawn(message_button(

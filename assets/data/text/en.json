@@ -1,0 +1,834 @@
+{
+  "language_name": "English",
+  "hud_round": "Round {round}",
+  "hud_new_round": "New round",
+  "hud_end_turn": "End turn",
+  "hud_skip": "Skip animation",
+  "hud_show_log": "Show log",
+  "hud_hide_log": "Hide log",
+  "admiral_select_title": "Choose your admiral",
+  "admiral_select_choose": "Choose",
+  "settings_title": "Settings",
+  "settings_tab": {
+    "game": "Game",
+    "video": "Video",
+    "sound": "Sound",
+    "dev": "Dev"
+  },
+  "settings_window_mode": "Display",
+  "window_mode": {
+    "windowed": "Window",
+    "maximized": "Maximized",
+    "fullscreen": "Fullscreen"
+  },
+  "settings_antialiasing": "Anti-aliasing",
+  "antialiasing": {
+    "off": "Off",
+    "x2": "2x",
+    "x4": "4x",
+    "x8": "8x"
+  },
+  "settings_models": "3D models",
+  "models_hint": "Wheel: zoom · Drag left button: pan · Drag right button: rotate · Click a ship: destroy it",
+  "settings_show_fps": "FPS counter",
+  "on_off": {
+    "on": "On",
+    "off": "Off"
+  },
+  "settings_music_volume": "Music",
+  "settings_effects_volume": "Sound effects",
+  "settings_voice_volume": "Radio chatter",
+  "settings_attack_speed": "Attack speed",
+  "settings_movement_speed": "Movement speed",
+  "settings_animation_speed": "Other animations",
+  "settings_language": "Language",
+  "speed": {
+    "slow": "Slow",
+    "normal": "Normal",
+    "fast": "Fast",
+    "very_fast": "Very fast"
+  },
+  "settings_cursor": "Mouse pointer",
+  "settings_cursor_size": "Pointer size",
+  "cursor": {
+    "arrow": "Toon arrow",
+    "fighter": "Fighter",
+    "delta": "Delta glider",
+    "flagship": "Flagship",
+    "needle": "Navigation needle",
+    "shard": "Crystal shard",
+    "formation": "Formation",
+    "holo": "Holo arrow",
+    "thruster": "Thruster",
+    "crosshair": "Crosshair"
+  },
+  "rules_title": "Rules",
+  "dialog_close": "Close",
+  "fullscreen_enter": "Fullscreen (F)",
+  "fullscreen_exit": "Exit fullscreen (F)",
+  "camera_view_toggle": "Switch view (V); turn freely with ← → or the middle mouse button",
+  "loading_assets": "Loading assets … {percent} %",
+  "loading_failed": "Loading failed — restart the game.",
+  "radio_speaker": {
+    "fleet": "Fleet Comms",
+    "intercepted": "Intercepted"
+  },
+  "log_round_header": "— Round {round} —",
+  "stats_atk": "ATK",
+  "hud_clock": "Battle clock +{bonus} ATK",
+  "hud_clock_hint": "From round {rules.battle.clock_start} every enemy fires with +1 ATK more each round; now +{bonus}.",
+  "hud_hull": "Hull {hull}/{max_hull}",
+  "hud_points": "Command points",
+  "hud_draw_pile": "Draw pile",
+  "hud_discard_pile": "Discard pile",
+  "hud_stations": "Stations",
+  "checklist_free_stations": {
+    "one": "1 station free",
+    "other": "{count} stations free"
+  },
+  "checklist_station": "Station: {station}",
+  "checklist_points": {
+    "one": "1 command point left",
+    "other": "{points} command points left"
+  },
+  "admiral_select_hint": "One flagship against their fleet. Your admiral brings the ship, a passive, an admiral station and two signature cards in the starter deck.",
+  "label_flagship": "Flagship",
+  "label_weapon": "Weapon",
+  "label_passive": "Passive",
+  "label_station": "Admiral station",
+  "label_signature": "Signature card",
+  "rules_section": {
+    "board": {
+      "heading": "Board",
+      "paragraphs": [
+        "Your flagship stands alone in one of three columns. Across from it the enemy fleet holds two rows, front and back, of three columns each, with at most four units.",
+        "A unit in the back row is covered while a unit stands in front of it in its column: the front unit takes half of every hit (rounded up), the target the rest.",
+        "Enemies fire in two ways. Targeted fire follows your flagship wherever it flies. Column fire is announced for a column and hits whatever stands there during the enemy turn."
+      ]
+    },
+    "round": {
+      "heading": "Round",
+      "paragraphs": [
+        "A round is your turn, the enemy turn and the resolution. Before round 1 you see the formation and its intents and may pick your column with a click on your side.",
+        "In your turn every card and your station take effect at once, in the order you choose. Cards cost command points: {rules.battle.command_points} each round, unused points are lost. End turn when you are done; a round without a station is allowed.",
+        "In the enemy turn each unit does what it announced, front before back, left to right. Then burns tick, shields expire, your hand is discarded and you draw {rules.battle.hand_size} new cards.",
+        "From round {rules.battle.clock_start} the battle clock gives every enemy +1 ATK per round."
+      ]
+    },
+    "stations": {
+      "heading": "Stations",
+      "paragraphs": [
+        "Your flagship triggers one station per round, with Red Alert a second, different one. It is triggered like a card and gets its target the same way: weapons, focus fire and stasis an enemy ship, maneuver another column; the other stations need none. It takes effect at once.",
+        "Weapons fire your ATK at the target. Shields absorb {admirals.vance.shield_station} in the next enemy turn (Osei {admirals.osei.shield_station}). Damage control puts out the fire and repairs {rules.stations.damage_control_repair} hull. Maneuver moves to another column and dodges column fire aimed at the old one.",
+        "The admiral station depends on your admiral and is not available while your bridge is hit (hull at {rules.battle.emergency_percent} % or less)."
+      ]
+    },
+    "damage": {
+      "heading": "Damage",
+      "paragraphs": [
+        "Every shot hits and every number is fixed: what the preview shows is what happens.",
+        "From the damage of a shot come off, in this order: evading halves it, armor subtracts, cover passes half to the unit in front, shields absorb the rest until they are spent.",
+        "Column fire and ramming hit fully or not at all; evading does not count against them."
+      ]
+    },
+    "conditions": {
+      "heading": "Conditions",
+      "paragraphs": [
+        "Burning: a hit that brings a unit to {rules.battle.burn_percent} % hull or less sets it on fire. A burning unit loses {rules.battle.burn_damage} hull in each resolution; your own fire is put out by damage control or the repair crew.",
+        "Emergency: at {rules.battle.emergency_percent} % hull or less a unit fires with half ATK and no longer evades. Your flagship cannot trigger its admiral station.",
+        "Destroyed: an enemy at 0 hull falls at once and never acts again. If your flagship falls, the battle is lost."
+      ]
+    },
+    "admirals": {
+      "heading": "Admirals",
+      "paragraphs": [
+        "Osei, the Wall: Bastion, {admirals.osei.hull} hull, {admirals.osei.attack} ATK. Shields absorb {admirals.osei.shield_station}. Counterfire: shields {rules.stations.counterfire_shield}, retaliation {rules.stations.counterfire_damage}.",
+        "Vance, the Hammer: Vanguard, {admirals.vance.hull} hull, {admirals.vance.attack} ATK. Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +{rules.stations.max_momentum}. Focus fire: double momentum, homing, but takes {rules.stations.focus_fire_vulnerability} more per hit.",
+        "Kerr, the Clockmaker: Pendulum, {admirals.kerr.hull} hull, {admirals.kerr.attack} ATK. The railgun is homing and piercing; he sees intents two rounds ahead. Stasis: one enemy does not act this round.",
+        "Reyes, the Ember: Pyre, {admirals.reyes.hull} hull, {admirals.reyes.attack} ATK. The plasma thrower sets every target on fire, enemy burns tick {rules.battle.ember_burn_damage}. Follow-up: every burning enemy takes double burn damage at once, attack cards on burning targets +{rules.stations.follow_up_card_bonus}."
+      ]
+    },
+    "cards": {
+      "heading": "Cards",
+      "paragraphs": [
+        "Every round you draw {rules.battle.hand_size} commands. Attack cards hit with fixed damage and the usual deductions; buffs strengthen your flagship, debuffs weaken an enemy, tactics change the board. Doctrines stay in play until the battle ends.",
+        "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) deal or absorb 2 more or cost 1 less.",
+        "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses {rules.battle.burn_damage} hull in each resolution."
+      ]
+    },
+    "enemies": {
+      "heading": "Enemies and intents",
+      "paragraphs": [
+        "Each enemy follows a fixed pattern and shows what it will do next: targeted fire with its damage, column fire with column and damage, shields, evading, charging, target lock or calling reinforcements.",
+        "You act first: an enemy that falls in your turn never carries out its intent, one in emergency acts with half ATK. A micro jump makes every shot miss, a maneuver only the column fire on the old column.",
+        "Fighters evade and screen, cruisers are the backbone, battleships charge their main guns and carry armor."
+      ]
+    },
+    "controls": {
+      "heading": "Controls",
+      "paragraphs": [
+        "Click a card to play it; a card with a target waits for a click on a glowing enemy or column. Clicking the card again, right-clicking or Escape cancels.",
+        "Stations work the same way: click a station in the panel; without a target it takes effect at once, otherwise the valid targets glow and a click on one triggers it. Hover a glowing enemy to see the damage of the selected card or station.",
+        "Space skips the playback, V switches the view, ← → orbit, ↑ ↓ zoom, F toggles fullscreen, Escape opens the settings."
+      ]
+    }
+  },
+  "radio_lines": {
+    "battle_start": [
+      "All ships at battle stations. Awaiting your orders, Admiral.",
+      "Fleet in position. Ready when you are, Admiral."
+    ],
+    "victory": [
+      "Enemy fleet destroyed. The sector is ours, Admiral!",
+      "That's the last of them. Victory, Admiral!"
+    ],
+    "defeat": [
+      "We've lost the fleet. All hands, abandon ship.",
+      "Our fleet is gone. All survivors, fall back."
+    ],
+    "enemy_destroyed": [
+      "Enemy ship destroyed!",
+      "Target down!",
+      "Splash one!",
+      "Kill confirmed!"
+    ],
+    "hull_critical": [
+      "Hull integrity critical!",
+      "She's badly hurt, Admiral!"
+    ],
+    "incoming_fire": [
+      "Incoming fire! Brace, brace, brace!",
+      "They're opening up on us!"
+    ],
+    "column_fire_incoming": [
+      "Beam weapons charging on our line!",
+      "They've got our column bracketed! Get us out of there!"
+    ],
+    "fire_onboard": [
+      "Fire on deck four! Damage control, move!",
+      "We've got fire in the main corridor!"
+    ],
+    "fire_out": [
+      "Fire's out. Venting the smoke now.",
+      "Fire suppressed, Admiral."
+    ],
+    "shields_up": [
+      "Shields up!",
+      "All power to forward shields!"
+    ],
+    "maneuver": [
+      "Helm, hard to port! Changing lanes!",
+      "Coming about, new heading!"
+    ],
+    "micro_jump": [
+      "Spinning up the drive. Jump in three, two, one!",
+      "Micro jump, now!"
+    ],
+    "jump_return": [
+      "Jump complete. We're back in the fight.",
+      "Back on the grid. Weapons hot."
+    ],
+    "ram_incoming": [
+      "Fireship on a collision course!",
+      "That one's gonna ram us! Brace for impact!"
+    ],
+    "reinforcements_sighted": [
+      "New contacts! Enemy reinforcements jumping in!",
+      "More of them, Admiral. Fresh hostiles on the board."
+    ],
+    "emergency_generator": [
+      "Main power's gone! Emergency generator is holding us!",
+      "Backup power online! We're still breathing!"
+    ],
+    "repairs": [
+      "Repair crews on the hull breach.",
+      "Damage control teams, patch her up!"
+    ],
+    "target_locked": [
+      "Target locked. Firing!",
+      "Firing solution set. Guns away!"
+    ],
+    "direct_hit": [
+      "Direct hit!",
+      "Good hit, good hit! Hull breach on target!"
+    ],
+    "enemy_burning": [
+      "Target's burning!",
+      "She's on fire! Keep it up!"
+    ],
+    "torpedo_away": [
+      "Torpedo away!",
+      "Torpedo running hot!"
+    ],
+    "orbital_strike": [
+      "Orbital strike inbound!",
+      "Calling it down from above!"
+    ],
+    "railgun_fire": [
+      "Rail's charged. Fire!",
+      "Slug away!"
+    ],
+    "plasma_fire": [
+      "Plasma ready. Burn them!",
+      "Venting plasma, now!"
+    ],
+    "counterfire": [
+      "Counterfire! Return the favor!",
+      "They hit us, we hit back!"
+    ],
+    "enemy_panic": [
+      "Mayday, mayday! We're breaking up out here!",
+      "Reactor's failing! Somebody help us!"
+    ],
+    "enemy_charging": [
+      "Main battery charging. Hold your fire.",
+      "Full power to the big gun. On my mark."
+    ],
+    "enemy_calls_reinforcements": [
+      "All ships, all ships, converge on my position!",
+      "We need backup! Send everything you've got!"
+    ],
+    "enemy_breaking": [
+      "Break off! Break off! Everyone run!",
+      "We can't hold them! Pull back!"
+    ]
+  },
+  "result_title": {
+    "won": "Victory",
+    "lost": "Defeat"
+  },
+  "result_won_subtitle": {
+    "text": "{kills} enemy {units} destroyed in {rounds} {round_word}.",
+    "units": {
+      "one": "unit",
+      "other": "units"
+    },
+    "round_word": {
+      "one": "round",
+      "other": "rounds"
+    }
+  },
+  "result_lost_subtitle": "The {flagship} is lost. The run is over.",
+  "result_view_board": "View board",
+  "result_continue": "Continue",
+  "result_new_run": "New run",
+  "rule_error": {
+    "battle_over": "The battle is over.",
+    "not_enough_points": "Not enough command points.",
+    "target_invalid": "Not a valid target.",
+    "admiral_station_in_emergency": "Bridge hit: no admiral station.",
+    "jumped": "The flagship is in micro jump.",
+    "station_used": "This station already ran this round.",
+    "no_station_slot": "No station left this round."
+  },
+  "stats_hull": "Hull",
+  "station": {
+    "weapons": "Weapons",
+    "shields": "Shields",
+    "damage_control": "Damage control",
+    "maneuver": "Maneuver"
+  },
+  "station_text": {
+    "weapons": "Fires {attack} damage at an enemy ship at once.",
+    "shields": "Absorbs {shields} in the next enemy turn.",
+    "damage_control": "Puts out the fire and repairs {rules.stations.damage_control_repair} hull.",
+    "maneuver": "Moves to another column at once and dodges column fire on the old one."
+  },
+  "column_name": [
+    "left",
+    "center",
+    "right"
+  ],
+  "row_name": {
+    "front": "front",
+    "back": "back"
+  },
+  "card": {
+    "torpedo": {
+      "name": "Torpedo",
+      "effect": "{v} damage to a chosen ship. Homing."
+    },
+    "orbital_strike": {
+      "name": "Orbital Strike",
+      "effect": "{v} damage to a chosen ship. Piercing."
+    },
+    "volley_fire": {
+      "name": "Volley Fire",
+      "effect": "{v} damage to every enemy unit. Piercing."
+    },
+    "barrage": {
+      "name": "Barrage",
+      "effect": "{v} damage to every enemy ship that is evading. Homing."
+    },
+    "heat_seeker": {
+      "name": "Heat Seeker",
+      "effect": "{v} damage to a chosen ship, {evading} if it is evading. Homing, piercing."
+    },
+    "coup_de_grace": {
+      "name": "Coup de Grâce",
+      "effect": "{v} damage to a chosen ship, {emergency} if it is in emergency."
+    },
+    "bombardment": {
+      "name": "Bombardment",
+      "effect": "{v} damage to every unit in the enemy back row. Piercing."
+    },
+    "collision_course": {
+      "name": "Collision Course",
+      "effect": "Ram a chosen ship: it takes twice your ATK{bonus}, your flagship takes its ATK. Homing, piercing."
+    },
+    "firebomb": {
+      "name": "Firebomb",
+      "effect": "{v} damage to a chosen ship, burning."
+    },
+    "emergency_shields": {
+      "name": "Emergency Shields",
+      "effect": "Shields {v}."
+    },
+    "hold_the_line": {
+      "name": "Hold the Line",
+      "effect": "Shields {v}, retaliation {rules.cards.hold_the_line_retaliation}."
+    },
+    "ablative_armor": {
+      "name": "Ablative Armor",
+      "effect": "Doctrine: armor {v}."
+    },
+    "overcharge": {
+      "name": "Overcharge",
+      "effect": "+{v} ATK this round; your flagship takes {rules.cards.overcharge_self_damage} damage at the end of your turn."
+    },
+    "power_surge": {
+      "name": "Power Surge",
+      "effect": "+{v} ATK this round."
+    },
+    "repair_crew": {
+      "name": "Repair Crew",
+      "effect": "Puts out the fire and repairs {v} hull, on top of the station."
+    },
+    "emp_blast": {
+      "name": "EMP Blast",
+      "effect": "A chosen ship loses its shields and its charge."
+    },
+    "targeting_jammer": {
+      "name": "Targeting Jammer",
+      "effect": "Every enemy shot in the enemy turn −1 ATK."
+    },
+    "radio_silence": {
+      "name": "Radio Silence",
+      "effect": "A chosen ship neither fires nor uses its special action this round; a charge breaks."
+    },
+    "tractor_beam": {
+      "name": "Tractor Beam",
+      "effect": "Pulls a chosen ship (not a flagship) into a free slot of its row; cover breaks."
+    },
+    "micro_jump": {
+      "name": "Micro Jump",
+      "effect": "Your flagship leaves the board: no more stations this round, no target in the enemy turn; it returns in the resolution."
+    },
+    "evasive_action": {
+      "name": "Evasive Action",
+      "effect": "Your flagship moves to another column at once, without using a station."
+    },
+    "countermeasures": {
+      "name": "Countermeasures",
+      "effect": "The first enemy attack in the enemy turn deals half damage."
+    },
+    "scavenge": {
+      "name": "Scavenge",
+      "effect": "Draw {rules.cards.scavenge_draw} commands."
+    },
+    "red_alert": {
+      "name": "Red Alert",
+      "effect": "Trigger a second, different station this round."
+    },
+    "fire_control_doctrine": {
+      "name": "Fire Control Doctrine",
+      "effect": "Doctrine: all your shots and attack cards +{v} damage."
+    },
+    "battle_stations": {
+      "name": "Battle Stations",
+      "effect": "Doctrine: shields {v} in each enemy turn."
+    }
+  },
+  "card_bonus": "{card}: +{bonus} damage.",
+  "keywords": [
+    {
+      "word": "Homing",
+      "text": "Evading does not count."
+    },
+    {
+      "word": "Piercing",
+      "text": "Cover does not count."
+    },
+    {
+      "word": "Shields",
+      "text": "Absorbs that much damage in the next enemy turn."
+    },
+    {
+      "word": "Armor",
+      "text": "Every hit deals that much less."
+    },
+    {
+      "word": "Retaliation",
+      "text": "Every shooter that hits your flagship loses that much hull."
+    },
+    {
+      "word": "Burning",
+      "text": "A burning unit loses {rules.battle.burn_damage} hull in each resolution."
+    },
+    {
+      "word": "Emergency",
+      "text": "At {rules.battle.emergency_percent} % hull or less: half ATK, no evading."
+    },
+    {
+      "word": "Doctrine",
+      "text": "Lasts for the rest of the battle."
+    }
+  ],
+  "card_type": {
+    "attack": "Attack",
+    "buff": "Buff",
+    "debuff": "Debuff",
+    "tactic": "Tactic",
+    "doctrine": "Doctrine"
+  },
+  "card_target": {
+    "none": "No target",
+    "enemy": "Enemy ship",
+    "column": "Own column"
+  },
+  "admiral": {
+    "osei": {
+      "name": "Osei",
+      "epithet": "The Wall",
+      "weapon": "Flak batteries",
+      "passive": "Guardian shield: shields absorb {admirals.osei.shield_station} instead of {admirals.vance.shield_station}.",
+      "station": "Counterfire",
+      "station_text": "Does not fire. Shields {rules.stations.counterfire_shield}, retaliation {rules.stations.counterfire_damage}."
+    },
+    "vance": {
+      "name": "Vance",
+      "epithet": "The Hammer",
+      "weapon": "Heavy guns",
+      "passive": "Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +{rules.stations.max_momentum}; any other station resets it.",
+      "station": "Focus fire",
+      "station_text": "Fires with double momentum, homing; takes {rules.stations.focus_fire_vulnerability} more per hit in the next enemy turn."
+    },
+    "kerr": {
+      "name": "Kerr",
+      "epithet": "The Clockmaker",
+      "weapon": "Railgun: homing, piercing",
+      "passive": "Clockwork: sees enemy intents two rounds ahead.",
+      "station": "Stasis",
+      "station_text": "Does not fire. A chosen enemy does not act this round; its intent moves to the next, a charge is kept."
+    },
+    "reyes": {
+      "name": "Reyes",
+      "epithet": "The Ember",
+      "weapon": "Plasma thrower: every hit sets the target on fire",
+      "passive": "Ember core: enemy burns tick {rules.battle.ember_burn_damage} instead of {rules.battle.burn_damage}.",
+      "station": "Follow-up",
+      "station_text": "Does not fire. Every burning enemy takes double its burn damage at once; attack cards on burning targets +{rules.stations.follow_up_card_bonus} for the rest of the round."
+    }
+  },
+  "flagship": {
+    "bastion": "Bastion",
+    "vanguard": "Vanguard",
+    "pendulum": "Pendulum",
+    "pyre": "Pyre"
+  },
+  "enemy": {
+    "raiders": "Raider Squadron",
+    "fireship": "Fireship",
+    "torpedo_wing": "Torpedo Wing",
+    "guard_cruiser": "Guard Cruiser",
+    "plasma_cruiser": "Plasma Cruiser",
+    "spotter": "Spotter",
+    "besieger": "Besieger",
+    "carrier": "Carrier",
+    "scrap_king": "Scrap King",
+    "warden": "Warden",
+    "seal": "Seal"
+  },
+  "enemy_class": {
+    "fighter": "Fighter squadron",
+    "cruiser": "Cruiser pair",
+    "battleship": "Battleship",
+    "flagship": "Flagship"
+  },
+  "action": {
+    "fire": "Fire",
+    "column_fire": "Column fire {columns}",
+    "ram": "Ram",
+    "shields": "Shields {amount}",
+    "evade": "Evade",
+    "charge": "Charge",
+    "target_lock": "Target lock",
+    "call": "Call {enemy}",
+    "bolt": "Bolt: all shield {rules.enemies.bolt_shield}"
+  },
+  "condition": {
+    "burning": "Burning",
+    "emergency": "Emergency",
+    "stasis": "Stasis",
+    "silenced": "Silenced",
+    "covered": "Cover"
+  },
+  "action_hint": {
+    "fire": "Fires at your flagship, wherever it flies.",
+    "column_fire": "Fires at the marked columns; maneuver out of them to dodge.",
+    "ram": "Rams your flagship and is destroyed doing so.",
+    "shields": "Gains {amount} shields.",
+    "evade": "Evades: your shots deal half damage to it.",
+    "charge": "Charges its main gun: its next shot deals double damage.",
+    "target_lock": "All enemy shots +1 ATK while it stands.",
+    "call": "Calls {enemy} as reinforcement for next round.",
+    "bolt": "All her units gain {rules.enemies.bolt_shield} shields."
+  },
+  "condition_hint": {
+    "burning": "Loses hull in each resolution.",
+    "emergency": "Hull at {rules.battle.emergency_percent} % or less: half ATK, no evading; your flagship loses its admiral station.",
+    "stasis": "Does not act this round.",
+    "silenced": "Holds fire and skips its special action this round.",
+    "covered": "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
+  },
+  "armor_hint": "Armor: every hit deals {amount} less damage.",
+  "burn_hint": {
+    "ticking": "Loses {amount} hull in each resolution.",
+    "suppressed": "Fire suppression: the fire does not tick."
+  },
+  "caption_next": "Next round",
+  "module": {
+    "fire_control_computer": {
+      "name": "Fire control computer",
+      "text": "+{rules.modules.fire_control_computer_attack} ATK on your flagship's shots."
+    },
+    "fire_suppression": {
+      "name": "Fire suppression",
+      "text": "Your own fire does not tick."
+    },
+    "reserve_reactor": {
+      "name": "Reserve reactor",
+      "text": "{rules.modules.reserve_reactor_points} command points in round 1."
+    },
+    "armor_plates": {
+      "name": "Armor plates",
+      "text": "Armor +{rules.modules.armor_plates_armor}."
+    },
+    "emergency_generator": {
+      "name": "Emergency generator",
+      "text": "Once per run a lethal hit leaves 1 hull."
+    },
+    "salvage_crane": {
+      "name": "Salvage crane",
+      "text": "Every destroyed enemy brings {rules.modules.salvage_crane_scrap} scrap."
+    },
+    "supply_pod": {
+      "name": "Supply pod",
+      "text": "Draw {rules.modules.supply_pod_hand} instead of {rules.battle.hand_size} cards each round."
+    },
+    "combat_simulator": {
+      "name": "Combat simulator",
+      "text": "Card offers show {rules.run.combat_simulator_offer} instead of {rules.run.card_offer}."
+    },
+    "reinforced_frames": {
+      "name": "Reinforced frames",
+      "text": "+{rules.modules.reinforced_frames_hull} hull for good."
+    }
+  },
+  "breakdown_words": {
+    "evaded": "evades",
+    "countermeasures": "countermeasures",
+    "armor": "armor",
+    "covered": "covered",
+    "shield": "shield",
+    "lethal": "lethal"
+  },
+  "log_battle_started": "Battle stations — {admiral} takes command.",
+  "log_card": {
+    "target": "Card: {card} on {target}",
+    "plain": "Card: {card}"
+  },
+  "log_station": "Station: {station}",
+  "log_hit": "{source} hits {target}: {breakdown}",
+  "log_missed": {
+    "jumped": "{source} fires into the void — the flagship has jumped.",
+    "maneuvered": "{source} fires at an empty column."
+  },
+  "log_shielded": "{target} raises shields: {amount}",
+  "log_healed": "{target} repairs {amount} hull",
+  "log_ignited": "{target} is burning",
+  "log_extinguished": "Fire on {target} is out",
+  "log_emergency": {
+    "on": "{target} in emergency",
+    "off": "{target} out of emergency"
+  },
+  "log_destroyed": {
+    "shot": "{target} destroyed",
+    "burned_out": "{target} burned out",
+    "rammed": "{target} rammed to pieces",
+    "retaliation": "{target} destroyed by return fire"
+  },
+  "log_fireship_spent": "{unit} is spent",
+  "log_rammed": "The flagship rams {target}",
+  "log_jumped": "The flagship jumps out",
+  "log_returned": "The flagship is back",
+  "log_maneuvered": "The flagship moves from {from} to {to}",
+  "log_tractored": "Tractor beam pulls {unit} from {from}",
+  "log_arrived": "{unit} arrives",
+  "log_enemy_action": "{unit}: {action}",
+  "log_idle": {
+    "stasis": "{unit} is held in stasis",
+    "silenced": "{unit} keeps radio silence"
+  },
+  "log_counterfire": "Counterfire hits {target}: {amount}",
+  "log_hold_the_line": "Hold the line hits {target}: {amount}",
+  "log_self_damage": "Overcharge strains the flagship: {amount}",
+  "log_burn": "{target} burns: {amount}",
+  "log_cannibalized": "{unit} cannibalizes the wreck: +{amount} hull",
+  "log_emergency_generator": "The emergency generator holds the flagship at 1 hull",
+  "log_shuffled": "Discard pile shuffled into the deck",
+  "log_drawn": {
+    "one": "Drew 1 card",
+    "other": "Drew {count} cards"
+  },
+  "log_intents": "{unit} announces: {intents}",
+  "log_clock": "Battle clock: enemies +{bonus} ATK",
+  "log_battle_ended": {
+    "won": "The enemy fleet is destroyed.",
+    "lost": "The flagship is lost."
+  },
+  "menu_tagline": "A wormhole swallowed your flagship. Three sectors lie between you and home.",
+  "menu_new_run": "New run",
+  "menu_continue": "Continue",
+  "menu_quit": "Quit",
+  "menu_main": "Main menu",
+  "menu_no_runs": "No admiral is under way yet. “New run” commissions the first flagship.",
+  "menu_victories": "Victories {battles}",
+  "sector_name": [
+    "The Debris Field",
+    "The Silence",
+    "The Threshold"
+  ],
+  "map_title": "Sector {sector}: {name}",
+  "map_hint": "Choose the next node. The sector's boss waits at the top.",
+  "sector_banner_hint": "The way home goes on.",
+  "node_kind": {
+    "battle": "Battle",
+    "elite": "Elite",
+    "event": "Event",
+    "shipyard": "Shipyard",
+    "market": "Black market",
+    "boss": "Boss"
+  },
+  "node_kind_hint": {
+    "battle": "A formation of this sector. Loot: scrap and a command card.",
+    "elite": "A mighty battleship. Loot: lots of scrap and a module.",
+    "event": "A scene over the radio with a decision.",
+    "shipyard": "Repair, upgrade a card or remove one.",
+    "market": "Cards, modules, repairs and removals for scrap.",
+    "boss": "The end of the sector. Loot: a module and repairs."
+  },
+  "run_scrap": "Scrap {scrap}",
+  "run_deck": "Deck {cards}",
+  "run_show_deck": "View deck",
+  "run_modules": "Modules {count}",
+  "run_no_modules": "No modules",
+  "run_position": "Sector {sector} · Row {row}",
+  "run_scrap_change": "{scrap} scrap",
+  "run_hull_change": "{hull} hull",
+  "run_module_gained": "New module: {module}",
+  "run_card_upgraded": "Upgraded: {card}",
+  "loot_title": "Loot",
+  "loot_cards_hint": "One command card joins the deck, or none.",
+  "loot_modules_hint": "A module works until the end of the run.",
+  "loot_take": "Take",
+  "loot_skip": "None",
+  "event": {
+    "resolute": {
+      "title": "The Wreck of the Resolute",
+      "text": "A cruiser of your own fleet drifts burnt out in the field: the Resolute. The wormhole swallowed her too. Her reactor still glows, her beacon repeats the last report in a loop."
+    },
+    "pilot": {
+      "title": "The Pilot",
+      "text": "A trader hails you on an open channel. A minefield lies ahead, and he knows the safe way through, for a price."
+    },
+    "flicker": {
+      "title": "Flicker",
+      "text": "The wormhole stirs. For a moment space flickers around the flagship, and in the static lies something familiar."
+    }
+  },
+  "event_option": {
+    "salvage": {
+      "label": "Salvage",
+      "consequence": "+{rules.run.resolute_scrap} scrap; the next battle starts burning.",
+      "outcome": "The salvage crews cut out whatever they can carry. As you cast off, a leak in the hangar ignites."
+    },
+    "logbooks": {
+      "label": "Secure the logbooks",
+      "consequence": "A random module.",
+      "outcome": "The logbooks hold blueprints the Resolute no longer needs."
+    },
+    "move_on": {
+      "label": "Move on and bury the crew",
+      "consequence": "Nothing.",
+      "outcome": "The crew gets their burial in space. Over the radio, the Resolute's last report: \"We hold the line.\""
+    },
+    "pay_pilot": {
+      "label": "Pay the pilot",
+      "consequence": "{rules.run.pilot_price} scrap; the next node becomes a shipyard.",
+      "outcome": "The trader sends his route. A dock waits at its end."
+    },
+    "fly_yourself": {
+      "label": "Fly yourself",
+      "consequence": "−{rules.run.pilot_damage} hull, but a card offer.",
+      "outcome": "Two mines graze the hull. Containers of command sets drift in the field."
+    },
+    "embrace": {
+      "label": "Fly into the flicker",
+      "consequence": "−{flicker_damage} hull; a random card is upgraded.",
+      "outcome": "The flicker burns through the systems and leaves something behind."
+    },
+    "listen": {
+      "label": "Listen",
+      "consequence": "Nothing happens.",
+      "outcome": "For the first time since the jump: the radio from home. Then static again."
+    }
+  },
+  "shipyard_title": "Shipyard",
+  "shipyard_hint": "One job, then you move on.",
+  "shipyard_repair": "Repair",
+  "shipyard_repair_text": "+{hull} hull.",
+  "shipyard_upgrade": "Upgrade",
+  "shipyard_upgrade_text": "One card of the deck grows stronger.",
+  "shipyard_remove": "Remove",
+  "shipyard_remove_text": "One card leaves the deck.",
+  "gallery_deck": "Deck",
+  "gallery_upgrade_hint": "Choose a card that is not upgraded yet.",
+  "gallery_remove_hint": "Choose the card that leaves the deck.",
+  "gallery_back": "Back",
+  "market_title": "Black market",
+  "market_hint": "Paid in scrap. No questions asked.",
+  "market_cards": "Command cards",
+  "market_modules": "Modules",
+  "market_services": "Services",
+  "market_buy": "Buy · {price}",
+  "market_removal": "Remove a card",
+  "market_repair": "Repair {hull} hull",
+  "market_sold_out": "Sold",
+  "market_leave": "Leave",
+  "run_won_title": "The Wormhole Home",
+  "run_won_text": "Commander Vey has fallen, the wormhole stands open. On the other side: your own fleet.",
+  "run_lost_text": "The flagship fell in sector {sector}, row {row}.",
+  "run_abandon": "Abandon run",
+  "run_abandon_title": "Abandon the run?",
+  "run_abandon_text": "The save will be deleted. This cannot be undone.",
+  "run_abandon_confirm": "Abandon",
+  "run_abandon_back": "Keep flying",
+  "mark_evaded": "evades: {amount}",
+  "mark_countermeasures": "countermeasures −{amount}",
+  "mark_armor": "armor −{amount}",
+  "mark_covered": "covered: {amount} → {by}",
+  "mark_shielded": "shield absorbs {amount}",
+  "report_missed": "into the void",
+  "report_burned_out": "{unit} burned out"
+}

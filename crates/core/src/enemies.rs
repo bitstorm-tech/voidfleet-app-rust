@@ -1,9 +1,11 @@
-//! Die Gegner (`docs/gegner.md`): Werte und Muster. Jedes Muster ist eine feste Aktionsfolge, die das Gefecht
-//! Schritt für Schritt ansagt ([`EnemyId::action`]); was eine Aktion im Gegnerzug anrichtet, rechnet `battle`.
+//! Die Gegner (`docs/gegner.md`). Werte und Muster stehen in `assets/data/enemies.json`; jedes Muster ist eine feste
+//! Aktionsfolge, die das Gefecht Schritt für Schritt ansagt ([`EnemyId::action`]); was eine Aktion im Gegnerzug
+//! anrichtet, rechnet `battle`.
 
 use serde::{Deserialize, Serialize};
 
 use crate::board::COLUMNS;
+use crate::data::{EnemyData, Step, data};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -39,9 +41,9 @@ pub enum EnemyClass {
 }
 
 /// Eine angesagte Aktion. Zielfeuer folgt dem Flaggschiff, Spaltenfeuer trifft die bei der Ansage bestimmten
-/// Spalten, Rammkurs macht feste 10 und verbraucht den Brander, Schilde gelten bis zum nächsten Gegnerzug,
+/// Spalten, Rammkurs macht festen Schaden und verbraucht den Brander, Schilde gelten bis zum nächsten Gegnerzug,
 /// Aufladen verdoppelt den nächsten Schuss, Zielerfassung ist die Aura des Spotters, Riegel gibt allen gegnerischen
-/// Einheiten Schild 4.
+/// Einheiten Schild.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {
@@ -56,19 +58,30 @@ pub enum Action {
     Bolt,
 }
 
-pub const RAM_DAMAGE: i32 = 10;
-pub const BOLT_SHIELD: i32 = 4;
-pub const CANNIBALIZE_HEAL: i32 = 8;
-
 impl EnemyId {
-    pub fn class(self) -> EnemyClass {
+    pub const ALL: [EnemyId; 11] = {
         use EnemyId::*;
-        match self {
-            Raiders | Fireship | TorpedoWing => EnemyClass::Fighter,
-            GuardCruiser | PlasmaCruiser | Spotter => EnemyClass::Cruiser,
-            Besieger | Carrier | ScrapKing | Warden => EnemyClass::Battleship,
-            Seal => EnemyClass::Flagship,
-        }
+        [
+            Raiders,
+            Fireship,
+            TorpedoWing,
+            GuardCruiser,
+            PlasmaCruiser,
+            Spotter,
+            Besieger,
+            Carrier,
+            ScrapKing,
+            Warden,
+            Seal,
+        ]
+    };
+
+    fn data(self) -> &'static EnemyData {
+        &data().enemies[&self]
+    }
+
+    pub fn class(self) -> EnemyClass {
+        self.data().class
     }
 
     /// Unterstützer machen selbst keinen Schaden; bleiben nur sie übrig, ist das Gefecht gewonnen.
@@ -78,70 +91,48 @@ impl EnemyId {
 
     /// Hülle vor der Sektor-Skalierung.
     pub fn hull(self) -> i32 {
-        use EnemyId::*;
-        match self {
-            Raiders | TorpedoWing => 8,
-            Fireship => 6,
-            GuardCruiser => 16,
-            PlasmaCruiser => 14,
-            Spotter => 12,
-            Besieger => 30,
-            Carrier => 26,
-            ScrapKing => 60,
-            Warden => 90,
-            Seal => 50,
-        }
+        self.data().hull
     }
 
     pub fn attack(self) -> i32 {
-        use EnemyId::*;
-        match self {
-            Raiders | Fireship | Spotter => 2,
-            TorpedoWing | GuardCruiser | PlasmaCruiser => 4,
-            Carrier => 5,
-            ScrapKing => 7,
-            Besieger | Seal => 8,
-            Warden => 15,
-        }
+        self.data().attack
     }
 
     /// Fester Abzug je Treffer.
     pub fn armor(self) -> i32 {
-        use EnemyId::*;
-        match self {
-            Besieger => 2,
-            Carrier | Warden => 1,
-            _ => 0,
-        }
+        self.data().armor
     }
 
-    /// Die Aktion im Schritt `step` des Musters. `column` ist die Spalte des Flaggschiffs bei der Ansage; der Wächter
-    /// nimmt eine Nachbarspalte dazu. Die Reaktion der Plünderer (Ausweichen nach einem Treffer) setzt das Gefecht.
+    /// Die Aktion im Schritt `step` des Musters. `column` ist die Spalte des Flaggschiffs bei der Ansage;
+    /// breiteres Spaltenfeuer nimmt erst die linke Nachbarspalte dazu (aus Spalte 0 die rechte), dann die dritte.
+    /// Die Reaktion der Plünderer (Ausweichen nach einem Treffer) setzt das Gefecht.
     pub fn action(self, step: u32, column: usize) -> Action {
-        use Action::*;
-        let mut columns = [false; COLUMNS];
-        columns[column] = true;
-        let cycle: &[Action] = match self {
-            EnemyId::Raiders | EnemyId::PlasmaCruiser => &[Fire],
-            EnemyId::Fireship => &[Evade, Evade, Ram],
-            EnemyId::TorpedoWing => &[ColumnFire { columns }, Evade],
-            EnemyId::GuardCruiser => &[Fire, Fire, Shields(6)],
-            EnemyId::Spotter => &[TargetLock],
-            EnemyId::Besieger => &[Charge, ColumnFire { columns }, Shields(10)],
-            EnemyId::Carrier => &[Fire, Call(EnemyId::Raiders)],
-            EnemyId::ScrapKing => &[Fire, Fire, Call(EnemyId::Raiders)],
-            EnemyId::Warden => {
-                columns[if column == 0 { 1 } else { column - 1 }] = true;
-                &[Charge, Charge, ColumnFire { columns }, Shields(15)]
-            }
-            EnemyId::Seal => &[Fire, Bolt],
-        };
-        // Der Brander rammt nur einmal und ist danach weg.
-        let step = if self == EnemyId::Fireship {
-            step.min(2)
+        let pattern = &self.data().pattern;
+        let last = pattern.len() - 1;
+        // Ein Muster, das mit dem Rammkurs endet, läuft nicht von vorn: Der Brander rammt einmal und ist weg.
+        let index = if pattern[last] == Step::Ram {
+            (step as usize).min(last)
         } else {
-            step
+            step as usize % pattern.len()
         };
-        cycle[step as usize % cycle.len()]
+        match pattern[index] {
+            Step::Fire => Action::Fire,
+            Step::ColumnFire(width) => {
+                let neighbour = if column == 0 { 1 } else { column - 1 };
+                let order = [column, neighbour, COLUMNS - column - neighbour];
+                let mut columns = [false; COLUMNS];
+                for &hit in &order[..width] {
+                    columns[hit] = true;
+                }
+                Action::ColumnFire { columns }
+            }
+            Step::Ram => Action::Ram,
+            Step::Shields(amount) => Action::Shields(amount),
+            Step::Evade => Action::Evade,
+            Step::Charge => Action::Charge,
+            Step::TargetLock => Action::TargetLock,
+            Step::Call(unit) => Action::Call(unit),
+            Step::Bolt => Action::Bolt,
+        }
     }
 }

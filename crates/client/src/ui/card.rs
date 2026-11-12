@@ -233,7 +233,7 @@ pub fn command_card_with_bonus(
     let keywords = locale.keywords();
     // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
     let mut explained: Vec<String> = Vec::new();
-    for (word, explanation) in keyword_chunks(&text.effect, keywords) {
+    for (word, explanation) in keyword_chunks(&text.effect, &keywords) {
         if let Some(explanation) = explanation {
             let line = format!("{}: {explanation}", capitalized(word));
             if !explained.contains(&line) {
@@ -256,7 +256,7 @@ pub fn command_card_with_bonus(
         .enumerate()
         .map(|(i, word)| {
             let chunks: Vec<_> = if unboosted.get(i) == Some(&word) {
-                keyword_chunks(word, keywords)
+                keyword_chunks(word, &keywords)
                     .into_iter()
                     .map(|(chunk, explanation)| (chunk, explanation.is_some()))
                     .collect()

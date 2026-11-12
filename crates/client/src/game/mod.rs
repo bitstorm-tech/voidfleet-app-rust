@@ -136,7 +136,6 @@ fn run_actions(
 pub fn fixture_battle(admiral: voidfleet_core::admirals::AdmiralId) -> battle::Battle {
     use voidfleet_core::{
         battle::{BattleSetup, Encounter},
-        board::{EnemySlot, Row},
         cards::starter_deck,
         enemies::EnemyId,
     };
@@ -148,15 +147,11 @@ pub fn fixture_battle(admiral: voidfleet_core::admirals::AdmiralId) -> battle::B
         modules: Vec::new(),
         emergency_generator_available: false,
         encounter: Encounter {
-            units: vec![
-                (EnemyId::GuardCruiser, EnemySlot::new(Row::Front, 1)),
-                (EnemyId::Raiders, EnemySlot::new(Row::Back, 0)),
-                (EnemyId::Besieger, EnemySlot::new(Row::Front, 2)),
-            ],
-            hull_percent: 100,
-            reinforcements: Vec::new(),
-            replacements: Vec::new(),
+            front: [None, Some(EnemyId::GuardCruiser), Some(EnemyId::Besieger)],
+            back: [Some(EnemyId::Raiders), None, None],
+            ..Encounter::default()
         },
+        hull_percent: 100,
     };
     battle::Battle::new(setup, 1)
 }

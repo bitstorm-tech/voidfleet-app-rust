@@ -8,6 +8,8 @@ Der Held ist das Flaggschiff. Der Spieler wählt zu Beginn einen der vier Admira
 
 Auf dem Holodeck der Brücke liegt der Sektor als Netz von Knoten, von unten nach oben, mit Abzweigungen; der Spieler sieht den ganzen Sektor und wählt an jeder Verzweigung. Drei Sektoren mit je neun Reihen, die letzte ist der Boss. Ein Pfad durch einen Sektor hat etwa fünf Gefechte, ein Run damit rund fünfzehn, und das Ziel sind 60 bis 90 Minuten. Das ist zu messen, nicht zu setzen.
 
+Die Sternenkarten sind entworfen, nicht gewürfelt: Jede Karte ist eine Datei ([Daten](daten.md#sternenkarten)), und ein neuer Run zieht je Sektor eine der Karten dieses Sektors. Die Zahl der Reihen und die Anteile der Tabelle sind die Vorgabe für den Entwurf, keine Regel, die das Spiel prüft.
+
 | Knoten | Anteil | Was dort geschieht |
 | --- | --- | --- |
 | Gefecht | ~50 % | Ein Verband des Sektors, von der einzelnen Staffel bis zur Flotte. Beute: Schrott und eine Befehlskarte aus drei. |

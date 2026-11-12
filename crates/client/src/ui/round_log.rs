@@ -10,7 +10,7 @@ use voidfleet_core::{
 use crate::i18n::Messages;
 
 /// Eine Einheit im Log: das Flaggschiff beim Namen, ein Gegner mit Slot („Wachkreuzer (Front Mitte)“).
-pub fn unit_name(locale: &dyn Messages, unit: UnitRef, admiral: AdmiralId) -> String {
+pub fn unit_name(locale: &Messages, unit: UnitRef, admiral: AdmiralId) -> String {
     match unit {
         UnitRef::Flagship => locale.flagship(admiral.flagship()).to_owned(),
         UnitRef::Enemy { id, slot, .. } => {
@@ -20,7 +20,7 @@ pub fn unit_name(locale: &dyn Messages, unit: UnitRef, admiral: AdmiralId) -> St
 }
 
 /// Eine Zeile je Ereignis; `admiral` benennt das Flaggschiff.
-pub fn describe_event(locale: &dyn Messages, event: &BattleEvent, admiral: AdmiralId) -> String {
+pub fn describe_event(locale: &Messages, event: &BattleEvent, admiral: AdmiralId) -> String {
     let unit = |unit: UnitRef| unit_name(locale, unit, admiral);
     match event {
         BattleEvent::RoundStarted { round } => locale.log_round_header(*round),
@@ -235,13 +235,13 @@ mod tests {
         for language in LANGUAGES {
             let locale = Locale::new(language);
             for event in all_events() {
-                let line = describe_event(&*locale, &event, AdmiralId::Reyes);
+                let line = describe_event(&locale, &event, AdmiralId::Reyes);
                 assert!(!line.trim().is_empty(), "{event:?} in {language:?}");
             }
         }
         let de = Locale::new(Language::De);
         assert_eq!(
-            describe_event(&*de, &all_events()[3], AdmiralId::Osei),
+            describe_event(&de, &all_events()[3], AdmiralId::Osei),
             "Bastion trifft Wachkreuzer (Front Mitte): 7"
         );
     }

@@ -2,26 +2,51 @@ use std::collections::HashSet;
 
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 use voidfleet_core::battle::{Battle, BattleResult, Encounter};
-use voidfleet_core::board::{EnemySlot, Row};
 use voidfleet_core::cards::{CardId, DeckCard};
-use voidfleet_core::enemies::{EnemyClass, EnemyId};
+use voidfleet_core::enemies::EnemyId;
 use voidfleet_core::modules::ModuleId;
 use voidfleet_core::run::{
-    EventId, EventOption, Gain, MapNode, NodeKind, ROWS, Run, RunError, Stage,
+    EventId, EventOption, Gain, MapError, NodeKind, Run, RunError, SectorMap, Stage,
 };
+
+/// Die Sternenkarten des Spiels samt Dateiname.
+fn map_files() -> Vec<(String, SectorMap)> {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/data/maps");
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .expect("Ordner der Sternenkarten")
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .map(|path| {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let json = std::fs::read_to_string(&path).unwrap();
+            let map = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
+            (name, map)
+        })
+        .collect()
+}
+
+fn new_run(admiral: AdmiralId, seed: u64) -> Run {
+    let maps: Vec<SectorMap> = map_files().into_iter().map(|(_, map)| map).collect();
+    Run::new(admiral, seed, &maps)
+}
+
+fn raiders() -> Encounter {
+    Encounter {
+        front: [None, Some(EnemyId::Raiders), None],
+        ..Encounter::default()
+    }
+}
 
 /// Macht den ersten wählbaren Knoten zu `kind` und fliegt hin.
 fn go(run: &mut Run, kind: NodeKind) {
     let column = run.choices()[0];
-    run.map[run.path.len()][column].kind = kind;
+    let node = &mut run.map[run.path.len()][column];
+    node.kind = kind;
+    node.encounter.get_or_insert_with(raiders);
     run.advance(column).expect("wählbar");
-}
-
-fn encounter(run: &Run) -> Encounter {
-    let Stage::Battle { encounter, .. } = &run.stage else {
-        panic!("kein Gefecht: {:?}", run.stage);
-    };
-    encounter.clone()
 }
 
 fn won(run: &Run) -> Battle {
@@ -40,67 +65,112 @@ fn loot_stage(run: &Run) -> voidfleet_core::run::Loot {
 
 /// Ein Run, der vor einem Ereignis `event` steht.
 fn at_event(event: EventId) -> Run {
-    let mut run = Run::new(AdmiralId::Osei, 3);
+    let mut run = new_run(AdmiralId::Osei, 3);
     go(&mut run, NodeKind::Event);
     run.stage = Stage::Event(event);
     run
 }
 
-fn check_map(map: &[Vec<MapNode>]) {
-    assert_eq!(map.len(), ROWS);
-    let last = &map[ROWS - 1];
-    assert_eq!(last.len(), 1);
-    assert_eq!(last[0].kind, NodeKind::Boss);
-    assert!(last[0].next.is_empty());
-    assert!(map[0].iter().all(|n| n.kind == NodeKind::Battle));
-    assert!(map[..2].iter().flatten().all(|n| n.kind != NodeKind::Elite));
-    assert!(map.iter().flatten().any(|n| n.kind == NodeKind::Shipyard));
-    for (r, row) in map[..ROWS - 1].iter().enumerate() {
-        assert!((3..=4).contains(&row.len()));
-        assert!(row.iter().all(|n| n.kind != NodeKind::Boss));
-        let below = map[r + 1].len();
-        let mut reached = HashSet::new();
-        for (c, node) in row.iter().enumerate() {
-            assert!(!node.next.is_empty(), "Knoten {r}/{c} ohne Kante hinaus");
-            assert!(node.next.windows(2).all(|w| w[0] < w[1]));
-            assert!(node.next.iter().all(|&n| n < below));
-            reached.extend(node.next.iter().copied());
-            // Keine Überkreuzung: rechts liegende Knoten führen nicht weiter nach links.
-            if let Some(right) = row.get(c + 1) {
-                assert!(node.next.last() <= right.next.first());
-            }
-        }
-        assert_eq!(
-            reached.len(),
-            below,
-            "jeder Knoten der Reihe {} erreichbar",
-            r + 1
-        );
+/// Jede Sternenkarte des Spiels ist gültig, jeder Sektor hat eine, und der Run zieht je Sektor eine davon.
+#[test]
+fn sternenkarten() {
+    let files = map_files();
+    for (name, map) in &files {
+        assert_eq!(map.check(), Ok(()), "{name}");
     }
+    let mut first = HashSet::new();
+    for seed in 0..50 {
+        let run = new_run(AdmiralId::Kerr, seed);
+        let drawn = [&run.map, &run.upcoming[0], &run.upcoming[1]];
+        for (sector, rows) in (1..).zip(drawn) {
+            assert!(
+                files
+                    .iter()
+                    .any(|(_, map)| map.sector == sector && map.rows == *rows)
+            );
+        }
+        first.insert(files.iter().position(|(_, map)| map.rows == run.map));
+    }
+    assert!(first.len() > 1, "Sektor 1 zieht immer dieselbe Karte");
 }
 
 #[test]
-fn sternenkarte() {
-    let mut counts = [0usize; 6];
-    for seed in 0..300 {
-        let run = Run::new(AdmiralId::Kerr, seed);
-        check_map(&run.map);
-        for node in run.map[1..ROWS - 1].iter().flatten() {
-            counts[node.kind as usize] += 1;
-        }
+fn karte_prüfen() {
+    let json = r#"{ "sector": 1, "rows": [
+        [{ "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null] } }],
+        [{ "kind": "event", "next": [0] }, { "kind": "shipyard", "next": [0] }],
+        [{ "kind": "boss", "next": [], "encounter": { "front": ["raiders", null, null], "back": ["scrap_king", null, null] } }]
+    ] }"#;
+    let good: SectorMap = serde_json::from_str(json).unwrap();
+    assert_eq!(good.check(), Ok(()));
+    assert_eq!(
+        good.rows[2][0].encounter.as_ref().unwrap().units().count(),
+        2
+    );
+    let broken = |change: fn(&mut SectorMap)| {
+        let mut map = good.clone();
+        change(&mut map);
+        map.check()
+    };
+    assert_eq!(broken(|m| m.sector = 4), Err(MapError::Sector));
+    assert_eq!(
+        broken(|m| m.rows[1][0].kind = NodeKind::Boss),
+        Err(MapError::Boss)
+    );
+    assert_eq!(
+        broken(|m| m.rows[2][0].kind = NodeKind::Elite),
+        Err(MapError::Boss)
+    );
+    assert_eq!(broken(|m| m.rows[1].clear()), Err(MapError::EmptyRow(1)));
+    assert_eq!(
+        broken(|m| m.rows[1][1].next.clear()),
+        Err(MapError::Edges(1, 1))
+    );
+    assert_eq!(
+        broken(|m| m.rows[1][0].next = vec![1]),
+        Err(MapError::Edges(1, 0))
+    );
+    assert_eq!(
+        broken(|m| m.rows[0][0].next = vec![1, 0]),
+        Err(MapError::Edges(0, 0))
+    );
+    assert_eq!(
+        broken(|m| m.rows[0][0].next = vec![0]),
+        Err(MapError::Unreachable(1, 1))
+    );
+    fn encounter(m: &mut SectorMap) -> &mut Encounter {
+        m.rows[0][0].encounter.as_mut().unwrap()
     }
-    let total: usize = counts.iter().sum();
-    let share = |kind: NodeKind| counts[kind as usize] as f64 / total as f64;
-    assert!((0.45..0.6).contains(&share(NodeKind::Battle)));
-    assert!((0.07..0.14).contains(&share(NodeKind::Elite)));
-    assert!((0.15..0.25).contains(&share(NodeKind::Event)));
-    assert!((0.08..0.16).contains(&share(NodeKind::Shipyard)));
-    assert!((0.03..0.09).contains(&share(NodeKind::Market)));
+    assert_eq!(
+        broken(|m| m.rows[0][0].encounter = None),
+        Err(MapError::Encounter(0, 0))
+    );
+    assert_eq!(
+        broken(|m| m.rows[1][0].encounter = Some(raiders())),
+        Err(MapError::Encounter(1, 0))
+    );
+    assert_eq!(
+        broken(|m| encounter(m).front = [None; 3]),
+        Err(MapError::Encounter(0, 0))
+    );
+    assert_eq!(
+        broken(|m| encounter(m).back[0] = Some(EnemyId::Spotter)),
+        Err(MapError::Encounter(0, 0))
+    );
+    assert_eq!(
+        broken(|m| {
+            encounter(m).front = [Some(EnemyId::Raiders); 3];
+            encounter(m).back = [Some(EnemyId::Raiders); 3];
+        }),
+        Err(MapError::Encounter(0, 0))
+    );
+    // Ein Tippfehler im Feldnamen fällt beim Lesen auf.
+    assert!(serde_json::from_str::<SectorMap>(&json.replace("next", "nxt")).is_err());
 }
 
 #[test]
 fn wählbare_knoten() {
-    let mut run = Run::new(AdmiralId::Osei, 1);
+    let mut run = new_run(AdmiralId::Osei, 1);
     assert_eq!(run.choices(), (0..run.map[0].len()).collect::<Vec<_>>());
     assert_eq!(run.current(), None);
     assert_eq!(run.advance(9), Err(RunError::InvalidNode));
@@ -120,140 +190,9 @@ fn wählbare_knoten() {
     assert_eq!(run.current().unwrap().0, 1);
 }
 
-/// Eine Einheit der erwarteten Aufstellung.
-type Unit = (EnemyId, Row, usize);
-
-fn check_formation(units: &[(EnemyId, EnemySlot)]) {
-    let slots: HashSet<_> = units.iter().map(|&(_, s)| s).collect();
-    assert_eq!(slots.len(), units.len(), "doppelte Slots: {units:?}");
-    for &(id, slot) in units {
-        if let Some(front) = slot.front() {
-            assert!(slots.contains(&front), "{id:?} hinten ungedeckt: {units:?}");
-        } else {
-            assert_ne!(id, EnemyId::Spotter, "Spotter vorn: {units:?}");
-        }
-    }
-}
-
-#[test]
-fn verbände_je_sektor() {
-    for sector in 1..=3 {
-        let mut reinforced = false;
-        for seed in 0..200 {
-            let mut run = Run::new(AdmiralId::Vance, seed);
-            run.sector = sector;
-            go(&mut run, NodeKind::Battle);
-            let enc = encounter(&run);
-            check_formation(&enc.units);
-            let total = enc.units.len() + enc.reinforcements.len();
-            assert!(total <= 4);
-            assert!(enc.replacements.is_empty());
-            assert_eq!(enc.hull_percent, [100, 125, 150][sector as usize - 1]);
-            let ids: Vec<EnemyId> = enc.units.iter().map(|&(id, _)| id).collect();
-            assert!(ids.iter().filter(|&&id| id == EnemyId::Spotter).count() <= 1);
-            assert!(
-                ids.iter()
-                    .filter(|id| id.class() == EnemyClass::Battleship)
-                    .count()
-                    <= 1
-            );
-            match sector {
-                1 => {
-                    assert!((1..=2).contains(&total));
-                    assert!(ids.iter().all(|id| matches!(
-                        id,
-                        EnemyId::Raiders | EnemyId::GuardCruiser | EnemyId::Fireship
-                    )));
-                }
-                2 => assert!((2..=3).contains(&total)),
-                _ => {
-                    assert!((3..=4).contains(&total));
-                    assert!(enc.units.len() >= 2);
-                    reinforced |= !enc.reinforcements.is_empty();
-                }
-            }
-            assert!(ids.iter().all(|id| id.class() != EnemyClass::Flagship));
-        }
-        assert_eq!(reinforced, sector == 3);
-    }
-}
-
-#[test]
-fn elite_und_bosse() {
-    use EnemyId::*;
-    use Row::*;
-    let expected: [(NodeKind, u32, &[Unit]); 6] = [
-        (NodeKind::Elite, 1, &[(Besieger, Front, 1)]),
-        (
-            NodeKind::Elite,
-            2,
-            &[
-                (GuardCruiser, Front, 1),
-                (GuardCruiser, Front, 0),
-                (Besieger, Back, 1),
-            ],
-        ),
-        (
-            NodeKind::Elite,
-            3,
-            &[
-                (Besieger, Front, 1),
-                (Besieger, Front, 0),
-                (Spotter, Back, 1),
-            ],
-        ),
-        (
-            NodeKind::Boss,
-            1,
-            &[
-                (Raiders, Front, 1),
-                (Raiders, Front, 0),
-                (ScrapKing, Back, 1),
-            ],
-        ),
-        (
-            NodeKind::Boss,
-            2,
-            &[
-                (GuardCruiser, Front, 1),
-                (GuardCruiser, Front, 0),
-                (Warden, Back, 1),
-            ],
-        ),
-        (
-            NodeKind::Boss,
-            3,
-            &[
-                (GuardCruiser, Front, 1),
-                (PlasmaCruiser, Front, 0),
-                (Seal, Back, 1),
-                (Spotter, Back, 0),
-            ],
-        ),
-    ];
-    for (kind, sector, units) in expected {
-        let mut run = Run::new(AdmiralId::Reyes, 5);
-        run.sector = sector;
-        go(&mut run, kind);
-        let enc = encounter(&run);
-        let want: Vec<_> = units
-            .iter()
-            .map(|&(id, row, c)| (id, EnemySlot::new(row, c)))
-            .collect();
-        assert_eq!(enc.units, want);
-        check_formation(&enc.units);
-        let replacements = if kind == NodeKind::Boss && sector == 3 {
-            vec![GuardCruiser, GuardCruiser]
-        } else {
-            vec![]
-        };
-        assert_eq!(enc.replacements, replacements);
-    }
-}
-
 #[test]
 fn gefecht_starten() {
-    let mut run = Run::new(AdmiralId::Kerr, 2);
+    let mut run = new_run(AdmiralId::Kerr, 2);
     run.hull = 30;
     run.modules = vec![ModuleId::EmergencyGenerator, ModuleId::ReinforcedFrames];
     run.max_hull = 66;
@@ -279,11 +218,28 @@ fn gefecht_starten() {
     go(&mut run, NodeKind::Battle);
     let battle = run.start_battle();
     assert!(!battle.flagship.burning && !battle.emergency_generator_available);
+
+    // Der Verband des Knotens steht auf dem Brett; je Sektor ein Viertel mehr Hülle, aufgerundet.
+    for (sector, hull) in [(1, 14), (2, 18), (3, 21)] {
+        let mut run = new_run(AdmiralId::Kerr, 2);
+        run.sector = sector;
+        let column = run.choices()[0];
+        run.map[0][column].encounter = Some(Encounter {
+            front: [Some(EnemyId::PlasmaCruiser), None, None],
+            ..Encounter::default()
+        });
+        run.advance(column).unwrap();
+        let battle = run.start_battle();
+        assert_eq!(battle.enemies.len(), 1);
+        let enemy = &battle.enemies[0];
+        assert_eq!((enemy.id, enemy.slot.column), (EnemyId::PlasmaCruiser, 0));
+        assert_eq!((enemy.hull, enemy.max_hull), (hull, hull));
+    }
 }
 
 #[test]
 fn beute_nach_gefecht() {
-    let mut run = Run::new(AdmiralId::Osei, 4);
+    let mut run = new_run(AdmiralId::Osei, 4);
     go(&mut run, NodeKind::Battle);
     let loot = run.finish_battle(&won(&run));
     assert!((10..=20).contains(&loot.scrap));
@@ -312,7 +268,7 @@ fn beute_nach_gefecht() {
 
 #[test]
 fn beute_nach_elite() {
-    let mut run = Run::new(AdmiralId::Vance, 6);
+    let mut run = new_run(AdmiralId::Vance, 6);
     run.modules = vec![ModuleId::ArmorPlates];
     go(&mut run, NodeKind::Elite);
     let loot = run.finish_battle(&won(&run));
@@ -334,26 +290,25 @@ fn beute_nach_elite() {
 
 #[test]
 fn boss_und_sektorwechsel() {
-    let mut run = Run::new(AdmiralId::Osei, 8);
-    run.path = vec![0; ROWS - 1];
+    let mut run = new_run(AdmiralId::Osei, 8);
+    run.path = vec![0; run.map.len() - 1];
     run.hull = 10;
     run.advance(0).unwrap();
-    assert_eq!(encounter(&run).units[2].0, EnemyId::ScrapKing);
     let loot = run.finish_battle(&won(&run));
     assert_eq!(loot.scrap, 60);
     assert_eq!(loot.modules.len(), 3);
     assert_eq!(loot.repaired, 21);
     assert_eq!(run.hull, 31);
-    let old_map = run.map.clone();
+    let next_map = run.upcoming[0].clone();
     run.take_loot(None).unwrap();
     assert_eq!(run.sector, 2);
     assert!(run.path.is_empty());
-    assert_ne!(run.map, old_map);
-    check_map(&run.map);
+    assert_eq!(run.map, next_map);
+    assert_eq!(run.upcoming.len(), 1);
 
     // Sektor 3: der Boss beendet den Run.
     run.sector = 3;
-    run.path = vec![0; ROWS - 1];
+    run.path = vec![0; run.map.len() - 1];
     run.advance(0).unwrap();
     let loot = run.finish_battle(&won(&run));
     assert_eq!(run.result, Some(BattleResult::Won));
@@ -363,7 +318,7 @@ fn boss_und_sektorwechsel() {
 
 #[test]
 fn niederlage() {
-    let mut run = Run::new(AdmiralId::Reyes, 9);
+    let mut run = new_run(AdmiralId::Reyes, 9);
     go(&mut run, NodeKind::Battle);
     let mut battle = run.start_battle();
     battle.flagship.hull = 0;
@@ -377,7 +332,7 @@ fn niederlage() {
 
 #[test]
 fn werft() {
-    let mut run = Run::new(AdmiralId::Kerr, 10);
+    let mut run = new_run(AdmiralId::Kerr, 10);
     assert_eq!(run.repair_at_shipyard(), Err(RunError::WrongStage));
     go(&mut run, NodeKind::Shipyard);
     run.hull = 20;
@@ -410,7 +365,7 @@ fn werft() {
 
 #[test]
 fn schwarzmarkt() {
-    let mut run = Run::new(AdmiralId::Osei, 11);
+    let mut run = new_run(AdmiralId::Osei, 11);
     run.modules = vec![ModuleId::SupplyPod];
     go(&mut run, NodeKind::Market);
     let Stage::Market(market) = run.stage.clone() else {
@@ -520,6 +475,7 @@ fn der_lotse() {
     run.advance(column).unwrap();
     assert_eq!(run.stage, Stage::Shipyard);
     assert_eq!(run.map[1][column].kind, NodeKind::Shipyard);
+    assert_eq!(run.map[1][column].encounter, None);
     assert!(!run.pilot);
 
     let mut run = at_event(EventId::Pilot);
@@ -556,7 +512,7 @@ fn flackern() {
 #[test]
 fn gleicher_seed_gleicher_run() {
     let play = |seed| {
-        let mut run = Run::new(AdmiralId::Vance, seed);
+        let mut run = new_run(AdmiralId::Vance, seed);
         go(&mut run, NodeKind::Battle);
         let loot = run.finish_battle(&won(&run));
         run.take_loot(None).unwrap();
@@ -564,12 +520,11 @@ fn gleicher_seed_gleicher_run() {
         (run, loot)
     };
     assert_eq!(play(42), play(42));
-    assert_ne!(play(42).0.map, play(43).0.map);
 }
 
 #[test]
 fn speichern_und_laden() {
-    let mut run = Run::new(AdmiralId::Reyes, 77);
+    let mut run = new_run(AdmiralId::Reyes, 77);
     go(&mut run, NodeKind::Battle);
     run.finish_battle(&won(&run));
     run.take_loot(Some(0)).unwrap();
@@ -587,7 +542,7 @@ fn speichern_und_laden() {
 #[test]
 fn durchgespielter_run() {
     for seed in 0..50 {
-        let mut run = Run::new(ADMIRAL_IDS[seed as usize % 4], seed);
+        let mut run = new_run(ADMIRAL_IDS[seed as usize % 4], seed);
         let mut steps = 0;
         while run.result.is_none() {
             steps += 1;

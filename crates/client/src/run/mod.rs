@@ -14,7 +14,7 @@ pub mod save;
 use bevy::prelude::*;
 use voidfleet_core::{
     admirals::AdmiralId,
-    run::{EventOption, Gain, Run, RunError, Stage},
+    run::{EventOption, Gain, Run, RunError, SectorMap, Stage},
 };
 
 pub use save::RunSave;
@@ -254,7 +254,25 @@ fn follow_flow(
 /// Ein neuer Run.
 pub fn new_run(admiral: AdmiralId, seed: u64) -> ActiveRun {
     info!("Neuer Run: {admiral:?}, Seed {seed}");
-    ActiveRun(Run::new(admiral, seed))
+    ActiveRun(Run::new(admiral, seed, &load_maps()))
+}
+
+/// Liest die Sternenkarten aus `assets/data/maps/` (eine JSON-Datei je Karte), bei jedem neuen Run frisch, also
+/// gilt eine geänderte Datei ab dem nächsten Run. Panikt mit dem Dateinamen, wenn eine Karte nicht stimmt.
+fn load_maps() -> Vec<SectorMap> {
+    let dir = crate::asset_root().join("data/maps");
+    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    entries
+        .map(|entry| {
+            let path = entry.expect("lesbarer Ordner").path();
+            let name = path.display();
+            let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let map: SectorMap =
+                serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
+            map.check().unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            map
+        })
+        .collect()
 }
 
 /// Führt die Wahlen dieses Bilds aus; nach dem Boss kündigt ein Banner den neuen Sektor an.
@@ -357,7 +375,7 @@ mod tests {
     use super::*;
 
     fn run() -> Run {
-        Run::new(AdmiralId::Osei, 3)
+        new_run(AdmiralId::Osei, 3).0
     }
 
     #[test]
@@ -416,7 +434,7 @@ mod tests {
         assert_eq!(outcome.option, EventOption::Salvage);
         assert_eq!(
             outcome.scrap,
-            i64::from(voidfleet_core::run::RESOLUTE_SCRAP)
+            i64::from(voidfleet_core::data::rules().run.resolute_scrap)
         );
         let view = RunView {
             outcome: Some(outcome),
@@ -425,7 +443,10 @@ mod tests {
         assert_eq!(screen(Some(&run), false, &view), Screen::EventOutcome);
         run.stage = Stage::Event(voidfleet_core::run::EventId::Pilot);
         let outcome = apply(&mut run, RunAction::Choose(1)).unwrap().unwrap();
-        assert_eq!(outcome.hull, -voidfleet_core::run::PILOT_DAMAGE);
+        assert_eq!(
+            outcome.hull,
+            -voidfleet_core::data::rules().run.pilot_damage
+        );
         assert_eq!(screen(Some(&run), false, &RunView::default()), Screen::Loot);
     }
 }

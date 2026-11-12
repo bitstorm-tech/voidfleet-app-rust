@@ -1,6 +1,6 @@
 # Das Befehlsdeck
 
-Karten spielt nur der Spieler. Kosten in Befehlspunkten (BP). Angriffskarten treffen immer, mit festem Schaden und den Abzügen eines Schusses ([Schaden](gefecht.md#schaden)), wo nichts anderes steht.
+Karten spielt nur der Spieler. Kosten in Befehlspunkten (BP); Kosten und Werte stehen in `assets/data/cards.json` ([Daten](daten.md#karten)), die Tabellen hier nennen die Startwerte. Angriffskarten treffen immer, mit festem Schaden und den Abzügen eines Schusses ([Schaden](gefecht.md#schaden)), wo nichts anderes steht.
 
 ## Schlüsselwörter
 

@@ -4,6 +4,8 @@ Die Schlüsselwörter (Schilde, Abwehrfeuer, zielsuchend, durchschlagend) stehen
 
 Ein Admiral ist der Charakter, den der Spieler zu Beginn des Runs wählt, wie in Slay the Spire: Flaggschiff mit Hülle, ATK und Waffe, ein **Passiv**, eine **Admiralsstation**, die das Flaggschiff statt Waffen, Schilde, Schadenskontrolle oder Manöver auslösen kann, und ein Startdeck mit zwei **Kennkarten** ([Karten](karten.md#startdeck-und-aufwertung)). Dass die Admiralsstation mit den Waffen oder dem Schutz des eigenen Schiffs konkurriert, ist die Entscheidung jedes Admirals in jeder Runde.
 
+Hülle, ATK und Startdeck stehen in `assets/data/admirals.json` ([Daten](daten.md#admirale)), die Tabelle nennt die Startwerte.
+
 | Admiral | Flaggschiff | Hülle | ATK | Waffe | Passiv | Admiralsstation | Kennkarte |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Osei, die Mauer | Bastion | 70 | 7 | Flakbatterien | Wächterschild: Schilde schlucken 12 statt 8 | Gegenfeuer | Standhalten |

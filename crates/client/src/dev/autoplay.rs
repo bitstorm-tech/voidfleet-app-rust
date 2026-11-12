@@ -16,7 +16,8 @@ use voidfleet_core::{
     admirals::Station,
     battle::Target,
     cards::CardTarget,
-    run::{EventOption, PILOT_PRICE, Stage},
+    data::rules,
+    run::{EventOption, Stage},
 };
 
 use super::exit_when_captured;
@@ -173,7 +174,9 @@ pub(super) fn autoplay(
                 let index = event
                     .options()
                     .iter()
-                    .position(|&option| option != EventOption::PayPilot || run.scrap >= PILOT_PRICE)
+                    .position(|&option| {
+                        option != EventOption::PayPilot || run.scrap >= rules().run.pilot_price
+                    })
                     .unwrap_or(0);
                 run_actions.write(RunAction::Choose(index));
             }

@@ -119,7 +119,7 @@ pub(super) fn spawn(mut commands: Commands, assets: CardAssets) {
                     margin: UiRect::bottom(px(12)),
                     ..default()
                 },
-                theme::text(fonts.body(16.0), paragraph.as_ref(), palette::TEXT_DIM),
+                theme::text(fonts.body(16.0), *paragraph, palette::TEXT_DIM),
                 LineHeight::RelativeToFont(1.55),
                 ChildOf(section),
             ));

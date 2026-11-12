@@ -6,7 +6,7 @@ Was ein Gegner tun kann und wie Absichten gelten, steht in [Gefecht](gefecht.md#
 
 Jeder Gegnertyp folgt einem Muster aus Zielregel und Aktionsfolge. Ein Muster darf würfeln, welchen Zweig es als Nächstes ansagt; die Ansage selbst gilt exakt. Das ist neben der Hand der einzige Zufall im Gefecht. Bisher sind alle Muster feste Folgen.
 
-Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände fliegen in Gegner-Lackierung, die Bosse haben eigene Rümpfe.
+Werte und Muster stehen in `assets/data/enemies.json` ([Daten](daten.md#gegner)); die Tabelle nennt die Startwerte. Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände fliegen in Gegner-Lackierung, die Bosse haben eigene Rümpfe.
 
 | Gegner | Klasse | Hülle | ATK | Modell | Muster |
 | --- | --- | --- | --- | --- | --- |
@@ -28,3 +28,5 @@ Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände flieg
 | 3 Die Schwelle | 3 bis 4 Einheiten, Verstärkung, Spotter mit Belagerern und Trägerschiffen | Zwei Belagerer mit Spotter | **Die Gegenflotte.** Kommandantin Vey mit ihrem Flaggschiff Siegel (`seal`), Hülle 50, ATK 8, und drei Eskorten; sie bewacht das Wurmloch nach Hause. Kommandofähigkeit Riegel, angesagt wie jede Aktion: Alle ihre Einheiten schlucken 4, ohne ihre eigene Aktion zu verlieren. Fällt eine Eskorte, springt eine neue ein, zweimal. Sie ist das einzige gegnerische Flaggschiff im Run und spielt mit Absichten, nach denselben Regeln für Schaden und Zustände wie der Spieler. |
 
 Die Hülle aller Gegner steigt je Sektor um ein Viertel des Grundwerts, auch bei Elite und Boss; die Tabellen nennen die Grundwerte.
+
+Welcher Verband an welchem Knoten steht, legen die Sternenkarten fest ([Daten](daten.md#sternenkarten)); die Tabelle ist die Vorgabe für ihren Entwurf.

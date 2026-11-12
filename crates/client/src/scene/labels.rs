@@ -9,10 +9,7 @@ use bevy::{
     transform::TransformSystems,
     ui::{UiSystems, UiTransform},
 };
-use voidfleet_core::{
-    enemies::{Action, BOLT_SHIELD},
-    events::Intent,
-};
+use voidfleet_core::{data::rules, enemies::Action, events::Intent};
 
 use super::{
     camera::MainCamera,
@@ -75,13 +72,13 @@ fn action_icon(action: Action, icons: &UiIcons) -> Handle<Image> {
 fn intent_glyph(
     intent: Intent,
     color: Color,
-    locale: &dyn Messages,
+    locale: &Messages,
     icons: &UiIcons,
     next: bool,
 ) -> (Glyph, String) {
     let value = match intent.action {
         Action::Shields(amount) => Some(amount),
-        Action::Bolt => Some(BOLT_SHIELD),
+        Action::Bolt => Some(rules().enemies.bolt_shield),
         _ => (intent.damage > 0).then_some(intent.damage),
     };
     let columns = match intent.action {
@@ -121,7 +118,7 @@ fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
 }
 
 /// Die Zeilen der Icons: Absicht, die nächste, Zustände (Panzerung und Brand zuerst).
-fn glyph_rows(caption: &ShipCaption, locale: &dyn Messages, icons: &UiIcons) -> [GlyphRow; 3] {
+fn glyph_rows(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> [GlyphRow; 3] {
     let armor = (caption.armor > 0).then(|| {
         (
             Glyph {
@@ -226,7 +223,7 @@ fn rebuild_captions(
         if !caption.is_changed() && !locale.is_changed() {
             continue;
         }
-        let rows = glyph_rows(&caption, &**locale, &icons);
+        let rows = glyph_rows(&caption, &locale, &icons);
         let tooltip = TooltipGlyphs(rows.iter().flat_map(|row| row.glyphs.clone()).collect());
         let mut entity = commands.entity(node);
         entity.despawn_related::<Children>();

@@ -53,7 +53,7 @@ pub const REPO_ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets
 
 /// Wo die Assets liegen: `$BEVY_ASSET_ROOT/assets`, sonst `assets/` neben dem Binary oder in `Contents/Resources`
 /// eines macOS-Bundles, sonst die des Repositorys ([`REPO_ASSETS`]).
-fn asset_root() -> PathBuf {
+pub(crate) fn asset_root() -> PathBuf {
     if let Some(root) = std::env::var_os("BEVY_ASSET_ROOT") {
         return PathBuf::from(root).join("assets");
     }

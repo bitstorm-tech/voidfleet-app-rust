@@ -1,4 +1,5 @@
-//! Module: dauerhafte Passiva des Runs (`docs/run.md`). Das Gefecht wertet aus, was im Gefecht wirkt;
+//! Module: dauerhafte Passiva des Runs (`docs/run.md`); ihre Zahlen stehen in `assets/data/rules.json` (`modules`),
+//! die Kommentare hier nennen die Startwerte. Das Gefecht wertet aus, was im Gefecht wirkt;
 //! Kampfsimulator und Verstärkte Spanten wertet der Run aus, den Schrott des Bergungskrans auch (aus den Abschüssen).
 
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModuleId {
-    /// +1 ATK auf die Schüsse des Flaggschiffs.
+    /// Mehr ATK auf die Schüsse des Flaggschiffs.
     FireControlComputer,
     /// Der eigene Brand tickt nicht.
     FireSuppression,
@@ -25,8 +26,3 @@ pub enum ModuleId {
     /// +10 Hülle dauerhaft (Run).
     ReinforcedFrames,
 }
-
-pub const RESERVE_REACTOR_POINTS: u32 = 4;
-pub const SUPPLY_POD_HAND: usize = 6;
-pub const SALVAGE_CRANE_SCRAP: u32 = 5;
-pub const REINFORCED_FRAMES_HULL: i32 = 10;

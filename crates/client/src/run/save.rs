@@ -78,6 +78,7 @@ mod tests {
     use voidfleet_core::admirals::AdmiralId;
 
     use super::*;
+    use crate::run::new_run;
 
     fn temp_save(name: &str) -> RunSave {
         let dir = std::env::temp_dir().join(format!("voidfleet-{name}-{}", std::process::id()));
@@ -89,7 +90,7 @@ mod tests {
     fn store_list_clear() {
         let save = temp_save("save");
         assert_eq!(save.list(), []);
-        let mut run = Run::new(AdmiralId::Vance, 42);
+        let mut run = new_run(AdmiralId::Vance, 42).0;
         run.advance(run.choices()[0]).unwrap();
         save.store(&run).unwrap();
         assert_eq!(save.list(), [run.clone()]);
@@ -99,7 +100,7 @@ mod tests {
             run.start_battle().enemies
         );
         // Ein zweiter Run steht daneben; jeder wird für sich gelöscht.
-        let other = Run::new(AdmiralId::Kerr, 43);
+        let other = new_run(AdmiralId::Kerr, 43).0;
         save.store(&other).unwrap();
         assert_eq!(save.list().len(), 2);
         save.clear(run.seed);
@@ -113,7 +114,7 @@ mod tests {
         let dir = save.0.clone().unwrap();
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("1.json"), "{ kein json").unwrap();
-        let mut run = Run::new(AdmiralId::Osei, 2);
+        let mut run = new_run(AdmiralId::Osei, 2).0;
         run.result = Some(voidfleet_core::battle::BattleResult::Lost);
         save.store(&run).unwrap();
         assert_eq!(save.list(), []);
