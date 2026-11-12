@@ -18,4 +18,5 @@
 
 # Grafik
 
+- [Grafikstil](grafikstil.md)
 - [Stilregeln der Schiffe](stilregeln.md)

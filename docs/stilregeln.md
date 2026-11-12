@@ -147,7 +147,9 @@ Standbildern):
 
 ## Palette und Akzent
 
-`vf.materials` liefert alles; Farben stehen zentral in `palette.py` und kommen nie als Hex in ein Schiffsmodul.
+`vf.materials` liefert alles; Farben stehen zentral in `palette.py` und kommen nie als Hex in ein Schiffsmodul. Die
+Werte der Palette und der Look des ganzen Spiels stehen im [Grafikstil](grafikstil.md); hier steht, welches Material
+wohin gehört.
 
 - `hull` für den Rumpf und die großen Flächen, `armor` (je Klasse einen Hauch heller als der Rumpf, auch beim hellen
   Rumpf der Unterstützer) für aufgesetzte Lagen wie Schürzen und Kasematten, `dark` für Gehäuse, Verschlüsse, Barbetten,
