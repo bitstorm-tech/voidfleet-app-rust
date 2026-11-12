@@ -205,6 +205,23 @@ pub fn spawn_ship(commands: &mut Commands, models: &ShipModels, kind: ShipKind) 
     ship
 }
 
+/// Spawnt nur das Modell `index` der Formation als eigenes Schiff, an seinem Platz in der Gruppe.
+pub fn spawn_hull(
+    commands: &mut Commands,
+    models: &ShipModels,
+    kind: ShipKind,
+    index: usize,
+) -> Entity {
+    let ship = commands
+        .spawn((
+            Name::new(format!("Modell {index} von {kind:?}")),
+            Ship { kind, uid: 0 },
+        ))
+        .id();
+    spawn_group(commands, ship, &models.get(kind).ship, kind, [index]);
+    ship
+}
+
 /// Spawnt den Geist eines Schiffs; Lage, Seite und Eltern setzt der Aufrufer.
 pub fn spawn_ghost(commands: &mut Commands, models: &ShipModels, kind: ShipKind) -> Entity {
     let ghost = commands

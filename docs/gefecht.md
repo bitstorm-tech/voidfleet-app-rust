@@ -13,7 +13,7 @@ Die Regeln eines Gefechts: Brett, Einheiten, Schaden, Zustände, Stationen, die 
 
 | Klasse | Seite | Darstellung | Rolle |
 | --- | --- | --- | --- |
-| Jäger-Staffel | nur Gegner | 5 kleine Modelle, die mit der Hülle verschwinden (je 20 % ein Modell) | schwach, aber viele; weicht aus, deckt, rammt |
+| Jäger-Staffel | nur Gegner | 5 kleine Modelle, die mit der Hülle explodieren (je 20 % ein Modell) | schwach, aber viele; weicht aus, deckt, rammt |
 | Kreuzer-Paar | nur Gegner | 2 mittlere Modelle; bei 50 % Hülle oder weniger brennt eines, im Notfall ist eines ein Wrack | das Rückgrat jedes Verbands, Feuerleitung, Plasma |
 | Schlachtschiff | nur Gegner | 1 großes Modell mit Bränden und Rumpfbrüchen | Spaltenfeuer mit Aufladen, Panzerung, ruft Verstärkung |
 | Flaggschiff | Spieler; Gegner nur als Boss | wie Schlachtschiff, größer, mit Ring und drei Sternen | das Schiff des Spielers, der Held des Runs |

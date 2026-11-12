@@ -4,9 +4,10 @@
 //! Gruppe ([`ShipModel`]).
 //!
 //! Der Verfall folgt der Hülle in [`ShipStatus`] ([`wear_hulls`]): Je 20 % Hülle verschwindet ein Jäger (der zuletzt
-//! genannte zuerst; die Wiedergabe lässt ihn dabei klein explodieren), unter der Hälfte brennt der zweite Kreuzer, im
-//! Notfall ist er ausgebrannt ([`HullWear::scorched`]: dunkel, Lichter aus, er brennt weiter), Schlachtschiff und
-//! Flaggschiff bekommen im Notfall zwei Rumpfbrüche (sprühende Funken). Der Brand einer Einheit ([`ShipAura`]) brennt
+//! genannte zuerst; die Wiedergabe lässt ihn dabei untergehen wie ein ganzes Schiff,
+//! [`super::destruction::DestroyHull`]), unter der Hälfte brennt der zweite Kreuzer, im Notfall ist er ausgebrannt
+//! ([`HullWear::scorched`]: dunkel, Lichter aus, er brennt weiter), Schlachtschiff und Flaggschiff bekommen im Notfall
+//! zwei Rumpfbrüche (sprühende Funken). Der Brand einer Einheit ([`ShipAura`]) brennt
 //! beim Paar am zweiten Kreuzer statt zwischen beiden.
 
 use bevy::prelude::*;

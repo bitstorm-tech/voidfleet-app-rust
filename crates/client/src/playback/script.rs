@@ -28,10 +28,10 @@ use crate::{
         board::{BoardEntities, anchor_position, place},
         camera::{BoardLayout, CameraCommand},
         coords::{BOARD_CENTER, SlotRef},
-        destruction::DestroyShip,
+        destruction::{DestroyHull, DestroyShip},
         effects::{
-            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether,
-            SecondaryExplosion, ShieldImpact, TargetRing, Tether, Warp,
+            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether, ShieldImpact,
+            TargetRing, Tether, Warp,
         },
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
@@ -51,8 +51,6 @@ const ABOVE_SHIP: Vec3 = Vec3::new(0.0, 0.9, 0.0);
 const ORBIT: Vec3 = Vec3::new(0.0, 9.0, 0.0);
 /// Schüsse enden nicht in der Mitte, sondern so weit davor auf der Hülle.
 const HULL_RADIUS: f32 = 0.45;
-/// Ein Jäger, der mit der Hülle aus seiner Staffel fällt, explodiert so groß (1 passt zu einem ganzen Jäger).
-const LOST_FIGHTER: f32 = 0.6;
 /// Rammkurs: Der Rammer hält so weit vor der Mitte des Ziels.
 const RAM_STANDOFF: f32 = 1.1;
 /// Der Traktorstrahl greift von so hoch über dem Flaggschiff.
@@ -644,15 +642,10 @@ impl Stage<'_, '_> {
                     ..visible_hulls(class, status.hull, status.max_hull);
                 status.hull = stats.hull;
                 *status = status.with_shield(stats.shield);
-                // Wer aus der Staffel fällt, explodiert klein; danach blendet der Verfall ihn aus.
-                if !self.playback.skipped && !lost.is_empty() {
-                    let (_, hulls) = self.hulls_of(ship);
-                    for (_, _, at, _) in hulls.iter().filter(|hull| lost.contains(&hull.1)) {
-                        self.commands.spawn(SecondaryExplosion {
-                            position: *at,
-                            outward: Vec3::Y,
-                            size: LOST_FIGHTER,
-                        });
+                // Wer aus der Staffel fällt, geht unter wie ein ganzes Schiff; der Verfall blendet ihn in der Gruppe aus.
+                if !self.playback.skipped {
+                    for index in lost {
+                        self.commands.spawn(DestroyHull { ship, index });
                     }
                 }
             }

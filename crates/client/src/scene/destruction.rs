@@ -5,7 +5,8 @@
 //!
 //! [`DestroyShip`] ist ein Auftrag: Er meldet sein Ende, sobald die Detonation ihre Wucht entfaltet hat (wie das
 //! Original, auf das die Rundenwiedergabe wartet). Die Trümmer fliegen und brennen für sich weiter und nehmen das
-//! Schiff am Ende mit. Das Schiff verliert dabei seinen Slot ([`OnSlot`]).
+//! Schiff am Ende mit. Das Schiff verliert dabei seinen Slot ([`OnSlot`]). [`DestroyHull`] zerstört so ein einzelnes
+//! Modell einer Gruppe, etwa einen Jäger, der mit der Hülle aus seiner Staffel fällt.
 
 use bevy::{
     ecs::entity::EntityHashSet,
@@ -24,13 +25,13 @@ use super::{
     effects::{BlastStyle, Burn, Detonation, SecondaryExplosion},
     formation::Hull,
     motion::HitFlash,
-    ship::{BreakApart, Ship, ShipModel, ToonState, WreckReady},
+    ship::{BreakApart, Ship, ShipModel, ToonState, WreckReady, spawn_hull},
     status::{ShipBounds, ShipStatus},
     toon::ToonOutline,
 };
 use crate::{
     audio::{LoopingSound, SoundId},
-    data::ship_models::ShipKind,
+    data::ship_models::{ShipKind, ShipModels},
     palette::{self, admiral_color},
 };
 
@@ -167,6 +168,19 @@ pub struct DestroyShip {
     pub ship: Entity,
 }
 
+/// Auftrag: Das Modell `index` fällt aus der Gruppe des Schiffs und geht unter wie ein ganzes Schiff. Dafür steht es als
+/// eigenes Schiff ohne Slot und Balken an seiner Stelle, die Gruppe blendet ihres nach der Hülle aus
+/// ([`super::formation`]); sobald es gemessen ist, zerstört es [`DestroyShip`].
+#[derive(Component, Clone, Copy, Debug)]
+pub struct DestroyHull {
+    pub ship: Entity,
+    pub index: usize,
+}
+
+/// Ein abgespaltenes Modell wartet auf seine Maße ([`ShipBounds`]).
+#[derive(Component, Debug)]
+struct Doomed;
+
 /// Der laufende Todeskampf.
 #[derive(Component, Clone, Debug)]
 struct Agony {
@@ -216,10 +230,11 @@ pub(super) struct DestructionPlugin;
 impl Plugin for DestructionPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(begin)
+            .add_observer(split_off)
             .add_observer(scatter_wreck)
             .add_systems(
                 Update,
-                (agonize, fly_pieces).in_set(AnimationSystems::Apply),
+                (doom_measured, agonize, fly_pieces).in_set(AnimationSystems::Apply),
             );
     }
 }
@@ -240,6 +255,42 @@ fn mesh_extent(mesh: &Mesh) -> Option<f32> {
             (!positions.is_empty()).then(|| (max - min).length())
         }
         _ => mesh.final_aabb.map(|aabb| (aabb.max - aabb.min).length()),
+    }
+}
+
+/// Spaltet das Modell als eigenes Schiff ab, unter demselben Anker an derselben Stelle.
+fn split_off(
+    add: On<Add<DestroyHull>>,
+    jobs: Query<&DestroyHull>,
+    ships: Query<(&Ship, &ChildOf, &Transform, &ToonState)>,
+    models: Res<ShipModels>,
+    mut commands: Commands,
+) {
+    let job = *jobs.get(add.entity).expect("Abspaltung");
+    commands.entity(add.entity).despawn();
+    let Ok((ship, child_of, transform, state)) = ships.get(job.ship) else {
+        return;
+    };
+    let hull = spawn_hull(&mut commands, &models, ship.kind, job.index);
+    commands.entity(hull).insert((
+        *transform,
+        ChildOf(child_of.parent()),
+        ToonState {
+            facing: state.facing,
+            ..default()
+        },
+        ShipStatus {
+            hidden: true,
+            ..ShipStatus::new(1, 1, 0)
+        },
+        Doomed,
+    ));
+}
+
+/// Ein abgespaltenes Modell ist gemessen: Sein Untergang beginnt.
+fn doom_measured(mut commands: Commands, doomed: Query<Entity, (With<Doomed>, Added<ShipBounds>)>) {
+    for ship in &doomed {
+        commands.spawn(DestroyShip { ship });
     }
 }
 
