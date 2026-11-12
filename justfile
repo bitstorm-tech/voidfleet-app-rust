@@ -8,6 +8,7 @@ default:
 
 # Spiel starten (weitere Argumente gehen an den Client)
 play *args:
+    git pull
     cargo run -p voidfleet-client -- {{ args }}
 
 # Spiel im Release-Build starten
