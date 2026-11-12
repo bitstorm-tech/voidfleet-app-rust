@@ -47,6 +47,9 @@ const SHIELD_FILL_HEIGHT: f32 = 0.27;
 const SHIELD_ROW_OFFSET: f32 = (HP_TRACK_HEIGHT + SHIELD_TRACK_HEIGHT) / 2.0 + 0.03;
 /// Schriftgröße der Zahl als Anteil der Spur auf dem Schirm (Ziffern sind etwa zwei Drittel davon hoch).
 const VALUE_SIZE: f32 = 1.05;
+/// Obergrenze der Zahl in logischen Pixeln: Nah an der Kamera bräuchte jede Ziffer sonst einen eigenen riesigen
+/// Schriftatlas im Grafikspeicher (bis über 1000 px, Fehlstart mit „Out of Memory“).
+const VALUE_MAX_SIZE: f32 = 96.0;
 /// Zielvorschau: Takt (Hz) und schwächste Deckkraft des blinkenden Verlusts.
 const PREVIEW_PULSE: f32 = 1.4;
 const PREVIEW_MIN_VISIBILITY: f32 = 0.25;
@@ -739,7 +742,11 @@ fn follow_bars(
         let center = (top + bottom) / 2.0;
         node.left = Val::Px(center.x);
         node.top = Val::Px(center.y);
-        let size = FontSize::Px(((bottom.y - top.y).abs() * VALUE_SIZE).round().max(1.0));
+        let size = FontSize::Px(
+            ((bottom.y - top.y).abs() * VALUE_SIZE)
+                .round()
+                .clamp(1.0, VALUE_MAX_SIZE),
+        );
         if font.font_size != size {
             font.font_size = size;
         }
