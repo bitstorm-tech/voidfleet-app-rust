@@ -25,6 +25,7 @@ opt-level = 3
 debug = false
 
 [profile.dev]
-opt-level = 1
+# Eigener Code unoptimiert: halbiert den Neubau nach großen Änderungen (28 → 16 s), läuft trotzdem flüssig.
+opt-level = 0
 # Zeilennummern reichen für Backtraces; volle Debuginfo kostet beim Codegen und Linken.
 debug = "line-tables-only"
