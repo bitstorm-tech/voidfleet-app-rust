@@ -2,7 +2,8 @@
 //!
 //! - je Gegner-Slot die Einheit aus [`Battle`] (Modell nach Katalog, Hülle, Schild) und das Flaggschiff in seiner
 //!   Spalte, im Kurzsprung fehlt es; fehlt ein Schiff, entsteht es, steht es woanders, wechselt es den Slot, ist es
-//!   weg, verschwindet es;
+//!   weg, verschwindet es; zu Beginn des Gefechts springen alle aus dem Hyperraum ([`Arrive`]), das Flaggschiff sofort,
+//!   die Gegner nacheinander im Abstand von 0,4 bis 1 Sekunde;
 //! - die Vorschau aus [`BoardFocus`] (drohender Verlust und Totenkopf auf den Balken, die Rechnung am Ziel) und über
 //!   jedem Schiff Absicht und Zustände ([`ShipCaption`]); das Ziel der Vorschau, also der Gegner unter dem Fadenkreuz,
 //!   mit roter Kontur;
@@ -23,10 +24,12 @@ use voidfleet_core::{
 };
 
 use super::{
+    animation::{Animation, AnimationFinished, AnimationScope, random_between},
     aura::ShipAura,
     board::{BoardEntities, OnSlot, place},
     coords::{Side, SlotRef},
     labels::ShipCaption,
+    motion::Arrive,
     ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
     toon::ToonOutline,
@@ -100,6 +103,9 @@ fn board_changed(
         || focus.is_changed()
         || locale.is_changed()
 }
+
+/// Gefechtsbeginn: Abstand in Sekunden zwischen zwei Gegnern, die aus dem Hyperraum springen.
+const ENEMY_ARRIVAL_GAP: (f32, f32) = (0.4, 1.0);
 
 /// Ein Schiff, wie es dastehen soll.
 struct Wanted {
@@ -228,7 +234,9 @@ pub fn sync_ships(
         Option<&mut ShipAura>,
     )>,
 ) {
-    let wanted = battle.map_or_else(Vec::new, |battle| wanted_ships(&battle, &**locale, &focus));
+    let wanted = battle
+        .as_ref()
+        .map_or_else(Vec::new, |battle| wanted_ships(battle, &**locale, &focus));
     let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
     let mut kept = Vec::new();
     for (entity, ship, on, mut status, caption, aura) in &mut ships {
@@ -268,18 +276,43 @@ pub fn sync_ships(
             }
         }
     }
+    // Zu Beginn des Gefechts springen alle aus dem Hyperraum, die Gegner nacheinander.
+    let arriving = battle.is_some_and(|battle| battle.is_added());
+    let mut delay = 0.0;
     for want in wanted.iter().filter(|want| !kept.contains(&want.uid)) {
         let ship = spawn_ship(&mut commands, &models, want.kind);
         place(&mut commands, &board, ship, want.slot);
+        let mut status = ShipStatus::new(want.stats.hull, want.max_hull, want.stats.shield);
+        status.hidden = arriving;
         commands.entity(ship).insert((
             Ship {
                 kind: want.kind,
                 uid: want.uid,
             },
-            ShipStatus::new(want.stats.hull, want.max_hull, want.stats.shield),
+            status,
             want.caption.clone(),
             want.aura,
         ));
+        if !arriving {
+            continue;
+        } else if matches!(want.kind, ShipKind::Flagship(_)) {
+            commands.spawn(Arrive { ship });
+            continue;
+        }
+        delay += random_between(ENEMY_ARRIVAL_GAP);
+        commands.entity(ship).insert(Visibility::Hidden);
+        commands
+            .spawn(Animation::new(delay).in_scope(AnimationScope::Movement))
+            .observe(
+                move |_: On<AnimationFinished>,
+                      mut commands: Commands,
+                      ships: Query<(), With<Ship>>| {
+                    // Das Gefecht kann schon vorbei sein.
+                    if ships.contains(ship) {
+                        commands.spawn(Arrive { ship });
+                    }
+                },
+            );
     }
 }
 

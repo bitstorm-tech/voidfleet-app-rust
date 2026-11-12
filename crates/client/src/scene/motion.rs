@@ -188,6 +188,8 @@ fn begin_arrivals(
         };
         status.hidden = true;
         transform.translation.z = WARP_GLIDE;
+        // Wer bis zum Sprung verborgen wartet, taucht erst jetzt auf.
+        commands.entity(arrive.ship).insert(Visibility::Inherited);
         commands.spawn(Warp {
             position: bounds.world_center(global),
             forward: global.forward().as_vec3(),
