@@ -101,9 +101,9 @@ impl Messages for De {
     fn antialiasing(&self, level: Antialiasing) -> &'static str {
         match level {
             Antialiasing::Off => "Aus",
-            Antialiasing::X2 => "Zweifach",
-            Antialiasing::X4 => "Vierfach",
-            Antialiasing::X8 => "Achtfach",
+            Antialiasing::X2 => "2x",
+            Antialiasing::X4 => "4x",
+            Antialiasing::X8 => "8x",
         }
     }
 

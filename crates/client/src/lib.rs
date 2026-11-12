@@ -78,7 +78,11 @@ impl Plugin for ClientPlugin {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Voidfleet".into(),
-                        name: Some("voidfleet".into()),
+                        // Eigene App-ID, damit eine Fensterregel z. B. Agent-Starts auf einen Monitor legen kann.
+                        name: Some(
+                            std::env::var("VOIDFLEET_APP_ID")
+                                .unwrap_or_else(|_| "voidfleet".into()),
+                        ),
                         ..default()
                     }),
                     ..default()

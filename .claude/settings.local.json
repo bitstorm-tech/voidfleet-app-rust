@@ -1,0 +1,5 @@
+{
+  "env": {
+    "VOIDFLEET_APP_ID": "voidfleet-agent"
+  }
+}
