@@ -2,7 +2,7 @@
 //! oben, Knoten als Tasten mit Zeichen und Farbe ihrer Art (Tooltip: Art und was dort geschieht), Kanten als dünne,
 //! gedrehte Knoten dahinter. Der besuchte Pfad leuchtet, der aktuelle Knoten trägt einen Ring, die wählbaren Knoten
 //! (`run.choices()`) pulsieren und melden [`RunAction::Advance`], alle anderen sind gesperrt. Rechts unten neben der
-//! Karte erklärt eine Legende die Zeichen der Knotenarten.
+//! Karte erklärt eine Legende die Zeichen der Knotenarten mit Name und Text wie im Tooltip.
 //!
 //! Die Lage der Knoten und Kanten rechnet [`layout`] ohne Bevy-Welt (getestet).
 
@@ -36,7 +36,7 @@ const MARGIN: f32 = 36.0;
 const NODE: f32 = 44.0;
 const BOSS_NODE: f32 = 62.0;
 /// Platz der Legende neben der Karte (Breite samt Abstand).
-const LEGEND: f32 = 200.0;
+const LEGEND: f32 = 320.0;
 /// Die Knotenarten in der Reihenfolge der Legende.
 const KINDS: [NodeKind; 6] = [
     NodeKind::Battle,
@@ -260,7 +260,7 @@ fn legend_box() -> impl Bundle {
         Node {
             width: px(LEGEND - 24.0),
             flex_direction: FlexDirection::Column,
-            row_gap: px(10),
+            row_gap: px(12),
             padding: UiRect::all(px(14)),
             border: UiRect::all(px(1)),
             border_radius: BorderRadius::all(px(6)),
@@ -272,7 +272,8 @@ fn legend_box() -> impl Bundle {
     )
 }
 
-/// Ein Eintrag der Legende: das Zeichen der Art auf einem Feld in ihrer Farbe, daneben ihr Name.
+/// Ein Eintrag der Legende: das Zeichen der Art auf einem Feld in ihrer Farbe, daneben Name und
+/// Beschreibung.
 fn spawn_legend_entry(
     legend: &mut ChildSpawnerCommands,
     fonts: &Fonts,
@@ -308,10 +309,30 @@ fn spawn_legend_entry(
                     Pickable::IGNORE,
                 ))
                 .with_children(|swatch| spawn_glyph(swatch, fonts, icons, kind, SIZE, color));
-            entry.spawn((
-                theme::text(fonts.body(15.0), locale.node_kind(kind), palette::TEXT),
-                Pickable::IGNORE,
-            ));
+            entry
+                .spawn((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_shrink: 1.0,
+                        row_gap: px(2),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ))
+                .with_children(|text| {
+                    text.spawn((
+                        theme::text(fonts.body(15.0), locale.node_kind(kind), palette::TEXT),
+                        Pickable::IGNORE,
+                    ));
+                    text.spawn((
+                        theme::text(
+                            fonts.body(13.0),
+                            locale.node_kind_hint(kind),
+                            palette::TEXT_DIM,
+                        ),
+                        Pickable::IGNORE,
+                    ));
+                });
         });
 }
 
