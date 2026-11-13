@@ -43,7 +43,7 @@ const BEAM_SHEATH: f32 = 0.26;
 const BEAM_DURATION: f32 = 0.52;
 /// Laser: So lange steht der Strahl; er ist dünner als die Railgun, flimmert (Hz), sprüht am Ziel Funken (je Sekunde)
 /// und verblasst auf dem letzten Anteil seiner Dauer.
-const LASER_DURATION: f32 = 1.4;
+const LASER_DURATION: f32 = 0.75;
 const LASER_WIDTH: f32 = 0.25;
 const LASER_SHIMMER: f32 = 16.0;
 const LASER_SPARKS: f32 = 70.0;

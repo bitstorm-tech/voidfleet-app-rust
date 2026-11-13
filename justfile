@@ -15,6 +15,9 @@ play *args:
 play-release *args:
     cargo run -p voidfleet-client --release -- {{ args }}
 
+play-no-pull *args:
+    cargo run -p voidfleet-client --features dynamic_linking -- {{ args }}
+
 # --- Prüfen ---
 
 # Alles prüfen, was vor einem Commit durchgehen muss: Format, Clippy, Tests
