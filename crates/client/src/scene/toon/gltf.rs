@@ -5,24 +5,23 @@
 //! Material der Modelle trägt den Vertrag; Bevys `StandardMaterial` für glTF ist abgeschaltet (`PbrPlugin` in
 //! `lib.rs`). Die Szenen der Modelle sind damit schon fertig, wenn sie geladen sind; gespawnt wird ohne weiteren Umbau.
 //!
-//! Die Maske der Verwitterung (`baseColorTexture` der toon-Materialien, ein Bild je Modell) ist Daten, kein sRGB, und
-//! braucht eine volle Mip-Kette, die Bevy für PNGs nicht erzeugt: Ohne sie flimmerte die Maske auf dem Brett. Beides
-//! richtet [`weather_image`] beim Laden ein, das Bild ersetzt sein Sub-Asset unter demselben Label. Das Wrack bettet
-//! die Maske nicht ein, seine Stücke nehmen die ihres Schiffs (`mask` im Vertrag): So liegt sie nur einmal im Speicher.
+//! Die Maske der Verwitterung liegt neben dem GLB (`<id>_weather.ktx2`, `mask` im Vertrag der toon-Materialien von
+//! Schiff und Wrack): BC7 mit Mip-Kette, ein Viertel des Grafikspeichers roher Texel, einmal je Schiff. Dazu teilen
+//! alle Rümpfe die Feinstruktur `detail.ktx2`. Beide sind Daten, kein sRGB, und leben nur auf der Grafikkarte
+//! ([`data_texture`]).
 
 use bevy::{
     asset::{LoadContext, RenderAssetUsages},
     ecs::world::EntityWorldMut,
     gltf::{
-        GltfAssetLabel, GltfMaterial,
+        GltfMaterial,
         extensions::{ErasedGltfExtensionHandler, GltfExtensionHandler, GltfExtensionHandlers},
         gltf,
     },
-    image::{ImageSampler, ImageSamplerDescriptor},
+    image::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
     mesh::MeshVertexAttribute,
     platform::collections::HashMap,
     prelude::*,
-    render::render_resource::TextureFormat,
 };
 
 use super::{
@@ -50,87 +49,29 @@ fn spec(material: &gltf::Material) -> Option<ToonSpec> {
         .and_then(|extras| ToonSpec::from_extras(extras.get()))
 }
 
-/// Richtet die Maske eines Modells einmal ein (das erste Material, das sie nutzt): ersetzt das Bild unter seinem Label
-/// durch [`weather_image`]. Alle toon-Materialien teilen die eine Textur (`tools/ships/vf.py` fasst sie zusammen).
-fn prepare_weather(load_context: &mut LoadContext<'_>, texture: &Handle<Image>) {
-    let Some(label) = texture
-        .path()
-        .and_then(|path| path.label())
-        .map(str::to_owned)
-    else {
-        return;
-    };
-    let Some(image) = load_context
-        .get_labeled_by_id(texture)
-        .and_then(|asset| asset.get::<Image>())
-        .filter(|image| image.texture_descriptor.mip_level_count == 1)
-    else {
-        return;
-    };
-    let Some(image) = weather_image(image.clone()) else {
-        warn!("Maske der Verwitterung {label} ist kein RGBA mit 8 Bit: ohne Mip-Kette");
-        return;
-    };
-    // Ein zweites Sub-Asset unter demselben Label ersetzt das erste samt Handle (`LoadContext::add_labeled_asset`)
-    load_context.add_labeled_asset(label, image);
-}
+/// Feinstruktur aller Rümpfe (`tools/ships/detail.py`).
+const DETAIL: &str = "models/ships/detail.ktx2";
 
-/// Die Maske als lineare Daten (die Bytes bleiben, nur das sRGB-Format fällt), mit voller Mip-Kette und einem Sampler,
-/// der zwischen Stufen und Texeln mischt (anisotrop für die flach gesehenen Decks). Sie lebt nur auf der Grafikkarte:
-/// Die Kopie im Hauptspeicher (bis 48 MB je Schiff) liest niemand mehr. `None` für andere Formate als RGBA mit 8 Bit.
-fn weather_image(mut image: Image) -> Option<Image> {
-    if !matches!(
-        image.texture_descriptor.format,
-        TextureFormat::Rgba8UnormSrgb | TextureFormat::Rgba8Unorm
-    ) {
-        return None;
-    }
-    let size = image.texture_descriptor.size;
-    let (data, levels) = mip_chain(
-        image.data.take()?,
-        size.width as usize,
-        size.height as usize,
-    );
-    image.data = Some(data);
-    image.texture_descriptor.format = TextureFormat::Rgba8Unorm;
-    image.texture_descriptor.mip_level_count = levels;
-    image.asset_usage = RenderAssetUsages::RENDER_WORLD;
-    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        anisotropy_clamp: 8,
-        ..ImageSamplerDescriptor::linear()
-    });
-    Some(image)
-}
-
-/// Hängt an die Texel eines RGBA-Bilds (4 Bytes je Texel) alle Mip-Stufen bis 1 × 1: je Stufe das gerundete Mittel
-/// über 2 × 2 Texel; bei ungerader Größe fällt die letzte Zeile bzw. Spalte weg. Dieselbe Rechnung wie `downsample` in
-/// `tools/ships/weather.py`, damit die Vorschau zeigt, was das Spiel zeigt. Liefert die Daten und die Zahl der Stufen.
-fn mip_chain(mut data: Vec<u8>, mut width: usize, mut height: usize) -> (Vec<u8>, u32) {
-    let mut start = 0;
-    let mut levels = 1;
-    // Die Kette ist ein Drittel länger; ohne das verdoppelte `Vec` beim Anhängen seinen Platz
-    data.reserve_exact(data.len() / 3 + 4);
-    while width > 1 || height > 1 {
-        let (w, h) = ((width / 2).max(1), (height / 2).max(1));
-        let mut next = Vec::with_capacity(w * h * 4);
-        for y in 0..h {
-            for x in 0..w {
-                for channel in 0..4 {
-                    let texel = |dx: usize, dy: usize| {
-                        let (tx, ty) = ((2 * x + dx).min(width - 1), (2 * y + dy).min(height - 1));
-                        u32::from(data[start + (ty * width + tx) * 4 + channel])
-                    };
-                    let sum = texel(0, 0) + texel(1, 0) + texel(0, 1) + texel(1, 1);
-                    next.push(((sum + 2) / 4) as u8);
-                }
-            }
-        }
-        start = data.len();
-        data.extend_from_slice(&next);
-        (width, height) = (w, h);
-        levels += 1;
-    }
-    (data, levels)
+/// Eine Textur aus `tools/ships/`, die der Shader als Daten liest: linear statt sRGB, zwischen Mip-Stufen und Texeln
+/// gemischt (anisotrop für die flach gesehenen Decks), nur auf der Grafikkarte.
+fn data_texture(
+    load_context: &mut LoadContext<'_>,
+    path: String,
+    address_mode: ImageAddressMode,
+) -> Handle<Image> {
+    load_context
+        .load_builder()
+        .with_settings(move |settings: &mut ImageLoaderSettings| {
+            settings.is_srgb = false;
+            settings.asset_usage = RenderAssetUsages::RENDER_WORLD;
+            settings.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                address_mode_u: address_mode,
+                address_mode_v: address_mode,
+                anisotropy_clamp: 8,
+                ..ImageSamplerDescriptor::linear()
+            });
+        })
+        .load(path)
 }
 
 fn outline_label(mesh: &gltf::Mesh, primitive: &gltf::Primitive) -> String {
@@ -160,20 +101,19 @@ impl GltfExtensionHandler for ToonGltf {
         let heat_texture = matches!(spec, ToonSpec::Wreck { .. })
             .then(|| material_asset.emissive_texture.clone())
             .flatten();
-        let weather_texture =
-            match &spec {
-                // Im GLB des Schiffs ist die Maske die einzige Textur
-                ToonSpec::Toon {
-                    mask: Some(ship), ..
-                } => Some(load_context.load(
-                    GltfAssetLabel::Texture(0).from_asset(format!("models/ships/{ship}.glb")),
-                )),
-                ToonSpec::Toon { .. } => material_asset.base_color_texture.clone(),
-                _ => None,
-            };
-        if let Some(texture) = &weather_texture {
-            prepare_weather(load_context, texture);
-        }
+        let weather = match &spec {
+            ToonSpec::Toon {
+                mask: Some(ship), ..
+            } => Some((
+                data_texture(
+                    load_context,
+                    format!("models/ships/{ship}_weather.ktx2"),
+                    ImageAddressMode::ClampToEdge,
+                ),
+                data_texture(load_context, DETAIL.into(), ImageAddressMode::Repeat),
+            )),
+            _ => None,
+        };
         if !spec.is_hologram() {
             load_context.add_labeled_asset(
                 format!("{material_label}/outline"),
@@ -182,7 +122,7 @@ impl GltfExtensionHandler for ToonGltf {
         }
         load_context.add_labeled_asset(
             format!("{material_label}/toon"),
-            ToonMaterial::new(spec, heat_texture, weather_texture),
+            ToonMaterial::new(spec, heat_texture, weather),
         );
     }
 
@@ -250,72 +190,55 @@ impl GltfExtensionHandler for ToonGltf {
 mod tests {
     use super::*;
 
-    /// Je Stufe das gerundete Mittel über 2 × 2 Texel bis 1 × 1, ungerade Ränder fallen weg.
-    #[test]
-    fn mip_chain_averages_down_to_one_texel() {
-        let gray = |values: &[u8]| values.iter().flat_map(|&v| [v; 4]).collect::<Vec<u8>>();
-        let (data, levels) = mip_chain(gray(&[0, 4, 8, 12, 100, 104, 108, 112]), 4, 2);
-        assert_eq!(levels, 3);
-        assert_eq!(data[8 * 4..], gray(&[52, 60, 56])[..]);
-        let (data, levels) = mip_chain(gray(&[10, 20, 255, 30, 41, 255, 255, 255, 255]), 3, 3);
-        assert_eq!((levels, &data[9 * 4..]), (2, &gray(&[25])[..]));
-    }
-
-    /// Der Material-Vertrag (`tools/ships/vf.py`) an den gebauten Modellen: Alle toon-Materialien eines Schiffs teilen
-    /// eine Maske (die Textur 0 auf ein PNG `<id>_weather`) oder keins hat eine; die eines Wracks nennen stattdessen ihr
-    /// Schiff und betten kein Bild ein. UVs tragen genau die Primitive mit Maske oder Glutmuster, Lichter und Hologramme
-    /// nicht.
+    /// Der Material-Vertrag (`tools/ships/vf.py`) an den gebauten Modellen: Alle toon-Materialien eines Schiffs und
+    /// seines Wracks nennen dieselbe Maske, die neben dem GLB liegt, oder keins hat eine; ein Bild bettet nur das
+    /// Glutmuster der Bruchflächen ein. UVs tragen genau die Primitive mit Maske oder Glutmuster, Lichter und
+    /// Hologramme nicht.
     #[test]
     fn models_follow_the_contract() {
         let dir = std::path::Path::new(crate::REPO_ASSETS).join("models/ships");
+        assert!(dir.join("detail.ktx2").exists());
         let mut weathered = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "glb") {
+                continue;
+            }
             let name = path.file_stem().unwrap().to_string_lossy().into_owned();
             let ship = name.trim_end_matches("_wreck");
             let gltf = gltf::Gltf::from_slice(&std::fs::read(&path).unwrap()).unwrap();
             let mut masks = Vec::new();
             for material in gltf.materials() {
-                let texture = material.pbr_metallic_roughness().base_color_texture();
+                assert!(
+                    material
+                        .pbr_metallic_roughness()
+                        .base_color_texture()
+                        .is_none(),
+                    "{name}"
+                );
                 match spec(&material).unwrap() {
-                    ToonSpec::Toon { mask: Some(of), .. } => {
-                        assert!(name.ends_with("_wreck") && of == ship, "{name}");
-                        assert!(texture.is_none(), "{name}");
-                    }
-                    ToonSpec::Toon { .. } => masks.push(texture.map(|info| info.texture())),
+                    ToonSpec::Toon { mask, .. } => masks.push(mask),
                     ToonSpec::Wreck { .. } => {
                         assert!(material.emissive_texture().is_some(), "{name}")
                     }
-                    _ => assert!(texture.is_none(), "{name}"),
+                    _ => {}
                 }
             }
-            let first = masks.first().cloned().flatten();
-            assert!(
-                masks
-                    .iter()
-                    .all(|mask| mask.as_ref().map(|t| t.index())
-                        == first.as_ref().map(|t| t.index())),
+            let masked = masks.first().is_some_and(Option::is_some);
+            let expected = masked.then(|| ship.to_owned());
+            assert!(masks.iter().all(|mask| *mask == expected), "{name}");
+            assert_eq!(
+                dir.join(format!("{ship}_weather.ktx2")).exists(),
+                masked,
                 "{name}"
             );
-            if let Some(texture) = first {
-                assert_eq!(texture.index(), 0, "{name}");
-                assert_eq!(
-                    texture.source().name(),
-                    Some(format!("{ship}_weather").as_str()),
-                    "{name}"
-                );
-                weathered += 1;
-            }
+            weathered += usize::from(masked);
             for primitive in gltf
                 .meshes()
                 .flat_map(|mesh| mesh.primitives().collect::<Vec<_>>())
             {
                 let material = primitive.material();
-                let textured = material
-                    .pbr_metallic_roughness()
-                    .base_color_texture()
-                    .is_some()
-                    || material.emissive_texture().is_some()
+                let textured = material.emissive_texture().is_some()
                     || matches!(spec(&material), Some(ToonSpec::Toon { mask: Some(_), .. }));
                 let uvs = primitive.get(&gltf::Semantic::TexCoords(0)).is_some();
                 assert_eq!(uvs, textured, "{name}: {:?}", material.name());

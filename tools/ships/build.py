@@ -1,12 +1,14 @@
 """Baut die Schiffe und exportiert sie nach assets/models/ships/<id>.glb, dazu ihre Wrackteile (wreck.py) nach
-<id>_wreck.glb (nicht für die Geschosse, fleet.PROJECTILES). Vor dem Export bekommt jedes Schiff seine UVs und die Maske der Verwitterung (weather.py, gebacken oder
-aus dem Cache); die Stücke des Wracks erben die UVs und nennen statt des Bilds das Schiff (weather.share).
+<id>_wreck.glb (nicht für die Geschosse, fleet.PROJECTILES). Vor dem Export bekommt jedes Schiff seine UVs und die Maske
+der Verwitterung (weather.py, gebacken oder aus dem Cache), die als <id>_weather.ktx2 daneben liegt; die Stücke des
+Wracks erben UVs und Maske. Dazu entsteht die Feinstruktur aller Rümpfe, detail.ktx2 (detail.py).
 
 Headless:   <blender> -b --factory-startup -P tools/ships/build.py -- [ids...]
             <blender> ist auf dem Mac /Applications/Blender.app/Contents/MacOS/Blender, auf dem Linux-Server ohne GPU
             ~/.local/opt/blender-5.2.3-linux-x64/run.sh (portables Blender mit Mesa llvmpipe).
 Interaktiv: in Blender `import build; build.build_all()` (lädt die Module vorher neu).
-Ohne Ids werden alle Schiffe aus fleet.SHIPS gebaut. Meldet je Schiff Dreiecke, Maße, Maske und GLB-Größe samt Wrack und warnt
+Ohne Ids werden alle Schiffe aus fleet.SHIPS gebaut. Die Texturen schreibt der Encoder `ctt` (im Pfad oder als CTT,
+siehe weather.py). Meldet je Schiff Dreiecke, Maße, Maske und GLB-Größe samt Wrack und warnt
 bei Teilen unter dem Slot (vf.slot), bei schwebenden Teilen (vf.loose_parts) und bei Hüllen, die offen oder falsch herum
 orientiert sind (vf.bad_shells, an Schiff und Wrackstücken; die Materialien sind einseitig).
 """
@@ -16,10 +18,13 @@ import os
 import sys
 import time
 
+import bpy
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+import detail  # noqa: E402
 import fleet  # noqa: E402
 import vf  # noqa: E402
 import weather  # noqa: E402
@@ -30,7 +35,7 @@ OUT_DIR = os.path.normpath(os.path.join(ROOT, "..", "..", "assets", "models", "s
 
 def reload_modules():
     """Lädt die Schiffsmodule in Abhängigkeitsreihenfolge neu (für eine laufende Blender-Instanz)."""
-    names = ["palette", "vf", "parts", "look", "weather", "wreck"] + sorted(n for n in sys.modules if n.startswith("fleet.")) + ["fleet"]
+    names = ["palette", "vf", "parts", "look", "weather", "wreck", "detail"] + sorted(n for n in sys.modules if n.startswith("fleet.")) + ["fleet"]
     for name in names:
         if name in sys.modules:
             importlib.reload(sys.modules[name])
@@ -39,6 +44,7 @@ def reload_modules():
 def build_all(ids=None):
     reload_modules()
     os.makedirs(OUT_DIR, exist_ok=True)
+    detail.write(os.path.join(OUT_DIR, "detail.ktx2"))
     report = {}
     for ship_id in ids or fleet.SHIPS:
         obj = fleet.build(ship_id)
@@ -46,11 +52,12 @@ def build_all(ids=None):
         mask = weather.apply(obj)
         weathered = time.time() - started
         path = os.path.join(OUT_DIR, f"{ship_id}.glb")
+        if mask:
+            weather.compress(bpy.path.abspath(mask.filepath), os.path.join(OUT_DIR, f"{ship_id}_weather.ktx2"))
         vf.export_glb([obj], path)
         pieces = [] if ship_id in fleet.PROJECTILES else wreck.build(obj)
         wreck_path = os.path.join(OUT_DIR, f"{ship_id}_wreck.glb")
         if pieces:
-            weather.share(obj)
             vf.export_glb(pieces, wreck_path)
         shells = vf.bad_shells(obj) + [shell for piece in pieces for shell in vf.bad_shells(piece)]
         report[ship_id] = {**vf.stats(obj), "kb": os.path.getsize(path) / 1024, "loose": vf.loose_parts(obj), "shells": shells,

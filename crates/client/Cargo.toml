@@ -11,8 +11,9 @@ name = "voidfleet"
 path = "src/main.rs"
 
 [dependencies]
-# „3d“ und „ui“ bringen Fenster, Renderer, glTF, PBR-Grundlagen, Bloom, Text, UI und Picking; „jpeg“ die Karten- und
-# Porträtbilder (PNG ist dabei). Kein Bevy-Audio: Den Ton macht Kira (Filter, Verzerrung, Kompressor, Panorama, Tonhöhe).
+# „3d“ und „ui“ bringen Fenster, Renderer, glTF, PBR-Grundlagen, Bloom, Text, UI und Picking, dazu KTX2 mit zstd (die
+# Masken der Schiffe); „jpeg“ die Karten- und Porträtbilder (PNG ist dabei). Kein Bevy-Audio: Den Ton macht Kira
+# (Filter, Verzerrung, Kompressor, Panorama, Tonhöhe).
 bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui", "jpeg"] }
 kira = { version = "0.12.6", default-features = false, features = ["cpal", "mp3"] }
 # Nur für das Fenster-Icon (`winit::window::Icon`); dieselbe Version wie in `bevy_winit`.

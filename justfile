@@ -55,7 +55,8 @@ docs *args:
 rasterize:
     cargo run --release --manifest-path tools/rasterize/Cargo.toml
 
-# Schiffsmodelle in Blender bauen (alle oder die angegebenen Ids) nach assets/models/ships/; BLENDER = Pfad zu Blender
+# Schiffsmodelle in Blender bauen (alle oder die angegebenen Ids) nach assets/models/ships/; BLENDER = Pfad zu Blender,
+# CTT = Pfad zum Textur-Encoder (`cargo install ctt-cli --locked --version 0.6.1`)
 ships *ids:
     "${BLENDER:-blender}" -b --factory-startup -P tools/ships/build.py -- {{ ids }}
 

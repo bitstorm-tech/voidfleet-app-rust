@@ -16,7 +16,8 @@ und Hauptlicht L (Richtung zum Licht, normiert):
      Spiel lässt sie in Brettgröße weg (crates/client/src/scene/toon/).
   2. Ton nach STEPS: light < 0,12 → Schatten-Ton, < 0,5 → Halbschatten, sonst Licht-Ton (konstante Rampe).
   2a. Verwitterung (nur toon-Flächen mit Maske `<id>_weather`, Kanäle in weather.py; jede Schwelle eine harte Stufe):
-     Plattenton: Farbe × (1 + PLATE_TONE · (Stufen über PLATE_STEPS − 1)); Fuge (A < SEAM_STEP): Farbe × SEAM_DARK.
+     Helligkeit (Plattenton und Verdeckung, schon in der Maske verrechnet): Farbe × B × (1 + PLATE_TONE); Fuge
+     (A < SEAM_STEP): Farbe × SEAM_DARK.
      Schmutz (R > DIRT_STEP): Farbe → mix(Farbe, Luminanz, DIRT_DESAT) × DIRT_TINT, Ruß (R > SOOT_STEP) zusätzlich
      × SOOT_TINT. Kantenabrieb (G > WEAR_STEP, nur Licht und Halbschatten): mix(Farbe, Luminanz, WEAR_DESAT) × WEAR_LIFT.
      Fugen und Abrieb gelten mit fine = 1 − smoothstep(FINE_LOD, log2(Texel je Pixel)): auf dem Brett nicht, im Zoom
@@ -111,8 +112,11 @@ GLOW_MIX = (0.9, 0.55)
 # ---------------------------------------------------------------- Verwitterung (weather.py backt die Maske, toon.wesl
 # und preview.py setzen sie mit denselben Schwellen und Farben um; Farben linear, sie wirken als Faktor)
 
-# Texel je Blender-Einheit, gleichmäßig über alle Schiffe. Darunter (32) wird der Schmutz in der Nahaufnahme weich.
+# Texel je Blender-Einheit, gleichmäßig über ein Schiff. Darunter (32) wird der Schmutz in der Nahaufnahme weich.
+# Dichter sind die Schiffe, an die die Kamera am nächsten herankommt (die Flaggschiffe nach dem Detailpass). VF_DENSITY
+# setzt für Probeläufe eine andere Dichte für alle (ein Bake mit 128 dauert das Vierfache).
 WEATHER_DENSITY = 64
+WEATHER_DENSE = {"bastion": 128}
 WEATHER = {"scrap_raider": 2.2, "scrap_king": 2.2, "mirage": 0.5, "decoy": 0.0}  # Grad je Schiff, sonst 1
 # Anteile je Material (Schlüssel aus vf.materials bzw. dem Schiffsmodul): Schmutz, Ruß, Kantenabrieb, Platten. Ohne
 # Eintrag gelten lackierte Flächen: eckig mit Platten, rund ohne. Lichter und Hologramme bleiben ohne.
@@ -135,6 +139,9 @@ WEATHER_MATERIALS = {
 }
 # Formen in der Maske (Einheiten bzw. Frequenzen je Einheit)
 CREVICE = (0.14, 0.5)  # 1 − Umgebungsverdeckung: ab hier Ritze, hier volle Ritze
+OCCLUSION = (0.04, 0.75)  # 1 − Umgebungsverdeckung: ab hier dunkelt das Licht ab, hier voll
+OCCLUSION_DARK = 0.5  # so viel Licht nimmt die volle Verdeckung weg
+PLATE_TONE = 0.14  # so viel heller bzw. dunkler ist eine Platte; steht als 1 + PLATE_TONE auch in toon.wesl (SHADE)
 DIRT_SCALE = 1.4  # Flecken, die den Schmutz in den Ritzen aufbrechen
 STREAK_SCALE = (7.0, 0.6, 7.0)  # Schlieren: quer fein, längs (y) gestreckt
 STREAK_MIX = 0.75
@@ -155,8 +162,6 @@ SOOT_TINT = (0.42, 0.38, 0.34)
 WEAR_STEP = 0.5
 WEAR_DESAT = 0.5
 WEAR_LIFT = 1.6
-PLATE_STEPS = (0.35, 0.65)
-PLATE_TONE = 0.08
 SEAM_STEP = 0.14  # Fuge etwa 0,034 breit
 SEAM_DARK = 0.55
 FINE_LOD = (0.4, 1.2)  # log2(Texel je Pixel): Fugen und Abrieb von voll bis weg

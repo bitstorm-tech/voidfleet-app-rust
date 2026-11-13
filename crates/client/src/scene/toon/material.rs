@@ -38,13 +38,13 @@ impl<'de> Deserialize<'de> for Hex {
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ToonSpec {
     /// Drei Töne (Licht, Halbschatten, Schatten) als matter Verlauf; `round` für geglättete Teile (nur für den Bau der
-    /// Normalen in Blender), `glint` Glanz. Dazu
-    /// die Maske der Verwitterung (`baseColorTexture`, ein Bild je Modell), sofern das Schiff eine hat.
+    /// Normalen in Blender), `glint` Glanz.
     Toon {
         tones: [Hex; 3],
         round: bool,
         glint: f32,
-        /// Nur an Wrackstücken: das Schiff (`<id>`), dessen Maske sie mitbenutzen. Ihr GLB bettet das Bild nicht ein.
+        /// Das Schiff (`<id>`), dessen Maske der Verwitterung die Fläche trägt (`<id>_weather.ktx2` neben dem GLB),
+        /// an Schiff und Wrackstücken dasselbe; ohne Verwitterung fehlt es.
         #[serde(default)]
         mask: Option<String>,
     },
@@ -102,19 +102,25 @@ pub struct ToonMaterial {
     #[texture(1)]
     #[sampler(2)]
     pub heat_texture: Option<Handle<Image>>,
-    /// Maske der Verwitterung (nur `toon`): R Schmutz, G Kantenabrieb, B Plattenton, A Fugen; linear, mit Mip-Kette
-    /// ([`super::gltf`]).
+    /// Maske der Verwitterung (nur `toon`): R Schmutz, G Kantenabrieb, B Helligkeit (Plattenton mal Verdeckung),
+    /// A Fugen; linear, mit Mip-Kette ([`super::gltf`]).
     #[texture(3)]
     #[sampler(4)]
     pub weather_texture: Option<Handle<Image>>,
+    /// Feinstruktur der Rümpfe, kachelbar (mit der Maske): R, G Neigung des Reliefs, B Ton, A Korn.
+    #[texture(5)]
+    #[sampler(6)]
+    pub detail_texture: Option<Handle<Image>>,
 }
 
 impl ToonMaterial {
+    /// `weather`: Maske der Verwitterung und Feinstruktur.
     pub fn new(
         spec: ToonSpec,
         heat_texture: Option<Handle<Image>>,
-        weather_texture: Option<Handle<Image>>,
+        weather: Option<(Handle<Image>, Handle<Image>)>,
     ) -> Self {
+        let (weather_texture, detail_texture) = weather.unzip();
         Self {
             spec,
             ghost: false,
@@ -127,6 +133,7 @@ impl ToonMaterial {
             flash: Vec4::ZERO,
             heat_texture,
             weather_texture,
+            detail_texture,
         }
     }
 }
@@ -363,8 +370,8 @@ mod tests {
             tones: [Hex(Color::WHITE); 3],
             heat: Hex(Color::WHITE),
         };
-        let mask = Some(Handle::<Image>::default());
-        let mut hull = ToonMaterial::new(toon, None, mask.clone());
+        let mask = Some((Handle::<Image>::default(), Handle::default()));
+        let mut hull = ToonMaterial::new(toon, None, mask);
         hull.heat = Some(LinearRgba::RED);
         let uniform = ToonUniform::from(&hull);
         assert_eq!((uniform.heat, uniform.weather.x), (Vec4::ZERO, 1.0));

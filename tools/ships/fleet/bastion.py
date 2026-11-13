@@ -1,5 +1,5 @@
-"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), detailreiche Fassung nach docs/stilregeln.md, mit Kleinteilen
-für den dreckigen Look.
+"""Bastion (Flaggschiff von Admiral Osei, „die Mauer“), Fassung für die Nahaufnahme nach docs/stilregeln.md: gefaste
+Primär- und Sekundärformen, glatte runde Teile, Kleinteile und Feinteile.
 
 Fliegende Festung: breiter Kastenrumpf auf einem gestuften Sockel mit Kiel, davor ein Keilbug, drei Terrassendecks mit
 goldener Zierlinie und Panzerschürzen in Bernstein. Am Bug eine zurückgeneigte Schildwand im Bogen aus ebenen Facetten
@@ -16,21 +16,32 @@ mit Schürze und Fensterband, Deck um das Wappen, Flächen des Bergfrieds):
 - Bergfried: zweiflügeliges Tor nach vorn, Lüfter auf dem Sockel, Mast mit Querträger und Radarplatte
 - Achterdeck und Heck: Maschinenlüfter über den Düsen, RCS an den hinteren Rumpfecken, Gehäusesegment und Düsenkranz je
   Düse (`parts.engine_details`)
-Fugen, Nieten und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
+Fugen und Schmutz kommen aus der Verwitterungs-Textur, nicht aus der Geometrie.
 
 Kleinteile (`details`, wie an der Iron Dreadnought): Fensterreihen aus Einzelfenstern am Bergfried, an der Wand des
 obersten Decks und an der Heckwand, Geländer um die Krone, am obersten Deck und am Sockel, Leiter an der Heckwand, Flak
 auf dem Bugsims, der mittleren Terrasse und dem Achterdeck, Peitschenantennen, Schüssel und Gerätekasten am Bergfried,
 Rohrleitungen vom Eckturm mit Anschlusskasten, Kisten, Luken, Kühlrippen an den Düsen, Positionslichter.
+
+Feinteile (`fine`, die dritte Stufe für die Nahaufnahme; sie zeigen, wie groß das Schiff ist, und wo man es betritt,
+wartet und verschraubt): Treppen zwischen den Terrassen mit Laufstegen aus Gitterrost, Luken mit Rahmen, Scharnieren und
+Griff, Schraubenköpfe am Wappen, an den Turmringen und Zinnen, Schießscharten, Gurtringe und Steigeisen an den Türmen,
+Spulenringe und Leitungen an den Pylonen, Konsolen unter der Krone und Eckrippen am Bergfried, Fenstersimse,
+Dachaggregate, Emitterknöpfe auf dem Schildfeld, Kabelkanal an der Wandrückseite, Spanten, Rohr, Dockluke und
+Schürzenklammern an der Flanke, Stellstreben an den Düsenglocken, Poller und Reling am Bugsims. Dazu Beschriftung als
+flache Geometrie: Wegelinien zum Tor des Bergfrieds, Warnbänder an Treppen, Lüftern und Dockluke, die Kennnummer an
+der Schürze.
 """
 
 import math
 
 from mathutils import Vector
 
+import palette
 import vf
 from parts import badge, beam, engine, engine_details, flak, rail, rcs, sym, trim_line, trim_loop, vent, windows
-from vf import Ship, box, crystal, dish, grow, keel, loft, octagon, pipe, plate, post, rect, sec, segment, sphere, sweep, tube, wedge
+from vf import (Ship, box, chamfer, crystal, dish, grow, keel, loft, octagon, pipe, plate, post, rect, sec, segment, sphere, sweep, tube,
+                wedge)
 
 # Schildwand: ein Bogen vom Radius WALL_R um den Bug, aus ebenen, senkrechten Facetten zwischen den Stützstellen WALL_X;
 # in ihrer Baugruppe liegt die Vorderfläche bei y = wall_y(x), eingebaut wird sie bei WALL_AT, um WALL_LEAN Grad nach
@@ -43,6 +54,14 @@ WALL_LEAN = 12.0
 # Türme (Steuerbord): Mitte x, y, Fuß und Oberkante; vorn die hohen Tortürme an den Enden der Wand, achtern die Ecktürme
 GATE = (2.5, -2.75, 0.35, 3.2)
 CORNER = (2.3, 2.8, 1.5, 2.15)
+TOWER_R = (0.6, 0.57)  # Radius der Türme am Fuß und an der Oberkante
+ROUND = 40  # Segmente der großen runden Teile (Türme, Kränze, schwere Düsen)
+PAINT = "#c3c0b4"  # Markierungen (Wegelinien, Kennnummer): gebrochenes Weiß; fehlt in palette.py
+# Dreht ein Teil, das lokal nach +z schaut, in die Richtung des Schlüssels (`rot` in Grad)
+TURN = {"z": (0, 0, 0), "x": (0, 90, 0), "-x": (0, -90, 0), "y": (-90, 0, 0), "-y": (90, 0, 0)}
+# Ziffern der Kennnummer als Segmente: a oben, g Mitte, d unten, f/b oben links/rechts, e/c unten links/rechts
+DIGITS = {"0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg", "5": "acdfg", "6": "acdefg", "7": "abc", "8": "abcdefg",
+          "9": "abcdfg"}
 
 
 def wall_y(x):
@@ -114,14 +133,14 @@ def pylon(s, m, x, y, z):
     """Schildpylon auf einem Turm mit Oberkante z (Steuerbord, gespiegelt): Bernstein-Kranz, rund mit eckiger
     Deckscheibe (eine runde Deckfläche überschritt in `behind` mit dem Glanzpunkt als Ganzes die Schwelle und leuchtete
     weiß), dunkler Fuß mit vier Kondensatorblöcken, darauf der Pylon mit Fokusring und Emitterkristall."""
-    s.add(post(20, 0.635, 0.635, z, z + 0.16), m["accent_round"], at=(x, y, 0), mirror=True)
-    s.add(post(20, 0.64, 0.64, z + 0.13, z + 0.17), m["accent"], at=(x, y, 0), mirror=True)
-    s.add(post(8, 0.47, 0.45, z + 0.14, z + 0.46), m["dark"], at=(x, y, 0), mirror=True)
+    s.add(post(ROUND, 0.635, 0.635, z, z + 0.16), m["accent_round"], at=(x, y, 0), mirror=True)
+    s.add(post(ROUND, 0.64, 0.64, z + 0.13, z + 0.17), m["accent"], at=(x, y, 0), mirror=True)
+    s.add(chamfer(post(8, 0.47, 0.45, z + 0.14, z + 0.46), 0.025), m["dark"], at=(x, y, 0), mirror=True)
     for a in range(0, 360, 90):
         c, d = math.cos(math.radians(a)), math.sin(math.radians(a))
-        s.add(box(0.2, 0.26, 0.28), m["armor"], at=(x + 0.5 * c, y + 0.5 * d, z + 0.24), rot=(0, 0, a), mirror=True)
-    s.add(post(8, 0.32, 0.13, z + 0.16, z + 1.45), m["accent"], at=(x, y, 0), mirror=True)
-    s.add(post(8, 0.27, 0.27, z + 0.9, z + 1.0), m["dark"], at=(x, y, 0), mirror=True)
+        s.add(chamfer(box(0.2, 0.26, 0.28), 0.025), m["armor"], at=(x + 0.5 * c, y + 0.5 * d, z + 0.24), rot=(0, 0, a), mirror=True)
+    s.add(chamfer(post(8, 0.32, 0.13, z + 0.16, z + 1.45), 0.02), m["accent"], at=(x, y, 0), mirror=True)
+    s.add(chamfer(post(8, 0.27, 0.27, z + 0.9, z + 1.0), 0.015), m["dark"], at=(x, y, 0), mirror=True)
     s.add(crystal(0.2, 0.34), m["glow"], at=(x, y, z + 1.66), mirror=True)
 
 
@@ -132,7 +151,7 @@ def emitter_bank(s, m, x, y, r, angle, z0, z1):
     s.add(box(0.18, 0.34, z1 - z0), m["dark"], at=(x + (r + 0.02) * c, y + (r + 0.02) * d, (z0 + z1) / 2), rot=(0, 0, angle),
           mirror=True)
     for k in (1, 2, 3):
-        s.add(tube(16, 0.1, 0.1, -0.03, 0.03), m["accent_round"], at=(x + (r + 0.11) * c, y + (r + 0.11) * d, z0 + (z1 - z0) * k / 4),
+        s.add(tube(24, 0.1, 0.1, -0.03, 0.03), m["accent_round"], at=(x + (r + 0.11) * c, y + (r + 0.11) * d, z0 + (z1 - z0) * k / 4),
               rot=(0, 0, angle - 90), mirror=True)
 
 
@@ -150,6 +169,99 @@ def gate(s, m, mat, at, w, h, rot, mirror=False):
     for sx in (-1, 1):
         g.add(box(leaf - 0.02, h - 2 * bar - 0.04, 0.05), m["armor"], at=(sx * (gap + leaf) / 2, 0, 0))
     s.place(g, at=at, rot=rot, mirror=mirror)
+    g.bm.free()
+
+
+def bolts(s, mat, points, out="z", r=0.013, mirror=False):
+    """Sechskant-Schraubenköpfe an den Punkten auf einer Fläche, die nach `out` schaut (Schlüssel aus TURN oder
+    `rot`)."""
+    for point in points:
+        s.add(post(6, r, r, -0.006, 0.01), mat, at=point, rot=TURN.get(out, out), mirror=mirror)
+
+
+def spaced(points, step):
+    """Punkte im Abstand von etwa `step` entlang eines geschlossenen Linienzugs (x, y)."""
+    out = []
+    for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1]):
+        n = max(1, round(math.hypot(bx - ax, by - ay) / step))
+        out += [(ax + (bx - ax) * k / n, ay + (by - ay) * k / n) for k in range(n)]
+    return out
+
+
+def hatch(s, m, at, w, l, rot=(0, 0, 0), mirror=False):
+    """Wartungsluke auf einer Fläche (lokal +z nach außen, l längs y): dunkler Rahmen mit Schrauben in den Ecken,
+    gefaster Deckel, zwei Scharniere an einer Längsseite, Griff gegenüber. Die Scharniere sind eckig schattiert: Einen
+    runden Deckel an rundem Material hielte die Verwitterung für eine Mündung und schwärzte ihn mit Ruß."""
+    g = Ship("hatch")
+    g.add(box(w, l, 0.024), m["dark"], at=(0, 0, 0.004))
+    g.add(chamfer(box(w - 0.05, l - 0.05, 0.03), 0.01), m["armor"], at=(0, 0, 0.018))
+    for sy in (-1, 1):
+        g.add(tube(8, 0.014, 0.014, -0.04, 0.04), m["steel_flat"], at=(-(w / 2 - 0.02), sy * l * 0.27, 0.034))
+        g.add(box(0.012, 0.012, 0.02), m["steel_flat"], at=(w / 2 - 0.07, sy * 0.044, 0.04))
+    g.add(box(0.012, 0.1, 0.012), m["steel_flat"], at=(w / 2 - 0.07, 0, 0.052))
+    bolts(g, m["steel_flat"], [(sx * (w / 2 - 0.012), sy * (l / 2 - 0.012), 0.016) for sx in (-1, 1) for sy in (-1, 1)], r=0.01)
+    s.place(g, at=at, rot=rot, mirror=mirror)
+    g.bm.free()
+
+
+def stairs(s, m, x, y0, y1, z0, z1, width=0.11):
+    """Treppe längs einer Wand (Wandfläche bei x, Steuerbord und gespiegelt) von (y0, z0) hinauf nach (y1, z1): massive
+    Stufen von etwa 0,026 Höhe, außen eine Wange und ein Handlauf auf drei Pfosten."""
+    n = max(2, round((z1 - z0) / 0.026))
+    rise, run = (z1 - z0) / n, (y1 - y0) / n
+    for k in range(n):
+        s.add(box(width, abs(run), rise * (k + 1)), m["dark"], at=(x + width / 2, y0 + run * (k + 0.5), z0 + rise * (k + 1) / 2),
+              mirror=True)
+    out = x + width
+    s.add(beam((out, y0, z0 + 0.01), (out, y1, z1 + 0.01), 0.016, 0.05), m["armor"], mirror=True)
+    s.add(beam((out, y0, z0 + 0.1), (out, y1, z1 + 0.1), 0.012, 0.012), m["dark"], mirror=True)
+    for t in (0.0, 0.5, 1.0):
+        s.add(box(0.012, 0.012, 0.1), m["dark"], at=(out, y0 + t * (y1 - y0), z0 + t * (z1 - z0) + 0.055), mirror=True)
+
+
+def grating(s, m, x0, x1, y0, y1, z):
+    """Laufsteg aus Gitterrost auf einem Deck (Steuerbord und gespiegelt): dunkler Boden, Querstäbe alle 0,04, zwei
+    Längsholme."""
+    w, l, cx, cy = x1 - x0, y1 - y0, (x0 + x1) / 2, (y0 + y1) / 2
+    s.add(box(w, l, 0.012), m["dark"], at=(cx, cy, z + 0.002), mirror=True)
+    n = int(l / 0.04)
+    for k in range(n):
+        s.add(box(w, 0.012, 0.012), m["steel_flat"], at=(cx, y0 + (k + 0.5) * l / n, z + 0.01), mirror=True)
+    for x in (x0, x1):
+        s.add(box(0.016, l + 0.012, 0.022), m["armor"], at=(x, cy, z + 0.008), mirror=True)
+
+
+def stripes(s, m, at, w, l, rot=(0, 0, 0), mirror=False):
+    """Warnband auf einer Fläche (lokal l längs y, w quer, +z nach außen): dunkle Platte mit schrägen Balken in der
+    Akzentfarbe."""
+    g = Ship("stripes")
+    g.add(box(w + 0.012, l + 0.012, 0.008), m["dark"], at=(0, 0, 0.001))
+    n = max(2, round((l - w) / (1.6 * w)))
+    pitch = (l - w) / n
+    for k in range(n):
+        y = -l / 2 + k * pitch
+        g.add(plate([(-w / 2, y), (w / 2, y + w), (w / 2, y + w + pitch / 2), (-w / 2, y + pitch / 2)], 0.008, "xy"), m["accent"],
+              at=(0, 0, 0.005))
+    s.place(g, at=at, rot=rot, mirror=mirror)
+    g.bm.free()
+
+
+def number(s, mat, text, at, h, rot):
+    """Kennnummer in Schablonenschrift aus Segmenten, flach auf einer Fläche: lokal x die Leserichtung, y oben, +z nach
+    außen; `at` ist die Mitte, `h` die Ziffernhöhe. Waagerechte Segmente liegen zwischen den senkrechten, damit sich
+    keine Platten in einer Ebene überdecken."""
+    g = Ship("number")
+    w, t = 0.55 * h, 0.14 * h
+    gap = 0.2 * t
+    bars = {"a": (0, h / 2 - t / 2, w - 2 * t - 2 * gap, t), "g": (0, 0, w - 2 * t - 2 * gap, t), "d": (0, -h / 2 + t / 2, w - 2 * t - 2 * gap, t)}
+    for name, sx, sy in (("f", -1, 1), ("b", 1, 1), ("e", -1, -1), ("c", 1, -1)):
+        bars[name] = (sx * (w / 2 - t / 2), sy * h / 4, t, h / 2 - gap)
+    for k, digit in enumerate(text):
+        x = (k - (len(text) - 1) / 2) * (w + 1.6 * t)
+        for name in DIGITS[digit]:
+            cx, cy, sx, sy = bars[name]
+            g.add(box(sx, sy, 0.008), mat, at=(x + cx, cy, 0.002))
+    s.place(g, at=at, rot=rot)
     g.bm.free()
 
 
@@ -191,7 +303,6 @@ def details(s, m, ky):
     windows(s, m, [(1.55, y + 0.12 * k, 1.93) for y in (-1.5, -0.1) for k in range(6)])
     rail(s, m, (1.5, -1.9, 2.06), (1.5, -0.3, 2.06), 5)
     rail(s, m, (1.5, 0.5, 2.06), (1.5, 3.1, 2.06), 7)
-    s.add(box(0.3, 0.36, 0.04), m["hull"], at=(0.85, 0.75, 2.07), mirror=True)
 
     # ---------------------------------------------------------------- Flak: Bugsims, mittlere Terrasse, Achterdeck
     for at, yaw in (((0.45, -5.25, 0.585), 15), ((1.95, -1.25, 1.8), 50), ((1.95, 0.35, 1.8), 100), ((1.75, 4.0, 1.5), 150)):
@@ -208,9 +319,9 @@ def details(s, m, ky):
     # ---------------------------------------------------------------- Kühlrippen an den Düsen
     for dx in (0.0, 1.15):
         for y in (4.63, 4.69, 4.75):
-            s.add(tube(12, 0.57, 0.57, y, y + 0.03, dx, 0.45), m["steel"], mirror=dx > 0)
+            s.add(tube(ROUND, 0.57, 0.57, y, y + 0.03, dx, 0.45), m["steel"], mirror=dx > 0)
     for y in (4.12, 4.17, 4.22):
-        s.add(tube(10, 0.342, 0.342, y, y + 0.025, 2.05, 1.0), m["steel"], mirror=True)
+        s.add(tube(24, 0.342, 0.342, y, y + 0.025, 2.05, 1.0), m["steel"], mirror=True)
 
     # ---------------------------------------------------------------- Positionslichter: Tortürme, hintere Deckecken, Heck
     s.add(sphere(0.035, 1), m["glow"], at=(3.09, GATE[1], 0.9), mirror=True)
@@ -218,58 +329,188 @@ def details(s, m, ky):
     s.add(sphere(0.035, 1), m["glow"], at=(0, 4.44, 1.36))
 
 
+def fine(s, m, ky, ledge):
+    """Feinteile und Beschriftung (Modulkommentar); `ky` ist die Achse des Bergfrieds, `ledge` der Umriss des
+    Bugsimses."""
+    # ---------------------------------------------------------------- Terrassen: Treppen, Laufsteg, Luken
+    # Vom unteren Deck (1,5) aufs mittlere (1,8) an dessen Wand, vom mittleren aufs oberste (2,06) an dessen Wand, oben
+    # in der Lücke der Reling; am Rand des mittleren Decks ein Laufsteg aus Gitterrost
+    stairs(s, m, 2.25, 0.86, 1.26, 1.5, 1.8)
+    stairs(s, m, 1.55, -0.64, -0.28, 1.8, 2.06)
+    grating(s, m, 2.07, 2.19, -0.75, 1.3, 1.8)
+    hatch(s, m, (0.85, 0.75, 2.06), 0.3, 0.36, mirror=True)
+    hatch(s, m, (1.9, -0.45, 1.8), 0.22, 0.26, mirror=True)
+    hatch(s, m, (1.05, 4.15, 1.5), 0.24, 0.28, mirror=True)
+
+    # ---------------------------------------------------------------- Wappen: Schrauben im Goldrand
+    bolts(s, m["steel"], [(x, -1.2 + y, 2.12) for x, y in spaced(grow(BADGE, 0.045), 0.27)])
+
+    # ---------------------------------------------------------------- Türme: Gurtringe, Scharten, Steigeisen
+    for (x, y, z0, z1), bands, slits in ((GATE, (0.95, 1.95), ((-25, 1.2), (20, 1.2), (-40, 2.3), (0, 2.3), (140, 2.35), (180, 2.35))),
+                                         (CORNER, (1.98,), ((-35, 1.78), (25, 1.78), (150, 1.92)))):
+        def radius(z):
+            return TOWER_R[0] + (TOWER_R[1] - TOWER_R[0]) * (z - z0) / (z1 - z0)
+
+        for z in bands:
+            s.add(post(ROUND, radius(z) + 0.014, radius(z + 0.05) + 0.014, z, z + 0.05), m["armor_round"], at=(x, y, 0), mirror=True)
+            for a in range(0, 360, 24):
+                c, d = math.cos(math.radians(a)), math.sin(math.radians(a))
+                bolts(s, m["steel"], [(x + (radius(z) + 0.014) * c, y + (radius(z) + 0.014) * d, z + 0.025)], (0, 90, a), mirror=True)
+        for a, z in slits:
+            c, d = math.cos(math.radians(a)), math.sin(math.radians(a))
+            s.add(box(0.014, 0.024, 0.13), m["dark"], at=(x + (radius(z) + 0.001) * c, y + (radius(z) + 0.001) * d, z), rot=(0, 0, a),
+                  mirror=True)
+    x, y, z0, z1 = GATE
+    c, d = math.cos(math.radians(50)), math.sin(math.radians(50))
+    for k in range(18):
+        z = 1.56 + 0.06 * k
+        r = TOWER_R[0] + (TOWER_R[1] - TOWER_R[0]) * (z - z0) / (z1 - z0) + 0.008
+        s.add(box(0.03, 0.07, 0.012), m["steel_flat"], at=(x + r * c, y + r * d, z), rot=(0, 0, 50), mirror=True)
+
+    # ---------------------------------------------------------------- Pylone: Spulenringe, Leitungen, Schrauben
+    for x, y, _, z in (GATE, CORNER):
+        def obelisk(h):
+            return 0.32 - 0.19 * (h - 0.16) / 1.29
+
+        for h in (0.5, 0.62, 0.74):
+            s.add(post(8, obelisk(h) + 0.018, obelisk(h + 0.03) + 0.018, z + h, z + h + 0.03), m["dark"], at=(x, y, 0), mirror=True)
+        for a in (22.5, 202.5):
+            c, d = math.cos(math.radians(a)), math.sin(math.radians(a))
+            low, high = 0.924 * obelisk(0.46) + 0.008, 0.924 * obelisk(0.9) + 0.008
+            s.add(segment((x + low * c, y + low * d, z + 0.44), (x + high * c, y + high * d, z + 0.92), 0.014, 6), m["steel"], mirror=True)
+        bolts(s, m["steel"], [(x + 0.58 * math.cos(math.radians(a + k)), y + 0.58 * math.sin(math.radians(a + k)), z + 0.17)
+                              for a in range(0, 360, 90) for k in (30, 45, 60)], mirror=True)
+
+    # ---------------------------------------------------------------- Bergfried: Konsolen, Rippen, Simse, Dach
+    for k in range(8):
+        a = math.radians(45 * k)
+        c, d = math.cos(a), math.sin(a)
+        for side in (-0.2, 0.2):
+            s.add(plate([(0.0, 0.0), (0.26, 0.0), (0.0, -0.24)], 0.05, "yz"), m["hull"],
+                  at=(0.71 * c - side * d, ky + 0.71 * d + side * c, 3.7), rot=(0, 0, 45 * k - 90))
+        c, d = math.cos(a + math.radians(22.5)), math.sin(a + math.radians(22.5))
+        s.add(beam((0.86 * c, ky + 0.86 * d, 2.5), (0.78 * c, ky + 0.78 * d, 3.7), 0.06, 0.06), m["hull"])
+    for z in (3.12, 3.36):
+        face = (0.86 - 0.08 * (z - 2.5) / 1.2) * math.cos(math.radians(22.5))
+        s.add(box(0.03, 0.44, 0.014), m["dark"], at=(face + 0.008, ky, z - 0.036), mirror=True)
+        s.add(box(0.44, 0.03, 0.014), m["dark"], at=(0, ky + face + 0.008, z - 0.036))
+    s.add(chamfer(box(0.22, 0.16, 0.09), 0.015), m["armor"], at=(-0.2, ky - 0.28, 4.39))
+    s.add(box(0.14, 0.1, 0.012), m["dark"], at=(-0.2, ky - 0.28, 4.438))
+    s.add(sphere(0.07, 2), m["steel"], at=(0.22, ky - 0.3, 4.36))
+
+    # ---------------------------------------------------------------- Flanke: Spanten, Rohr, Dockluke, Nummer
+    # Zwischen Schürze (Oberkante 0,46) und Fensterband (0,76): drei Gruppen Spanten, ein Rohr, das in die Schürze
+    # abtaucht, die runde Dockluke (eckig schattiert wie die Scharniere in `hatch`) mit Trittfläche (Warnband) auf der
+    # Schürze; außen an der Schürze Klammern und zwischen den vorderen die Kennnummer, auf jeder Seite lesbar
+    for y in (-1.9, 0.0, 1.9):
+        for k in (-1, 0, 1):
+            s.add(box(0.035, 0.04, 0.27), m["armor"], at=(2.51, y + 0.22 * k, 0.61), mirror=True)
+    s.add(pipe([(2.52, -2.5, 0.53), (2.52, 0.55, 0.53), (2.52, 0.55, 0.45)], 0.02, 6), m["steel"], mirror=True)
+    s.add(tube(24, 0.12, 0.12, -0.02, 0.03), m["armor"], at=(2.5, 0.95, 0.61), rot=(0, 0, -90), mirror=True)
+    s.add(tube(24, 0.095, 0.095, -0.02, 0.04), m["dark"], at=(2.5, 0.95, 0.61), rot=(0, 0, -90), mirror=True)
+    s.add(tube(12, 0.035, 0.035, 0.03, 0.055), m["steel_flat"], at=(2.5, 0.95, 0.61), rot=(0, 0, -90), mirror=True)
+    bolts(s, m["steel_flat"], [(2.53, 0.95 + 0.107 * math.cos(math.radians(a)), 0.61 + 0.107 * math.sin(math.radians(a)))
+                               for a in range(0, 360, 45)], "x", r=0.01, mirror=True)
+    stripes(s, m, (2.65, 0.95, 0.46), 0.14, 0.5, mirror=True)
+    for y in (-1.55, -0.5, 0.55, 1.6):
+        s.add(box(0.03, 0.07, 0.3), m["dark"], at=(2.805, y, 0.3), mirror=True)
+        bolts(s, m["steel"], [(2.82, y, 0.21), (2.82, y, 0.39)], "x", mirror=True)
+    number(s, m["dark"], "01", (2.8, -1.03, 0.3), 0.18, (90, 0, 90))
+    number(s, m["dark"], "01", (-2.8, -1.03, 0.3), 0.18, (90, 0, -90))
+
+    # ---------------------------------------------------------------- Düsen: Stellstreben über der Taille der Glocke
+    for dx, dz, r, y0, y1, count in ((0.0, 0.45, 0.5, 4.15, 5.45, 8), (1.15, 0.45, 0.5, 4.15, 5.45, 8), (2.05, 1.0, 0.3, 3.75, 4.75, 6)):
+        ya = y0 + 0.6 * (y1 - y0)
+        for k in range(count):
+            a = 2 * math.pi * (k + 0.5) / count
+            c, d = math.cos(a), math.sin(a)
+            s.add(segment((dx + 1.1 * r * c, ya, dz + 1.1 * r * d), (dx + 0.93 * r * c, y1 - 0.03, dz + 0.93 * r * d), 0.016, 6), m["steel"],
+                  mirror=dx > 0)
+
+    # ---------------------------------------------------------------- Bugsims: Reling vor der Wand, Poller
+    front = [(x, y) for x, y in grow(ledge, -0.06) if x > 0.01 and y < -2.9]
+    for (ax, ay), (bx, by) in zip(front, front[1:]):
+        rail(s, m, (ax, ay, 0.53), (bx, by, 0.53), max(2, round(math.hypot(bx - ax, by - ay) / 0.3)))
+    s.add(post(10, 0.035, 0.042, 0.57, 0.66), m["steel"], at=(0.3, -5.52, 0), mirror=True)
+
+    # ---------------------------------------------------------------- Beschriftung: Wegelinien, Warnbänder, Nummer
+    # Zwei Linien vom Wappen zum Tor des Bergfrieds; Warnbänder am Treppenkopf in der Reling und hinter dem
+    # Maschinenlüfter. Die große Nummer steht an der Rückseite der Schildwand (`build`), lesbar von hinten oben
+    s.add(box(0.025, 1.45, 0.006), m["paint"], at=(0.28, 0.72, 2.062), mirror=True)
+    stripes(s, m, (1.42, 0.1, 2.06), 0.1, 0.62, mirror=True)
+    stripes(s, m, (0, 4.385, 1.5), 0.08, 1.3, rot=(0, 0, 90))
+
+
 def build():
     s = Ship("bastion")
     m = vf.materials(s.name, "battleship")
+    m["steel_flat"] = vf.toon(f"{s.name}_steel_flat", palette.STEEL)
+    m["paint"] = vf.toon(f"{s.name}_paint", PAINT)
 
     # ---------------------------------------------------------------- Rumpf, Keilbug, Sockel, Schürzen
     # Kastenrumpf auf einem gestuften Sockel (umgekehrte Stufenpyramide) mit Kiel; vorn ein Keilbug unter der Schildwand
     # mit Sims, goldener Kante und Bugemitter
-    s.add(loft([
+    s.add(chamfer(loft([
         sec(-4.3, octagon(2.4, 1.1, 0.4)),
         sec(-3.1, octagon(5.0, 1.4, 0.3)),
         sec(3.3, octagon(5.0, 1.4, 0.3)),
         sec(4.5, octagon(3.6, 1.2, 0.4)),
-    ]), m["hull"], at=(0, 0, 0.5))
+    ]), 0.05), m["hull"], at=(0, 0, 0.5))
     prow = [(-5.6, 1.0, 0.8), (-4.6, 3.4, 1.6), (-2.8, 4.6, 1.7)]
-    s.add(loft([sec(y, keel(w, h), dz=0.55 - h / 2) for y, w, h in prow]), m["armor"])
+    s.add(chamfer(loft([sec(y, keel(w, h), dz=0.55 - h / 2) for y, w, h in prow]), 0.04), m["armor"])
     ledge = grow(sym([(w / 2, y) for y, w, h in prow]), 0.24)
-    s.add(plate(ledge, 0.24, "xy"), m["hull"], at=(0, 0, 0.41))
-    s.add(plate(grow(ledge, -0.15), 0.07, "xy"), m["armor"], at=(0, 0, 0.55))
+    s.add(chamfer(plate(ledge, 0.24, "xy"), 0.03), m["hull"], at=(0, 0, 0.41))
+    s.add(chamfer(plate(grow(ledge, -0.15), 0.07, "xy"), 0.02), m["armor"], at=(0, 0, 0.55))
     trim_line(s, m, [(x + 0.02, y, 0.53) for x, y in ledge if x > 0.01 and y < -2.9])
     s.add(box(0.56, 0.06, 0.14), m["glow"], at=(0, prow[0][0] - 0.01, 0.06))
     step1 = sym([(0.0, -3.6), (1.5, -3.4), (2.15, -2.7), (2.15, 2.9), (1.6, 3.9)])
-    s.add(plate(step1, 0.45, "xy"), m["armor"], at=(0, 0, -0.38))
+    s.add(chamfer(plate(step1, 0.45, "xy"), 0.05), m["armor"], at=(0, 0, -0.38))
     step2 = sym([(0.0, -3.1), (1.0, -2.9), (1.35, -2.4), (1.35, 2.4), (0.9, 3.3)])
-    s.add(plate(step2, 0.4, "xy"), m["hull"], at=(0, 0, -0.8))
-    s.add(plate([(-3.0, -0.9), (3.2, -0.9), (2.9, -1.22), (-2.2, -1.22)], 0.3, "yz"), m["dark"])
+    s.add(chamfer(plate(step2, 0.4, "xy"), 0.05), m["hull"], at=(0, 0, -0.8))
+    s.add(chamfer(plate([(-3.0, -0.9), (3.2, -0.9), (2.9, -1.22), (-2.2, -1.22)], 0.3, "yz"), 0.04), m["dark"])
     # Panzerschürzen in Bernstein an den Flanken, darüber ein Fensterband
-    s.add(plate([(2.35, -3.0), (2.8, -2.6), (2.8, 2.7), (2.35, 3.1)], 0.32, "xy"), m["accent"], at=(0, 0, 0.3), mirror=True)
+    s.add(chamfer(plate([(2.35, -3.0), (2.8, -2.6), (2.8, 2.7), (2.35, 3.1)], 0.32, "xy"), 0.04), m["accent"], at=(0, 0, 0.3), mirror=True)
     s.add(sweep([(2.51, -2.6, 0.8), (2.51, 2.6, 0.8)], rect(0.04, 0.08)), m["window"], mirror=True)
 
     # ---------------------------------------------------------------- Terrassendecks
-    # Drei Terrassendecks, das unterste mit goldener Zierlinie
+    # Drei Terrassendecks, das unterste mit goldener Zierlinie (sie deckt seine Kante, die anderen sind gefast)
     deck1 = sym(deck_front(1.35, 2.85) + [(2.85, 3.3), (2.4, 4.1), (1.4, 4.45)])
     s.add(plate(deck1, 0.3, "xy"), m["armor"], at=(0, 0, 1.35))
     trim_loop(s, m, deck1, 1.5)
     deck2 = grow(deck1, -0.6)
-    s.add(plate(deck2, 0.3, "xy"), m["hull"], at=(0, 0, 1.65))
+    s.add(chamfer(plate(deck2, 0.3, "xy"), 0.04), m["hull"], at=(0, 0, 1.65))
     deck3 = sym([(0.0, -2.7), (1.1, -2.55), (1.55, -2.1), (1.55, 3.3), (1.2, 3.85)])
-    s.add(plate(deck3, 0.26, "xy"), m["armor"], at=(0, 0, 1.93))
+    s.add(chamfer(plate(deck3, 0.26, "xy"), 0.04), m["armor"], at=(0, 0, 1.93))
 
     # ---------------------------------------------------------------- Schildwand
     # Im Bogen um den Bug zwischen zwei Tortürmen: Rahmen mit Zinnen und goldener Oberkante, Bernstein-Schildfeld,
     # Emitterband; an der Rückseite Strebepfeiler unter den äußeren Zinnen, senkrecht zu ihrer Facette
     frame = [(0.0, 0.3, 3.3), (1.2, 0.36, 3.25), (2.1, 0.46, 3.12), (2.5, 0.55, 3.0)]
     g = Ship("bastion_wall")
-    g.add(wall_slab(both(frame), WALL_DEPTH), m["hull"])
-    g.add(wall_slab(both(panel(frame, 0.0, 2.4, (0.28, 0.28))), 0.2, dy=-0.12), m["accent"])
+    g.add(chamfer(wall_slab(both(frame), WALL_DEPTH), 0.04), m["hull"])
+    field = panel(frame, 0.0, 2.4, (0.28, 0.28))
+    g.add(chamfer(wall_slab(both(field), 0.2, dy=-0.12), 0.03), m["accent"])
+    # Emitterknöpfe auf dem Schildfeld in dessen Farbe (auf dem Brett bleibt das Feld ruhig), versetzte Reihen; jeder
+    # schaut wie seine Facette
+    for row, z in enumerate((0.95, 1.9, 2.35, 2.8)):
+        for k in range(-5, 6):
+            x = 0.4 * k + 0.2 * (row % 2)
+            if abs(x) < 2.25 and between(field, x)[0] + 0.12 < z < between(field, x)[1] - 0.12:
+                g.add(post(6, 0.04, 0.03, -0.006, 0.02), m["accent"], at=(x, wall_y(x) - 0.12, z), rot=(90, 0, facet(x)))
     g.add(sweep([(x, wall_y(x), z1) for x, _, z1 in both(frame)], rect(0.08, 0.08)), m["trim"])
     for x in (0.0, 0.8, 1.6):
         z1 = between(frame, x)[1]
-        g.add(box(0.5, WALL_DEPTH, 0.5), m["hull"], at=(x, wall_y(x) + WALL_DEPTH / 2, z1 + 0.13), rot=(0, 0, facet(x)), mirror=x > 0)
-    g.add(plate([(-0.1, 1.3), (-0.1, 2.75), (0.3, 2.75), (1.05, 1.3)], 0.3, "yz"), m["hull"], at=(1.6, wall_y(1.6) + WALL_DEPTH, 0),
-          rot=(0, 0, facet(1.6)), mirror=True)
+        g.add(chamfer(box(0.5, WALL_DEPTH, 0.5), 0.04), m["hull"], at=(x, wall_y(x) + WALL_DEPTH / 2, z1 + 0.13), rot=(0, 0, facet(x)),
+              mirror=x > 0)
+        bolts(g, m["steel"], [(x + dx, wall_y(x) + WALL_DEPTH / 2 + dy, z1 + 0.38) for dx in (-0.17, 0.17) for dy in (-0.13, 0.13)],
+              mirror=x > 0)
+    g.add(chamfer(plate([(-0.1, 1.3), (-0.1, 2.75), (0.3, 2.75), (1.05, 1.3)], 0.3, "yz"), 0.04), m["hull"],
+          at=(1.6, wall_y(1.6) + WALL_DEPTH, 0), rot=(0, 0, facet(1.6)), mirror=True)
+    # Kabelkanal an der Rückseite von Pfeiler zu Pfeiler, mit Anschlusskasten in der Mitte
+    g.add(sweep([(x, wall_y(x) + WALL_DEPTH + 0.03, 1.75) for x in (-1.45, -1.2, 0.0, 1.2, 1.45)], rect(0.07, 0.07)), m["dark"])
+    g.add(chamfer(box(0.3, 0.1, 0.22), 0.02), m["armor"], at=(0, wall_y(0) + WALL_DEPTH + 0.04, 1.75))
+    bolts(g, m["steel"], [(sx * 0.11, wall_y(0) + WALL_DEPTH + 0.09, 1.75 + sz * 0.07) for sx in (-1, 1) for sz in (-1, 1)], "y")
+    number(g, m["paint"], "01", (-0.6, wall_y(-0.6) + WALL_DEPTH, 2.6), 0.45, (90, 0, 180 + facet(-0.6)))
     band = 1.45
     g.add(sweep([(x, wall_y(x) - 0.12, band) for x in (-2.35, -2.1, -1.2, 0.0, 1.2, 2.1, 2.35)], rect(0.1, 0.16)), m["signal"])
     s.place(g, at=WALL_AT, rot=(-WALL_LEAN, 0, 0))
@@ -279,33 +520,33 @@ def build():
     # Vier runde Türme, darauf die Pylone; die Tortürme mit Gurtring unter dem Kranz, einer Emitterbank vorn außen und
     # einer Wartungstür zur Terrasse
     for x, y, z0, z1 in (GATE, CORNER):
-        s.add(post(20, 0.6, 0.57, z0, z1), m["hull_round"], at=(x, y, 0), mirror=True)
+        s.add(post(ROUND, *TOWER_R, z0, z1), m["hull_round"], at=(x, y, 0), mirror=True)
         pylon(s, m, x, y, z1)
     x, y, _, _ = GATE
-    s.add(post(20, 0.63, 0.63, 2.62, 2.8), m["armor_round"], at=(x, y, 0), mirror=True)
+    s.add(post(ROUND, 0.63, 0.63, 2.62, 2.8), m["armor_round"], at=(x, y, 0), mirror=True)
     emitter_bank(s, m, x, y, 0.59, 315, 1.05, 2.45)
     gate(s, m, m["hull"], (x, y + 0.575, 2.15), 0.34, 0.5, (-90, 0, 0), mirror=True)
 
     # ---------------------------------------------------------------- Energieleitungen über die Terrassen
     # Vom Eckturm zum Torturm am Fuß des mittleren Decks, mit Anschlusskästen an beiden Türmen und zwei Schellen
-    s.add(box(0.24, 4.5, 0.18), m["dark"], at=(2.52, 0.05, 1.57), mirror=True)
+    s.add(chamfer(box(0.24, 4.5, 0.18), 0.03), m["dark"], at=(2.52, 0.05, 1.57), mirror=True)
     for y in (-2.0, 2.06):
-        s.add(box(0.34, 0.32, 0.3), m["armor"], at=(2.52, y, 1.63), mirror=True)
+        s.add(chamfer(box(0.34, 0.32, 0.3), 0.03), m["armor"], at=(2.52, y, 1.63), mirror=True)
     for y in (-0.55, 0.65):
-        s.add(box(0.32, 0.12, 0.24), m["armor"], at=(2.52, y, 1.6), mirror=True)
+        s.add(chamfer(box(0.32, 0.12, 0.24), 0.02), m["armor"], at=(2.52, y, 1.6), mirror=True)
 
     # ---------------------------------------------------------------- Bergfried
     # Sockel mit Lüftern, achteckiger Turm mit Tor nach vorn, auskragende Krone (Brücke) mit umlaufendem Fensterband,
     # Dach, Mast mit Querträger, Radarplatte und Licht
     ky = 2.75
-    s.add(wedge(2.5, 2.3, 0.45), m["hull"], at=(0, ky - 0.05, 2.06 + 0.225))
+    s.add(chamfer(wedge(2.5, 2.3, 0.45), 0.05), m["hull"], at=(0, ky - 0.05, 2.06 + 0.225))
     vent(s, m, m["hull"], (0.85, 3.55, 2.51), 0.4, 0.42, slats=2, mirror=True)
-    s.add(post(8, 0.86, 0.78, 2.5, 3.7), m["armor"], at=(0, ky, 0), rot=(0, 0, 22.5))
+    s.add(chamfer(post(8, 0.86, 0.78, 2.5, 3.7), 0.03), m["armor"], at=(0, ky, 0), rot=(0, 0, 22.5))
     gate(s, m, m["armor"], (0, ky - (0.795 - 0.0625 * 0.36), 2.86), 0.5, 0.62, (86.4, 0, 0))
-    s.add(post(8, 1.12, 1.12, 3.7, 4.15), m["hull"], at=(0, ky, 0), rot=(0, 0, 22.5))
-    s.add(post(8, 1.14, 1.14, 3.86, 3.96), m["window"], at=(0, ky, 0), rot=(0, 0, 22.5))
-    s.add(post(8, 0.75, 0.6, 4.15, 4.35), m["dark"], at=(0, ky, 0), rot=(0, 0, 22.5))
-    s.add(post(10, 0.09, 0.06, 4.35, 5.0), m["hull_round"], at=(0, ky + 0.2, 0))
+    s.add(chamfer(post(8, 1.12, 1.12, 3.7, 4.15), 0.04), m["hull"], at=(0, ky, 0), rot=(0, 0, 22.5))
+    s.add(chamfer(post(8, 1.14, 1.14, 3.86, 3.96), 0.04), m["window"], at=(0, ky, 0), rot=(0, 0, 22.5))
+    s.add(chamfer(post(8, 0.75, 0.6, 4.15, 4.35), 0.03), m["dark"], at=(0, ky, 0), rot=(0, 0, 22.5))
+    s.add(post(16, 0.09, 0.06, 4.35, 5.0), m["hull_round"], at=(0, ky + 0.2, 0))
     s.add(box(0.8, 0.07, 0.07), m["hull"], at=(0, ky + 0.2, 4.8))
     s.add(box(0.5, 0.05, 0.2), m["armor"], at=(0, ky + 0.11, 4.56), rot=(-15, 0, 0))
     s.add(sphere(0.1, 1), m["glow"], at=(0, ky + 0.2, 5.07))
@@ -319,9 +560,10 @@ def build():
     vent(s, m, m["armor"], (0, 4.15, 1.5), 0.36, 1.3, slats=3, rot=(0, 0, 90))
     rcs(s, m, (2.3, 3.55, 0.5), 1)
     for dx in (0.0, 1.15):
-        engine(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, mirror=dx > 0)
-        engine_details(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, mirror=dx > 0)
-    engine(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
-    engine_details(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, mirror=True)
+        engine(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, n=ROUND, mirror=dx > 0)
+        engine_details(s, m, 0.5, 4.15, 5.45, dx=dx, dz=0.45, n=ROUND, mirror=dx > 0)
+    engine(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, n=24, mirror=True)
+    engine_details(s, m, 0.3, 3.75, 4.75, dx=2.05, dz=1.0, n=24, mirror=True)
     details(s, m, ky)
+    fine(s, m, ky, ledge)
     return s.finish()

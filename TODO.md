@@ -29,21 +29,31 @@ Alle Zahlen, Inhalte und Texte stehen als JSON in `assets/data/` (`docs/daten.md
 
 ## Dreckiger Look (Umstellung vom 11.11.2026)
 
-- [ ] **Vorschau** (`tools/ships/preview.py`, `look.py`) rendert noch Clean Toon mit Linien und zeigt nicht, was das Spiel zeigt; auf den dreckigen Look umstellen (Verlauf, Verwitterung mit Korn, keine Linien), dann passen auch die `hero`-Renders als Kartenvorlage wieder.
+- [ ] **Vorschau** (`tools/ships/preview.py`, `look.py`) rendert noch Clean Toon mit Linien und zeigt nicht, was das Spiel zeigt; auf den dreckigen Look umstellen (Verlauf, Verwitterung mit Plattenfasen und Feinstruktur, keine Linien), dann passen auch die `hero`-Renders als Kartenvorlage wieder.
 - [ ] **Kleinteile im Spiel ansehen**: Die dreizehn am 12.11.2026 umgebauten Schiffe sind in der Blender-Vorschau und in der Modellschau auf Brettgröße geprüft, nicht je Schiff in der Nahaufnahme. Zweifel aus dem Umbau: Flak-Gehäuse in der Akzentfarbe fallen an den Flaggschiffen (Bernstein, Glutorange, Rot) stärker auf als am Belagerer; die Flacheisen des Scrap King lesen eher als Stange denn als Naht; die drei Streben in der Schüssel des Signal Booster verändern sein Kennzeichen; die Rückwand-Fenster des Horizon Cruiser leuchten von hinten kräftig; Kühlrippen durchdringen an Vanguard und Pendulum die Nachbardüse.
-- [ ] **Start scheitert bei knappem Arbeitsspeicher** (Asahi Linux, Mesa-Treiber): Der Treiber lehnt Grafikspeicher ab, sobald der verfügbare Arbeitsspeicher (ohne Swap) unter etwa 1 GB fällt („Not enough free system memory“, `hk_device_memory.c`), Bevy beendet das Spiel dann. Der Client holt beim Start etwa 0,8 GB im Prozess und 1,9 GB Grafikspeicher, davon 255 MB für das Bild mit 4-facher Kantenglättung in 3840 × 2160, 130 MB für die Tiefe, 130 MB für die beiden HDR-Bilder, 240 MB für die Masken. Die Kantenglättung ist deshalb eine Einstellung (Tab „Video“, Vorgabe 4-fach): 2-fach spart etwa 190 MB, aus etwa 350 MB. Offene Hebel: Masken komprimiert (BC7/ASTC), nach einem Fehlstart neu versuchen statt zu beenden. `glibc` hält außerdem etwa 250 MB freigegebene Puffer fest (`MALLOC_MMAP_THRESHOLD_=1048576` gibt sie zurück, ändert an den Fehlstarts aber nichts).
-- [ ] **Flimmern** dünner Kleinteile (Antennen, Geländer, Raketenflossen) und des Korns in Bewegung ist ungeprüft.
+- [ ] **Start scheitert bei knappem Arbeitsspeicher** (Asahi Linux, Mesa-Treiber): Der Treiber lehnt Grafikspeicher ab, sobald der verfügbare Arbeitsspeicher (ohne Swap) unter etwa 1 GB fällt („Not enough free system memory“, `hk_device_memory.c`), Bevy beendet das Spiel dann. Der Client holt beim Start etwa 0,8 GB im Prozess und 1,9 GB Grafikspeicher, davon 255 MB für das Bild mit 4-facher Kantenglättung in 3840 × 2160, 130 MB für die Tiefe, 130 MB für die beiden HDR-Bilder, 240 MB für die Masken (gemessen vor dem 13.11.2026; seither sind sie als BC7 komprimiert und belegen etwa 106 MB, neu gemessen ist der Start nicht). Die Kantenglättung ist deshalb eine Einstellung (Tab „Video“, Vorgabe 4-fach): 2-fach spart etwa 190 MB, aus etwa 350 MB. Offener Hebel: nach einem Fehlstart neu versuchen statt zu beenden. `glibc` hält außerdem etwa 250 MB freigegebene Puffer fest (`MALLOC_MMAP_THRESHOLD_=1048576` gibt sie zurück, ändert an den Fehlstarts aber nichts).
+- [ ] **Flimmern** dünner Kleinteile (Antennen, Geländer, Raketenflossen), der Feinteile der Bastion (Gitterstäbe, Steigeisen, Wegelinien) und der Feinstruktur in Bewegung ist ungeprüft.
 - [ ] **Namen**: Modul `scene/toon`, `ToonMaterial`, `toon.wesl` und die Vertragsart `toon` heißen noch nach dem früheren Look.
 
 ## Schiffsmodelle (Detailpass und Verwitterung, 06.11.2026)
 
 - [ ] **Kartenbilder der Flaggschiffe** (`assets/images/cards/bastion.jpg`, `vanguard.jpg`, `pendulum.jpg`, `pyre.jpg`) zeigen noch die glatten Modelle; neu über fal.ai mit dem `hero`-Render als Vorlage.
 - [ ] **Unbenutzte Modelle**: Hive, Mirage, Drohne, Repair Drone und Trugbild lädt das Spiel nicht mehr; sie stehen noch in der groben Fassung (löschen oder umbauen).
-- [ ] **Feine Verwitterung auf hochauflösenden Bildschirmen**: Fugen und Kantenabrieb blenden nach der Mip-Stufe in physischen Pixeln aus (`FINE_LOD` in `toon.wesl`), auf Retina zeigt schon das Brett sie; Flimmern in Bewegung ist ungeprüft. Abhilfe wäre ein Bias nach dem Skalierungsfaktor des Fensters.
+- [ ] **Feine Verwitterung auf hochauflösenden Bildschirmen**: Fugen, Plattenfasen und Kantenabrieb blenden nach dem Maßstab in physischen Pixeln aus (`FINE_LOD` in `toon.wesl`), auf Retina zeigt schon das Brett sie; Flimmern in Bewegung ist ungeprüft. Abhilfe wäre ein Bias nach dem Skalierungsfaktor des Fensters.
 - [ ] **Ruß an Waffen** gibt es nur an kreisrunden Mündungsdeckeln (`weather.py`); Läufe ohne Deckel bleiben sauber.
-- [ ] **Größe der GLBs**: 28 MB statt 8 MB, jedes Wrack bettet seine Maske ein zweites Mal ein, und etwa ein Viertel der Texel liegt auf verdeckten Flächen.
+- [ ] **Verdeckte Texel**: Etwa ein Viertel der Texel einer Maske liegt auf verdeckten Flächen (Unterseiten aufgesetzter Teile, Durchdringungen), an der Bastion mit ihren Feinteilen eher mehr; ihre Maske ist mit 6016 px die größte (Grenze 8192 px), und ihr Bake braucht bis zu 8 GB Arbeitsspeicher, knapp unter der Grenze der Agenten auf dem Linux-Server (9,2 GB; darüber drosselt der Kernel den Bake auf ein Zehntel). Inseln verdeckter Flächen klein zu skalieren spart Speicher und Backzeit.
 - [ ] **Wappen des Siegels**: In der zweiten Kamera (Gegner von vorn oben) verdeckt der Turm es zum Teil.
-- [ ] **Masken-Loader** (`scene/toon/gltf.rs`) ersetzt das Bild unter demselben Label durch die lineare Fassung mit Mip-Kette; Bevy 0.20 erlaubt das, beim nächsten Bevy-Update prüfen.
+
+## Nahaufnahme (Pilot an der Bastion, 13.11.2026)
+
+Die Bastion trägt Fasen, glatte Rundteile, Feinteile und Beschriftung; alle Schiffe haben Verdeckung in der Maske, Plattenfasen und Feinstruktur aus dem Shader und komprimierte Masken (`docs/stilregeln.md`, „Nahaufnahme“).
+
+- [ ] **Übrige Schiffe**: Vanguard, Pendulum, Pyre, Siegel und die Schlachtschiffe in die Fassung für die Nahaufnahme bringen; die Helfer aus `fleet/bastion.py` wandern dabei nach `parts.py`. Die Farbe `PAINT` der Beschriftung gehört dann nach `palette.py`.
+- [ ] **Gemeinsame Baugruppen** (`parts.flak`, `turret`, `engine`) sind noch grob: Die Flak ist ein Kasten mit zwei Rohren aus sechs Segmenten. Eine feinere Fassung ändert alle Schiffe, die sie tragen.
+- [ ] **Leistung auf dem Mac ungeprüft**: Der Shader liest je Pixel einer verwitterten Fläche elf Texel (fünf aus der Maske, sechs aus der Feinstruktur) statt eines. Wird es eng: die grobe Lage der Feinstruktur streichen (`DETAIL.y` in `toon.wesl`).
+- [ ] **Schlagschatten** rechnet das Spiel weiter nicht; die gebackene Verdeckung reicht 0,4 weit und kennt die Lichtrichtung nicht.
+- [ ] **Wrackstücke**: Die Feinstruktur hängt an den Koordinaten des Stücks, nicht des Schiffs, und springt deshalb beim Zerbrechen; im Blitz der Explosion sieht man es nicht, geprüft ist es nicht.
+- [ ] **Screenshots auf dem Linux-Server**: Der Software-Renderer dekodiert BC7 sehr langsam, für Probeläufe die Maske unkomprimiert schreiben (`crates/client/AGENTS.md`, „Werkzeuge“).
 
 ## Aus dem Audit vom 02.11.2026, noch gültig
 

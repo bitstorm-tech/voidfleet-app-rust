@@ -2,8 +2,9 @@
 
 Konventionen (Blender-Koordinaten): Die Nase zeigt nach -Y, oben ist +Z, Steuerbord ist +X. Nach dem glTF-Export
 (Y-up) zeigt die Nase nach glTF +Z; der Bevy-Loader dreht das Modell um 180° (`crates/client/src/scene/coords.rs`).
-Jedes Schiff ist ein einziges Mesh aus geschlossenen, sich überlappenden Primitiven (`Ship.add`), ohne Bevel und ohne
-gemalte Texturen; UVs und die Maske der Verwitterung kommen nach dem Bau aus weather.py. Auf dem Brett
+Jedes Schiff ist ein einziges Mesh aus geschlossenen, sich überlappenden Primitiven (`Ship.add`), ohne gemalte
+Texturen; Fasen an den großen Kanten setzt `chamfer`. UVs und die Maske der Verwitterung kommen nach dem Bau aus
+weather.py. Auf dem Brett
 liegt der Slot bei Blender-z −1,4, bei Flaggschiffen wegen ihres Faktors 1,1 bei −1,27 (`slot`): Kein Teil darf darunter,
 sonst `Ship.lift`. Teile ohne Berührung zum übrigen Schiff findet `loose_parts`; `build.py` meldet beides.
 
@@ -22,11 +23,10 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
       Gestufte Fläche. `round`: geglättete Normalen und das schmalere Kantenlicht runder Teile; `glint`: Deckkraft des
       harten Glanzpunkts (0 = keiner). glTF: baseColorFactor = Licht-Ton, metallicFactor 0, roughnessFactor 1
       (Vorgabe, fehlt im JSON). Auch die Zierlinie der Flaggschiffe `<id>_trim` (Goldtöne). Mit Verwitterung
-      (weather.py, alle Schiffe außer dem Trugbild) dazu baseColorTexture = Maske `<id>_weather`: ein PNG je Modell
-      (RGBA, 8 Bit, als Daten zu lesen, nicht als sRGB), eine Textur, die alle toon-Materialien teilen, Sampler
-      CLAMP_TO_EDGE; R Schmutz, G Kantenabrieb, B Plattenton, A Fugen. Der Client baut beim Laden die Mip-Kette.
-      Im Wrack tragen die toon-Materialien statt der Textur `"mask": "<id>"` (weather.share): dieselben UVs, das Bild
-      nimmt der Client aus `<id>.glb`, wo es die einzige Textur ist.
+      (weather.py, alle Schiffe außer dem Trugbild) dazu `"mask": "<id>"`: Die Maske liegt als `<id>_weather.ktx2`
+      neben dem GLB (BC7 mit Mip-Kette, als Daten zu lesen, nicht als sRGB; R Schmutz, G Kantenabrieb, B Helligkeit
+      aus Plattenton und Verdeckung, A Fugen), ein Bild, das alle toon-Materialien des Schiffs und seines Wracks
+      teilen. Das GLB bettet es nicht ein.
   {"kind": "light", "color": Farbe, "glow": bool}
       Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Positionslichter (`glow`: true = glüht im Spiel) und
       die Kennzeichen der Flaggschiffe `<id>_signal` in der UI-Farbe des Admirals (`glow`: false).
@@ -42,8 +42,8 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
 Aufbau: `<id>.glb` ist ein Knoten mit einem Mesh, je Material ein Primitive (POSITION, NORMAL, Indizes); `<id>_wreck.glb`
 hat je Bruchstück einen Knoten (Ursprung im Schwerpunkt). TEXCOORD_0 (eine UV-Ebene) tragen genau die Primitive, deren
 Material eine Textur nutzt: toon mit Maske (UVs der Abwicklung, auch auf den alten Flächen der Bruchstücke) und die
-Bruchflächen (Box-UVs des Glutmusters); Lichter und Hologramme nicht (`_tidy_gltf`). Das Wrack bettet dieselbe Maske
-noch einmal ein. Materialien heißen `<id>_<schlüssel>` (siehe `materials`), keine glTF-Erweiterungen. Nur Hologramme sind
+Bruchflächen (Box-UVs des Glutmusters); Lichter und Hologramme nicht (`_tidy_gltf`). Materialien heißen
+`<id>_<schlüssel>` (siehe `materials`), keine glTF-Erweiterungen. Nur Hologramme sind
 doubleSided, alle anderen einseitig: Jede Hülle ist geschlossen und nach außen orientiert, auch gespiegelte Teile und die
 Bruchflächen der Wracks (`bad_shells`, build.py meldet Verstöße).
 
@@ -371,6 +371,17 @@ def rbox(sx, sy, sz, r=0.05, segments=2):
     bmesh.ops.bevel(bm, geom=bm.edges[:] + bm.verts[:], offset=min(r, sx / 2.2, sy / 2.2, sz / 2.2), segments=segments,
                     profile=0.5, affect="EDGES", clamp_overlap=True)
     return _finish(bm)
+
+
+def chamfer(bm, width):
+    """Fast die konvexen harten Kanten eines Teils (Knick über SHARP_ANGLE) um `width`: Die Kante bekommt eine eigene
+    Fläche und damit im Verlauf einen eigenen Ton, in der Nahaufnahme liest sie als bearbeitetes Blech statt als
+    Messerkante. Für Primär- und Sekundärformen (0,02 bis 0,06); Kleinteile bleiben scharf."""
+    bm.normal_update()
+    edges = [e for e in bm.edges if len(e.link_faces) == 2 and e.is_convex
+             and e.link_faces[0].normal.angle(e.link_faces[1].normal, 0.0) > SHARP_ANGLE]
+    bmesh.ops.bevel(bm, geom=edges, offset=width, segments=1, profile=0.5, affect="EDGES", clamp_overlap=True)
+    return _canonical(bm)
 
 
 def wedge(w, l, h, front=0.35, taper=0.85):
@@ -773,41 +784,21 @@ def _uses_texture(value):
     return isinstance(value, list) and any(_uses_texture(v) for v in value)
 
 
-def _remap_textures(value, index):
-    """Texturverweise (`…Texture: {"index": i}`) in Materialien auf neue Indizes."""
-    if isinstance(value, dict):
-        for key, v in value.items():
-            if key.endswith("Texture") and isinstance(v, dict) and "index" in v:
-                v["index"] = index[v["index"]]
-            else:
-                _remap_textures(v, index)
-    elif isinstance(value, list):
-        for v in value:
-            _remap_textures(v, index)
-
-
 def _tidy_gltf(path):
-    """Räumt nach dem Exporter auf; Reihenfolge und Inhalt von allem anderen bleiben:
-    - Gleiche Texturen (Bild und Sampler) gibt es nur einmal. Der Exporter legt je Material eine an, und der Bevy-Loader
-      dekodiert je Textur: Das gemeinsame Bild der Verwitterung läge sonst je Material im Speicher.
-    - TEXCOORD_n bleibt nur an Primitiven, deren Material eine Textur nutzt (auch die des Schiffs, `mask` im Vertrag
-      der Wrackstücke). Der Exporter schreibt die UV-Ebene in jedes
-      Primitive des Meshes, auch in Lichter und Hologramme. Danach wird der Binärteil neu gepackt."""
+    """Räumt nach dem Exporter auf; Reihenfolge und Inhalt von allem anderen bleiben: TEXCOORD_n bleibt nur an
+    Primitiven, deren Material eine Textur nutzt (das Glutmuster oder die Maske, `mask` im Vertrag). Der Exporter
+    schreibt die UV-Ebene in jedes Primitive des Meshes, auch in Lichter und Hologramme. Danach wird der Binärteil neu
+    gepackt."""
     with open(path, "rb") as f:
         data = f.read()
     json_length = struct.unpack_from("<I", data, 12)[0]
     gltf = json.loads(data[20:20 + json_length])
     start = 20 + json_length
     binary = data[start + 8:start + 8 + struct.unpack_from("<I", data, start)[0]]
-    textures = gltf.get("textures", [])
-    unique = [t for k, t in enumerate(textures) if t not in textures[:k]]
-    if len(unique) < len(textures):
-        _remap_textures(gltf["materials"], [unique.index(t) for t in textures])
-        gltf["textures"] = unique
     textured = {i for i, mat in enumerate(gltf.get("materials", [])) if _uses_texture(mat) or "mask" in mat.get("extras", {}).get("vf", {})}
     primitives = [p for mesh in gltf.get("meshes", []) for p in mesh["primitives"]]
     stale = [(p, name) for p in primitives if p.get("material") not in textured for name in p["attributes"] if name.startswith("TEXCOORD_")]
-    if not (stale or len(unique) < len(textures)) or "animations" in gltf or "skins" in gltf:
+    if not stale or "animations" in gltf or "skins" in gltf:
         return
     for p, name in stale:
         del p["attributes"][name]

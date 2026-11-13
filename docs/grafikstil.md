@@ -135,7 +135,7 @@ Schildemitter `#FF3FA6`, Plasma `#B45CFF`, Positionslichter rot `#FF5040` und gr
 ## Licht und Kamera
 
 Alles Licht der Schiffe ist gerechnet, nicht beleuchtet: Der Shader wählt aus den drei Tönen, die Szene hat keine
-Lichtquellen und keine Schlagschatten.
+Lichtquellen und keine Schlagschatten. Dass ein Teil auf seiner Fläche sitzt, zeigt die gebackene Verdeckung.
 
 - **Hauptlicht.** Von vorn oben, leicht von der Kameraseite: Deck hell, Flanke halbhell, Schatten nach achtern. Es
   steht fest am Brett und ist je Seite gespiegelt, auch Gegner sind also von vorn beleuchtet (`KEY` in
@@ -145,8 +145,13 @@ Lichtquellen und keine Schlagschatten.
   (`TONE_SPREAD`), damit Deck, Flanke und Plattenlagen auf dem kleinen Brett auseinandergehen.
 - **Kantenlicht statt Kontur.** Am Umriss ein kühles Blau `#86ACD2`, höchstens 30 % (`RIM_COLOR`, `RIM`); Glanz
   `#E4ECF4` nur auf Metall, Glas und abgeschabten Kanten.
-- **Verwitterung.** Plattenton, Fugen, Schmutz, Ruß und Kantenabrieb aus der gebackenen Maske, Schmutz in warmem
-  Graubraun; Fugen und Abrieb erscheinen erst in der Nahaufnahme.
+- **Verwitterung.** Plattenton, Verdeckung, Fugen, Schmutz, Ruß und Kantenabrieb aus der gebackenen Maske, Schmutz in
+  warmem Graubraun; die Verdeckung dunkelt Ritzen und den Fuß aufgesetzter Teile ab. Fugen und Abrieb erscheinen erst
+  in der Nahaufnahme.
+- **Relief der Nahaufnahme.** Die Platten fallen an ihren Kanten als Fase zur Fuge ab (`BEVEL`): Eine Kante fängt
+  Licht, die andere liegt im Schatten. Darüber liegt eine Feinstruktur aus Kratzern, Poren und Flecken (`detail.ktx2`,
+  `DETAIL`, `RELIEF`, `MOTTLE`, `GRAIN`), feiner als die Maske. Beides blendet mit dem Abstand aus; auf dem Brett
+  bleiben die Flächen ruhig.
 - **Keine Tonkurve.** Die Kamera rechnet in HDR und gibt die Farben so aus, wie sie gerechnet sind
   (`Tonemapping::Linear`): Eine Farbe aus der Palette erscheint auf dem Schirm als diese Farbe.
 - **Glühen.** Was heller als 1 ist, glüht im Bloom der Kamera (Schwelle 1,0, Stärke 0,35), sonst nichts. Lichter der
@@ -230,12 +235,12 @@ bzw. des Admirals). Das Motiv steht groß und allein im Bild, ohne Schrift und o
 | Hauptlicht, Glühen der Lichter, Lackierung       | `crates/client/src/scene/toon/look.rs`                               |
 | Bloom, Tonkurve                                  | `crates/client/src/scene/camera.rs`                                  |
 | Effekte, Partikel, Zerstörung                    | `scene/fx.rs`, `effects.rs`, `particles.rs`, `destruction.rs`, `assets/shaders/fx.wesl` |
-| Bau, Verwitterungsgrad, Vorschau der Schiffe     | `tools/ships/` (`look.py`, `weather.py`, `preview.py`)               |
+| Bau, Verwitterung, Feinstruktur, Vorschau        | `tools/ships/` (`look.py`, `weather.py`, `detail.py`, `preview.py`)  |
 | Aufträge der Hintergründe                        | `assets/images/backgrounds/prompts.json`                             |
 
 Werte, die an zwei Stellen stehen und zusammenpassen müssen: Admiralsfarben und Zierton (`palette.rs` und
-`palette.py`), das Hauptlicht (`look.rs` und `look.py`), die Schwellen der Verwitterung und `FINE_LOD` (`toon.wesl`
-und `look.py`).
+`palette.py`), das Hauptlicht (`look.rs` und `look.py`), die Schwellen der Verwitterung, `FINE_LOD` und der
+Plattenton (`toon.wesl` mit `SHADE` und `look.py` mit `PLATE_TONE`).
 
 ## Stil ändern
 

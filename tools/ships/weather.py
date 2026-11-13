@@ -1,4 +1,4 @@
-"""Verwitterung der Schiffe: Schmutz, Kantenabrieb und Plattenstruktur als gebackene Maske `<id>_weather`.
+"""Verwitterung der Schiffe: Schmutz, Kantenabrieb, Plattenstruktur und Verdeckung als gebackene Maske `<id>_weather`.
 
 Die Maske selbst ist weich (kontinuierlich). Das Spiel (`toon.wesl`, dreckiger Look) liest Schmutz und Ruß als Verlauf
 mit Korn und setzt nur für die Rille der Fugen und den Kantenabrieb harte Stufen; die Vorschau (preview.py, noch Clean
@@ -9,8 +9,8 @@ Schmutz und Ruß.
 
 Ablauf je Schiff (`apply`; build.py und preview.py rufen es nach dem Bau, vor dem Wrack):
   1. Abwicklung: eine UV-Ebene über das ganze Mesh (Smart UV Project, liefert bei gleichem Mesh dieselben UVs), Inseln
-     mit MARGIN Texeln Abstand. Die Bildgröße folgt aus Fläche und Packdichte, damit jedes Schiff look.WEATHER_DENSITY
-     Texel je Einheit bekommt (gleichmäßige Texeldichte).
+     mit MARGIN Texeln Abstand. Die Bildgröße folgt aus Fläche und Packdichte, damit das Schiff überall dieselbe
+     Texeldichte bekommt (look.WEATHER_DENSITY Texel je Einheit, für die Schiffe in look.WEATHER_DENSE mehr).
   2. Bake (Cycles, CPU, feste Saat, ohne Denoiser) einer Kopie des Schiffs mit einem Hilfsmaterial, allein in einer
      eigenen Szene: Lage, Normale, Umgebungsverdeckung außen (Ritzen) und Material. Den Rand der Inseln füllen die
      Nachbarflächen. Was sich aus der Geometrie genau messen lässt, misst Python je Texel: den Abstand zum nächsten
@@ -20,23 +20,29 @@ Ablauf je Schiff (`apply`; build.py und preview.py rufen es nach dem Bau, vor de
   3. Daraus in numpy die vier Kanäle (unten), Rauschen in Objektkoordinaten mit fester Saat; geschrieben als PNG mit
      eigenem Schreiber (feste Bytes) in den Cache renders/weather/<id>-<hash>.png. Der Hash deckt Mesh, UVs,
      Materialien, Blender-Version, look.py und dieses Modul ab; ein zweiter Bau oder die Vorschau backen nicht noch einmal.
-  4. Das Bild hängt als Base-Color-Textur (Multiplikation mit dem Licht-Ton, der so baseColorFactor bleibt) an allen
-     toon-Materialien; der Export schreibt es ins GLB. wreck.py erbt die UVs: Die alten Flächen der Stücke behalten
-     ihre, die Bruchflächen bekommen in derselben Ebene ihre Glut-UVs.
+  4. Die toon-Materialien nennen die Maske im Vertrag (`"mask": <id>`, vf.py); das Bild liegt in Blender als
+     `<id>_weather` für die Vorschau bereit. build.py schreibt es mit `compress` als `<id>_weather.ktx2` neben das GLB
+     (BC7, mit Mip-Kette; ein Viertel des Grafikspeichers der rohen Texel), das GLB selbst trägt kein Bild. wreck.py
+     erbt die UVs: Die alten Flächen der Stücke behalten ihre und teilen Maske und Vertrag, die Bruchflächen bekommen
+     in derselben Ebene ihre Glut-UVs.
 
-Kanäle (8 Bit, linear gelesen; jede Schwelle aus look.py macht eine Tonfläche):
+Kanäle (8 Bit, linear gelesen):
   R  Schmutz: Ritzen (wo Teile aufeinandertreffen, unter Kanten), Schlieren von Aufbauten nach achtern (+Y), Ruß an und
      hinter Düsen und Mündungen. Über DIRT_STEP Schmutz, über SOOT_STEP schwerer Ruß.
   G  Kantenabrieb an konvexen Kanten lackierter Flächen, von Rauschen aufgebrochen; über WEAR_STEP.
-  B  Plattenton: je Platte 0,2 / 0,5 / 0,8, Stufen bei PLATE_STEPS; ohne Platten 0,5.
-  A  Fugen: Abstand zur nächsten Plattenkante geteilt durch SEAM_RANGE, gekappt bei 1; unter SEAM_STEP liegt die Fuge.
+  B  Helligkeit: Plattenton (je Platte 1 − PLATE_TONE, 1 oder 1 + PLATE_TONE, ohne Platten 1) mal Verdeckung (Licht,
+     das Nachbarteile wegnehmen: 1 frei, 1 − OCCLUSION_DARK in der tiefsten Ritze), geteilt durch 1 + PLATE_TONE. Der
+     Shader multipliziert die Farbe damit: So sitzen Kleinteile mit einem Schatten auf ihrer Fläche.
+  A  Fugen: Abstand zur nächsten Plattenkante geteilt durch SEAM_RANGE, gekappt bei 1; unter SEAM_STEP liegt die Fuge,
+     darüber fällt die Plattenkante als Fase ab (der Shader neigt dort die Normale).
 Platten sind Rechtecke an den Schiffsachsen (look.PLATE, Reihen versetzt), projiziert entlang der Hauptachse der Normale,
 backbord und steuerbord gespiegelt. Den Grad je Schiff (look.WEATHER) und die Anteile je Material
 (look.WEATHER_MATERIALS) trägt die Maske selbst: Ein Anteil w wirkt als Exponent 1 / (Grad · w) auf das weiche Feld, ein
 höherer Grad lässt also mehr über die Schwelle; über Grad 1 kommen Schmutzflecken auf offenen Flächen dazu. Schiffe ohne
 toon-Material (das Trugbild) oder mit Grad 0 bleiben ohne Maske und ohne UVs.
 
-Umgebung: VF_THREADS wie in preview.py (Standard: alle Kerne).
+Umgebung: VF_THREADS wie in preview.py (Standard: alle Kerne); VF_DENSITY setzt für Probeläufe die Texeldichte aller
+Schiffe; CTT ist der Pfad zum Encoder `ctt` (`cargo install ctt-cli --locked --version 0.6.1`).
 """
 
 import hashlib
@@ -44,6 +50,7 @@ import json
 import math
 import os
 import struct
+import subprocess
 import time
 import zlib
 
@@ -68,20 +75,22 @@ AO_SAMPLES = 16
 AO_DISTANCE = 0.4  # Reichweite der Umgebungsverdeckung (Ritzen) in Einheiten
 LEE_LENGTH = 1.6  # Reichweite der Schlieren hinter einem Hindernis
 LEE_BIAS = 0.06  # so hoch muss es mindestens sein
+CHUNK = 1 << 21  # Texel je Portion beim Rechnen der Kanäle (etwa 1 GB Arbeitsspeicher)
 
 
 # ---------------------------------------------------------------- Ablauf
 
 
 def apply(obj):
-    """UVs und Maske des Schiffsobjekts `obj`, die Maske hängt an allen toon-Materialien. Liefert das Bild (mit der
-    Texeldichte als Custom Property `vf_density`) oder None für Schiffe ohne Verwitterung."""
+    """UVs und Maske des Schiffsobjekts `obj`; die toon-Materialien nennen sie danach im Vertrag (`mask`). Liefert das
+    Bild (mit der Texeldichte als Custom Property `vf_density`, sein Dateipfad ist das PNG im Cache) oder None für
+    Schiffe ohne Verwitterung."""
     grade = look.WEATHER.get(obj.name, 1.0)
     toon = [m for m in obj.data.materials if vf.spec(m)["kind"] == "toon"]
     if not toon or grade <= 0:
         return None
     started = time.time()
-    size, density = unwrap(obj)
+    size, density = unwrap(obj, float(os.environ.get("VF_DENSITY") or look.WEATHER_DENSE.get(obj.name, look.WEATHER_DENSITY)))
     path = os.path.join(CACHE, f"{obj.name}-{fingerprint(obj, size)}.png")
     if not os.path.exists(path):
         os.makedirs(CACHE, exist_ok=True)
@@ -93,22 +102,22 @@ def apply(obj):
     image = load(obj.name, path)
     image["vf_density"] = density
     for mat in toon:
-        attach(mat, image)
+        mat["vf"]["mask"] = obj.name
     return image
 
 
-def unwrap(obj):
-    """Eine UV-Ebene über das ganze Mesh; liefert Bildgröße und Texeldichte (Texel je Einheit)."""
+def unwrap(obj, target):
+    """Eine UV-Ebene über das ganze Mesh mit `target` Texeln je Einheit; liefert Bildgröße und genaue Texeldichte."""
     mesh = obj.data
     while mesh.uv_layers:
         mesh.uv_layers.remove(mesh.uv_layers[0])
     mesh.uv_layers.new(name="UVMap")
     area = sum(p.area for p in mesh.polygons)
-    size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
+    size = _round_size(target * math.sqrt(area / 0.5))  # Schätzung für den Rand, dann genau
     for _ in range(2):
         _smart_project(obj, MARGIN / size)
         uv_area = _uv_area(mesh)
-        size = _round_size(look.WEATHER_DENSITY * math.sqrt(area / uv_area))
+        size = _round_size(target * math.sqrt(area / uv_area))
     return size, size * math.sqrt(uv_area / area)
 
 
@@ -166,7 +175,7 @@ def fingerprint(obj, size):
 
 
 def load(ship, path):
-    """Das PNG als gepacktes Bild `<ship>_weather` (Daten, kein Farbraum, Kanäle unabhängig)."""
+    """Das PNG als Bild `<ship>_weather` (Daten, kein Farbraum, Kanäle unabhängig)."""
     old = bpy.data.images.get(f"{ship}_weather")
     if old:
         bpy.data.images.remove(old)
@@ -174,46 +183,20 @@ def load(ship, path):
     image.name = f"{ship}_weather"
     image.colorspace_settings.name = "Non-Color"
     image.alpha_mode = "CHANNEL_PACKED"
-    image.pack()
-    image.filepath_raw = f"{ship}_weather.png"  # der Exporter nimmt die gepackten Bytes und den Dateinamen als Bildnamen
     return image
 
 
-def attach(mat, image):
-    """Base Color = Maske × Licht-Ton: Der Export schreibt baseColorTexture und behält baseColorFactor."""
-    nodes, links = mat.node_tree.nodes, mat.node_tree.links
-    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
-    for node in [n for n in nodes if n.name.startswith("VF Weather")]:
-        nodes.remove(node)
-    texture = nodes.new("ShaderNodeTexImage")
-    texture.name = "VF Weather"
-    texture.image = image
-    texture.interpolation = "Linear"
-    texture.extension = "EXTEND"
-    multiply = nodes.new("ShaderNodeMix")
-    multiply.name = "VF Weather Factor"
-    multiply.data_type, multiply.blend_type = "RGBA", "MULTIPLY"
-    multiply.inputs["Factor"].default_value = 1.0
-    links.new(texture.outputs["Color"], vf._socket(multiply.inputs, "A_Color"))
-    vf._socket(multiply.inputs, "B_Color").default_value = bsdf.inputs["Base Color"].default_value
-    links.new(vf._socket(multiply.outputs, "Result_Color"), bsdf.inputs["Base Color"])
-
-
-def share(obj):
-    """Fürs Wrack von `obj`: nimmt die Maske von den toon-Materialien und nennt im Vertrag stattdessen das Schiff
-    (`"mask": <id>`). Die Stücke behalten ihre UVs; der Client nimmt das Bild aus dem GLB des Schiffs, statt dieselbe
-    Maske zweimal im Speicher zu halten. Erst nach dem Export des Schiffs aufrufen."""
-    for mat in obj.data.materials:
-        if image_of(mat):
-            for node in [n for n in mat.node_tree.nodes if n.name.startswith("VF Weather")]:
-                mat.node_tree.nodes.remove(node)
-            mat["vf"]["mask"] = obj.name
-
-
 def image_of(mat):
-    """Die Maske eines Materials oder None."""
-    node = mat.node_tree.nodes.get("VF Weather") if mat.node_tree else None
-    return node.image if node else None
+    """Die Maske eines Materials (das Bild des Schiffs, das sein Vertrag nennt) oder None."""
+    ship = mat["vf"].get("mask")
+    return bpy.data.images.get(f"{ship}_weather") if ship else None
+
+
+def compress(source, target):
+    """Schreibt das PNG `source` als KTX2 `target` fürs Spiel: BC7 (ein Byte je Texel statt vier), als Daten gelesen
+    (linear, Alpha ein Kanal wie die anderen), mit Mip-Kette und zstd. Dasselbe Bild ergibt dieselben Bytes."""
+    subprocess.run([os.environ.get("CTT", "ctt"), source, "-o", target, "-f", "bc7", "--input-color-space", "linear", "--mipmap",
+                    "--zstd"], check=True)
 
 
 # ---------------------------------------------------------------- Bake
@@ -537,9 +520,9 @@ def _shape(field, weight, grade):
 
 
 def _plates(p, n):
-    """Plattenton (0,2 / 0,5 / 0,8) und Abstand zur nächsten Plattenkante je Punkt: Rechtecke look.PLATE an den
-    Schiffsachsen, projiziert entlang der Hauptachse der Normale, Reihen um eine halbe Platte versetzt, backbord und
-    steuerbord gespiegelt."""
+    """Plattenton (1 − PLATE_TONE, 1, 1 + PLATE_TONE) und Abstand zur nächsten Plattenkante je Punkt: Rechtecke
+    look.PLATE an den Schiffsachsen, projiziert entlang der Hauptachse der Normale, Reihen um eine halbe Platte
+    versetzt, backbord und steuerbord gespiegelt."""
     q = p.copy()
     q[:, 0] = np.abs(q[:, 0])
     size = np.array(look.PLATE)
@@ -556,7 +539,7 @@ def _plates(p, n):
         side = (n[sel, k] > 0).astype(np.int64)
         cells = np.stack([cu.astype(np.int64), cv.astype(np.int64), side * 4 + k], axis=1)
         r = _random(cells, 7)
-        tone[sel] = np.where(r < 0.3, 0.2, np.where(r < 0.7, 0.5, 0.8))
+        tone[sel] = 1.0 + look.PLATE_TONE * np.where(r < 0.3, -1.0, np.where(r < 0.7, 0.0, 1.0))
         # Abstand in der Fläche: entlang der Projektion gemessen, durch die Neigung der Fläche geteilt
         du = np.abs(u - np.round(u)) * size[a] / np.sqrt(np.maximum(1 - n[sel, a] ** 2, 0.05))
         dv = np.abs(v - np.round(v)) * size[b] / np.sqrt(np.maximum(1 - n[sel, b] ** 2, 0.05))
@@ -565,21 +548,35 @@ def _plates(p, n):
 
 
 def mask(obj, size, grade):
-    """Die Maske als RGBA-Bytes (Blender-Reihenfolge)."""
+    """Die Maske als RGBA-Bytes (Blender-Reihenfolge). Die Kanäle entstehen in Portionen von CHUNK Texeln: So wächst
+    der Speicher nicht mit der Bildgröße (die Bastion hat bei 128 Texeln je Einheit über 40 Millionen Texel)."""
     geo = bake(obj, size)
-    rays = geo["rays"]
-    inside = (rays[..., 2] > 0.5).ravel()
-    out = np.zeros((size * size, 4))
-    out[:, 2], out[:, 3] = 0.5, 1.0
+    rays = geo.pop("rays")
+    covered = rays[..., 2] > 0.5
+    material = rays[..., 1].ravel().copy()
+    ao = _blur(rays[..., 0].astype(np.float64), covered).ravel()
+    del rays
+    position, normal = geo["position"].reshape(-1, 3), geo["normal"].reshape(-1, 3)
     materials = list(obj.data.materials)
     table = np.array([weights(m, obj.name) for m in materials])
-    index = np.clip(np.rint(rays[..., 1].ravel()[inside]).astype(np.int64), 0, len(materials) - 1)
-    w = table[index]
-    p = geo["position"].reshape(-1, 3)[inside].astype(np.float64)
-    n = geo["normal"].reshape(-1, 3)[inside].astype(np.float64)
+    solid, sources = _solid_tree(obj.data), emitters(obj)
+    edges = _edge_tree(obj, {i for i in range(len(materials)) if table[i][2] > 0})
+    out = np.empty((size * size, 4), dtype=np.uint8)
+    out[:] = np.rint(np.array([0.0, 0.0, 1.0 / (1.0 + look.PLATE_TONE), 1.0]) * 255)
+    inside = np.flatnonzero(covered)
+    for part in np.array_split(inside, len(inside) // CHUNK + 1):
+        w = table[np.clip(np.rint(material[part]).astype(np.int64), 0, len(materials) - 1)]
+        channels = _channels(position[part].astype(np.float64), normal[part].astype(np.float64), w, ao[part], grade, solid, sources, edges)
+        out[part] = np.rint(np.clip(channels, 0.0, 1.0) * 255)
+    return out.reshape(size, size, 4)
+
+
+def _channels(p, n, w, ao, grade, solid, sources, edges):
+    """Die vier Kanäle (Spalten) für Texel mit Lage `p`, Normale `n`, Anteilen `w` ihres Materials und
+    Umgebungsverdeckung `ao`; `solid` ist der BVH der toon-Flächen, `sources` die Ruß-Quellen, `edges` der KD-Baum der
+    Kanten mit Abrieb."""
     n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-6)
-    ao = _blur(rays[..., 0].astype(np.float64), inside.reshape(size, size)).ravel()[inside]
-    lee = _lee(p, n, _solid_tree(obj.data))
+    lee = _lee(p, n, solid)
 
     # Schmutz: Ritzen, von Flecken aufgebrochen; Schlieren hinter Hindernissen, nach achtern gestreckt
     crevice = _smoothstep(look.CREVICE[0], look.CREVICE[1], 1 - ao)
@@ -590,31 +587,28 @@ def mask(obj, size, grade):
     # Über Grad 1 (Schrott) dazu Flecken auf offenen Flächen, mit dem Grad stärker
     patches = max(grade - 1.0, 0.0) * look.PATCH_MIX * _smoothstep(0.5, 0.75, _fbm(p * look.PATCH_SCALE, 5))
     grime = np.maximum(np.maximum(dirt, look.STREAK_MIX * streak), patches)
-    red = np.maximum(_shape(grime, w[:, 0], grade), _shape(_soot(p, emitters(obj), 3), w[:, 1], grade))
+    red = np.maximum(_shape(grime, w[:, 0], grade), _shape(_soot(p, sources, 3), w[:, 1], grade))
     # Abrieb: Nähe zur sichtbaren konvexen Kante (1 auf ihr, 0 ab WEAR_REACH), außen frei. Das Rauschen sagt, wie tief
     # ein Splitter von der Kante hineinreicht (die meisten Stellen gar nicht), damit es keine durchgehende Fase wird:
     # über der Schwelle 0,5 liegt, was näher als 1 − Tiefe ist. Fern jeder Kante und ohne Splitter bleibt das Feld 0,
     # auch ein hoher Grad macht daraus also keine Fase, nur tiefere Splitter
-    paint = {i for i, m in enumerate(materials) if table[i][2] > 0}
     convex = _smoothstep(0.62, 0.92, ao)
-    near = np.clip(1 - _edge_distance(p, (w[:, 2] > 0) & (convex > 0), _edge_tree(obj, paint)) / look.WEAR_REACH, 0.0, 1.0)
+    near = np.clip(1 - _edge_distance(p, (w[:, 2] > 0) & (convex > 0), edges) / look.WEAR_REACH, 0.0, 1.0)
     depth = np.clip((_fbm(p * look.CHIP_SCALE, 4, 2) - 0.55) * 4.0, 0.0, 0.9)
     wear = 0.5 * near * convex / (1.0 - depth) * _smoothstep(0.0, 0.15, depth)
     tone, distance = _plates(p, n)
     has_plates = w[:, 3] > 0
-    out[inside, 0] = red
-    out[inside, 1] = _shape(wear, w[:, 2], grade)
-    out[inside, 2] = np.where(has_plates, tone, 0.5)
-    out[inside, 3] = np.where(has_plates, np.clip(distance / look.SEAM_RANGE, 0.0, 1.0), 1.0)
-    return np.rint(np.clip(out, 0.0, 1.0) * 255).astype(np.uint8).reshape(size, size, 4)
+    shade = 1.0 - look.OCCLUSION_DARK * _smoothstep(look.OCCLUSION[0], look.OCCLUSION[1], 1 - ao)
+    return np.stack([red, _shape(wear, w[:, 2], grade), np.where(has_plates, tone, 1.0) * shade / (1.0 + look.PLATE_TONE),
+                     np.where(has_plates, np.clip(distance / look.SEAM_RANGE, 0.0, 1.0), 1.0)], axis=1)
 
 
-# ---------------------------------------------------------------- Mip-Stufen (wie der Client) und PNG
+# ---------------------------------------------------------------- Mip-Stufen (für die Vorschau) und PNG
 
 
 def downsample(pixels):
     """Eine Mip-Stufe tiefer: Mittel über 2 × 2 Texel (gerundet), bei ungerader Größe fällt die letzte Zeile bzw.
-    Spalte weg; wie `mip_chain` in crates/client/src/scene/toon/gltf.rs."""
+    Spalte weg; die Mip-Kette des Spiels rechnet `ctt` beim Komprimieren fast genauso."""
     h, w = max(pixels.shape[0] // 2, 1), max(pixels.shape[1] // 2, 1)
     p = pixels.astype(np.uint32)
     ys = np.minimum(np.arange(h)[:, None] * 2 + np.array([0, 1]), pixels.shape[0] - 1)

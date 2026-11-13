@@ -7,10 +7,14 @@
 //!   Metall; Lichter unbeleuchtet in genau ihrer Farbe; Hologramme durchscheinend und beidseitig; Bruchflächen mit
 //!   Glutmuster × Glut. Das Hauptlicht hängt fest am Brett, je Seite gespiegelt. Das Blitzlicht der Explosionen
 //!   ([`ToonFlash`]) hellt die zugewandten Flächen in zwei harten Stufen auf.
-//! - **Verwitterung**: Die toon-Flächen eines Modells teilen eine gebackene Maske (`tools/ships/weather.py`):
-//!   Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb. Schmutz und Ruß setzen als Verlauf ein, den ein Korn aufbricht; die
-//!   harte Rille der Fugen und der Abrieb verschwinden, wenn ein Texel kleiner als etwa ein Pixel wird, der Rest über
+//! - **Verwitterung**: Die toon-Flächen eines Modells und seines Wracks teilen eine gebackene Maske
+//!   (`tools/ships/weather.py`, `<id>_weather.ktx2`): Helligkeit aus Plattenton und Verdeckung, Fugen, Schmutz, Ruß,
+//!   Kantenabrieb. Die Plattenkanten fallen als Fase zur Fuge ab (die Normale neigt sich), Schmutz und Ruß setzen als
+//!   Verlauf ein. Harte Rille, Fase und Abrieb verschwinden, wenn sie zu fein für den Bildschirm werden, der Rest über
 //!   die Mip-Kette.
+//! - **Feinstruktur**: Über allen Rümpfen liegt `detail.ktx2` (`tools/ships/detail.py`), aus den drei Achsen des
+//!   Schiffs projiziert: Kratzer, Poren und Beulen als Relief, Flecken im Ton, Korn an den Rändern von Schmutz und
+//!   Abrieb. Sie trägt die Nahaufnahme; auf dem Brett mittelt die Mip-Kette sie weg.
 //! - **Zielkontur** ([`outline`]): Inverted Hull in Rot, nur am Ziel unter dem Fadenkreuz sichtbar. Andere Konturen
 //!   gibt es nicht; so dürfen die Modelle Kleinteile tragen, ohne dass Konturringe sie zu Flecken verschmelzen.
 //! - **Glühen**: Lichter mit `glow`, glühende Hologramme und heiße Bruchflächen leuchten heller als 1 und glühen im

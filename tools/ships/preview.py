@@ -25,8 +25,8 @@ assets/images/backgrounds/01-nebelschlucht.png; er wird vor jedem Render neu von
 Verwitterung: Jedes Schiff bekommt vor dem Rendern seine Maske (weather.py; beim ersten Mal nach einer Änderung
 gebacken, bis etwa 20 s, sonst aus dem Cache renders/weather/). Cycles kennt keine Mip-Stufen: Je Ansicht rechnet
 set_lod aus dem Maßstab an der Schiffsmitte die Stufe, die das Spiel nähme (Texel je Pixel), und mischt die zwei
-nächsten vorab verkleinerten Bilder (Box-Filter wie im Client); Fugen und Abrieb blendet `fine` nach derselben Stufe
-aus wie der Shader. `board` und `enemy` zeigen so, was das Spiel auf dem Brett zeigt.
+nächsten vorab verkleinerten Bilder (Box-Filter, fast wie die Mip-Kette des Spiels); Fugen und Abrieb blendet `fine`
+nach derselben Stufe aus wie der Shader. `board` und `enemy` zeigen so, was das Spiel auf dem Brett zeigt.
 
 Umgebung: VF_SAMPLES (Samples je Pixel, Standard 24; für Kartenvorlagen gern 64), VF_THREADS (Render-Threads,
 Standard 2, weil mehrere Agents gleichzeitig rendern). Ein `board` rendert damit in etwa 3 s, samt Blender-Start und
@@ -85,7 +85,7 @@ PAD_TONES = ("#4c6ea6", "#426198")
 
 LIT = []  # Knotenbäume, deren Licht- und Kantenlichtrichtung je Ansicht nachgestellt wird
 WEATHERED = []  # (Knotenbaum, Maske) je Material mit Verwitterung: Mip-Stufe und `fine` je Ansicht (set_lod)
-MIPS = {}  # Mip-Stufen je Maske, wie der Client sie rechnet
+MIPS = {}  # Mip-Stufen je Maske (weather.downsample)
 
 
 # ---------------------------------------------------------------- Knoten-Helfer
@@ -170,7 +170,7 @@ def _toward_gray(nodes, links, color, amount):
 
 
 def _weathered(nodes, links, color, light, image):
-    """Verwitterung nach look.py aus der Maske (weather.py): Plattenton, Fugen, Schmutz, Ruß, Kantenabrieb (nur Licht
+    """Verwitterung nach look.py aus der Maske (weather.py): Helligkeit, Fugen, Schmutz, Ruß, Kantenabrieb (nur Licht
     und Halbschatten). Zwei Mip-Stufen gemischt wie das trilineare Filtern im Spiel; Stufe und `fine` setzt set_lod."""
     uv = nodes.new("ShaderNodeUVMap")
     near, far = nodes.new("ShaderNodeTexImage"), nodes.new("ShaderNodeTexImage")
@@ -189,10 +189,8 @@ def _weathered(nodes, links, color, light, image):
     channels = nodes.new("ShaderNodeSeparateColor")
     links.new(rgb, channels.inputs["Color"])
     red, green, blue = channels.outputs["Red"], channels.outputs["Green"], channels.outputs["Blue"]
-    low, high = look.PLATE_STEPS
-    plate = _math(nodes, links, "ADD", _math(nodes, links, "GREATER_THAN", blue, low), _math(nodes, links, "GREATER_THAN", blue, high))
-    # plate zählt die Stufen (0, 1, 2): Faktor 1 − PLATE_TONE, 1, 1 + PLATE_TONE
-    color = _scale(nodes, links, color, _math(nodes, links, "ADD", 1.0 - look.PLATE_TONE, _math(nodes, links, "MULTIPLY", plate, look.PLATE_TONE)))
+    # Helligkeit: Plattenton und Verdeckung stecken schon im Kanal
+    color = _scale(nodes, links, color, _math(nodes, links, "MULTIPLY", blue, 1.0 + look.PLATE_TONE))
     seam = _math(nodes, links, "MULTIPLY", _math(nodes, links, "LESS_THAN", vf._socket(alpha.outputs, "Result_Float"), look.SEAM_STEP),
                  fine.outputs[0])
     color = _scale(nodes, links, color, _math(nodes, links, "SUBTRACT", 1.0, _math(nodes, links, "MULTIPLY", seam, 1.0 - look.SEAM_DARK)))
@@ -540,7 +538,7 @@ def frame(scene, objects, spec, scale=1.0):
 
 
 def mip_levels(image):
-    """Die Mip-Kette einer Maske als Bilder (Stufe 0 ist das Bild selbst), Box-Filter wie im Client."""
+    """Die Mip-Kette einer Maske als Bilder (Stufe 0 ist das Bild selbst), Box-Filter."""
     if image.name not in MIPS:
         levels, pixels = [image], weather.pixels_of(image)
         while pixels.shape[0] > 1:
