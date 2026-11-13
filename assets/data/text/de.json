@@ -92,6 +92,12 @@
   "admiral_editor_valid": "Alle Admirale stimmen. Speichern setzt die Änderungen sofort im Spiel ein; Zahlen in Texten folgen beim nächsten Start.",
   "admiral_editor_hint": "Flaggschiff, Waffe, Passiv und Admiralsstation hängen im Code am Admiral; Namen und Texte stehen in den Textdateien.",
   "admiral_editor_error": "{admiral}: Die Hülle ist 0 oder die Kennkarte steckt nicht im Startdeck.",
+  "settings_module_editor": "Modul-Editor",
+  "module_editor_title": "Modul-Editor",
+  "module_editor_number": "Zahl",
+  "module_editor_none": "Dieses Modul hat keine Zahl; was es tut, steht im Code.",
+  "module_editor_valid": "Speichern setzt die Zahlen sofort im Spiel ein; die Texte der Module folgen beim nächsten Start.",
+  "module_editor_hint": "Was ein Modul tut, steht im Code; Namen und Texte stehen in den Textdateien, die Preise in rules.json unter run.",
   "settings_show_fps": "FPS-Anzeige",
   "on_off": {
     "on": "An",

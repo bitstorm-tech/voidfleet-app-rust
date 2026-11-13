@@ -7,7 +7,7 @@ Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im 
 | `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nächster Start |
 | `cards/<id>.json` | je Karte eine Datei: Art, Ziel, Kosten, Wert und Zweitwert samt aufgewerteter Fassung, Name und Effekttext je Sprache ([Karten](karten.md)) | nächster Start, aus dem Befehlskarten-Editor sofort |
 | `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nächster Start, aus dem Admirals-Editor sofort |
-| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nächster Start |
+| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nächster Start, die Zahlen der Module aus dem Modul-Editor sofort |
 | `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten, jede Einheit mit allen Werten, mit denen sie kämpft ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
 | `text/de.json`, `text/en.json` | jeder sichtbare Text außer denen der Karten, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
 
@@ -81,6 +81,10 @@ Der Admirals-Editor im Spiel bearbeitet `admirals.json`: Einstellungen → Tab �
 - `enemies`: Rammschaden, Riegel, Kannibalisieren, die Brandschwelle des Plasmakreuzers.
 - `modules`: die Zahl jedes Moduls, das eine hat.
 - `run`: Schrott, Angebote, Preise, Reparatur, die Zahlen der Ereignisse. Spannen stehen als `[von, bis]`, beide Enden eingeschlossen.
+
+### Der Modul-Editor
+
+Der Modul-Editor im Spiel bearbeitet die Zahlen der Module in `rules.json`: Einstellungen → Tab „Dev“ → „Modul-Editor“. Links stehen die neun Module, in der Mitte das gewählte als Tafel wie in Beute und Schwarzmarkt, ihr Text schon mit den Zahlen des Editors, rechts seine Zahl mit `-` und `+` (nicht unter 0) und ihr Ort in der Datei: die Felder unter `modules`, beim Kampfsimulator `run.combat_simulator_offer`. Löschanlage und Notaggregat haben keine Zahl. „Speichern“ schreibt `rules.json` Zeichen für Zeichen im Format der Datei; danach gelten die Zahlen sofort im Spiel. Die Texte der Module (`{rules.modules.salvage_crane_scrap}`) folgen erst beim nächsten Start. Was ein Modul tut, steht im Code, Namen und Texte in den Textdateien, die Preise unter `run`.
 
 ## Sternenkarten
 

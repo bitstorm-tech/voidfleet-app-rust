@@ -236,7 +236,7 @@ fn column(gap: f32) -> impl Bundle {
 }
 
 /// Eine Tafel (Modul, Werft-Auftrag, Dienst): Name, Text, darunter die Taste.
-fn plate(fonts: &Fonts, name: &str, text: &str) -> impl Bundle {
+pub(super) fn plate(fonts: &Fonts, name: &str, text: &str) -> impl Bundle {
     (
         // Das Feld setzt die Breite auf 100 %; Mindest- und Höchstbreite halten die Tafel trotzdem schmal.
         theme::console_inset(Node {

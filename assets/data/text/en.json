@@ -92,6 +92,12 @@
   "admiral_editor_valid": "All admirals are valid. Saving applies the changes in the game at once; numbers inside texts follow on the next start.",
   "admiral_editor_hint": "Flagship, weapon, passive and admiral station belong to the admiral in code; names and texts are in the text files.",
   "admiral_editor_error": "{admiral}: hull is 0 or the signature card is not in the starter deck.",
+  "settings_module_editor": "Module editor",
+  "module_editor_title": "Module editor",
+  "module_editor_number": "Number",
+  "module_editor_none": "This module has no number; what it does is in code.",
+  "module_editor_valid": "Saving applies the numbers in the game at once; module texts follow on the next start.",
+  "module_editor_hint": "What a module does is in code; names and texts are in the text files, prices in rules.json under run.",
   "settings_show_fps": "FPS counter",
   "on_off": {
     "on": "On",

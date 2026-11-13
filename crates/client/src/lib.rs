@@ -32,6 +32,7 @@ pub mod dev;
 pub mod editor;
 pub mod game;
 pub mod i18n;
+pub mod module_editor;
 pub mod palette;
 pub mod playback;
 pub mod run;

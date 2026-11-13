@@ -88,6 +88,8 @@ pub struct RunView {
     pub cards: bool,
     /// Der Admirals-Editor ist offen (Einstellungen → Dev), ebenfalls über allem.
     pub admiral_editor: bool,
+    /// Der Modul-Editor ist offen (Einstellungen → Dev), ebenfalls über allem.
+    pub module_editor: bool,
     /// Der Run ist ein Probespiel aus dem Karteneditor: Er wird nicht gespeichert und endet im Editor, sobald sein
     /// Knoten erledigt ist oder der Spieler ihn verlässt.
     pub testing: bool,
@@ -117,6 +119,8 @@ pub enum Screen {
     Cards,
     /// Der Admirals-Editor ([`crate::admiral_editor`]).
     AdmiralEditor,
+    /// Der Modul-Editor ([`crate::module_editor`]).
+    ModuleEditor,
 }
 
 /// Der Bildschirm zu Run, laufendem Gefecht und Ansicht.
@@ -132,6 +136,9 @@ pub fn screen(run: Option<&Run>, battle: bool, view: &RunView) -> Screen {
     }
     if view.admiral_editor {
         return Screen::AdmiralEditor;
+    }
+    if view.module_editor {
+        return Screen::ModuleEditor;
     }
     let Some(run) = run else {
         return if view.choosing {
@@ -454,6 +461,11 @@ mod tests {
             ..view
         };
         assert_eq!(screen(None, false, &admirals), Screen::AdmiralEditor);
+        let modules = RunView {
+            module_editor: true,
+            ..view
+        };
+        assert_eq!(screen(Some(&run), true, &modules), Screen::ModuleEditor);
     }
 
     /// Erste Reihe: immer Gefechte. Sieg → Beute → Karte, die nächste Reihe ist wählbar.

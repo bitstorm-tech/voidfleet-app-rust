@@ -353,6 +353,10 @@ plain! {
     settings_admiral_editor admiral_editor_title admiral_editor_numbers admiral_editor_shields admiral_editor_deck
     admiral_editor_add admiral_editor_valid admiral_editor_hint
 
+    // --- Modul-Editor ---
+    settings_module_editor module_editor_title module_editor_number module_editor_none module_editor_valid
+    module_editor_hint
+
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close camera_view_toggle loading_failed
 
@@ -719,6 +723,23 @@ impl Messages {
             self.text(&format!("{key}.name")),
             self.text(&format!("{key}.text")),
         )
+    }
+
+    /// Die Wirkung eines Moduls mit den Zahlen aus `rules` (`rules.json` als JSON) statt den geltenden: die Vorschau
+    /// des Modul-Editors.
+    pub fn module_text_with(&self, module: ModuleId, rules: &Value) -> String {
+        let (_, json) = TEXT_FILES
+            .into_iter()
+            .find(|(file, _)| *file == format!("{}.json", self.code))
+            .expect("jede Sprache hat ihre Datei");
+        let tree: Value = serde_json::from_str(json).expect("Textdatei");
+        let text = tree
+            .pointer(&format!("/module/{}/text", snake(module)))
+            .and_then(Value::as_str)
+            .expect("jedes Modul hat seinen Text");
+        let mut data = serde_json::to_value(data()).expect("Daten des Regelwerks als JSON");
+        data["rules"] = rules.clone();
+        with_data(text, &data).unwrap_or_else(|error| error)
     }
 
     /// Die Wörter der Schadensrechnung: Ausweichen, Gegenmaßnahmen, Panzerung, gedeckt, Schild, tödlich.

@@ -209,7 +209,8 @@ pub(super) fn autoplay(
         | Screen::Models
         | Screen::Editor
         | Screen::Cards
-        | Screen::AdmiralEditor => {}
+        | Screen::AdmiralEditor
+        | Screen::ModuleEditor => {}
     }
 }
 

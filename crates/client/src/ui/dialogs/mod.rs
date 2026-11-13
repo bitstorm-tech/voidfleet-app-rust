@@ -24,6 +24,7 @@ pub mod admiral_select;
 mod card_editor;
 pub mod main_menu;
 mod map_editor;
+mod module_editor;
 pub mod result_screen;
 pub mod rules;
 pub mod run_nodes;
@@ -409,6 +410,7 @@ impl Plugin for DialogsPlugin {
                 map_editor::MapEditorPlugin,
                 card_editor::CardEditorPlugin,
                 admiral_editor::AdmiralEditorPlugin,
+                module_editor::ModuleEditorPlugin,
                 star_map::StarMapPlugin,
                 run_nodes::RunNodesPlugin,
                 result_screen::ResultScreenPlugin,

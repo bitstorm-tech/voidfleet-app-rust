@@ -789,6 +789,13 @@ pub(super) fn spawn(
                                                     view.admiral_editor = true;
                                                 }
                                             ),
+                                            dev_button(
+                                                fonts,
+                                                locale.settings_module_editor(),
+                                                |view| {
+                                                    view.module_editor = true;
+                                                }
+                                            ),
                                         ],
                                     )],
                                 ),
