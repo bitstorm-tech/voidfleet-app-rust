@@ -1,0 +1,11 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 2,
+  "value": 1,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Ablativpanzerung", "effect": "Doktrin: Panzerung {v}." },
+    "en": { "name": "Ablative Armor", "effect": "Doctrine: armor {v}." }
+  }
+}

@@ -1,5 +1,6 @@
-//! Übersetzungen. Die Texte stehen je Sprache in `assets/data/text/<sprache>.json` (Format in `docs/daten.md`); hier
-//! steht nur, wie sie gelesen werden. [`Messages`] hat je sichtbarem Text eine Methode (`hud_end_turn`, `card_effect`
+//! Übersetzungen. Die Texte stehen je Sprache in `assets/data/text/<sprache>.json` (Format in `docs/daten.md`), die
+//! der Karten in ihrer Kartendatei (`assets/data/cards/<id>.json`, über [`data`]); hier steht nur, wie sie gelesen
+//! werden. [`Messages`] hat je sichtbarem Text eine Methode (`hud_end_turn`, `card_effect`
 //! …), die so heißt wie sein Schlüssel in der Datei; Gruppen über Ids (Karten, Admirale, Gegner, Stationen, Fehler …)
 //! nehmen das Enum aus `voidfleet_core` und lesen `gruppe.id`. Im Text steht `{name}` für ein Argument der Methode und
 //! `{rules.battle.clock_start}` für eine Zahl aus den Daten des Regelwerks (`enemies`, `cards`, `admirals`, `rules`).
@@ -26,8 +27,8 @@ use voidfleet_core::{
     admirals::{AdmiralId, FlagshipId, Station},
     battle::{BattleResult, RuleError},
     board::{EnemySlot, Row},
-    cards::{CardId, CardTarget, CardType, DeckCard},
-    data::data,
+    cards::{CardId, CardTarget, CardType, DeckCard, LOOT_POOL},
+    data::{CardData, data},
     enemies::{Action, EnemyClass, EnemyId},
     events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
     modules::ModuleId,
@@ -52,7 +53,7 @@ pub const TEXT_FILES: [(&str, &str); 2] = [
     ),
 ];
 
-/// Die Texte je Sprache in der Reihenfolge von [`LANGUAGES`], flach nach Schlüssel (`card.torpedo.name`,
+/// Die Texte je Sprache in der Reihenfolge von [`LANGUAGES`], flach nach Schlüssel (`hud_round`,
 /// `radio_lines.victory.0`); die Zahlen aus den Daten sind schon eingesetzt.
 static TEXTS: LazyLock<[HashMap<String, String>; 2]> = LazyLock::new(|| {
     let data = serde_json::to_value(data()).expect("Daten des Regelwerks als JSON");
@@ -92,7 +93,7 @@ fn flatten(value: &Value, key: String, data: &Value, texts: &mut HashMap<String,
 
 /// Setzt die Zahlen aus den Daten ein: `{rules.battle.clock_start}`, `{admirals.osei.hull}`. Platzhalter ohne Punkt
 /// sind Argumente und bleiben stehen. Der Fehler nennt den Pfad, den es in den Daten nicht gibt.
-pub fn with_data(text: &str, data: &Value) -> Result<String, String> {
+fn with_data(text: &str, data: &Value) -> Result<String, String> {
     let mut out = String::new();
     let mut rest = text;
     while let Some((before, after)) = rest.split_once('{') {
@@ -112,6 +113,32 @@ pub fn with_data(text: &str, data: &Value) -> Result<String, String> {
         rest = tail;
     }
     Ok(out + rest)
+}
+
+/// Das Kürzel einer Sprache in den Dateien: `en`, `de`.
+pub fn code(language: Language) -> &'static str {
+    match language {
+        Language::En => "en",
+        Language::De => "de",
+    }
+}
+
+/// Die erste Karte, deren Text in einer Sprache fehlt, keinen Namen hat oder einen Platzhalter, den [`effect_text`]
+/// nicht füllt.
+pub fn check_card_texts(cards: &HashMap<CardId, CardData>) -> Result<(), (CardId, Language)> {
+    for id in LOOT_POOL {
+        for language in LANGUAGES {
+            let text = cards[&id].text.get(code(language));
+            let valid = text.is_some_and(|text| {
+                !text.name.trim().is_empty()
+                    && !effect_text(&text.effect, 0, 0).contains(['{', '}'])
+            });
+            if !valid {
+                return Err((id, language));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Füllt den Effekttext einer Karte mit dem Hauptwert `v` und dem Zweitwert `extra`: `{v}`, `{extra}`, dazu
@@ -137,7 +164,7 @@ pub fn effect_text(template: &str, v: i32, extra: i32) -> String {
 }
 
 /// Schlüssel einer Id wie in den Dateien: `CoupDeGrace` wird `coup_de_grace`; die Felder einer Variante zählen nicht.
-pub fn snake(id: impl Debug) -> String {
+fn snake(id: impl Debug) -> String {
     let mut key = String::new();
     for letter in format!("{id:?}")
         .chars()
@@ -247,10 +274,11 @@ pub enum Condition {
     Covered,
 }
 
-/// Alle sichtbaren Texte einer Sprache.
+/// Alle sichtbaren Texte einer Sprache; die der Karten stehen in den Daten ([`data`]).
 #[derive(Clone, Copy)]
 pub struct Messages {
     texts: &'static HashMap<String, String>,
+    code: &'static str,
 }
 
 /// Texte ohne Parameter.
@@ -601,12 +629,12 @@ impl Messages {
     }
 
     pub fn card_name(&self, card: CardId) -> &'static str {
-        self.text(&format!("card.{}.name", snake(card)))
+        &data().cards[&card].text[self.code].name
     }
 
     /// Effekttext mit dem Hauptwert `v` der (aufgewerteten) Karte, samt Zuschlägen im Gefecht ([`effect_text`]).
     pub fn card_effect(&self, card: DeckCard, v: i32) -> String {
-        let template = self.text(&format!("card.{}.effect", snake(card.id)));
+        let template = &data().cards[&card.id].text[self.code].effect;
         effect_text(template, v, card.id.extra())
     }
 
@@ -824,7 +852,10 @@ impl Locale {
             .expect("jede Sprache steht in LANGUAGES")];
         Self {
             language,
-            messages: Messages { texts },
+            messages: Messages {
+                texts,
+                code: code(language),
+            },
         }
     }
 
@@ -1005,6 +1036,23 @@ mod tests {
         assert_eq!(snake(CardId::CoupDeGrace), "coup_de_grace");
         assert_eq!(snake(Action::Shields(6)), "shields");
         assert_eq!(snake(Antialiasing::X2), "x2");
+    }
+
+    #[test]
+    fn every_card_has_its_texts() {
+        assert_eq!(check_card_texts(&data().cards), Ok(()));
+        let mut cards = data().cards.clone();
+        let torpedo = cards.get_mut(&CardId::Torpedo).unwrap();
+        torpedo.text.get_mut("de").unwrap().effect = "{w} Schaden".into();
+        assert_eq!(
+            check_card_texts(&cards),
+            Err((CardId::Torpedo, Language::De))
+        );
+        cards.get_mut(&CardId::Torpedo).unwrap().text.remove("de");
+        assert_eq!(
+            check_card_texts(&cards),
+            Err((CardId::Torpedo, Language::De))
+        );
     }
 
     /// Jede Id jeder Gruppe hat in beiden Sprachen ihren Text, und kein Platzhalter bleibt stehen. Eine neue Variante

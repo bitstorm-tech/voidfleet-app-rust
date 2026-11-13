@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 3,
+  "value": 0,
+  "upgraded": { "value": 2 },
+  "text": {
+    "de": { "name": "Rammkurs", "effect": "Rammt ein gewähltes Schiff: Es nimmt das Doppelte deiner ATK{bonus}, dein Flaggschiff seine ATK. Zielsuchend, durchschlagend." },
+    "en": { "name": "Collision Course", "effect": "Ram a chosen ship: it takes twice your ATK{bonus}, your flagship takes its ATK. Homing, piercing." }
+  }
+}

@@ -79,8 +79,8 @@
   "card_editor_upgraded": "Aufgewertet",
   "card_editor_name": "Name",
   "card_editor_effect": "Effekt",
-  "card_editor_valid": "Alle Karten stimmen. Gespeichertes gilt im Spiel nach dem Neubauen.",
-  "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {bonus} der Wert als „ +2“ oder nichts; Zahlen aus den Datendateien über ihren Pfad (docs/daten.md).",
+  "card_editor_valid": "Alle Karten stimmen. Speichern setzt die Änderungen sofort im Spiel ein.",
+  "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {bonus} der Wert als „ +2“ oder nichts.",
   "card_editor_error_text": "{card} ({language}): Der Name ist leer oder ein Platzhalter im Effekt geht nicht auf.",
   "card_editor_error_numbers": "{card}: Eine Zahl ist kleiner als 0 oder der Zweitwert fehlt.",
   "settings_show_fps": "FPS-Anzeige",
@@ -393,112 +393,6 @@
   "row_name": {
     "front": "Front",
     "back": "Back"
-  },
-  "card": {
-    "torpedo": {
-      "name": "Torpedo",
-      "effect": "{v} Schaden auf ein gewähltes Schiff. Zielsuchend."
-    },
-    "orbital_strike": {
-      "name": "Orbitalschlag",
-      "effect": "{v} Schaden auf ein gewähltes Schiff. Durchschlagend."
-    },
-    "volley_fire": {
-      "name": "Salvenfeuer",
-      "effect": "{v} Schaden auf jede gegnerische Einheit. Durchschlagend."
-    },
-    "barrage": {
-      "name": "Sperrfeuer",
-      "effect": "{v} Schaden auf jedes gegnerische Schiff, das gerade ausweicht. Zielsuchend."
-    },
-    "heat_seeker": {
-      "name": "Wärmesucher",
-      "effect": "{v} Schaden auf ein gewähltes Schiff, {evading}, wenn es ausweicht. Zielsuchend, durchschlagend."
-    },
-    "coup_de_grace": {
-      "name": "Gnadenstoß",
-      "effect": "{v} Schaden auf ein gewähltes Schiff, {emergency}, wenn es im Notfall ist."
-    },
-    "bombardment": {
-      "name": "Bombardement",
-      "effect": "{v} Schaden auf jede Einheit in der gegnerischen Back-Reihe. Durchschlagend."
-    },
-    "collision_course": {
-      "name": "Rammkurs",
-      "effect": "Rammt ein gewähltes Schiff: Es nimmt das Doppelte deiner ATK{bonus}, dein Flaggschiff seine ATK. Zielsuchend, durchschlagend."
-    },
-    "firebomb": {
-      "name": "Brandsatz",
-      "effect": "{v} Schaden auf ein gewähltes Schiff, Brand."
-    },
-    "emergency_shields": {
-      "name": "Notschilde",
-      "effect": "Schilde {v}."
-    },
-    "hold_the_line": {
-      "name": "Standhalten",
-      "effect": "Schilde {v}, Abwehrfeuer {extra}."
-    },
-    "ablative_armor": {
-      "name": "Ablativpanzerung",
-      "effect": "Doktrin: Panzerung {v}."
-    },
-    "overcharge": {
-      "name": "Überladung",
-      "effect": "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {extra} Schaden."
-    },
-    "power_surge": {
-      "name": "Energiestoß",
-      "effect": "+{v} ATK in dieser Runde."
-    },
-    "repair_crew": {
-      "name": "Reparaturtrupp",
-      "effect": "Löscht den Brand und repariert {v} Hülle, zusätzlich zur Station."
-    },
-    "emp_blast": {
-      "name": "EMP-Stoß",
-      "effect": "Ein gewähltes Schiff verliert Schilde und Aufladung."
-    },
-    "targeting_jammer": {
-      "name": "Zielstörer",
-      "effect": "Alle gegnerischen Schüsse im Gegnerzug −1 ATK."
-    },
-    "radio_silence": {
-      "name": "Funkstille",
-      "effect": "Ein gewähltes Schiff feuert in dieser Runde nicht und setzt seine Sonderaktion aus; eine Aufladung bricht ab."
-    },
-    "tractor_beam": {
-      "name": "Traktorstrahl",
-      "effect": "Zieht ein gewähltes Schiff (kein Flaggschiff) in einen freien Slot seiner Reihe; Deckung bricht."
-    },
-    "micro_jump": {
-      "name": "Kurzsprung",
-      "effect": "Dein Flaggschiff verlässt das Brett: danach in dieser Runde keine Station mehr, kein Ziel im Gegnerzug; es kehrt in der Auflösung zurück."
-    },
-    "evasive_action": {
-      "name": "Ausweichmanöver",
-      "effect": "Dein Flaggschiff wechselt sofort die Spalte, ohne eine Station zu verbrauchen."
-    },
-    "countermeasures": {
-      "name": "Gegenmaßnahmen",
-      "effect": "Der erste gegnerische Angriff im Gegnerzug macht halben Schaden."
-    },
-    "scavenge": {
-      "name": "Plündern",
-      "effect": "{extra} Befehle ziehen."
-    },
-    "red_alert": {
-      "name": "Alarmstufe Rot",
-      "effect": "Löse in dieser Runde eine zweite, andere Station aus."
-    },
-    "fire_control_doctrine": {
-      "name": "Feuerleitdoktrin",
-      "effect": "Doktrin: Alle eigenen Schüsse und Angriffskarten +{v} Schaden."
-    },
-    "battle_stations": {
-      "name": "Alarmbereitschaft",
-      "effect": "Doktrin: In jedem Gegnerzug Schilde {v}."
-    }
   },
   "card_bonus": "{card}: +{bonus} Schaden.",
   "keywords": [

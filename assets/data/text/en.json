@@ -79,8 +79,8 @@
   "card_editor_upgraded": "Upgraded",
   "card_editor_name": "Name",
   "card_editor_effect": "Effect",
-  "card_editor_valid": "All cards are valid. Saved changes apply in the game after rebuilding.",
-  "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {bonus} the value as “ +2” or nothing; numbers from the data files by their path (docs/daten.md).",
+  "card_editor_valid": "All cards are valid. Saving applies the changes in the game at once.",
+  "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {bonus} the value as “ +2” or nothing.",
   "card_editor_error_text": "{card} ({language}): the name is empty or a placeholder in the effect does not resolve.",
   "card_editor_error_numbers": "{card}: a number is below 0 or the second value is missing.",
   "settings_show_fps": "FPS counter",
@@ -393,112 +393,6 @@
   "row_name": {
     "front": "front",
     "back": "back"
-  },
-  "card": {
-    "torpedo": {
-      "name": "Torpedo",
-      "effect": "{v} damage to a chosen ship. Homing."
-    },
-    "orbital_strike": {
-      "name": "Orbital Strike",
-      "effect": "{v} damage to a chosen ship. Piercing."
-    },
-    "volley_fire": {
-      "name": "Volley Fire",
-      "effect": "{v} damage to every enemy unit. Piercing."
-    },
-    "barrage": {
-      "name": "Barrage",
-      "effect": "{v} damage to every enemy ship that is evading. Homing."
-    },
-    "heat_seeker": {
-      "name": "Heat Seeker",
-      "effect": "{v} damage to a chosen ship, {evading} if it is evading. Homing, piercing."
-    },
-    "coup_de_grace": {
-      "name": "Coup de Grâce",
-      "effect": "{v} damage to a chosen ship, {emergency} if it is in emergency."
-    },
-    "bombardment": {
-      "name": "Bombardment",
-      "effect": "{v} damage to every unit in the enemy back row. Piercing."
-    },
-    "collision_course": {
-      "name": "Collision Course",
-      "effect": "Ram a chosen ship: it takes twice your ATK{bonus}, your flagship takes its ATK. Homing, piercing."
-    },
-    "firebomb": {
-      "name": "Firebomb",
-      "effect": "{v} damage to a chosen ship, burning."
-    },
-    "emergency_shields": {
-      "name": "Emergency Shields",
-      "effect": "Shields {v}."
-    },
-    "hold_the_line": {
-      "name": "Hold the Line",
-      "effect": "Shields {v}, retaliation {extra}."
-    },
-    "ablative_armor": {
-      "name": "Ablative Armor",
-      "effect": "Doctrine: armor {v}."
-    },
-    "overcharge": {
-      "name": "Overcharge",
-      "effect": "+{v} ATK this round; your flagship takes {extra} damage at the end of your turn."
-    },
-    "power_surge": {
-      "name": "Power Surge",
-      "effect": "+{v} ATK this round."
-    },
-    "repair_crew": {
-      "name": "Repair Crew",
-      "effect": "Puts out the fire and repairs {v} hull, on top of the station."
-    },
-    "emp_blast": {
-      "name": "EMP Blast",
-      "effect": "A chosen ship loses its shields and its charge."
-    },
-    "targeting_jammer": {
-      "name": "Targeting Jammer",
-      "effect": "Every enemy shot in the enemy turn −1 ATK."
-    },
-    "radio_silence": {
-      "name": "Radio Silence",
-      "effect": "A chosen ship neither fires nor uses its special action this round; a charge breaks."
-    },
-    "tractor_beam": {
-      "name": "Tractor Beam",
-      "effect": "Pulls a chosen ship (not a flagship) into a free slot of its row; cover breaks."
-    },
-    "micro_jump": {
-      "name": "Micro Jump",
-      "effect": "Your flagship leaves the board: no more stations this round, no target in the enemy turn; it returns in the resolution."
-    },
-    "evasive_action": {
-      "name": "Evasive Action",
-      "effect": "Your flagship moves to another column at once, without using a station."
-    },
-    "countermeasures": {
-      "name": "Countermeasures",
-      "effect": "The first enemy attack in the enemy turn deals half damage."
-    },
-    "scavenge": {
-      "name": "Scavenge",
-      "effect": "Draw {extra} commands."
-    },
-    "red_alert": {
-      "name": "Red Alert",
-      "effect": "Trigger a second, different station this round."
-    },
-    "fire_control_doctrine": {
-      "name": "Fire Control Doctrine",
-      "effect": "Doctrine: all your shots and attack cards +{v} damage."
-    },
-    "battle_stations": {
-      "name": "Battle Stations",
-      "effect": "Doctrine: shields {v} in each enemy turn."
-    }
   },
   "card_bonus": "{card}: +{bonus} damage.",
   "keywords": [

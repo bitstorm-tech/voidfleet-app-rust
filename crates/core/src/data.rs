@@ -1,12 +1,13 @@
-//! Die Zahlen des Spiels: Werte und Muster der Gegner, Karten, Admirale und alle übrigen Stellgrößen stehen in
-//! `assets/data/*.json` (Format in `docs/daten.md`), nicht im Code. Die Dateien sind in das Crate eingebettet und
-//! werden beim ersten Zugriff gelesen und geprüft ([`data`]); eine falsche Datei bricht dort mit ihrem Namen ab.
-// shortcut: eingebettet, eine Änderung gilt also erst nach dem Neubauen; fürs Neuladen im laufenden Spiel (Editor)
-// die Dateien im Client lesen und hier einsetzen.
+//! Die Zahlen des Spiels: Werte und Muster der Gegner, Karten (je Karte eine Datei, samt ihren Texten), Admirale und
+//! alle übrigen Stellgrößen stehen in `assets/data/` (Format in `docs/daten.md`), nicht im Code. [`Data::load`] liest
+//! und prüft sie zur Laufzeit; eine falsche Datei ist ein Fehler mit ihrem Namen. Es gilt, was zuletzt [`install`]
+//! bekam (der Client beim Start und der Befehlskarten-Editor nach dem Speichern), sonst beim ersten Zugriff der Ordner
+//! des Repositorys ([`REPO_DATA`], für Tests).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeInclusive;
-use std::sync::LazyLock;
+use std::path::Path;
+use std::sync::RwLock;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ use crate::enemies::{EnemyClass, EnemyId, Unit, valid_pattern};
 
 /// `enemies_defaults.json`: ein Gegner, seine Klasse und die Vorlage seiner Werte
 /// ([`Unit::from`](crate::enemies::Unit)); im Gefecht gelten die Werte aus der Kartendatei.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyData {
     pub class: EnemyClass,
@@ -44,9 +45,10 @@ pub enum Step {
     Bolt,
 }
 
-/// `cards.json`: eine Karte. `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei
+/// `cards/<id>.json`: eine Karte. `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei
 /// Karten ohne Zahl), `extra` der Zweitwert der Karten aus [`EXTRA_CARDS`], `upgraded` nennt, was die aufgewertete
-/// Fassung anders hat.
+/// Fassung anders hat, `text` je Sprachkürzel (`en`, `de`) Name und Effekttext; welche Sprachen es gibt und was in den
+/// Texten steht, weiß der Client.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CardData {
@@ -58,6 +60,14 @@ pub struct CardData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra: Option<i32>,
     pub upgraded: Upgrade,
+    pub text: BTreeMap<String, CardText>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CardText {
+    pub name: String,
+    pub effect: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -71,7 +81,7 @@ pub struct Upgrade {
 
 /// `admirals.json`: ein Admiral mit Hülle und ATK seines Flaggschiffs, dem Wert seiner Schild-Station, der
 /// Kennkarte und dem Startdeck.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AdmiralData {
     pub hull: i32,
@@ -82,7 +92,7 @@ pub struct AdmiralData {
 }
 
 /// `rules.json`: alle Stellgrößen, die nicht an einem Gegner, einer Karte oder einem Admiral hängen.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rules {
     pub battle: BattleRules,
@@ -92,7 +102,7 @@ pub struct Rules {
     pub run: RunRules,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BattleRules {
     pub hand_size: usize,
@@ -108,7 +118,7 @@ pub struct BattleRules {
     pub clock_start: u32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct StationRules {
     /// Schadenskontrolle: Hülle zurück.
@@ -124,7 +134,7 @@ pub struct StationRules {
     pub follow_up_card_bonus: i32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyRules {
     pub ram_damage: i32,
@@ -136,7 +146,7 @@ pub struct EnemyRules {
     pub plasma_burn_percent: i32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModuleRules {
     pub fire_control_computer_attack: i32,
@@ -148,7 +158,7 @@ pub struct ModuleRules {
 }
 
 /// Spannen stehen als `[von, bis]`, beide Enden eingeschlossen.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunRules {
     pub battle_scrap: [u32; 2],
@@ -187,7 +197,7 @@ pub fn span([from, to]: [u32; 2]) -> RangeInclusive<u32> {
     from..=to
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Data {
     pub enemies: HashMap<EnemyId, EnemyData>,
     pub cards: HashMap<CardId, CardData>,
@@ -195,70 +205,88 @@ pub struct Data {
     pub rules: Rules,
 }
 
+/// `assets/data` des Repositorys.
+pub const REPO_DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/data");
+
+static DATA: RwLock<Option<&'static Data>> = RwLock::new(None);
+
+/// Die geltenden Daten: was zuletzt [`install`] bekam, sonst die aus [`REPO_DATA`].
 pub fn data() -> &'static Data {
-    static DATA: LazyLock<Data> = LazyLock::new(|| {
-        let data = Data {
-            enemies: parse(
-                "enemies_defaults.json",
-                include_str!("../../../assets/data/enemies_defaults.json"),
-            ),
-            cards: parse(
-                "cards.json",
-                include_str!("../../../assets/data/cards.json"),
-            ),
-            admirals: parse(
-                "admirals.json",
-                include_str!("../../../assets/data/admirals.json"),
-            ),
-            rules: parse(
-                "rules.json",
-                include_str!("../../../assets/data/rules.json"),
-            ),
-        };
-        data.check();
-        data
-    });
-    &DATA
+    if let Some(data) = *DATA.read().expect("Daten") {
+        return data;
+    }
+    DATA.write().expect("Daten").get_or_insert_with(|| {
+        let data = Data::load(Path::new(REPO_DATA)).unwrap_or_else(|error| panic!("{error}"));
+        Box::leak(Box::new(data))
+    })
+}
+
+/// Setzt geprüfte Daten ein; von da an gelten sie überall.
+// Jede Fassung bleibt im Speicher, damit `&'static` hält: ein paar KB je Speichern im Editor.
+pub fn install(data: Data) -> Result<(), String> {
+    data.check()?;
+    *DATA.write().expect("Daten") = Some(Box::leak(Box::new(data)));
+    Ok(())
 }
 
 pub fn rules() -> &'static Rules {
     &data().rules
 }
 
-fn parse<T: DeserializeOwned>(file: &str, json: &str) -> T {
-    serde_json::from_str(json).unwrap_or_else(|e| panic!("assets/data/{file}: {e}"))
+/// Liest eine Datei aus `dir` (`assets/data`); der Fehler nennt sie.
+pub fn read<T: DeserializeOwned>(dir: &Path, file: &str) -> Result<T, String> {
+    let json = std::fs::read_to_string(dir.join(file));
+    json.map_err(|e| e.to_string())
+        .and_then(|json| serde_json::from_str(&json).map_err(|e| e.to_string()))
+        .map_err(|e| format!("assets/data/{file}: {e}"))
 }
 
 impl Data {
+    /// Liest alle Dateien aus `dir` (`assets/data`) und prüft sie.
+    pub fn load(dir: &Path) -> Result<Self, String> {
+        let cards = LOOT_POOL
+            .iter()
+            .map(|&id| Ok((id, read(dir, &id.file())?)))
+            .collect::<Result<_, String>>()?;
+        let data = Self {
+            enemies: read(dir, "enemies_defaults.json")?,
+            cards,
+            admirals: read(dir, "admirals.json")?,
+            rules: read(dir, "rules.json")?,
+        };
+        data.check()?;
+        Ok(data)
+    }
+
     /// Jede Id hat ihren Eintrag, und was das Regelwerk voraussetzt, stimmt.
-    fn check(&self) {
+    pub fn check(&self) -> Result<(), String> {
         for id in EnemyId::ALL {
             let enemy = self
                 .enemies
                 .get(&id)
-                .unwrap_or_else(|| panic!("enemies_defaults.json: {id:?} fehlt"));
+                .ok_or(format!("enemies_defaults.json: {id:?} fehlt"))?;
             let values = enemy.hull > 0 && enemy.attack >= 0 && enemy.armor >= 0;
-            assert!(
-                values && valid_pattern(&enemy.pattern),
-                "enemies_defaults.json: {id:?}: Werte negativ, Muster leer, Spaltenfeuer zu breit, Schild \
-                 nicht positiv oder gerufene Einheit ungültig"
-            );
+            if !values || !valid_pattern(&enemy.pattern) {
+                return Err(format!(
+                    "enemies_defaults.json: {id:?}: Werte negativ, Muster leer, Spaltenfeuer zu breit, Schild \
+                     nicht positiv oder gerufene Einheit ungültig"
+                ));
+            }
         }
         for id in LOOT_POOL {
-            let card = self
-                .cards
-                .get(&id)
-                .unwrap_or_else(|| panic!("cards.json: {id:?} fehlt"));
-            assert!(
-                card.check(EXTRA_CARDS.contains(&id)),
-                "cards.json: {id:?}: Wert negativ oder `extra` fehlt bzw. steht, wo es keins gibt"
-            );
+            let card = self.cards.get(&id).ok_or(format!("{}: fehlt", id.file()))?;
+            if !card.check(EXTRA_CARDS.contains(&id)) {
+                return Err(format!(
+                    "{}: Wert negativ oder `extra` fehlt bzw. steht, wo es keins gibt",
+                    id.file()
+                ));
+            }
         }
-        for id in ADMIRAL_IDS {
-            assert!(
-                self.admirals.contains_key(&id),
-                "admirals.json: {id:?} fehlt"
-            );
+        if let Some(id) = ADMIRAL_IDS
+            .iter()
+            .find(|id| !self.admirals.contains_key(id))
+        {
+            return Err(format!("admirals.json: {id:?} fehlt"));
         }
         let run = &self.rules.run;
         for [from, to] in [
@@ -267,7 +295,10 @@ impl Data {
             run.card_price,
             run.module_price,
         ] {
-            assert!(from <= to, "rules.json: Spanne [{from}, {to}] ist leer");
+            if from > to {
+                return Err(format!("rules.json: Spanne [{from}, {to}] ist leer"));
+            }
         }
+        Ok(())
     }
 }

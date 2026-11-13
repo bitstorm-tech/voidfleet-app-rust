@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "none",
+  "cost": 2,
+  "value": 2,
+  "upgraded": { "value": 4 },
+  "text": {
+    "de": { "name": "Salvenfeuer", "effect": "{v} Schaden auf jede gegnerische Einheit. Durchschlagend." },
+    "en": { "name": "Volley Fire", "effect": "{v} damage to every enemy unit. Piercing." }
+  }
+}

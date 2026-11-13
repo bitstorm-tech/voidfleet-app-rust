@@ -1,0 +1,11 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 2,
+  "value": 0,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Alarmstufe Rot", "effect": "Löse in dieser Runde eine zweite, andere Station aus." },
+    "en": { "name": "Red Alert", "effect": "Trigger a second, different station this round." }
+  }
+}

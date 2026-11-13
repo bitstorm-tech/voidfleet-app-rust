@@ -1,6 +1,6 @@
-//! Das Befehlsdeck: 26 Karten, die nur der Spieler spielt (`docs/karten.md`). Art, Ziel, Kosten und Wert jeder
-//! Karte samt ihrer aufgewerteten Fassung stehen in `assets/data/cards.json`, die Startdecks in `admirals.json`.
-//! Namen und Effekttexte liegen im Client.
+//! Das Befehlsdeck: 26 Karten, die nur der Spieler spielt (`docs/karten.md`). Art, Ziel, Kosten, Wert und Zweitwert
+//! jeder Karte samt ihrer aufgewerteten Fassung und ihre Texte stehen in `assets/data/cards/<id>.json`, die Startdecks
+//! in `admirals.json`. Was die Texte bedeuten, weiß der Client.
 
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,12 @@ impl DeckCard {
 impl CardId {
     fn data(self) -> &'static CardData {
         &data().cards[&self]
+    }
+
+    /// Die Datei der Karte in `assets/data`: `cards/<id>.json`.
+    pub fn file(self) -> String {
+        let id = serde_json::to_value(self).expect("Id als JSON");
+        format!("cards/{}.json", id.as_str().expect("Id als Text"))
     }
 
     pub fn card_type(self) -> CardType {

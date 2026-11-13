@@ -1,0 +1,12 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 1,
+  "value": 0,
+  "extra": 2,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Plündern", "effect": "{extra} Befehle ziehen." },
+    "en": { "name": "Scavenge", "effect": "Draw {extra} commands." }
+  }
+}

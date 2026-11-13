@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "none",
+  "cost": 1,
+  "value": 0,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Zielstörer", "effect": "Alle gegnerischen Schüsse im Gegnerzug −1 ATK." },
+    "en": { "name": "Targeting Jammer", "effect": "Every enemy shot in the enemy turn −1 ATK." }
+  }
+}

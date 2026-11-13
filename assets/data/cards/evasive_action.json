@@ -1,0 +1,11 @@
+{
+  "type": "tactic",
+  "target": "column",
+  "cost": 1,
+  "value": 0,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Ausweichmanöver", "effect": "Dein Flaggschiff wechselt sofort die Spalte, ohne eine Station zu verbrauchen." },
+    "en": { "name": "Evasive Action", "effect": "Your flagship moves to another column at once, without using a station." }
+  }
+}

@@ -1,23 +1,22 @@
-//! Der Befehlskarten-Editor ohne Oberfläche (Einstellungen → Dev, [`Screen::Cards`](crate::run::Screen)): Art,
-//! Ziel und Zahlen jeder Karte aus `assets/data/cards.json`, Name und Effekttext je Sprache aus
-//! `assets/data/text/<sprache>.json` laden, Schritt für Schritt bearbeiten ([`CardEdit`]), prüfen
-//! ([`CardEditor::check`]) und im Format der Dateien schreiben ([`cards_json`], [`text_json`]). Die Dateien sind
-//! eingebettet: Was gespeichert ist, gilt im Spiel nach dem Neubauen; die Vorschau zeigt den Stand des Editors
-//! ([`CardEditor::face`]). Die Ansicht steht in `ui/dialogs/card_editor.rs`; sie legt die Ressource beim ersten Öffnen
-//! an.
+//! Der Befehlskarten-Editor ohne Oberfläche (Einstellungen → Dev, [`Screen::Cards`](crate::run::Screen)): jede Karte
+//! aus ihrer Datei `assets/data/cards/<id>.json` laden (Art, Ziel, Zahlen, Name und Effekttext je Sprache), Schritt
+//! für Schritt bearbeiten ([`CardEdit`]), prüfen ([`CardEditor::check`]) und im Format der Dateien schreiben
+//! ([`card_json`]). Speichern setzt die Karten sofort im Spiel ein ([`install`]); die Vorschau zeigt schon vorher den
+//! Stand des Editors ([`CardEditor::face`]). Die Ansicht steht in `ui/dialogs/card_editor.rs`; sie legt die Ressource
+//! beim ersten Öffnen an.
 
 use std::{collections::HashMap, path::PathBuf};
 
 use bevy::prelude::*;
 use serde_json::Value;
 use voidfleet_core::{
-    cards::{CardId, CardTarget, CardType, DeckCard, EXTRA_CARDS, LOOT_POOL},
-    data::{CardData, data},
+    cards::{CardId, CardTarget, CardType, EXTRA_CARDS, LOOT_POOL},
+    data::{CardData, CardText, Data, data, install, read},
 };
 
 use crate::{
     editor::Note,
-    i18n::{LANGUAGES, TEXT_FILES, effect_text, snake, with_data},
+    i18n::{check_card_texts, code, effect_text},
     settings::Language,
     ui::card::Face,
 };
@@ -58,61 +57,31 @@ pub struct CardEditor {
     /// `assets/data`.
     dir: PathBuf,
     pub cards: HashMap<CardId, CardData>,
-    saved_cards: HashMap<CardId, CardData>,
-    /// Die Textdateien in der Reihenfolge von [`LANGUAGES`], ganz; der Editor ändert nur die Karten darin.
-    texts: [Value; 2],
-    saved_texts: [Value; 2],
+    /// Der Stand der Dateien, zum Verwerfen und um Ungespeichertes zu erkennen.
+    saved: HashMap<CardId, CardData>,
     pub selected: CardId,
     pub note: Option<Note>,
 }
 
-fn index(language: Language) -> usize {
-    LANGUAGES
-        .iter()
-        .position(|&listed| listed == language)
-        .expect("jede Sprache steht in LANGUAGES")
-}
-
-fn text_pointer(card: CardId, field: TextField) -> String {
-    let field = match field {
-        TextField::Name => "name",
-        TextField::Effect => "effect",
-    };
-    format!("/card/{}/{field}", snake(card))
-}
-
 impl CardEditor {
-    /// Liest `cards.json` und die Textdateien aus `dir`; ist eine unlesbar, gilt der eingebettete Stand und die
-    /// Meldung nennt den Fehler.
+    /// Liest die Kartendateien aus `dir`; ist eine unlesbar, gilt für sie der Stand des Spiels und die Meldung nennt
+    /// den Fehler.
     pub fn open(dir: PathBuf) -> Self {
-        let read = |name: &str| {
-            std::fs::read_to_string(dir.join(name)).map_err(|error| format!("{name}: {error}"))
-        };
-        let cards = read("cards.json").and_then(|json| {
-            serde_json::from_str(&json).map_err(|error| format!("cards.json: {error}"))
-        });
-        let texts = TEXT_FILES.map(|(name, embedded)| {
-            read(&format!("text/{name}"))
-                .and_then(|json| serde_json::from_str(&json).map_err(|e| format!("{name}: {e}")))
-                .map_err(|error| (error, serde_json::from_str(embedded).expect("eingebettet")))
-        });
         let mut errors = Vec::new();
-        let cards = cards.unwrap_or_else(|error| {
-            errors.push(error);
-            data().cards.clone()
-        });
-        let texts = texts.map(|text| {
-            text.unwrap_or_else(|(error, embedded)| {
-                errors.push(error);
-                embedded
+        let cards: HashMap<_, _> = LOOT_POOL
+            .iter()
+            .map(|&id| {
+                let card = read(&dir, &id.file()).unwrap_or_else(|error| {
+                    errors.push(error);
+                    data().cards[&id].clone()
+                });
+                (id, card)
             })
-        });
+            .collect();
         Self {
             dir,
-            saved_cards: cards.clone(),
+            saved: cards.clone(),
             cards,
-            saved_texts: texts.clone(),
-            texts,
             selected: LOOT_POOL[0],
             note: (!errors.is_empty()).then(|| Note::Failed(errors.join("; "))),
         }
@@ -123,14 +92,15 @@ impl CardEditor {
     }
 
     pub fn text(&self, language: Language, card: CardId, field: TextField) -> &str {
-        self.texts[index(language)]
-            .pointer(&text_pointer(card, field))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
+        let text = self.cards[&card].text.get(code(language));
+        text.map_or("", |text| match field {
+            TextField::Name => &text.name,
+            TextField::Effect => &text.effect,
+        })
     }
 
     pub fn dirty(&self) -> bool {
-        self.cards != self.saved_cards || self.texts != self.saved_texts
+        self.cards != self.saved
     }
 
     pub fn apply(&mut self, edit: CardEdit) {
@@ -159,121 +129,97 @@ impl CardEditor {
                 card.upgraded.value = card.upgraded.value.filter(|&value| value != card.value);
             }
             CardEdit::Text(language, field, text) => {
-                let pointer = text_pointer(self.selected, field);
-                if let Some(slot) = self.texts[index(language)].pointer_mut(&pointer) {
-                    *slot = Value::String(text);
+                let slot = card
+                    .text
+                    .entry(code(language).to_owned())
+                    .or_insert(CardText {
+                        name: String::new(),
+                        effect: String::new(),
+                    });
+                match field {
+                    TextField::Name => slot.name = text,
+                    TextField::Effect => slot.effect = text,
                 }
             }
             CardEdit::Save => self.save(),
             CardEdit::Discard => {
-                self.cards = self.saved_cards.clone();
-                self.texts = self.saved_texts.clone();
+                self.cards = self.saved.clone();
                 self.note = None;
             }
         }
     }
 
-    /// Die Daten des Regelwerks als JSON, mit den Karten des Editors: Daraus setzen die Texte ihre Zahlen ein.
-    fn data(&self) -> Value {
-        let mut data = serde_json::to_value(data()).expect("Daten des Regelwerks als JSON");
-        data["cards"] = serde_json::to_value(&self.cards).expect("Karten als JSON");
-        data
-    }
-
-    /// Der Effekttext, wie die Karte ihn zeigt; `Err` mit dem Text, wie er dasteht, wenn ein Platzhalter nicht
-    /// aufgeht.
-    fn effect(&self, data: &Value, language: Language, card: DeckCard) -> Result<String, String> {
-        let template = self.text(language, card.id, TextField::Effect);
-        let extra = self.cards[&card.id].extra.unwrap_or(0);
-        with_data(template, data)
-            .map(|text| effect_text(&text, self.value(card), extra))
-            .ok()
-            .filter(|text| !text.contains(['{', '}']))
-            .ok_or_else(|| template.to_owned())
-    }
-
-    fn value(&self, card: DeckCard) -> i32 {
-        let data = &self.cards[&card.id];
-        data.upgraded
-            .value
-            .filter(|_| card.upgraded)
-            .unwrap_or(data.value)
-    }
-
-    /// Was auf der (aufgewerteten) gewählten Karte steht, im Stand des Editors.
+    /// Was auf der (aufgewerteten) gewählten Karte steht, im Stand des Editors; geht ein Platzhalter im Effekt nicht
+    /// auf, steht er da, wie er geschrieben ist.
     pub fn face(&self, language: Language, upgraded: bool) -> Face {
-        let card = DeckCard {
-            id: self.selected,
-            upgraded,
-        };
-        let data = self.card();
-        let name = self.text(language, card.id, TextField::Name);
+        let card = self.card();
+        let name = self.text(language, self.selected, TextField::Name);
+        let template = self.text(language, self.selected, TextField::Effect);
+        let value = card
+            .upgraded
+            .value
+            .filter(|_| upgraded)
+            .unwrap_or(card.value);
+        let effect = effect_text(template, value, card.extra.unwrap_or(0));
         Face {
             name: if upgraded {
                 format!("{name}+")
             } else {
                 name.to_owned()
             },
-            effect: self
-                .effect(&self.data(), language, card)
-                .unwrap_or_else(|text| text),
-            cost: data.upgraded.cost.filter(|_| upgraded).unwrap_or(data.cost),
-            card_type: data.card_type,
-            target: data.target,
+            effect: if effect.contains(['{', '}']) {
+                template.to_owned()
+            } else {
+                effect
+            },
+            cost: card.upgraded.cost.filter(|_| upgraded).unwrap_or(card.cost),
+            card_type: card.card_type,
+            target: card.target,
         }
     }
 
-    /// Die erste Karte (in der Reihenfolge von [`LOOT_POOL`]) mit leerem Namen, einer Zahl, die nicht stimmt, oder
-    /// einem Platzhalter im Effekttext, der nicht aufgeht; dazu die Sprache des Texts.
+    /// Die erste Karte (in der Reihenfolge von [`LOOT_POOL`]) mit einer Zahl, die nicht stimmt (`None`), oder einem
+    /// Text, der in dieser Sprache fehlt, keinen Namen hat oder einen Platzhalter, der nicht aufgeht.
     pub fn check(&self) -> Result<(), (CardId, Option<Language>)> {
-        let data = self.data();
-        for id in LOOT_POOL {
-            if !self.cards[&id].check(EXTRA_CARDS.contains(&id)) {
-                return Err((id, None));
-            }
-            for language in LANGUAGES {
-                let named = !self.text(language, id, TextField::Name).trim().is_empty();
-                let card = DeckCard {
-                    id,
-                    upgraded: false,
-                };
-                if !named || self.effect(&data, language, card).is_err() {
-                    return Err((id, Some(language)));
-                }
-            }
+        if let Some(&id) = LOOT_POOL
+            .iter()
+            .find(|id| !self.cards[id].check(EXTRA_CARDS.contains(id)))
+        {
+            return Err((id, None));
         }
-        Ok(())
+        check_card_texts(&self.cards).map_err(|(id, language)| (id, Some(language)))
     }
 
-    /// Schreibt die geänderten Dateien, wenn alles stimmt.
+    /// Schreibt die geänderten Karten, wenn alles stimmt, und setzt sie im Spiel ein.
     fn save(&mut self) {
         if self.check().is_err() {
             return;
         }
-        let mut files = Vec::new();
-        if self.cards != self.saved_cards {
-            files.push(("cards.json".to_owned(), cards_json(&self.cards)));
-        }
-        for (i, (name, _)) in TEXT_FILES.iter().enumerate() {
-            if self.texts[i] != self.saved_texts[i] {
-                files.push((format!("text/{name}"), text_json(&self.texts[i])));
-            }
-        }
         let mut written = Vec::new();
-        for (name, json) in files {
-            if let Err(error) = std::fs::write(self.dir.join(&name), json) {
-                self.note = Some(Note::Failed(format!("{name}: {error}")));
+        for id in LOOT_POOL {
+            if self.cards[&id] == self.saved[&id] {
+                continue;
+            }
+            let file = id.file();
+            if let Err(error) = std::fs::write(self.dir.join(&file), card_json(&self.cards[&id])) {
+                self.note = Some(Note::Failed(format!("{file}: {error}")));
                 return;
             }
-            written.push(name);
+            self.saved.insert(id, self.cards[&id].clone());
+            written.push(file);
         }
-        self.saved_cards = self.cards.clone();
-        self.saved_texts = self.texts.clone();
-        self.note = Some(Note::Saved(written.join(", ")));
+        let data = Data {
+            cards: self.cards.clone(),
+            ..data().clone()
+        };
+        self.note = Some(match install(data) {
+            Ok(()) => Note::Saved(written.join(", ")),
+            Err(error) => Note::Failed(error),
+        });
     }
 }
 
-/// Ein JSON-Wert auf einer Zeile, mit Leerzeichen wie in `cards.json`: `{ "cost": 1 }`, `{}`.
+/// Ein JSON-Wert auf einer Zeile, mit Leerzeichen wie in den Dateien: `{ "cost": 1 }`, `{}`.
 fn inline(value: &Value) -> String {
     match value {
         Value::Object(fields) if fields.is_empty() => "{}".to_owned(),
@@ -288,56 +234,61 @@ fn inline(value: &Value) -> String {
     }
 }
 
-/// `cards.json` wie die Datei: je Karte eine Zeile, in der Reihenfolge von [`LOOT_POOL`].
-pub fn cards_json(cards: &HashMap<CardId, CardData>) -> String {
-    let lines: Vec<_> = LOOT_POOL
+/// Eine Kartendatei wie die Dateien: je Feld eine Zeile, die Texte je Sprache auf einer.
+pub fn card_json(card: &CardData) -> String {
+    let Value::Object(fields) = serde_json::to_value(card).expect("Karte als JSON") else {
+        unreachable!("eine Karte ist ein Objekt")
+    };
+    let lines: Vec<_> = fields
         .iter()
-        .map(|id| {
-            let card = serde_json::to_value(&cards[id]).expect("Karte als JSON");
-            format!("  \"{}\": {}", snake(id), inline(&card))
+        .map(|(name, value)| {
+            let value = match (name.as_str(), value) {
+                ("text", Value::Object(languages)) => {
+                    let lines: Vec<_> = languages
+                        .iter()
+                        .map(|(code, text)| format!("    \"{code}\": {}", inline(text)))
+                        .collect();
+                    format!("{{\n{}\n  }}", lines.join(",\n"))
+                }
+                _ => inline(value),
+            };
+            format!("  \"{name}\": {value}")
         })
         .collect();
     format!("{{\n{}\n}}\n", lines.join(",\n"))
 }
 
-/// Eine Textdatei wie die Dateien: eingerückt mit zwei Leerzeichen, Felder in ihrer Reihenfolge.
-pub fn text_json(text: &Value) -> String {
-    serde_json::to_string_pretty(text).expect("Text als JSON") + "\n"
-}
-
 #[cfg(test)]
 mod tests {
+    use voidfleet_core::data::REPO_DATA;
+
     use super::*;
 
-    fn open_data() -> CardEditor {
-        CardEditor::open(PathBuf::from(crate::REPO_ASSETS).join("data"))
+    fn open() -> CardEditor {
+        CardEditor::open(REPO_DATA.into())
     }
 
     #[test]
     fn files_come_out_as_they_are() {
-        let dir = PathBuf::from(crate::REPO_ASSETS).join("data");
-        let editor = open_data();
+        let editor = open();
         assert_eq!(editor.note, None);
-        let cards = std::fs::read_to_string(dir.join("cards.json")).unwrap();
-        assert_eq!(cards_json(&editor.cards), cards);
-        for (i, (name, _)) in TEXT_FILES.iter().enumerate() {
-            let text = std::fs::read_to_string(dir.join("text").join(name)).unwrap();
-            assert_eq!(text_json(&editor.texts[i]), text, "{name}");
+        for id in LOOT_POOL {
+            let file = std::fs::read_to_string(PathBuf::from(REPO_DATA).join(id.file())).unwrap();
+            assert_eq!(card_json(&editor.cards[&id]), file, "{}", id.file());
         }
         assert_eq!(editor.check(), Ok(()));
     }
 
     #[test]
-    fn unreadable_files_fall_back_to_the_embedded_ones() {
+    fn unreadable_files_fall_back_to_the_game() {
         let editor = CardEditor::open(PathBuf::from("nirgends"));
         assert!(matches!(editor.note, Some(Note::Failed(_))));
         assert_eq!(editor.cards, data().cards);
-        assert_eq!(editor.check(), Ok(()));
     }
 
     #[test]
     fn upgraded_numbers_drop_out_when_they_match() {
-        let mut editor = open_data();
+        let mut editor = open();
         editor.apply(CardEdit::Select(CardId::Torpedo));
         assert_eq!(editor.card().upgraded.value, Some(8));
         editor.apply(CardEdit::Number(Field::UpgradedValue, -2));
@@ -358,13 +309,13 @@ mod tests {
 
     #[test]
     fn the_preview_follows_numbers_and_text() {
-        let mut editor = open_data();
+        let mut editor = open();
         editor.apply(CardEdit::Select(CardId::HoldTheLine));
         editor.apply(CardEdit::Number(Field::Extra, 4));
-        let text = "Shields {v}, retaliation {extra}, {cards.torpedo.value}.".to_owned();
+        let text = "Shields {v}, retaliation {extra}.".to_owned();
         editor.apply(CardEdit::Text(Language::En, TextField::Effect, text));
         let face = editor.face(Language::En, true);
-        assert_eq!(face.effect, "Shields 7, retaliation 6, 6.");
+        assert_eq!(face.effect, "Shields 7, retaliation 6.");
         assert_eq!(face.name, "Hold the Line+");
         assert_eq!(editor.check(), Ok(()));
         let broken = "Shields {w}.".to_owned();
@@ -374,37 +325,62 @@ mod tests {
             editor.check(),
             Err((CardId::HoldTheLine, Some(Language::En)))
         );
-        editor.apply(CardEdit::Text(
-            Language::En,
-            TextField::Effect,
-            "{cards.x.y}".into(),
-        ));
-        assert!(editor.check().is_err());
     }
 
     #[test]
-    fn saving_writes_only_what_changed() {
+    fn saving_writes_the_changed_card_and_installs_it() {
         let dir = std::env::temp_dir().join(format!("voidfleet-cards-{}", std::process::id()));
-        let source = PathBuf::from(crate::REPO_ASSETS).join("data");
-        std::fs::create_dir_all(dir.join("text")).unwrap();
-        std::fs::copy(source.join("cards.json"), dir.join("cards.json")).unwrap();
-        for (name, _) in TEXT_FILES {
-            std::fs::copy(source.join("text").join(name), dir.join("text").join(name)).unwrap();
+        std::fs::create_dir_all(dir.join("cards")).unwrap();
+        for id in LOOT_POOL {
+            std::fs::copy(
+                PathBuf::from(REPO_DATA).join(id.file()),
+                dir.join(id.file()),
+            )
+            .unwrap();
         }
         let mut editor = CardEditor::open(dir.clone());
-        editor.apply(CardEdit::Text(Language::De, TextField::Name, "Aal".into()));
-        editor.apply(CardEdit::Save);
-        assert_eq!(editor.note, Some(Note::Saved("text/de.json".into())));
-        assert!(!editor.dirty());
-        let reopened = CardEditor::open(dir.clone());
-        assert_eq!(
-            reopened.text(Language::De, CardId::Torpedo, TextField::Name),
-            "Aal"
-        );
         // Ein leerer Name wird nicht gespeichert.
         editor.apply(CardEdit::Text(Language::De, TextField::Name, " ".into()));
         editor.apply(CardEdit::Save);
         assert!(editor.dirty());
+        editor.apply(CardEdit::Text(
+            Language::De,
+            TextField::Name,
+            "Torpedo".into(),
+        ));
+        // Ein Text, den kein anderer Test liest: Die Tests laufen nebeneinander und teilen die Daten.
+        let effect = |editor: &CardEditor| {
+            editor
+                .text(Language::De, CardId::RedAlert, TextField::Effect)
+                .to_owned()
+        };
+        let before = effect(&editor);
+        editor.apply(CardEdit::Select(CardId::RedAlert));
+        editor.apply(CardEdit::Text(
+            Language::De,
+            TextField::Effect,
+            format!("{before} Los."),
+        ));
+        editor.apply(CardEdit::Save);
+        assert_eq!(
+            editor.note,
+            Some(Note::Saved("cards/red_alert.json".into()))
+        );
+        assert!(!editor.dirty());
+        let reopened = CardEditor::open(dir.clone());
+        assert_eq!(effect(&reopened), format!("{before} Los."));
+        assert_eq!(
+            data().cards[&CardId::RedAlert].text["de"].effect,
+            format!("{before} Los.")
+        );
+        // Zurück auf den Stand des Repositorys.
+        editor.apply(CardEdit::Text(
+            Language::De,
+            TextField::Effect,
+            before.clone(),
+        ));
+        editor.apply(CardEdit::Save);
+        assert_eq!(data().cards[&CardId::RedAlert].text["de"].effect, before);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

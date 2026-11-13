@@ -76,6 +76,14 @@ pub struct ClientPlugin;
 
 impl Plugin for ClientPlugin {
     fn build(&self, app: &mut App) {
+        // Vor allem anderen: Alles danach liest die Daten des Regelwerks.
+        let data = voidfleet_core::data::Data::load(&asset_root().join("data"));
+        voidfleet_core::data::install(data.unwrap_or_else(|error| panic!("{error}")))
+            .expect("geprüft");
+        let cards = &voidfleet_core::data::data().cards;
+        if let Err((card, language)) = i18n::check_card_texts(cards) {
+            panic!("{}: Text {language:?} fehlt oder stimmt nicht", card.file());
+        }
         app.add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {

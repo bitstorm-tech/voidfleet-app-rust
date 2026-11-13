@@ -144,11 +144,8 @@ fn show(
                     },
                     Pickable::IGNORE,
                 ));
-                bar.spawn(label(
-                    fonts,
-                    "cards.json · text/en.json · text/de.json",
-                    palette::TEXT_DIM,
-                ));
+                let file = format!("assets/data/{}", editor.selected.file());
+                bar.spawn(label(fonts, file, palette::TEXT_DIM));
                 bar.spawn(gap());
                 bar.spawn((
                     button::text_button(

@@ -4,16 +4,16 @@ Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im 
 
 | Datei | Inhalt | Gilt ab |
 | --- | --- | --- |
-| `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nach dem Neubauen |
-| `cards.json` | Art, Ziel, Kosten, Wert und Zweitwert jeder Karte samt aufgewerteter Fassung ([Karten](karten.md)) | nach dem Neubauen |
-| `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nach dem Neubauen |
-| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nach dem Neubauen |
+| `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nächster Start |
+| `cards/<id>.json` | je Karte eine Datei: Art, Ziel, Kosten, Wert und Zweitwert samt aufgewerteter Fassung, Name und Effekttext je Sprache ([Karten](karten.md)) | nächster Start, aus dem Befehlskarten-Editor sofort |
+| `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nächster Start |
+| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nächster Start |
 | `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten, jede Einheit mit allen Werten, mit denen sie kämpft ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
-| `text/de.json`, `text/en.json` | jeder sichtbare Text, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
+| `text/de.json`, `text/en.json` | jeder sichtbare Text außer denen der Karten, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
 
-Die ersten vier Dateien und die Texte sind in das Programm eingebettet (`cargo run` baut nach einer Änderung von selbst neu), die Sternenkarten liest das Spiel zur Laufzeit. `cargo test -p voidfleet-core` prüft Daten und Sternenkarten: Jeder Gegner, jede Karte und jeder Admiral braucht seinen Eintrag, ein unbekanntes oder fehlendes Feld ist ein Fehler mit Dateiname und Stelle. `cargo test -p voidfleet-client i18n` prüft die Texte. Neue Gegner, Karten, Admirale oder Module entstehen nicht in den Dateien: Sie brauchen einen Namen im Code, Mechanik, Modell und Texte.
+Gegner, Karten, Admirale und Regeln liest das Spiel beim Start, die Sternenkarten bei jedem neuen Run; die Texte sind in das Programm eingebettet (`cargo run` baut nach einer Änderung von selbst neu). `cargo test -p voidfleet-core` prüft Daten und Sternenkarten: Jeder Gegner, jede Karte und jeder Admiral braucht seinen Eintrag, ein unbekanntes oder fehlendes Feld ist ein Fehler mit Dateiname und Stelle. `cargo test -p voidfleet-client i18n` prüft die Texte. Neue Gegner, Karten, Admirale oder Module entstehen nicht in den Dateien: Sie brauchen einen Namen im Code, Mechanik, Modell und Texte.
 
-Namen in den Dateien sind die Ids des Codes in Kleinschreibung mit Unterstrich. Gegner: `raiders`, `fireship`, `torpedo_wing`, `guard_cruiser`, `plasma_cruiser`, `spotter`, `besieger`, `carrier`, `scrap_king`, `warden`, `seal`. Admirale: `osei`, `vance`, `kerr`, `reyes`. Die Karten stehen als Schlüssel in `cards.json`.
+Namen in den Dateien sind die Ids des Codes in Kleinschreibung mit Unterstrich. Gegner: `raiders`, `fireship`, `torpedo_wing`, `guard_cruiser`, `plasma_cruiser`, `spotter`, `besieger`, `carrier`, `scrap_king`, `warden`, `seal`. Admirale: `osei`, `vance`, `kerr`, `reyes`. Karten: der Dateiname in `cards/` (`torpedo`, `heat_seeker` …).
 
 ## Gegner
 
@@ -30,20 +30,32 @@ Was an einem Gegner Mechanik ist, steht im Code und hängt an seinem Namen: Plü
 
 ## Karten
 
+Je Karte eine Datei `cards/<id>.json` mit allem, was auf der Karte steht; das Bild liegt unter `images/cards/`.
+
 ```json
-"torpedo": { "type": "attack", "target": "enemy", "cost": 2, "value": 6, "upgraded": { "value": 8 } },
-"heat_seeker": { "type": "attack", "target": "enemy", "cost": 2, "value": 5, "extra": 3, "upgraded": { "value": 7 } },
-"emp_blast": { "type": "debuff", "target": "enemy", "cost": 2, "value": 0, "upgraded": { "cost": 1 } }
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 2,
+  "value": 5,
+  "extra": 3,
+  "upgraded": { "value": 7 },
+  "text": {
+    "de": { "name": "Wärmesucher", "effect": "{v} Schaden auf ein gewähltes Schiff, {evading}, wenn es ausweicht. Zielsuchend, durchschlagend." },
+    "en": { "name": "Heat Seeker", "effect": "{v} damage to a chosen ship, {evading} if it is evading. Homing, piercing." }
+  }
+}
 ```
 
 - `type`: `attack`, `buff`, `debuff`, `tactic` oder `doctrine`. `target`: `none`, `enemy` oder `column`.
 - `cost`: Befehlspunkte. `value`: der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung), 0 bei Karten ohne Zahl.
 - `extra`: der Zweitwert, nur bei diesen fünf Karten und bei ihnen Pflicht: Zuschlag des Wärmesuchers auf ein ausweichendes Ziel, des Gnadenstoßes auf eines im Notfall, Abwehrfeuer von Standhalten, Schaden der Überladung am eigenen Flaggschiff, Karten, die Plündern zieht.
 - `upgraded`: was die aufgewertete Fassung anders hat, `cost`, `value` oder beides; `{}` für keine Änderung.
+- `text`: je Sprache (`de`, `en`) der Name und der Effekttext; jede Sprache des Spiels ist Pflicht. Der Effekttext kennt `{v}` (Hauptwert, aufgewertet und mit Zuschlägen im Gefecht), `{extra}` (Zweitwert), `{evading}` und `{emergency}` (beide zusammen: der Wert gegen ein ausweichendes Ziel und eines im Notfall) und `{bonus}` (der Zuschlag auf den Rammkurs als „ +2“ oder nichts). Die Schlüsselwörter, die er nennt („Zielsuchend“), erklärt `keywords` in den Textdateien.
 
 ### Der Befehlskarten-Editor
 
-Der Befehlskarten-Editor im Spiel bearbeitet `cards.json` und die Kartentexte (`card` in `text/en.json` und `text/de.json`): Einstellungen → Tab „Dev“ → „Befehlskarten-Editor“. Links stehen alle Karten in der Farbe ihrer Art, in der Mitte die gewählte als Vorschau je Sprache (Grundfassung und aufgewertet), rechts Art, Ziel, Kosten, Wert und Zweitwert mit `-` und `+` (die aufgewertete Fassung daneben; was sie ändert, leuchtet), darunter je Sprache Name und Effekttext als Textfelder. „Speichern“ schreibt nur, was die Prüfung besteht (kein leerer Name, jeder Platzhalter im Effekt geht auf), und nur die Dateien, die sich geändert haben, Zeichen für Zeichen im Format der vorhandenen. Die Dateien sind eingebettet: Was gespeichert ist, gilt im Spiel nach dem Neubauen (`cargo run` baut von selbst neu); bis dahin zeigt nur die Vorschau den neuen Stand. Neue Karten legt der Editor nicht an, die Bilder bleiben, wie sie sind.
+Der Befehlskarten-Editor im Spiel bearbeitet die Kartendateien: Einstellungen → Tab „Dev“ → „Befehlskarten-Editor“. Links stehen alle Karten in der Farbe ihrer Art, in der Mitte die gewählte als Vorschau je Sprache (Grundfassung und aufgewertet), rechts Art, Ziel, Kosten, Wert und Zweitwert mit `-` und `+` (die aufgewertete Fassung daneben; was sie ändert, leuchtet), darunter je Sprache Name und Effekttext als Textfelder. „Speichern“ schreibt nur, was die Prüfung besteht (kein leerer Name, jeder Platzhalter im Effekt geht auf), und nur die Dateien der geänderten Karten, Zeichen für Zeichen im Format der vorhandenen; danach gelten die Karten sofort im Spiel, schon gezeigte Karten bekommen den neuen Stand, sobald sie neu entstehen. Neue Karten legt der Editor nicht an, die Bilder bleiben, wie sie sind.
 
 ## Admirale
 
@@ -119,15 +131,13 @@ Der Editor verschiebt keine Knoten innerhalb einer Reihe und keine Schritte inne
 "hud_round": "Runde {round}",
 "window_mode": { "windowed": "Fenster", "maximized": "Maximiert", "fullscreen": "Vollbild" },
 "checklist_points": { "one": "1 Befehlspunkt offen", "other": "{points} Befehlspunkte offen" },
-"card": { "torpedo": { "name": "Torpedo", "effect": "{v} Schaden auf ein gewähltes Schiff. Zielsuchend." } },
 "module": { "reserve_reactor": { "name": "Reservereaktor", "text": "{rules.modules.reserve_reactor_points} Befehlspunkte in Runde 1." } }
 ```
 
 - `{name}` ohne Punkt ist ein Wert, den das Spiel an dieser Stelle einsetzt (Runde, Schaden, Name einer Einheit). Welche es je Text gibt, zeigt die englische Datei; ein anderer Name bleibt als `{name}` stehen, der Test meldet ihn.
 - `{rules.battle.clock_start}`, `{admirals.osei.hull}`, `{cards.torpedo.value}` oder `{enemies.warden.hull}` setzen eine Zahl aus den Datendateien ein: Dateiname ohne Endung, dann der Weg zum Feld. So stimmt ein Text weiter, wenn der Wert sich ändert. Ein Pfad, den es nicht gibt, ist ein Fehler.
 - `one` und `other` sind Einzahl und Mehrzahl desselben Textes.
-- Kartentexte kennen `{v}` (Hauptwert der Karte, aufgewertet und mit Zuschlägen), `{extra}` (ihr Zweitwert), `{evading}` und `{emergency}` (Haupt- und Zweitwert zusammen: der Wert gegen ein ausweichendes Ziel und eines im Notfall) und `{bonus}` (der Zuschlag auf den Rammkurs als „ +2“ oder nichts).
-- `card`, `admiral`, `module`, `enemy`, `event` und `event_option` tragen die Texte je Id, `rules_section` die Kapitel der Spielregeln (`heading`, `paragraphs`), `keywords` die Schlüsselwörter der Karten (das `word`, wie es im Effekttext steht, und seine Erklärung).
+- Die Texte der Karten stehen in ihren Dateien ([Karten](#karten)). `admiral`, `module`, `enemy`, `event` und `event_option` tragen die Texte je Id, `rules_section` die Kapitel der Spielregeln (`heading`, `paragraphs`), `keywords` die Schlüsselwörter der Karten (das `word`, wie es im Effekttext steht, und seine Erklärung).
 - `radio_lines` sind die Untertitel der Funksprüche. Die Aufnahmen sind englisch, der englische Text ist das Gesprochene; je Spruch braucht jede Sprache so viele Zeilen wie es Aufnahmen gibt.
 
 Der Test prüft: gültiges JSON, dieselben Schlüssel und dieselben Platzhalter in beiden Sprachen, ein Text je Id jeder Gruppe, kein Platzhalter, den das Spiel nicht füllt. Ein neuer Text an einer neuen Stelle braucht eine Zeile im Code (`crates/client/src/i18n/mod.rs`), eine neue Sprache eine Datei und einen Eintrag in `Language`.
