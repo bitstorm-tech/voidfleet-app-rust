@@ -4,7 +4,8 @@
 //! Bildern. `VOIDFLEET_SMOKE_TOGGLE=1` fährt zu Beginn zur anderen Kameraansicht. Mit
 //! `VOIDFLEET_SMOKE_SHOTS=<bild>,<bild>,…` entsteht statt des einen Screenshots je genanntem Bild einer
 //! (`<stamm>-<bild>.png` neben `VOIDFLEET_SMOKE_SCREENSHOT`), die App endet nach dem letzten. Gezählt wird mit
-//! [`FrameCount`].
+//! [`FrameCount`]. `VOIDFLEET_SMOKE_SIZE=<breite>x<höhe>` setzt die Fenstergröße (unter Xvfb ohne Fenstermanager bleibt
+//! das Fenster sonst bei 1280×720).
 //!
 //! `VOIDFLEET_SMOKE_PLAY=<runden>` spielt stattdessen den Run ab der Sternenkarte über dieselben Messages wie ein
 //! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
@@ -34,6 +35,7 @@ use bevy::{
     diagnostic::FrameCount,
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
+    window::PrimaryWindow,
 };
 use voidfleet_core::{admirals::AdmiralId, battle::BattleResult, modules::ModuleId, run::NodeKind};
 
@@ -80,6 +82,18 @@ impl Plugin for DevPlugin {
             return;
         };
         app.insert_resource(RunSave(None));
+        let size = std::env::var("VOIDFLEET_SMOKE_SIZE").ok().and_then(|size| {
+            let (width, height) = size.split_once('x')?;
+            Some((width.parse::<f32>().ok()?, height.parse::<f32>().ok()?))
+        });
+        if let Some((width, height)) = size {
+            app.add_systems(
+                Startup,
+                move |mut window: Single<&mut Window, With<PrimaryWindow>>| {
+                    window.resolution.set(width, height);
+                },
+            );
+        }
         let screenshot = std::env::var_os("VOIDFLEET_SMOKE_SCREENSHOT").map(PathBuf::from);
         let play = std::env::var("VOIDFLEET_SMOKE_PLAY")
             .ok()
