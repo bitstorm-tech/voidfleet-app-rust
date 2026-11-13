@@ -14,7 +14,7 @@
 //! - [`run_bar`] — der Stand des Runs in der Kopfzeile (Hülle, Schrott, Deck, Sektor, Module).
 //! - [`round_log`] — je Ereignis des Gefechts eine Log-Zeile.
 //! - [`radio_subtitle`] — Untertitel des Bordfunks.
-//! - [`view_toggle`], [`fullscreen`] — Icon-Knöpfe und Tasten V, F und Pfeiltasten.
+//! - [`view_toggle`], [`fullscreen`] — Ansicht-Knopf und Tasten V, F und Pfeiltasten.
 //! - [`dialogs`] — Admiralswahl, Ergebnis und die Dialoge hinter den Icon-Knöpfen (Einstellungen, Regeln);
 //!   Schnittstelle dort.
 //! - [`aim_arrow`] — der Zielpfeil vom Gewählten zum Mauszeiger, solange es auf ein gegnerisches Ziel wartet.
@@ -105,8 +105,6 @@ impl Fonts {
 #[derive(Resource, Clone)]
 pub struct UiIcons {
     pub log: Handle<Image>,
-    pub fullscreen_enter: Handle<Image>,
-    pub fullscreen_exit: Handle<Image>,
     pub view_toggle: Handle<Image>,
     pub crosshair: Handle<Image>,
     pub check: Handle<Image>,
@@ -137,8 +135,6 @@ impl FromWorld for UiIcons {
             let mut icon = |name: &str| preload.track(server.load(format!("images/ui/{name}.png")));
             Self {
                 log: icon("log"),
-                fullscreen_enter: icon("fullscreen_enter"),
-                fullscreen_exit: icon("fullscreen_exit"),
                 view_toggle: icon("view_toggle"),
                 crosshair: icon("crosshair"),
                 check: icon("check"),
@@ -309,7 +305,6 @@ fn spawn_icon_bar(mut commands: Commands, icons: Res<UiIcons>, locale: Res<Local
         Pickable::IGNORE,
         children![
             hud::log_button(&icons, &locale),
-            fullscreen::fullscreen_button(&icons, &locale),
             view_toggle::view_button(&icons, &locale),
             dialogs::dialog_button(dialogs::Dialog::Settings, &icons, &locale),
             dialogs::dialog_button(dialogs::Dialog::Rules, &icons, &locale),

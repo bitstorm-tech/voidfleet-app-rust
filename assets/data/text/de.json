@@ -94,8 +94,6 @@
   },
   "rules_title": "Spielregeln",
   "dialog_close": "Schließen",
-  "fullscreen_enter": "Vollbild (F)",
-  "fullscreen_exit": "Vollbild beenden (F)",
   "camera_view_toggle": "Ansicht wechseln (V); stufenlos drehen mit ← → oder der mittleren Maustaste",
   "loading_assets": "Lade Assets … {percent} %",
   "loading_failed": "Laden fehlgeschlagen — starte das Spiel neu.",

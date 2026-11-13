@@ -291,7 +291,7 @@ plain! {
     editor_target editor_unit editor_valid editor_no_node
 
     // --- Regeln, Dialoge und Knöpfe, Laden ---
-    rules_title dialog_close fullscreen_enter fullscreen_exit camera_view_toggle loading_failed
+    rules_title dialog_close camera_view_toggle loading_failed
 
     // --- Ergebnis ---
     result_view_board result_continue result_new_run

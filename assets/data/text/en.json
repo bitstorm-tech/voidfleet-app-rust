@@ -94,8 +94,6 @@
   },
   "rules_title": "Rules",
   "dialog_close": "Close",
-  "fullscreen_enter": "Fullscreen (F)",
-  "fullscreen_exit": "Exit fullscreen (F)",
   "camera_view_toggle": "Switch view (V); turn freely with ← → or the middle mouse button",
   "loading_assets": "Loading assets … {percent} %",
   "loading_failed": "Loading failed — restart the game.",
