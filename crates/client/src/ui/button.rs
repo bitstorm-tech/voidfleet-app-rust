@@ -315,14 +315,27 @@ fn animate_keys(
         };
         let halo = if pulsing && !pressed { pulse } else { halo };
         let rate = if pressed { FOLLOW_PRESSED } else { FOLLOW };
-        let mut next = KeyMotion {
-            fresh: false,
-            ..*motion
+        // Eine neue Taste steht sofort in ihrem Zustand: Dialoge bauen ihre Tasten nach jedem Klick neu, sonst blendet
+        // jede leuchtende Taste dabei wieder auf.
+        let next = if motion.fresh {
+            KeyMotion {
+                spread,
+                halo,
+                bright,
+                heat,
+                fresh: false,
+            }
+        } else {
+            let mut next = KeyMotion {
+                fresh: false,
+                ..*motion
+            };
+            next.spread.smooth_nudge(&spread, rate, delta);
+            next.halo.smooth_nudge(&halo, rate, delta);
+            next.bright.smooth_nudge(&bright, rate, delta);
+            next.heat.smooth_nudge(&heat, rate, delta);
+            next
         };
-        next.spread.smooth_nudge(&spread, rate, delta);
-        next.halo.smooth_nudge(&halo, rate, delta);
-        next.bright.smooth_nudge(&bright, rate, delta);
-        next.heat.smooth_nudge(&heat, rate, delta);
         let opacity = if disabled {
             0.5
         } else if dimmed {
