@@ -1,10 +1,10 @@
 {
   "type": "attack",
   "target": "enemy",
-  "cost": 2,
-  "value": 3,
-  "extra": 5,
-  "upgraded": { "value": 5 },
+  "cost": 1,
+  "value": 4,
+  "extra": 8,
+  "upgraded": { "value": 6 },
   "text": {
     "de": { "name": "Gnadenstoß", "effect": "{v} Schaden auf ein gewähltes Schiff, {emergency}, wenn es im Notfall ist." },
     "en": { "name": "Coup de Grâce", "effect": "{v} damage to a chosen ship, {emergency} if it is in emergency." }

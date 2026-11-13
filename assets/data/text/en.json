@@ -185,7 +185,7 @@
       "heading": "Stations",
       "paragraphs": [
         "Your flagship triggers one station per round, with Red Alert a second, different one. It is triggered like a card and gets its target the same way: weapons, focus fire and stasis an enemy ship, maneuver another column; the other stations need none. It takes effect at once.",
-        "Weapons fire your ATK at the target. Shields absorb {admirals.vance.shield_station} in the next enemy turn (Osei {admirals.osei.shield_station}). Damage control puts out the fire and repairs {rules.stations.damage_control_repair} hull. Maneuver moves to another column and dodges column fire aimed at the old one.",
+        "Weapons fire your ATK at the target. Shields absorb {admirals.vance.shield_station} in the next enemy turn (Osei {admirals.osei.shield_station}). Damage control puts out the fire and repairs {rules.stations.damage_control_repair} hull; per battle it and the repair crew restore at most {rules.battle.repair_limit} hull together. Maneuver moves to another column and dodges column fire aimed at the old one.",
         "The admiral station depends on your admiral and is not available while your bridge is hit (hull at {rules.battle.emergency_percent} % or less)."
       ]
     },
@@ -210,7 +210,7 @@
       "paragraphs": [
         "Osei, the Wall: Bastion, {admirals.osei.hull} hull, {admirals.osei.attack} ATK. Shields absorb {admirals.osei.shield_station}. Counterfire: shields {rules.stations.counterfire_shield}, retaliation {rules.stations.counterfire_damage}.",
         "Vance, the Hammer: Vanguard, {admirals.vance.hull} hull, {admirals.vance.attack} ATK. Momentum: +1 ATK for each round in a row with weapons or focus fire, up to +{rules.stations.max_momentum}. Focus fire: double momentum, homing, but takes {rules.stations.focus_fire_vulnerability} more per hit.",
-        "Kerr, the Clockmaker: Pendulum, {admirals.kerr.hull} hull, {admirals.kerr.attack} ATK. The railgun is homing and piercing; he sees intents two rounds ahead. Stasis: one enemy does not act this round.",
+        "Kerr, the Clockmaker: Pendulum, {admirals.kerr.hull} hull, {admirals.kerr.attack} ATK. The railgun is homing and piercing; he sees intents two rounds ahead. Stasis: one enemy does not act this round; the station then recharges for one round.",
         "Reyes, the Ember: Pyre, {admirals.reyes.hull} hull, {admirals.reyes.attack} ATK. The plasma thrower sets every target on fire, enemy burns tick {rules.battle.ember_burn_damage}. Follow-up: every burning enemy takes double burn damage at once, attack cards on burning targets +{rules.stations.follow_up_card_bonus}."
       ]
     },
@@ -218,7 +218,7 @@
       "heading": "Cards",
       "paragraphs": [
         "Every round you draw {rules.battle.hand_size} commands. Attack cards hit with fixed damage and the usual deductions; buffs strengthen your flagship, debuffs weaken an enemy, tactics change the board. Doctrines stay in play until the battle ends.",
-        "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) deal or absorb 2 more or cost 1 less.",
+        "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) are stronger or cost less; the card shows what changes.",
         "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses {rules.battle.burn_damage} hull in each resolution."
       ]
     },
@@ -385,7 +385,8 @@
     "admiral_station_in_emergency": "Bridge hit: no admiral station.",
     "jumped": "The flagship is in micro jump.",
     "station_used": "This station already ran this round.",
-    "no_station_slot": "No station left this round."
+    "no_station_slot": "No station left this round.",
+    "stasis_recharging": "Stasis is recharging: next round again."
   },
   "stats_hull": "Hull",
   "station": {
@@ -397,7 +398,7 @@
   "station_text": {
     "weapons": "Fires {attack} damage at an enemy ship at once.",
     "shields": "Absorbs {shields} in the next enemy turn.",
-    "damage_control": "Puts out the fire and repairs {rules.stations.damage_control_repair} hull.",
+    "damage_control": "Puts out the fire and repairs {rules.stations.damage_control_repair} hull, at most {rules.battle.repair_limit} per battle.",
     "maneuver": "Moves to another column at once and dodges column fire on the old one."
   },
   "column_name": [
@@ -479,7 +480,7 @@
       "weapon": "Railgun: homing, piercing",
       "passive": "Clockwork: sees enemy intents two rounds ahead.",
       "station": "Stasis",
-      "station_text": "Does not fire. A chosen enemy does not act this round; its intent moves to the next, a charge is kept."
+      "station_text": "Does not fire. A chosen enemy does not act this round; its intent moves to the next, a charge is kept. Recharges for one round afterwards."
     },
     "reyes": {
       "name": "Reyes",

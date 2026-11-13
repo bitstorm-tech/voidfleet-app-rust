@@ -2,8 +2,8 @@
   "type": "attack",
   "target": "enemy",
   "cost": 2,
-  "value": 6,
-  "upgraded": { "value": 8 },
+  "value": 9,
+  "upgraded": { "value": 12 },
   "text": {
     "de": { "name": "Torpedo", "effect": "{v} Schaden auf ein gewähltes Schiff. Zielsuchend." },
     "en": { "name": "Torpedo", "effect": "{v} damage to a chosen ship. Homing." }

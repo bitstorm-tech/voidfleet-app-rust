@@ -1,0 +1,11 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 2,
+  "value": 2,
+  "upgraded": { "value": 4 },
+  "text": {
+    "de": { "name": "Alarmbereitschaft", "effect": "Doktrin: In jedem Gegnerzug Schilde {v}." },
+    "en": { "name": "Battle Stations", "effect": "Doctrine: shields {v} in each enemy turn." }
+  }
+}

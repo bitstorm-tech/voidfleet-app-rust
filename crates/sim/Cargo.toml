@@ -1,0 +1,16 @@
+[package]
+name = "voidfleet-sim"
+description = "Simulator von Voidfleet: ein Bot spielt Runs und misst Karten, Module und Sternenkarten"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+voidfleet-core.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

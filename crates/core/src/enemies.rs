@@ -93,7 +93,7 @@ impl EnemyId {
 
 /// Eine Einheit eines Verbands mit allen Werten, wie sie in der Kartendatei des Sektors steht; nur dort stehen die
 /// Werte, mit denen sie kämpft. `armor` ist der feste Abzug je Treffer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unit {
     pub id: EnemyId,

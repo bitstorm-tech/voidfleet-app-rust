@@ -185,7 +185,7 @@
       "heading": "Stationen",
       "paragraphs": [
         "Dein Flaggschiff löst eine Station je Runde aus, mit Alarmstufe Rot eine zweite, andere. Sie wird wie eine Karte ausgelöst und bekommt dabei ihr Ziel: Waffen, Fokusfeuer und Stillstand ein gegnerisches Schiff, Manöver eine andere Spalte; die übrigen Stationen brauchen keins. Sie wirkt sofort.",
-        "Waffen feuern deine ATK auf das Ziel. Schilde schlucken im nächsten Gegnerzug {admirals.vance.shield_station} (Osei {admirals.osei.shield_station}). Schadenskontrolle löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
+        "Waffen feuern deine ATK auf das Ziel. Schilde schlucken im nächsten Gegnerzug {admirals.vance.shield_station} (Osei {admirals.osei.shield_station}). Schadenskontrolle löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle; je Gefecht lassen sich mit dem Reparaturtrupp zusammen höchstens {rules.battle.repair_limit} Hülle reparieren. Manöver wechselt die Spalte und entgeht dem Spaltenfeuer auf die alte.",
         "Die Admiralsstation hängt von deinem Admiral ab und geht nicht, solange die Brücke getroffen ist (Hülle bei {rules.battle.emergency_percent} % oder weniger)."
       ]
     },
@@ -210,7 +210,7 @@
       "paragraphs": [
         "Osei, die Mauer: Bastion, {admirals.osei.hull} Hülle, {admirals.osei.attack} ATK. Schilde schlucken {admirals.osei.shield_station}. Gegenfeuer: Schilde {rules.stations.counterfire_shield}, Abwehrfeuer {rules.stations.counterfire_damage}.",
         "Vance, der Hammer: Vanguard, {admirals.vance.hull} Hülle, {admirals.vance.attack} ATK. Vorstoß: +1 ATK je Runde in Folge mit Waffen oder Fokusfeuer, höchstens +{rules.stations.max_momentum}. Fokusfeuer: doppelter Vorstoß, zielsuchend, dafür je Treffer {rules.stations.focus_fire_vulnerability} mehr.",
-        "Kerr, der Uhrmacher: Pendulum, {admirals.kerr.hull} Hülle, {admirals.kerr.attack} ATK. Die Railgun ist zielsuchend und durchschlagend; er sieht die Absichten zwei Runden voraus. Stillstand: Ein Gegner handelt in dieser Runde nicht.",
+        "Kerr, der Uhrmacher: Pendulum, {admirals.kerr.hull} Hülle, {admirals.kerr.attack} ATK. Die Railgun ist zielsuchend und durchschlagend; er sieht die Absichten zwei Runden voraus. Stillstand: Ein Gegner handelt in dieser Runde nicht; danach lädt die Station eine Runde nach.",
         "Reyes, die Glut: Pyre, {admirals.reyes.hull} Hülle, {admirals.reyes.attack} ATK. Der Plasmawerfer setzt jedes Ziel in Brand, Brände bei Gegnern ticken {rules.battle.ember_burn_damage}. Nachsetzen: Jeder brennende Gegner nimmt sofort das Doppelte seines Brandschadens, Angriffskarten auf brennende Ziele +{rules.stations.follow_up_card_bonus}."
       ]
     },
@@ -218,7 +218,7 @@
       "heading": "Karten",
       "paragraphs": [
         "Jede Runde ziehst du {rules.battle.hand_size} Befehle. Angriffskarten treffen mit festem Schaden und den üblichen Abzügen; Verstärkungen stärken dein Flaggschiff, Schwächungen einen Gegner, Taktiken verändern das Brett. Doktrinen bleiben bis zum Gefechtsende liegen.",
-        "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) machen oder schlucken 2 mehr oder kosten 1 weniger.",
+        "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) sind stärker oder kosten weniger; die Karte zeigt, was sich ändert.",
         "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle."
       ]
     },
@@ -385,7 +385,8 @@
     "admiral_station_in_emergency": "Brücke getroffen: keine Admiralsstation.",
     "jumped": "Das Flaggschiff ist im Kurzsprung.",
     "station_used": "Diese Station lief in dieser Runde schon.",
-    "no_station_slot": "Keine Station mehr frei in dieser Runde."
+    "no_station_slot": "Keine Station mehr frei in dieser Runde.",
+    "stasis_recharging": "Der Stillstand lädt nach: erst nächste Runde wieder."
   },
   "stats_hull": "Hülle",
   "station": {
@@ -397,7 +398,7 @@
   "station_text": {
     "weapons": "Feuert sofort {attack} Schaden auf ein gegnerisches Schiff.",
     "shields": "Schluckt im nächsten Gegnerzug {shields}.",
-    "damage_control": "Löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle.",
+    "damage_control": "Löscht den Brand und repariert {rules.stations.damage_control_repair} Hülle, je Gefecht höchstens {rules.battle.repair_limit}.",
     "maneuver": "Wechselt sofort in eine andere Spalte und entgeht dem Spaltenfeuer auf die alte."
   },
   "column_name": [
@@ -479,7 +480,7 @@
       "weapon": "Railgun: zielsuchend, durchschlagend",
       "passive": "Uhrwerk: sieht die Absichten der Gegner zwei Runden voraus.",
       "station": "Stillstand",
-      "station_text": "Feuert nicht. Ein gewählter Gegner handelt in dieser Runde nicht; seine Absicht verschiebt sich, eine Aufladung bleibt."
+      "station_text": "Feuert nicht. Ein gewählter Gegner handelt in dieser Runde nicht; seine Absicht verschiebt sich, eine Aufladung bleibt. Lädt danach eine Runde nach."
     },
     "reyes": {
       "name": "Reyes",

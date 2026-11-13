@@ -1,0 +1,54 @@
+{
+  "battle": {
+    "hand_size": 5,
+    "command_points": 3,
+    "burn_damage": 2,
+    "ember_burn_damage": 3,
+    "burn_percent": 50,
+    "emergency_percent": 25,
+    "clock_start": 8,
+    "repair_limit": 10
+  },
+  "stations": {
+    "damage_control_repair": 5,
+    "max_momentum": 4,
+    "counterfire_shield": 6,
+    "counterfire_damage": 3,
+    "focus_fire_vulnerability": 2,
+    "follow_up_card_bonus": 2
+  },
+  "enemies": {
+    "ram_damage": 10,
+    "bolt_shield": 4,
+    "cannibalize_heal": 8,
+    "plasma_burn_percent": 60
+  },
+  "modules": {
+    "fire_control_computer_attack": 1,
+    "armor_plates_armor": 1,
+    "reserve_reactor_points": 4,
+    "supply_pod_hand": 6,
+    "salvage_crane_scrap": 5,
+    "reinforced_frames_hull": 10
+  },
+  "run": {
+    "battle_scrap": [10, 20],
+    "elite_scrap": [25, 40],
+    "boss_scrap": 60,
+    "card_offer": 3,
+    "combat_simulator_offer": 4,
+    "module_offer": 3,
+    "shipyard_repair_percent": 30,
+    "market_cards": 3,
+    "market_modules": 2,
+    "card_price": [40, 70],
+    "module_price": [120, 180],
+    "removal_price": 60,
+    "market_repair": 10,
+    "market_repair_price": 25,
+    "resolute_scrap": 40,
+    "pilot_price": 50,
+    "pilot_damage": 6,
+    "flicker_hull_percent": 25
+  }
+}

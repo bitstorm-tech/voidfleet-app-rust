@@ -1,9 +1,9 @@
 {
   "type": "doctrine",
   "target": "none",
-  "cost": 2,
+  "cost": 1,
   "value": 1,
-  "upgraded": { "cost": 1 },
+  "upgraded": { "value": 2 },
   "text": {
     "de": { "name": "Feuerleitdoktrin", "effect": "Doktrin: Alle eigenen Schüsse und Angriffskarten +{v} Schaden." },
     "en": { "name": "Fire Control Doctrine", "effect": "Doctrine: all your shots and attack cards +{v} damage." }

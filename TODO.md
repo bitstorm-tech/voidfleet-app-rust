@@ -1,8 +1,9 @@
-# Offene Punkte (Stand 05.11.2026, nach dem PvE-Umbau)
+# Offene Punkte (Stand 13.11.2026, nach dem PvE-Umbau)
 
 ## Spielgefühl und Balance (erst spielen, dann stellen)
 
-- [ ] **Alle Zahlen** des Entwurfs sind Startwerte (Hülle, ATK, Karten, Gegner, Schrott, Preise); ohne Bot-Simulation entscheidet jetzt das Spielen. Der Rauchtest gewinnt Gefechte in Sektor 1 oft in Runde 1.
+- [ ] **Balance, Stand 13.11.2026**: Karten, Module, Admirale und die drei Sternenkarten sind mit dem Simulator eingestellt (`just sim`, `docs/balance.md`), gespielt hat sie niemand. Offen laut Messung: Reservereaktor, Löschanlage und Panzerplatten sind doppelt so stark wie die übrigen Module; „Logbücher sichern“ gibt ein Modul ohne Preis; Sperrfeuer, Traktorstrahl, EMP-Stoß und Rammkurs sind für den Bot tote Karten; einzelne Knoten mit Belagerer enden für angeschlagene Spieler zu oft.
+- [ ] **Neue Regeln ohne Anzeige**: Die Reparaturgrenze (`rules.battle.repair_limit`) steht nur im Text der Station; wie viel in diesem Gefecht noch repariert werden kann, zeigt die Oberfläche nicht (`flagship.repaired`). Der Stillstand, der nachlädt, ist nur an der Meldung beim Klick zu erkennen, nicht an der Station. Ein gespielter Kurzsprung liegt bis zum Gefechtsende in `Battle::spent`; die Stapelzähler zeigen ihn nicht.
 - [ ] **Länge des Gegnerzugs**: Der erfundene Gegnerzug der Szene `report` dauert rund 21 s; mit Leertaste überspringbar, vielleicht zu lang.
 - [ ] **Funk-Dichte**: Die neuen Sprüche fallen vielleicht zu dicht; `direct_hit` ab 12 Hüllenschaden ist geschätzt, `incoming_fire` hängt am ersten Feuer eines Gegners (es gibt kein Ereignis für den Beginn des Gegnerzugs). Die Aufnahmen hat niemand angehört.
 

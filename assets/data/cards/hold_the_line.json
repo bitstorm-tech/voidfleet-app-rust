@@ -2,9 +2,9 @@
   "type": "buff",
   "target": "none",
   "cost": 1,
-  "value": 5,
+  "value": 4,
   "extra": 2,
-  "upgraded": { "value": 7 },
+  "upgraded": { "value": 6 },
   "text": {
     "de": { "name": "Standhalten", "effect": "Schilde {v}, Abwehrfeuer {extra}." },
     "en": { "name": "Hold the Line", "effect": "Shields {v}, retaliation {extra}." }

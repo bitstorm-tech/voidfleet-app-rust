@@ -2,8 +2,8 @@
   "type": "attack",
   "target": "enemy",
   "cost": 3,
-  "value": 7,
-  "upgraded": { "value": 9 },
+  "value": 16,
+  "upgraded": { "value": 21 },
   "text": {
     "de": { "name": "Orbitalschlag", "effect": "{v} Schaden auf ein gewähltes Schiff. Durchschlagend." },
     "en": { "name": "Orbital Strike", "effect": "{v} damage to a chosen ship. Piercing." }

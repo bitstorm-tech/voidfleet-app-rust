@@ -1,0 +1,11 @@
+{
+  "type": "buff",
+  "target": "none",
+  "cost": 1,
+  "value": 4,
+  "upgraded": { "value": 6 },
+  "text": {
+    "de": { "name": "Reparaturtrupp", "effect": "Löscht den Brand und repariert {v} Hülle, zusätzlich zur Station." },
+    "en": { "name": "Repair Crew", "effect": "Puts out the fire and repairs {v} hull, on top of the station." }
+  }
+}

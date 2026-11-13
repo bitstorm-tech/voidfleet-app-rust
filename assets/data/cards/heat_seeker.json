@@ -2,9 +2,9 @@
   "type": "attack",
   "target": "enemy",
   "cost": 2,
-  "value": 5,
-  "extra": 3,
-  "upgraded": { "value": 7 },
+  "value": 9,
+  "extra": 4,
+  "upgraded": { "value": 12 },
   "text": {
     "de": { "name": "Wärmesucher", "effect": "{v} Schaden auf ein gewähltes Schiff, {evading}, wenn es ausweicht. Zielsuchend, durchschlagend." },
     "en": { "name": "Heat Seeker", "effect": "{v} damage to a chosen ship, {evading} if it is evading. Homing, piercing." }

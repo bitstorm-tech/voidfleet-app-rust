@@ -1,6 +1,6 @@
 # Beispielrunde
 
-Ein Lehrbeispiel mit Grundwerten: Runde 5 eines Gefechts gegen einen Belagerer mit einer Plünderer-Staffel. Die Aufstellung dient der Rechnung und ist kein Verband aus der Sektortabelle. Ich spiele den Hammer. Die Werte stehen in [Gefecht](gefecht.md), [Admirale](admirale.md) und [Gegner](gegner.md); `crates/core/tests/battle.rs` rechnet beide Züge nach.
+Ein Lehrbeispiel mit festen Lehrwerten: Runde 5 eines Gefechts gegen einen Belagerer mit einer Plünderer-Staffel. Die Aufstellung dient der Rechnung und ist kein Verband aus der Sektortabelle. Ich spiele den Hammer. Die Zahlen sind die des ersten Entwurfs (Vanguard 50 Hülle und 11 ATK, Torpedo 6, Überladung +5 für 3 Hülle, Fokusfeuer +2 je Treffer, Belagerer 30 Hülle und 8 ATK mit Schilden 10 nach dem Hauptgeschütz) und nicht mehr die des Spiels; sie liegen als Prüfwerte in `crates/core/tests/data/`, und `crates/core/tests/battle.rs` rechnet beide Züge damit nach. Wie gerechnet wird, gilt unverändert; die heutigen Werte stehen in [Gefecht](gefecht.md), [Admirale](admirale.md), [Karten](karten.md) und [Gegner](gegner.md).
 
 Vanguard 38/50, Spalte Mitte, Vorstoß +2 nach zwei Runden an der Waffen-Station, also ATK 13. Hand: Torpedo, Torpedo, Notschilde, Überladung, Plündern. 3 Befehlspunkte.
 

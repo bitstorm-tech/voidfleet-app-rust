@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "none",
+  "cost": 1,
+  "value": 4,
+  "upgraded": { "value": 6 },
+  "text": {
+    "de": { "name": "Sperrfeuer", "effect": "{v} Schaden auf jedes gegnerische Schiff, das gerade ausweicht. Zielsuchend." },
+    "en": { "name": "Barrage", "effect": "{v} damage to every enemy ship that is evading. Homing." }
+  }
+}

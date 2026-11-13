@@ -1,9 +1,9 @@
 {
   "type": "debuff",
   "target": "enemy",
-  "cost": 2,
+  "cost": 3,
   "value": 0,
-  "upgraded": { "cost": 1 },
+  "upgraded": { "cost": 2 },
   "text": {
     "de": { "name": "Funkstille", "effect": "Ein gewähltes Schiff feuert in dieser Runde nicht und setzt seine Sonderaktion aus; eine Aufladung bricht ab." },
     "en": { "name": "Radio Silence", "effect": "A chosen ship neither fires nor uses its special action this round; a charge breaks." }

@@ -985,13 +985,21 @@ mod tests {
         let en = Locale::new(Language::En);
         assert_eq!(de.admiral_title(AdmiralId::Osei), "Osei – Die Mauer");
         let torpedo = DeckCard::new(CardId::Torpedo);
-        assert!(de.card(torpedo).effect.contains('6'));
+        assert!(
+            de.card(torpedo)
+                .effect
+                .contains(&torpedo.value().to_string())
+        );
         let upgraded = DeckCard {
             upgraded: true,
             ..torpedo
         };
         assert_eq!(en.card(upgraded).name, "Torpedo+");
-        assert!(en.card(upgraded).effect.contains('8'));
+        assert!(
+            en.card(upgraded)
+                .effect
+                .contains(&upgraded.value().to_string())
+        );
         let breakdown = Breakdown {
             base: 18,
             armor: 2,
@@ -1147,6 +1155,7 @@ mod tests {
                 RuleError::Jumped,
                 RuleError::StationUsed,
                 RuleError::NoStationSlot,
+                RuleError::StasisRecharging,
             ]
             .into_iter()
             .for_each(|id| plain(locale.rule_error(id)));

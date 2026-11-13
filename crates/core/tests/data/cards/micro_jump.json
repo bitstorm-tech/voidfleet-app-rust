@@ -1,0 +1,11 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 2,
+  "value": 0,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Kurzsprung", "effect": "Dein Flaggschiff verlässt das Brett: danach in dieser Runde keine Station mehr, kein Ziel im Gegnerzug; es kehrt in der Auflösung zurück." },
+    "en": { "name": "Micro Jump", "effect": "Your flagship leaves the board: no more stations this round, no target in the enemy turn; it returns in the resolution." }
+  }
+}

@@ -57,7 +57,7 @@ Stationen hat nur das Flaggschiff; was die Gegner tun, sind angesagte Aktionen (
 | --- | --- |
 | **Waffen**, feuert auf ein gewähltes Schiff | sofort die ATK des Flaggschiffs auf das Ziel, mit den Abzügen aus [Schaden](#schaden) |
 | **Schilde**, feuert nicht | schluckt im folgenden Gegnerzug 8 Schaden, Zielfeuer wie Spaltenfeuer; was übrig ist, verfällt in der Auflösung |
-| **Schadenskontrolle**, feuert nicht | löscht den Brand, +5 Hülle, nie über die volle Hülle |
+| **Schadenskontrolle**, feuert nicht | löscht den Brand, +3 Hülle, nie über die volle Hülle und nur bis zur Reparaturgrenze |
 | **Manöver**, feuert nicht | wechselt die Spalte und entgeht so dem Spaltenfeuer, das auf die alte Spalte angesagt ist; Zielfeuer folgt |
 | **Admiralsstation** | je Admiral, siehe [Admirale](admirale.md); im Notfall nicht möglich |
 
@@ -68,6 +68,8 @@ Regeln im Detail:
 - Schilde schlucken allen Schaden, der im Gegnerzug auf das Flaggschiff gerichtet ist, Karten-Schilde (Notschilde, Standhalten, Alarmbereitschaft) kommen dazu.
 - Das Flaggschiff weicht nicht aus; Panzerung hat es nur durch Ablativpanzerung und Module. Gegen gegnerisches Feuer hat der Spieler vier Antworten: Schilde gegen den Schaden, Manöver gegen Spaltenfeuer, Kurzsprung gegen alles, und den Schützen zerstören, bevor er handelt.
 - Die Karte Alarmstufe Rot erlaubt eine zweite, andere Station in dieser Runde; das ist der einzige Weg zu zwei Stationen.
+- **Reparaturgrenze.** Schadenskontrolle und Reparaturtrupp geben je Gefecht zusammen höchstens 6 Hülle zurück; gelöscht wird immer. Ohne die Grenze ließe sich jedes Gefecht in die Länge ziehen: den schwächsten Gegner stehen lassen, seine Schüsse mit Schildkarten schlucken und Runde für Runde reparieren. Die Gefechtsuhr hält das nicht auf, weil sie nur die ATK erhöht und ausmanövriertes Spaltenfeuer nichts trifft.
+- Der Kurzsprung läuft statt einer Station: Wer springt, hat in dieser Runde keine Station ausgelöst und löst keine mehr aus.
 
 ## Die Runde
 
@@ -101,7 +103,7 @@ In der Auflösung jeder Runde zeigt jede gegnerische Einheit ihre Absicht für d
 
 Die Aktion einer Absicht wird bei der Ansage bestimmt und nicht mehr geändert; der angezeigte Schaden folgt dem aktuellen Stand, etwa Notfall, Zielstörer oder Spotter. Ein Kurzsprung lässt jedes Feuer ins Leere gehen, ein Manöver nur das Spaltenfeuer: die beiden Fälle, in denen ein Schuss nichts trifft, und beide sind verdient. Damit Schilde und Manöver nicht zur sicheren Antwort werden, feuern Verbände mit mehreren Waffen, Schlachtschiffe laden auf, Spotter erhöhen den Preis jeder Runde, und die Gefechtsuhr bestraft das Zögern.
 
-Ohne menschlichen Gegner fällt das blinde Raten weg, und das ist gut so: Gegen eine Maschine wirkt Blindheit wie Zufall. Die Spannung entsteht stattdessen wie in Slay the Spire aus der Rechnung mit offenem Gegner. Ich sehe, dass der Belagerer nächste Runde 16 in meine Spalte feuert und zwei Wachkreuzer je 4 auf mich. Manöver entgeht den 16, aber nicht den Kreuzern, und ich feuere nicht. Schilde schlucken 8 von 24. Kurzsprung entgeht allem, für 2 Punkte; die Station muss dann vorher laufen. Oder ich fokussiere den Belagerer: Fällt er im Spielerzug, feuert er nie, und ob er fällt, steht in der Vorschau, bevor ich klicke. Der Gefechtsbericht erzählt danach, wie es aussah.
+Ohne menschlichen Gegner fällt das blinde Raten weg, und das ist gut so: Gegen eine Maschine wirkt Blindheit wie Zufall. Die Spannung entsteht stattdessen wie in Slay the Spire aus der Rechnung mit offenem Gegner. Ich sehe, dass der Belagerer nächste Runde 26 in meine Spalte feuert und zwei Wachkreuzer je 9 auf mich. Manöver entgeht den 26, aber nicht den Kreuzern, und ich feuere nicht. Schilde schlucken 8 von 44. Kurzsprung entgeht allem, für 3 Punkte, einmal im Gefecht und statt der Station. Oder ich fokussiere den Belagerer: Fällt er im Spielerzug, feuert er nie, und ob er fällt, steht in der Vorschau, bevor ich klicke. Der Gefechtsbericht erzählt danach, wie es aussah.
 
 ### Aktionen
 
@@ -112,7 +114,7 @@ Was ein Gegner in seinem Zug tun kann, und was der Spieler dagegen hat:
 | **Zielfeuer** | jeder Schütze | feuert mit seiner ATK auf das Flaggschiff und folgt ihm in jede Spalte | Schilde, Schildkarten, den Schützen vorher fällen |
 | **Spaltenfeuer** | Torpedo-Staffel, Belagerer, Wächter | trifft, was im Gegnerzug in der angesagten Spalte steht | Manöver, Kurzsprung, die Aufladung brechen |
 | **Rammkurs** | Brander | fester Schaden, der Brander ist danach weg | vorher fällen, Kurzsprung |
-| **Schilde** | Wachkreuzer, Belagerer, Wächter | schluckt Schaden bis zum Ende des nächsten Spielerzugs | abwarten, EMP-Stoß, ein anderes Ziel |
+| **Schilde** | Wachkreuzer, Wächter | schluckt Schaden bis zum Ende des nächsten Spielerzugs | abwarten, EMP-Stoß, ein anderes Ziel |
 | **Ausweichen** | Jäger | gilt ab der Ansage: halbiert die Schüsse des Spielers in diesem Spielerzug, feuert nicht | Torpedo, Railgun, Fokusfeuer, Sperrfeuer, Wärmesucher |
 | **Aufladen** | Belagerer, Wächter | feuert nicht, nächste Runde doppelte ATK | EMP-Stoß, Funkstille, Stillstand, vorher fällen |
 | **Zielerfassung** | Spotter | alle gegnerischen Schüsse +1 ATK, solange er steht | den Spotter fällen, Traktorstrahl, Funkstille |

@@ -640,11 +640,15 @@ mod tests {
         let Step::Call(called) = &editor.unit().unwrap().pattern[2] else {
             panic!("Ruf");
         };
-        assert_eq!(called.attack, 5);
+        assert_eq!(called.attack, raiders.attack + 3);
         assert_eq!(editor.map.check(), Ok(()));
         let json = map_json(&editor.map);
-        let line = r#"{ "id": "spotter", "hull": 1, "attack": 2, "armor": 2, "pattern": ["evade", { "shields": 1 }, { "call": { "id": "raiders", "hull": 8, "attack": 5, "armor": 0, "pattern": ["fire"] } }] }"#;
-        assert!(json.contains(line), "{json}");
+        let line = format!(
+            r#"{{ "id": "spotter", "hull": 1, "attack": 2, "armor": 2, "pattern": ["evade", {{ "shields": 1 }}, {{ "call": {{ "id": "raiders", "hull": {}, "attack": {}, "armor": 0, "pattern": ["fire"] }} }}] }}"#,
+            raiders.hull,
+            raiders.attack + 3
+        );
+        assert!(json.contains(&line), "{json}");
         assert_eq!(
             serde_json::from_str::<SectorMap>(&json).unwrap(),
             editor.map

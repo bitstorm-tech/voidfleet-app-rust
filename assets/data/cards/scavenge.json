@@ -3,7 +3,7 @@
   "target": "none",
   "cost": 1,
   "value": 0,
-  "extra": 2,
+  "extra": 3,
   "upgraded": { "cost": 0 },
   "text": {
     "de": { "name": "Plündern", "effect": "{extra} Befehle ziehen." },

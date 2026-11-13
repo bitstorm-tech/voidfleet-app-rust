@@ -1,9 +1,9 @@
 {
   "type": "attack",
   "target": "none",
-  "cost": 2,
-  "value": 3,
-  "upgraded": { "value": 5 },
+  "cost": 1,
+  "value": 5,
+  "upgraded": { "value": 8 },
   "text": {
     "de": { "name": "Bombardement", "effect": "{v} Schaden auf jede Einheit in der gegnerischen Back-Reihe. Durchschlagend." },
     "en": { "name": "Bombardment", "effect": "{v} damage to every unit in the enemy back row. Piercing." }

@@ -290,8 +290,9 @@ mod tests {
     fn upgraded_numbers_drop_out_when_they_match() {
         let mut editor = open();
         editor.apply(CardEdit::Select(CardId::Torpedo));
-        assert_eq!(editor.card().upgraded.value, Some(8));
-        editor.apply(CardEdit::Number(Field::UpgradedValue, -2));
+        let (value, upgraded) = (editor.card().value, editor.card().upgraded.value);
+        let upgraded = upgraded.expect("Torpedo wertet den Schaden auf");
+        editor.apply(CardEdit::Number(Field::UpgradedValue, value - upgraded));
         assert_eq!(editor.card().upgraded.value, None);
         editor.apply(CardEdit::Number(Field::UpgradedCost, -1));
         assert_eq!(editor.card().upgraded.cost, Some(1));
@@ -315,7 +316,13 @@ mod tests {
         let text = "Shields {v}, retaliation {extra}.".to_owned();
         editor.apply(CardEdit::Text(Language::En, TextField::Effect, text));
         let face = editor.face(Language::En, true);
-        assert_eq!(face.effect, "Shields 7, retaliation 6.");
+        let (shields, retaliation) = (editor.card().upgraded.value, editor.card().extra);
+        let effect = format!(
+            "Shields {}, retaliation {}.",
+            shields.expect("aufgewertet"),
+            retaliation.expect("Zweitwert")
+        );
+        assert_eq!(face.effect, effect);
         assert_eq!(face.name, "Hold the Line+");
         assert_eq!(editor.check(), Ok(()));
         let broken = "Shields {w}.".to_owned();

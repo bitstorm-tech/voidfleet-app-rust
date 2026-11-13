@@ -4,10 +4,12 @@
 //! bekam (der Client beim Start und der Befehlskarten-Editor nach dem Speichern), sonst beim ersten Zugriff der Ordner
 //! des Repositorys ([`REPO_DATA`], für Tests).
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -31,7 +33,7 @@ pub struct EnemyData {
 
 /// Ein Schritt eines Musters. Spaltenfeuer nennt seine Breite in Spalten, Schilde ihren Wert, Verstärkung die
 /// gerufene Einheit mit allen Werten.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Step {
     Fire,
@@ -116,6 +118,8 @@ pub struct BattleRules {
     pub emergency_percent: i32,
     /// Ab dieser Runde bekommen alle Gegner +1 ATK je Runde (Gefechtsuhr).
     pub clock_start: u32,
+    /// So viel Hülle geben Schadenskontrolle und Reparaturtrupp je Gefecht zusammen höchstens zurück.
+    pub repair_limit: i32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -219,16 +223,32 @@ pub struct Data {
 pub const REPO_DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/data");
 
 static DATA: RwLock<Option<&'static Data>> = RwLock::new(None);
+/// Zählt jedes [`install`].
+static VERSION: AtomicU64 = AtomicU64::new(0);
+
+thread_local! {
+    // Die Fassung, die dieser Thread zuletzt sah: Der Simulator fragt aus allen Kernen zugleich, und das Schloss
+    // bremst dann jeden Zugriff auf ein Zehntel.
+    static SEEN: Cell<Option<(u64, &'static Data)>> = const { Cell::new(None) };
+}
 
 /// Die geltenden Daten: was zuletzt [`install`] bekam, sonst die aus [`REPO_DATA`].
 pub fn data() -> &'static Data {
-    if let Some(data) = *DATA.read().expect("Daten") {
+    let version = VERSION.load(Ordering::Acquire);
+    if let Some((seen, data)) = SEEN.get()
+        && seen == version
+    {
         return data;
     }
-    DATA.write().expect("Daten").get_or_insert_with(|| {
-        let data = Data::load(Path::new(REPO_DATA)).unwrap_or_else(|error| panic!("{error}"));
-        Box::leak(Box::new(data))
-    })
+    let installed = *DATA.read().expect("Daten");
+    let data = installed.unwrap_or_else(|| {
+        DATA.write().expect("Daten").get_or_insert_with(|| {
+            let data = Data::load(Path::new(REPO_DATA)).unwrap_or_else(|error| panic!("{error}"));
+            Box::leak(Box::new(data))
+        })
+    });
+    SEEN.set(Some((version, data)));
+    data
 }
 
 /// Setzt geprüfte Daten ein; von da an gelten sie überall.
@@ -236,6 +256,7 @@ pub fn data() -> &'static Data {
 pub fn install(data: Data) -> Result<(), String> {
     data.check()?;
     *DATA.write().expect("Daten") = Some(Box::leak(Box::new(data)));
+    VERSION.fetch_add(1, Ordering::Release);
     Ok(())
 }
 

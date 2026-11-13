@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 2,
+  "upgraded": { "value": 4 },
+  "text": {
+    "de": { "name": "Brandsatz", "effect": "{v} Schaden auf ein gewähltes Schiff, Brand." },
+    "en": { "name": "Firebomb", "effect": "{v} damage to a chosen ship, burning." }
+  }
+}

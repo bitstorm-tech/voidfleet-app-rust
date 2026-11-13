@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "enemy",
+  "cost": 2,
+  "value": 0,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Traktorstrahl", "effect": "Zieht ein gewähltes Schiff (kein Flaggschiff) in einen freien Slot seiner Reihe; Deckung bricht." },
+    "en": { "name": "Tractor Beam", "effect": "Pulls a chosen ship (not a flagship) into a free slot of its row; cover breaks." }
+  }
+}

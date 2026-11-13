@@ -3,31 +3,32 @@
     "hand_size": 5,
     "command_points": 3,
     "burn_damage": 2,
-    "ember_burn_damage": 3,
+    "ember_burn_damage": 6,
     "burn_percent": 50,
     "emergency_percent": 25,
-    "clock_start": 8
+    "clock_start": 8,
+    "repair_limit": 6
   },
   "stations": {
-    "damage_control_repair": 5,
-    "max_momentum": 4,
+    "damage_control_repair": 3,
+    "max_momentum": 5,
     "counterfire_shield": 6,
     "counterfire_damage": 3,
-    "focus_fire_vulnerability": 2,
-    "follow_up_card_bonus": 2
+    "focus_fire_vulnerability": 1,
+    "follow_up_card_bonus": 3
   },
   "enemies": {
-    "ram_damage": 10,
+    "ram_damage": 12,
     "bolt_shield": 4,
     "cannibalize_heal": 8,
     "plasma_burn_percent": 60
   },
   "modules": {
-    "fire_control_computer_attack": 1,
+    "fire_control_computer_attack": 2,
     "armor_plates_armor": 1,
     "reserve_reactor_points": 4,
     "supply_pod_hand": 6,
-    "salvage_crane_scrap": 5,
+    "salvage_crane_scrap": 8,
     "reinforced_frames_hull": 10
   },
   "run": {

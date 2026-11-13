@@ -23,13 +23,13 @@ Die Sternenkarten sind entworfen, nicht gewürfelt: Jeder Sektor hat eine Karte 
 
 - **Befehlskarten.** Nach jedem Gefecht-Knoten drei Karten zur Wahl, eine kommt ins Deck, oder keine. Elite und Boss geben stattdessen ein Modul.
 - **Schrott** ist die Währung. Gefecht 10 bis 20, Elite 25 bis 40, Boss 60. Preise im Schwarzmarkt: Karte 40 bis 70, Modul 120 bis 180, Karte entfernen 60, 10 Hülle 25.
-- **Module** sind dauerhafte Passiva, die Relikte von Slay the Spire. Beispiele: Feuerleitrechner (alle eigenen Schüsse +1 ATK), Löschanlage (der eigene Brand tickt nicht), Reservereaktor (4 Befehlspunkte in Runde 1 jedes Gefechts), Panzerplatten (je Treffer −1 Schaden), Notaggregat (einmal im Run überlebt das Flaggschiff den tödlichen Treffer mit 1 Hülle), Bergungskran (jedes zerstörte gegnerische Schiff bringt 5 Schrott), Nachschubkapsel (jede Runde sechs statt fünf Befehle), Kampfsimulator (Kartenangebote zeigen vier statt drei), Verstärkte Spanten (+10 Hülle, dauerhaft).
+- **Module** sind dauerhafte Passiva, die Relikte von Slay the Spire. Beispiele: Feuerleitrechner (alle eigenen Schüsse +2 ATK), Löschanlage (der eigene Brand tickt nicht), Reservereaktor (4 Befehlspunkte in Runde 1 jedes Gefechts), Panzerplatten (je Treffer −1 Schaden), Notaggregat (einmal im Run überlebt das Flaggschiff den tödlichen Treffer mit 1 Hülle), Bergungskran (jedes zerstörte gegnerische Schiff bringt 8 Schrott), Nachschubkapsel (jede Runde sechs statt fünf Befehle), Kampfsimulator (Kartenangebote zeigen vier statt drei), Verstärkte Spanten (+10 Hülle, dauerhaft).
 
 ## Die Hülle im Run
 
 Die Hülle des Flaggschiffs bleibt zwischen den Gefechten, wie sie ist. Ein Brand erlischt nach dem Gefecht, der Notfall bleibt, bis die Hülle wieder über 25 % liegt. Das Flaggschiff ist der Held des Runs: Jeder Punkt Hülle ist eine Entscheidung, und ein Gefecht knapp zu gewinnen ist nicht dasselbe wie es sauber zu gewinnen.
 
-Geheilt wird außerhalb des Gefechts an drei Stellen: in der Werft, im Schwarzmarkt und nach dem Boss von Sektor 1 und 2. Im Gefecht heilen Schadenskontrolle und Reparaturtrupp. Ereignisse heilen bisher nicht.
+Geheilt wird außerhalb des Gefechts an drei Stellen: in der Werft, im Schwarzmarkt und nach dem Boss von Sektor 1 und 2. Im Gefecht heilen Schadenskontrolle und Reparaturtrupp, zusammen höchstens 6 Hülle je Gefecht ([Reparaturgrenze](gefecht.md#stationen-des-flaggschiffs)). Ereignisse heilen bisher nicht.
 
 Zwischen den Gefechten wird das Deck neu gemischt, Doktrinen enden, Module wirken weiter.
 

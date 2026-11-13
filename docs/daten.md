@@ -18,7 +18,7 @@ Namen in den Dateien sind die Ids des Codes in Kleinschreibung mit Unterstrich. 
 ## Gegner
 
 ```json
-"warden": { "class": "battleship", "hull": 90, "attack": 15, "armor": 1, "pattern": ["charge", "charge", { "column_fire": 2 }, { "shields": 15 }] }
+"warden": { "class": "battleship", "hull": 100, "attack": 17, "armor": 1, "pattern": ["fire", "charge", { "column_fire": 2 }, { "shields": 15 }] }
 ```
 
 - `class`: `fighter`, `cruiser`, `battleship` oder `flagship`; sie bestimmt die Modellgruppe auf dem Brett. Sie gilt im Spiel.
@@ -37,9 +37,9 @@ Je Karte eine Datei `cards/<id>.json` mit allem, was auf der Karte steht; das Bi
   "type": "attack",
   "target": "enemy",
   "cost": 2,
-  "value": 5,
-  "extra": 3,
-  "upgraded": { "value": 7 },
+  "value": 9,
+  "extra": 4,
+  "upgraded": { "value": 12 },
   "text": {
     "de": { "name": "Wärmesucher", "effect": "{v} Schaden auf ein gewähltes Schiff, {evading}, wenn es ausweicht. Zielsuchend, durchschlagend." },
     "en": { "name": "Heat Seeker", "effect": "{v} damage to a chosen ship, {evading} if it is evading. Homing, piercing." }
@@ -76,7 +76,7 @@ Der Admirals-Editor im Spiel bearbeitet `admirals.json`: Einstellungen → Tab �
 
 `rules.json` hat fünf Abschnitte; jeder Name sagt, was die Zahl stellt.
 
-- `battle`: Handgröße, Befehlspunkte, Brandschaden (`ember_burn_damage` für Gegner von Reyes), die Schwellen für Brand und Notfall in Prozent der Hülle, der Beginn der Gefechtsuhr.
+- `battle`: Handgröße, Befehlspunkte, Brandschaden (`ember_burn_damage` für Gegner von Reyes), die Schwellen für Brand und Notfall in Prozent der Hülle, der Beginn der Gefechtsuhr, die Reparaturgrenze je Gefecht (`repair_limit`).
 - `stations`: Schadenskontrolle, die Grenze des Vorstoßes, Gegenfeuer, Fokusfeuer, Nachsetzen.
 - `enemies`: Rammschaden, Riegel, Kannibalisieren, die Brandschwelle des Plasmakreuzers.
 - `modules`: die Zahl jedes Moduls, das eine hat.

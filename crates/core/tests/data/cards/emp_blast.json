@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "enemy",
+  "cost": 2,
+  "value": 0,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "EMP-Stoß", "effect": "Ein gewähltes Schiff verliert Schilde und Aufladung." },
+    "en": { "name": "EMP Blast", "effect": "A chosen ship loses its shields and its charge." }
+  }
+}

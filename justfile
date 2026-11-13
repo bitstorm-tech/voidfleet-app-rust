@@ -50,6 +50,10 @@ smoke rounds="30" dir="${TMPDIR:-/tmp}/voidfleet-smoke":
     mkdir -p "{{ dir }}"
     VOIDFLEET_SMOKE_FRAMES=200000 VOIDFLEET_SMOKE_PLAY={{ rounds }} VOIDFLEET_SMOKE_SCREENSHOT="{{ dir }}/play.png" cargo run -p voidfleet-client --features dynamic_linking
 
+# Simulator: ein Bot spielt Runs mit den Daten aus assets/data (runs, cards, modules, trace; z. B. `just sim cards -n 200`)
+sim *args:
+    cargo run --release -p voidfleet-sim -- {{ args }}
+
 # Wiki aus docs/ im Browser, lädt bei Änderungen neu (braucht mdBook: `cargo install mdbook`)
 docs *args:
     mdbook serve --open {{ args }}

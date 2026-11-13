@@ -1,10 +1,13 @@
+use std::path::Path;
+use std::sync::Once;
+
 use voidfleet_core::admirals::{AdmiralId, Station};
 use voidfleet_core::battle::{
     Battle, BattleResult, BattleSetup, Encounter, Enemy, RuleError, Target,
 };
 use voidfleet_core::board::{EnemySlot, Row};
 use voidfleet_core::cards::{CardId, CardTarget, DeckCard, starter_deck};
-use voidfleet_core::data::Step;
+use voidfleet_core::data::{Data, Step, install};
 use voidfleet_core::enemies::{Action, EnemyId, Unit};
 use voidfleet_core::events::{
     BattleEvent, Breakdown, DestroyCause, IdleReason, MissReason, UnitRef,
@@ -12,7 +15,18 @@ use voidfleet_core::events::{
 
 const MID: [bool; 3] = [false, true, false];
 
+/// Die Tests rechnen mit festen Prüfwerten aus `tests/data/` (dem Entwurf vom Anfang), nicht mit `assets/data/`:
+/// So prüfen sie die Mechanik und halten, wenn sich die Zahlen des Spiels ändern.
+fn fixture() {
+    static INSTALLED: Once = Once::new();
+    INSTALLED.call_once(|| {
+        let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data"));
+        install(Data::load(dir).expect("Prüfwerte")).expect("Prüfwerte gültig");
+    });
+}
+
 fn battle(admiral: AdmiralId, units: &[(EnemyId, Row, usize)]) -> Battle {
+    fixture();
     let mut encounter = Encounter::default();
     for &(id, row, column) in units {
         match row {
@@ -119,6 +133,7 @@ fn example_round() -> Battle {
 /// Ruft sie Verstärkung, kommt die gerufene Einheit mit den Werten, die im Ruf stehen.
 #[test]
 fn unit_values() {
+    fixture();
     let called = Unit {
         hull: 3,
         attack: 9,
@@ -334,6 +349,28 @@ fn burn_and_burned_out() {
     assert_eq!(b.result, Some(BattleResult::Won));
 }
 
+/// Schadenskontrolle und Reparaturtrupp geben je Gefecht zusammen höchstens `repair_limit` Hülle zurück; gelöscht
+/// wird weiter.
+#[test]
+fn repair_limit() {
+    let limit = voidfleet_core::data::rules().battle.repair_limit;
+    let mut b = battle(AdmiralId::Osei, &[(EnemyId::Spotter, Row::Front, 0)]);
+    b.flagship.hull = 1;
+    b.flagship.repaired = limit - 1;
+    b.flagship.burning = true;
+    let events = b.run_station(Station::DamageControl, Target::None).unwrap();
+    assert_eq!((b.flagship.hull, b.flagship.repaired), (2, limit));
+    assert!(!b.flagship.burning);
+    assert!(events.contains(&BattleEvent::Healed {
+        target: UnitRef::Flagship,
+        amount: 1,
+        after: b.flagship.stats(),
+    }));
+    give(&mut b, &[CardId::RepairCrew]);
+    play(&mut b, CardId::RepairCrew, Target::None);
+    assert_eq!(b.flagship.hull, 2);
+}
+
 #[test]
 fn reyes_plasma_and_ember() {
     let mut b = battle(AdmiralId::Reyes, &[(EnemyId::Besieger, Row::Front, 0)]);
@@ -404,19 +441,20 @@ fn micro_jump() {
         ],
     );
     give(&mut b, &[CardId::MicroJump]);
-    // Erst schießen, dann springen: Kurzsprung bleibt nach einer Station spielbar.
-    b.run_station(
-        Station::Weapons,
-        Target::Enemy(uid(&b, EnemyId::GuardCruiser)),
-    )
-    .unwrap();
+    // Der Kurzsprung ersetzt die Station: Nach einer Station ist er nicht mehr spielbar, nach ihm läuft keine.
+    let mut fired = b.clone();
+    let cruiser = Target::Enemy(uid(&b, EnemyId::GuardCruiser));
+    fired.run_station(Station::Weapons, cruiser).unwrap();
+    assert_eq!(
+        fired.play_card(0, Target::None),
+        Err(RuleError::StationUsed)
+    );
     let events = play(&mut b, CardId::MicroJump, Target::None);
     assert!(events.contains(&BattleEvent::Jumped));
     assert_eq!(b.station_open(Station::Shields), Err(RuleError::Jumped));
-    assert_eq!(
-        b.enemy(uid(&b, EnemyId::GuardCruiser)).unwrap().hull,
-        16 - 8
-    );
+    // Einmal je Gefecht: Die Karte kommt nicht auf den Ablagestapel.
+    assert_eq!(b.spent, [DeckCard::new(CardId::MicroJump)]);
+    assert!(b.discard_pile.is_empty());
     let events = b.end_turn();
     let misses = events
         .iter()
@@ -586,6 +624,13 @@ fn stasis_delays_intent_and_keeps_charge() {
         [Action::ColumnFire { columns: MID }, Action::Shields(10)]
     );
     assert_eq!(b.announced(besieger)[0].damage, 16);
+    // Der Stillstand lädt eine Runde nach und läuft in der Runde darauf wieder.
+    assert_eq!(
+        b.station_open(Station::Admiral),
+        Err(RuleError::StasisRecharging)
+    );
+    b.end_turn();
+    assert_eq!(b.station_open(Station::Admiral), Ok(()));
 }
 
 #[test]

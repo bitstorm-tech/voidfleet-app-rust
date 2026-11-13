@@ -1,9 +1,9 @@
 {
   "type": "buff",
   "target": "none",
-  "cost": 2,
-  "value": 3,
-  "upgraded": { "cost": 1 },
+  "cost": 1,
+  "value": 7,
+  "upgraded": { "value": 10 },
   "text": {
     "de": { "name": "Energiestoß", "effect": "+{v} ATK in dieser Runde." },
     "en": { "name": "Power Surge", "effect": "+{v} ATK this round." }

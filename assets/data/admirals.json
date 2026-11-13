@@ -1,18 +1,18 @@
 {
   "osei": {
-    "hull": 70, "attack": 7, "shield_station": 12, "signature_card": "hold_the_line",
+    "hull": 64, "attack": 8, "shield_station": 11, "signature_card": "hold_the_line",
     "deck": ["torpedo", "torpedo", "torpedo", "emergency_shields", "emergency_shields", "emergency_shields", "repair_crew", "scavenge", "hold_the_line", "hold_the_line"]
   },
   "vance": {
-    "hull": 50, "attack": 11, "shield_station": 8, "signature_card": "overcharge",
+    "hull": 56, "attack": 16, "shield_station": 8, "signature_card": "overcharge",
     "deck": ["torpedo", "torpedo", "torpedo", "emergency_shields", "emergency_shields", "emergency_shields", "repair_crew", "scavenge", "overcharge", "overcharge"]
   },
   "kerr": {
-    "hull": 56, "attack": 8, "shield_station": 8, "signature_card": "micro_jump",
+    "hull": 56, "attack": 9, "shield_station": 8, "signature_card": "micro_jump",
     "deck": ["torpedo", "torpedo", "torpedo", "emergency_shields", "emergency_shields", "emergency_shields", "repair_crew", "scavenge", "micro_jump", "micro_jump"]
   },
   "reyes": {
-    "hull": 56, "attack": 9, "shield_station": 8, "signature_card": "firebomb",
+    "hull": 62, "attack": 10, "shield_station": 8, "signature_card": "firebomb",
     "deck": ["torpedo", "torpedo", "torpedo", "emergency_shields", "emergency_shields", "emergency_shields", "repair_crew", "scavenge", "firebomb", "firebomb"]
   }
 }

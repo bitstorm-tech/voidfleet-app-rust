@@ -1,17 +1,25 @@
 use std::collections::HashSet;
+use std::path::Path;
+use std::sync::Once;
 
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 use voidfleet_core::battle::{Battle, BattleResult, Encounter};
 use voidfleet_core::cards::{CardId, DeckCard};
-use voidfleet_core::data::Step;
+use voidfleet_core::data::{Data, Step, install};
 use voidfleet_core::enemies::{EnemyId, Unit};
 use voidfleet_core::modules::ModuleId;
 use voidfleet_core::run::{
     EventId, EventOption, Gain, MapError, NodeKind, Run, RunError, SECTORS, SectorMap, Stage,
 };
 
-/// Die Sternenkarten des Spiels, je Sektor eine.
+/// Die Sternenkarten des Spiels, je Sektor eine. Die Zahlen daneben sind feste Prüfwerte aus `tests/data/` (wie in
+/// `tests/battle.rs`), damit die Tests halten, wenn sich die Zahlen des Spiels ändern.
 fn maps() -> [SectorMap; SECTORS as usize] {
+    static INSTALLED: Once = Once::new();
+    INSTALLED.call_once(|| {
+        let dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data"));
+        install(Data::load(dir).expect("Prüfwerte")).expect("Prüfwerte gültig");
+    });
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/data/maps");
     std::array::from_fn(|index| {
         let name = SectorMap::file(index as u32 + 1);
@@ -60,6 +68,12 @@ fn at_event(event: EventId) -> Run {
     go(&mut run, NodeKind::Event);
     run.stage = Stage::Event(event);
     run
+}
+
+/// Die Daten des Spiels in `assets/data/` lassen sich lesen und bestehen die Prüfung.
+#[test]
+fn spieldaten() {
+    Data::load(Path::new(voidfleet_core::data::REPO_DATA)).expect("assets/data");
 }
 
 /// Jede Sternenkarte des Spiels ist gültig, und der Run fliegt sie in der Reihenfolge der Sektoren.

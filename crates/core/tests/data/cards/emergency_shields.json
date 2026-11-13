@@ -1,0 +1,11 @@
+{
+  "type": "buff",
+  "target": "none",
+  "cost": 1,
+  "value": 5,
+  "upgraded": { "value": 7 },
+  "text": {
+    "de": { "name": "Notschilde", "effect": "Schilde {v}." },
+    "en": { "name": "Emergency Shields", "effect": "Shields {v}." }
+  }
+}

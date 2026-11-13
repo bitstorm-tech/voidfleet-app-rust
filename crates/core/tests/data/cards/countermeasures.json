@@ -1,0 +1,11 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 1,
+  "value": 0,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Gegenmaßnahmen", "effect": "Der erste gegnerische Angriff im Gegnerzug macht halben Schaden." },
+    "en": { "name": "Countermeasures", "effect": "The first enemy attack in the enemy turn deals half damage." }
+  }
+}

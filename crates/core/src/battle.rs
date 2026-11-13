@@ -90,16 +90,20 @@ pub enum RuleError {
     StationUsed,
     /// Alle Stationsplätze der Runde sind verbraucht.
     NoStationSlot,
+    /// Der Stillstand lief in der letzten Runde; er lädt eine Runde nach.
+    StasisRecharging,
 }
 
 /// Das Flaggschiff des Spielers samt dem Zustand dieser Runde.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Flagship {
     pub admiral: AdmiralId,
     pub hull: i32,
     pub max_hull: i32,
     pub column: usize,
     pub burning: bool,
+    /// Hülle, die Schadenskontrolle und Reparaturtrupp in diesem Gefecht schon zurückgegeben haben.
+    pub repaired: i32,
     /// Schild für den folgenden Gegnerzug; verfällt in der Auflösung.
     pub shield: i32,
     /// Ablativpanzerung (Rest des Gefechts), ohne Panzerplatten.
@@ -126,6 +130,8 @@ pub struct Flagship {
     /// Standhalten: Hülle, die jeder Schütze verliert, der das Flaggschiff trifft.
     pub hold_the_line: i32,
     pub counterfire: bool,
+    /// Der Stillstand lief in der letzten Runde und lädt in dieser nach.
+    pub stasis_recharging: bool,
     /// Fokusfeuer: im folgenden Gegnerzug je Treffer 2 mehr.
     pub focus_vulnerable: bool,
 }
@@ -144,7 +150,7 @@ impl Flagship {
 }
 
 /// Eine gegnerische Einheit. `intents` sind die nächsten beiden Aktionen, `step` der nächste Schritt von `pattern`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enemy {
     pub uid: u32,
     pub id: EnemyId,
@@ -221,6 +227,8 @@ pub struct Battle {
     pub discard_pile: Vec<DeckCard>,
     /// Gespielte Doktrinen, sie wirken bis zum Gefechtsende.
     pub doctrines: Vec<DeckCard>,
+    /// Gespielte Karten, die es je Gefecht nur einmal gibt (Kurzsprung): bis zum Gefechtsende aus dem Spiel.
+    pub spent: Vec<DeckCard>,
     pub points: u32,
     pub kills: u32,
     pub modules: Vec<ModuleId>,
@@ -248,6 +256,7 @@ impl Battle {
                 max_hull: setup.max_hull,
                 column: COLUMNS / 2,
                 burning: false,
+                repaired: 0,
                 shield: 0,
                 ablative: 0,
                 momentum: 0,
@@ -262,6 +271,7 @@ impl Battle {
                 jammer: 0,
                 hold_the_line: 0,
                 counterfire: false,
+                stasis_recharging: false,
                 focus_vulnerable: false,
             },
             enemies: Vec::new(),
@@ -269,6 +279,7 @@ impl Battle {
             draw_pile: setup.deck,
             discard_pile: Vec::new(),
             doctrines: Vec::new(),
+            spent: Vec::new(),
             points: rules().battle.command_points,
             kills: 0,
             emergency_generator_available: setup.emergency_generator_available,
@@ -444,6 +455,9 @@ impl Battle {
         if station == Station::Admiral && f.emergency() {
             return Err(RuleError::AdmiralStationInEmergency);
         }
+        if station == Station::Admiral && f.stasis_recharging {
+            return Err(RuleError::StasisRecharging);
+        }
         Ok(())
     }
 
@@ -457,6 +471,8 @@ impl Battle {
         self.points -= card.cost();
         if card.id.card_type() == CardType::Doctrine {
             self.doctrines.push(card);
+        } else if card.id == CardId::MicroJump {
+            self.spent.push(card);
         } else {
             self.discard_pile.push(card);
         }
@@ -608,6 +624,9 @@ impl Battle {
             )
         {
             return Err(RuleError::Jumped);
+        }
+        if card.id == CardId::MicroJump && !self.flagship.stations_used.is_empty() {
+            return Err(RuleError::StationUsed);
         }
         self.check_target(card.id.target(), target)?;
         if card.id == CardId::TractorBeam
@@ -767,7 +786,7 @@ impl Battle {
                 self.enemies[i].shield = 0;
                 self.enemies[i].charged = false;
             }
-            CardId::TargetingJammer => self.flagship.jammer += 1,
+            CardId::TargetingJammer => self.flagship.jammer += value,
             CardId::RadioSilence => {
                 let i = self.index(uid).expect("geprüft");
                 self.enemies[i].silenced = true;
@@ -853,7 +872,9 @@ impl Battle {
             });
         }
         let was = f.emergency();
-        let amount = amount.min(f.max_hull - f.hull);
+        let left = rules().battle.repair_limit - f.repaired;
+        let amount = amount.min(f.max_hull - f.hull).min(left).max(0);
+        f.repaired += amount;
         f.hull += amount;
         events.push(BattleEvent::Healed {
             target: UnitRef::Flagship,
@@ -1307,6 +1328,8 @@ impl Battle {
                 0
             };
         }
+        f.stasis_recharging = f.admiral.station() == AdmiralStation::Stasis
+            && f.stations_used.contains(&Station::Admiral);
         f.stations_used.clear();
         f.station_slots = 1;
         f.attack_bonus = 0;

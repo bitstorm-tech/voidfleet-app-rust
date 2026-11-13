@@ -1,0 +1,12 @@
+{
+  "type": "buff",
+  "target": "none",
+  "cost": 1,
+  "value": 5,
+  "extra": 3,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Überladung", "effect": "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {extra} Schaden." },
+    "en": { "name": "Overcharge", "effect": "+{v} ATK this round; your flagship takes {extra} damage at the end of your turn." }
+  }
+}

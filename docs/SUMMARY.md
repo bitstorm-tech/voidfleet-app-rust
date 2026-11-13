@@ -10,6 +10,7 @@
 - [Die Gegner](gegner.md)
 - [Der Run](run.md)
 - [Daten](daten.md)
+- [Balance und Simulator](balance.md)
 
 # Entwurf
 
