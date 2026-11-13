@@ -50,6 +50,7 @@
   "editor_no_node": "No node selected.",
   "editor_sector": "Sector {sector}",
   "editor_node": "Row {row}, node {column}: {kind}",
+  "editor_edges": "Edges to row {row}",
   "editor_saved": "Saved: {file}",
   "editor_failed": "Error: {error}",
   "editor_unsaved": "{file} (unsaved)",

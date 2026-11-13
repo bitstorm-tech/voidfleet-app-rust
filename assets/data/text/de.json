@@ -50,6 +50,7 @@
   "editor_no_node": "Kein Knoten gewählt.",
   "editor_sector": "Sektor {sector}",
   "editor_node": "Reihe {row}, Knoten {column}: {kind}",
+  "editor_edges": "Kanten zu Reihe {row}",
   "editor_saved": "Gespeichert: {file}",
   "editor_failed": "Fehler: {error}",
   "editor_unsaved": "{file} (ungespeichert)",

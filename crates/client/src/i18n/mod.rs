@@ -351,6 +351,7 @@ filled! {
     // --- Karteneditor; Reihe und Knoten zählen ab 1 ---
     editor_sector(sector: u32)
     editor_node(row: usize, column: usize, kind: &str)
+    editor_edges(row: usize)
     editor_saved(file: &str)
     editor_failed(error: &str)
     editor_unsaved(file: &str)

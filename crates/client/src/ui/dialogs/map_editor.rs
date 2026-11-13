@@ -1,10 +1,11 @@
 //! Die Ansicht des Karteneditors ([`Screen::Editor`], Einstellungen → Dev) über [`MapEditor`]. Zwei Zeilen über die
 //! ganze Breite: die Karte je Sektor mit ihrer Datei (speichern, verwerfen) und rechts „Schließen“; darunter die Karte
 //! („Reihe +“) und rechts das Probespiel (Admiral, „Probespielen“). Links die Karte wie im Spiel mit einem „+“ je Reihe,
-//! rechts der gewählte Knoten: Titel und „Knoten löschen“, die Art, dann in zwei Schritten der Verband — erst das Ziel
-//! (ein Feld der zwei Reihen, Verstärkung oder Nachrücker), dann die Einheit aus der Palette. Linksklick wählt einen
-//! Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin. Eine Zeile unter den
-//! Tasten nennt, was an der Karte nicht stimmt; der Knoten dazu trägt einen roten Ring.
+//! rechts der gewählte Knoten: Titel und „Knoten löschen“, die Art, die Kanten zur nächsten Reihe als Tasten, dann in
+//! zwei Schritten der Verband — erst das Ziel (ein Feld der zwei Reihen, Verstärkung oder Nachrücker), dann die Einheit
+//! aus der Palette. Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht
+//! die Kante dorthin. Eine Zeile unter den Tasten nennt, was an der Karte nicht stimmt; der Knoten dazu trägt einen
+//! roten Ring.
 //!
 //! Jede Änderung am [`MapEditor`] baut die Ansicht neu.
 
@@ -558,6 +559,19 @@ fn node_panel(
                 );
             }
         });
+    // Die Kanten zur nächsten Reihe: je Knoten dort eine Taste in der Farbe seiner Art; sie leuchtet, wenn die Kante
+    // steht. Dasselbe wie der Rechtsklick auf der Karte, nur sichtbar.
+    if let Some(next) = editor.map.rows.get(row + 1) {
+        panel.spawn(bar(Val::Auto)).with_children(|edges| {
+            edges.spawn(caption(fonts, &locale.editor_edges(row + 2)));
+            for (to, target) in next.iter().enumerate() {
+                let look = Key::tinted(kind_look(target.kind, icons).0);
+                let lit = node.next.contains(&to);
+                let edge = Edit::Edge(row + 1, to);
+                key(edges, fonts, &(to + 1).to_string(), look, lit, true, edge);
+            }
+        });
+    }
     let Some(encounter) = &node.encounter else {
         panel.spawn(label(
             fonts,
