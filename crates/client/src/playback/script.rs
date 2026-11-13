@@ -496,6 +496,7 @@ impl Stage<'_, '_> {
                     text,
                     detail,
                     tone,
+                    ..default()
                 });
             }
             Cue::Pause(seconds) => self.await_job(entity, Animation::new(seconds)),

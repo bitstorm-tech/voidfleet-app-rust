@@ -18,6 +18,8 @@ const DURATION: f32 = 1.4;
 const FONT_SIZE: f32 = 30.0;
 const RISE: f32 = 56.0;
 const DETAIL_FONT_SIZE: f32 = 15.0;
+/// Zeilenhöhe im Verhältnis zur Schriftgröße, für das Stapeln gleichzeitiger Texte.
+const LINE_HEIGHT: f32 = 1.25;
 
 /// Wie ein Text wirkt: seine Farbe.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -50,6 +52,8 @@ pub struct FloatingText {
     pub text: String,
     pub detail: String,
     pub tone: FloatTone,
+    /// Versatz nach unten (logische Pixel), damit Texte am selben Punkt einander nicht überdecken; setzt [`show`].
+    pub lane: f32,
 }
 
 impl FloatingText {
@@ -57,9 +61,19 @@ impl FloatingText {
         Self {
             at,
             text: text.into(),
-            detail: String::new(),
             tone,
+            ..default()
         }
+    }
+
+    /// Höhe des Texts samt Rechnung (logische Pixel).
+    fn height(&self) -> f32 {
+        let detail = if self.detail.is_empty() {
+            0.0
+        } else {
+            DETAIL_FONT_SIZE
+        };
+        (FONT_SIZE + detail) * LINE_HEIGHT
     }
 }
 
@@ -79,11 +93,25 @@ impl Plugin for FloatingTextPlugin {
 
 fn show(
     add: On<Add<FloatingText>>,
-    texts: Query<&FloatingText>,
+    mut texts: Query<(Entity, &mut FloatingText, Option<&Animation>)>,
     fonts: Res<Fonts>,
     mut commands: Commands,
 ) {
-    let text = texts.get(add.entity).expect("Schwebetext");
+    // Ein Text, der kommt, solange am selben Punkt noch einer jung ist (Brand und Notfall zugleich), stellt sich darunter;
+    // der ältere steigt ihm voraus. Ohne `Animation` ist der andere im selben Bild entstanden.
+    let (_, new, _) = texts.get(add.entity).expect("Schwebetext");
+    let (at, half) = (new.at, new.height() / 2.0);
+    let lane = texts
+        .iter()
+        .filter(|(entity, other, animation)| {
+            *entity != add.entity
+                && other.at.distance_squared(at) < 1e-4
+                && animation.is_none_or(|animation| animation.progress() < 0.5)
+        })
+        .map(|(_, other, _)| other.lane + other.height() / 2.0 + half)
+        .fold(0.0, f32::max);
+    let (_, mut text, _) = texts.get_mut(add.entity).expect("Schwebetext");
+    text.lane = lane;
     commands.entity(add.entity).insert((
         Name::new("Schwebetext"),
         Text::new(text.text.clone()),
@@ -156,7 +184,7 @@ fn float(
         let (opacity, offset, scale) = keyframe(animation.progress());
         if let Ok(position) = camera.world_to_viewport(camera_transform, text.at) {
             node.left = Val::Px(position.x);
-            node.top = Val::Px(position.y + offset);
+            node.top = Val::Px(position.y + text.lane + offset);
         }
         transform.scale = Vec2::splat(scale);
         color.0 = text.tone.color().with_alpha(opacity);
