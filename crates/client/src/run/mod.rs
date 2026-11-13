@@ -14,7 +14,7 @@ pub mod save;
 use bevy::prelude::*;
 use voidfleet_core::{
     admirals::AdmiralId,
-    run::{EventOption, Gain, Run, RunError, SectorMap, Stage},
+    run::{EventOption, Gain, Run, RunError, SECTORS, SectorMap, Stage},
 };
 
 pub use save::RunSave;
@@ -269,25 +269,21 @@ fn follow_flow(
 /// Ein neuer Run.
 pub fn new_run(admiral: AdmiralId, seed: u64) -> ActiveRun {
     info!("Neuer Run: {admiral:?}, Seed {seed}");
-    ActiveRun(Run::new(admiral, seed, &load_maps()))
+    ActiveRun(Run::new(admiral, seed, load_maps()))
 }
 
-/// Liest die Sternenkarten aus `assets/data/maps/` (eine JSON-Datei je Karte), bei jedem neuen Run frisch, also
+/// Liest die Sternenkarten aus `assets/data/maps/` (eine JSON-Datei je Sektor), bei jedem neuen Run frisch, also
 /// gilt eine geänderte Datei ab dem nächsten Run. Panikt mit dem Dateinamen, wenn eine Karte nicht stimmt.
-fn load_maps() -> Vec<SectorMap> {
+fn load_maps() -> [SectorMap; SECTORS as usize] {
     let dir = crate::asset_root().join("data/maps");
-    let entries = std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
-    entries
-        .map(|entry| {
-            let path = entry.expect("lesbarer Ordner").path();
-            let name = path.display();
-            let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
-            let map: SectorMap =
-                serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
-            map.check().unwrap_or_else(|e| panic!("{name}: {e:?}"));
-            map
-        })
-        .collect()
+    std::array::from_fn(|index| {
+        let path = dir.join(SectorMap::file(index as u32 + 1));
+        let name = path.display();
+        let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let map: SectorMap = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
+        map.check().unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        map
+    })
 }
 
 /// Führt die Wahlen dieses Bilds aus; nach dem Boss kündigt ein Banner den neuen Sektor an.

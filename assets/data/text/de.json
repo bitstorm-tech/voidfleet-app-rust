@@ -33,7 +33,6 @@
   "settings_editor": "Karteneditor",
   "editor_title": "Karteneditor",
   "editor_hint": "Linksklick wählt einen Knoten. Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin.",
-  "editor_new": "Neu",
   "editor_save": "Speichern",
   "editor_discard": "Verwerfen",
   "editor_play": "Probespielen",
@@ -45,7 +44,6 @@
   "editor_replacements": "Nachrücker +",
   "editor_encounter_hint": "Erst ein Feld oder eine Liste wählen, dann die Einheit.",
   "editor_valid": "Die Karte ist gültig.",
-  "editor_new_file": "Neue Karte",
   "editor_no_node": "Kein Knoten gewählt.",
   "editor_sector": "Sektor {sector}",
   "editor_node": "Reihe {row}, Knoten {column}: {kind}",
@@ -54,7 +52,6 @@
   "editor_unsaved": "{file} (ungespeichert)",
   "editor_reinforcement": "Runde {round}: {unit}",
   "editor_error": {
-    "sector": "Der Sektor muss zwischen 1 und 3 liegen.",
     "boss": "Die letzte Reihe muss genau ein Boss sein, und sonst darf nirgends einer stehen.",
     "empty_row": "Reihe {row} ist leer.",
     "edges": "Reihe {row}, Knoten {column}: keine Kante hinaus oder eine Kante ins Leere.",

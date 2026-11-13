@@ -286,9 +286,9 @@ plain! {
     settings_animation_speed settings_language settings_cursor settings_cursor_size settings_models models_hint
 
     // --- Karteneditor ---
-    settings_editor editor_title editor_hint editor_new editor_save editor_discard editor_play editor_add_row
+    settings_editor editor_title editor_hint editor_save editor_discard editor_play editor_add_row
     editor_add_node editor_delete_node editor_empty editor_reinforcements editor_replacements editor_encounter_hint
-    editor_valid editor_new_file editor_no_node
+    editor_valid editor_no_node
 
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close fullscreen_enter fullscreen_exit camera_view_toggle loading_failed
@@ -432,7 +432,6 @@ impl Messages {
     /// Was an einer Sternenkarte nicht stimmt, für den Karteneditor; Reihe und Knoten zählen ab 1.
     pub fn editor_error(&self, error: MapError) -> String {
         let (name, row, column) = match error {
-            MapError::Sector => ("sector", 0, 0),
             MapError::Boss => ("boss", 0, 0),
             MapError::EmptyRow(row) => ("empty_row", row, 0),
             MapError::Edges(row, column) => ("edges", row, column),
@@ -1061,7 +1060,6 @@ mod tests {
             .into_iter()
             .for_each(|id| plain(locale.rule_error(id)));
             [
-                MapError::Sector,
                 MapError::Boss,
                 MapError::EmptyRow(0),
                 MapError::Edges(0, 0),

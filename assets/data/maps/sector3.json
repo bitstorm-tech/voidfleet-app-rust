@@ -1,5 +1,4 @@
 {
-  "sector": 3,
   "rows": [
     [
       { "kind": "battle", "next": [0, 1], "encounter": { "front": ["besieger", "guard_cruiser", "plasma_cruiser"], "back": [null, null, null], "reinforcements": [{ "round": 3, "unit": "guard_cruiser" }] } },

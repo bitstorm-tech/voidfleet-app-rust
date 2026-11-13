@@ -1,5 +1,4 @@
 {
-  "sector": 2,
   "rows": [
     [
       { "kind": "battle", "next": [0, 1], "encounter": { "front": ["guard_cruiser", "guard_cruiser", null], "back": [null, null, null] } },

@@ -6,31 +6,21 @@ use voidfleet_core::cards::{CardId, DeckCard};
 use voidfleet_core::enemies::EnemyId;
 use voidfleet_core::modules::ModuleId;
 use voidfleet_core::run::{
-    EventId, EventOption, Gain, MapError, NodeKind, Run, RunError, SectorMap, Stage,
+    EventId, EventOption, Gain, MapError, NodeKind, Run, RunError, SECTORS, SectorMap, Stage,
 };
 
-/// Die Sternenkarten des Spiels samt Dateiname.
-fn map_files() -> Vec<(String, SectorMap)> {
+/// Die Sternenkarten des Spiels, je Sektor eine.
+fn maps() -> [SectorMap; SECTORS as usize] {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/data/maps");
-    let mut files: Vec<_> = std::fs::read_dir(dir)
-        .expect("Ordner der Sternenkarten")
-        .map(|entry| entry.unwrap().path())
-        .collect();
-    files.sort();
-    files
-        .into_iter()
-        .map(|path| {
-            let name = path.file_name().unwrap().to_string_lossy().into_owned();
-            let json = std::fs::read_to_string(&path).unwrap();
-            let map = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
-            (name, map)
-        })
-        .collect()
+    std::array::from_fn(|index| {
+        let name = SectorMap::file(index as u32 + 1);
+        let json = std::fs::read_to_string(format!("{dir}/{name}")).expect(&name);
+        serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"))
+    })
 }
 
 fn new_run(admiral: AdmiralId, seed: u64) -> Run {
-    let maps: Vec<SectorMap> = map_files().into_iter().map(|(_, map)| map).collect();
-    Run::new(admiral, seed, &maps)
+    Run::new(admiral, seed, maps())
 }
 
 fn raiders() -> Encounter {
@@ -71,32 +61,23 @@ fn at_event(event: EventId) -> Run {
     run
 }
 
-/// Jede Sternenkarte des Spiels ist gültig, jeder Sektor hat eine, und der Run zieht je Sektor eine davon.
+/// Jede Sternenkarte des Spiels ist gültig, und der Run fliegt sie in der Reihenfolge der Sektoren.
 #[test]
 fn sternenkarten() {
-    let files = map_files();
-    for (name, map) in &files {
-        assert_eq!(map.check(), Ok(()), "{name}");
+    let maps = maps();
+    for (sector, map) in (1..).zip(&maps) {
+        assert_eq!(map.check(), Ok(()), "Sektor {sector}");
     }
-    let mut first = HashSet::new();
-    for seed in 0..50 {
-        let run = new_run(AdmiralId::Kerr, seed);
-        let drawn = [&run.map, &run.upcoming[0], &run.upcoming[1]];
-        for (sector, rows) in (1..).zip(drawn) {
-            assert!(
-                files
-                    .iter()
-                    .any(|(_, map)| map.sector == sector && map.rows == *rows)
-            );
-        }
-        first.insert(files.iter().position(|(_, map)| map.rows == run.map));
-    }
-    assert!(first.len() > 1, "Sektor 1 zieht immer dieselbe Karte");
+    let run = new_run(AdmiralId::Kerr, 0);
+    assert_eq!(
+        [&run.map, &run.upcoming[0], &run.upcoming[1]],
+        maps.each_ref().map(|map| &map.rows)
+    );
 }
 
 #[test]
 fn karte_prüfen() {
-    let json = r#"{ "sector": 1, "rows": [
+    let json = r#"{ "rows": [
         [{ "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null] } }],
         [{ "kind": "event", "next": [0] }, { "kind": "shipyard", "next": [0] }],
         [{ "kind": "boss", "next": [], "encounter": { "front": ["raiders", null, null], "back": ["scrap_king", null, null] } }]
@@ -112,7 +93,6 @@ fn karte_prüfen() {
         change(&mut map);
         map.check()
     };
-    assert_eq!(broken(|m| m.sector = 4), Err(MapError::Sector));
     assert_eq!(
         broken(|m| m.rows[1][0].kind = NodeKind::Boss),
         Err(MapError::Boss)

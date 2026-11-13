@@ -8,7 +8,7 @@ Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im 
 | `cards.json` | Art, Ziel, Kosten und Wert jeder Karte samt aufgewerteter Fassung ([Karten](karten.md)) | nach dem Neubauen |
 | `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nach dem Neubauen |
 | `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Zweitwerte der Karten, Gegner, Module, Run | nach dem Neubauen |
-| `maps/*.json` | die Sternenkarten samt Verband je Knoten ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
+| `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
 | `text/de.json`, `text/en.json` | jeder sichtbare Text, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
 
 Die ersten vier Dateien und die Texte sind in das Programm eingebettet (`cargo run` baut nach einer Änderung von selbst neu), die Sternenkarten liest das Spiel zur Laufzeit. `cargo test -p voidfleet-core` prüft Daten und Sternenkarten: Jeder Gegner, jede Karte und jeder Admiral braucht seinen Eintrag, ein unbekanntes oder fehlendes Feld ist ein Fehler mit Dateiname und Stelle. `cargo test -p voidfleet-client i18n` prüft die Texte. Neue Gegner, Karten, Admirale oder Module entstehen nicht in den Dateien: Sie brauchen einen Namen im Code, Mechanik, Modell und Texte.
@@ -64,11 +64,10 @@ Die Zweitwerte (etwa der Zuschlag des Wärmesuchers) stehen in `rules.json` unte
 
 ## Sternenkarten
 
-Je Sternenkarte eine JSON-Datei in `assets/data/maps/`; der Dateiname ist frei, mehrere Dateien mit demselben `sector` sind Varianten.
+Je Sektor eine JSON-Datei in `assets/data/maps/`: `sector1.json`, `sector2.json`, `sector3.json`. Die Abwechslung kommt aus der Gestaltung des Sektors, nicht aus mehreren Dateien.
 
 ```json
 {
-  "sector": 1,
   "rows": [
     [
       { "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null], "back": [null, null, null] } }
@@ -98,13 +97,13 @@ Das Spiel liest die Karten bei jedem neuen Run, ohne Neubauen; eine falsche Date
 
 Der Karteneditor im Spiel bearbeitet dieselben Dateien: Einstellungen → Tab „Dev“ → „Karteneditor“. Wer die Dateien lieber von Hand oder per Agent ändert, braucht ihn nicht; beide Wege schreiben dasselbe Format, der Editor Zeichen für Zeichen so wie die vorhandenen Dateien.
 
-- **Datei**: `<` und `>` blättern durch die Karten des Ordners, „Neu“ beginnt eine Karte aus einem Gefecht und dem Boss. „Speichern“ schreibt nur eine Karte, die die Prüfung besteht; eine neue heißt `sector<n>_<x>.json` mit dem ersten freien Buchstaben. Mit ungespeicherten Änderungen bleibt die Karte offen, bis gespeichert oder verworfen ist.
-- **Karte**: Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin. Das „+“ rechts neben einer Reihe legt dort einen Knoten an, „Reihe +“ eine Reihe vor dem Boss; beide hängen das Neue so ein, dass die Karte gültig bleibt. „Sektor 1–3“ stellt den Sektor.
+- **Datei**: „Sektor 1–3“ öffnet die Karte des Sektors. „Speichern“ schreibt nur eine Karte, die die Prüfung besteht, in die Datei ihres Sektors. Mit ungespeicherten Änderungen bleibt die Karte offen, bis gespeichert oder verworfen ist.
+- **Karte**: Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin. Das „+“ rechts neben einer Reihe legt dort einen Knoten an, „Reihe +“ eine Reihe vor dem Boss; beide hängen das Neue so ein, dass die Karte gültig bleibt.
 - **Knoten**: rechts die Art (die letzte Reihe ist der Boss und bleibt es) und „Knoten löschen“; fällt der letzte Knoten einer Reihe, fällt die Reihe. An Gefecht, Elite und Boss steht der Verband als zwei Reihen mit drei Spalten: erst ein Feld wählen, dann die Einheit aus der Palette („Leer“ räumt das Feld). „Verstärkung +“ und „Nachrücker +“ sind Ziele wie ein Feld; die Runde einer Verstärkung stellen `-` und `+`, `x` nimmt einen Eintrag heraus.
 - **Prüfung**: Die Zeile unter den Tasten nennt, was an der Karte nicht stimmt, der Knoten dazu trägt einen roten Ring. Es ist dieselbe Prüfung wie im Test.
 - **Probespielen**: spielt den gewählten Knoten mit dem gewählten Admiral und seinem Startdeck im Sektor der Karte, ohne zu speichern, auch die Karte nicht. Ist der Knoten erledigt (nach der Beute, der Werft, dem Markt, dem Ereignis) oder führt der Weg über „Hauptmenü“ hinaus, steht wieder der Editor da. Ein Run, der vorher lief, bleibt gespeichert und geht im Hauptmenü weiter.
 
-Der Editor verschiebt keine Knoten innerhalb einer Reihe, benennt und löscht keine Dateien und stellt keine Werte der Gegner; die stehen in `enemies.json`.
+Der Editor verschiebt keine Knoten innerhalb einer Reihe, legt keine Dateien an und stellt keine Werte der Gegner; die stehen in `enemies.json`.
 
 ## Texte
 

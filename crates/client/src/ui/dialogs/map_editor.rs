@@ -18,7 +18,7 @@ use voidfleet_core::{
     battle::Encounter,
     board::Row,
     enemies::EnemyId,
-    run::{MapError, NodeKind, SECTORS},
+    run::{MapError, NodeKind, SECTORS, SectorMap},
 };
 
 use super::{
@@ -121,7 +121,7 @@ fn error_node(error: MapError) -> Option<(usize, usize)> {
         MapError::Edges(row, column)
         | MapError::Unreachable(row, column)
         | MapError::Encounter(row, column) => Some((row, column)),
-        MapError::Sector | MapError::Boss | MapError::EmptyRow(_) => None,
+        MapError::Boss | MapError::EmptyRow(_) => None,
     }
 }
 
@@ -228,8 +228,7 @@ fn frame(node: Node) -> impl Bundle {
     )
 }
 
-/// Titel, Datei mit Blättern, neu, speichern, verwerfen, schließen. Mit Ungespeichertem bleibt die Karte offen, bis
-/// gespeichert oder verworfen ist.
+/// Titel, Datei, speichern, verwerfen, schließen.
 fn file_bar(
     bar: &mut ChildSpawnerCommands,
     fonts: &Fonts,
@@ -238,11 +237,11 @@ fn file_bar(
     valid: bool,
 ) {
     let dirty = editor.dirty();
-    let name = editor.file.as_deref().unwrap_or(locale.editor_new_file());
+    let name = SectorMap::file(editor.sector);
     let name = if dirty {
-        locale.editor_unsaved(name)
+        locale.editor_unsaved(&name)
     } else {
-        name.to_owned()
+        name
     };
     bar.spawn((
         theme::caps(
@@ -257,29 +256,7 @@ fn file_bar(
         },
         Pickable::IGNORE,
     ));
-    let browsable = !dirty && !editor.files.is_empty();
-    key(
-        bar,
-        fonts,
-        "<",
-        Key::NORMAL,
-        false,
-        browsable,
-        Edit::File(-1),
-    );
     bar.spawn(label(fonts, name, palette::TEXT));
-    key(
-        bar,
-        fonts,
-        ">",
-        Key::NORMAL,
-        false,
-        browsable,
-        Edit::File(1),
-    );
-    let new = locale.editor_new();
-    key(bar, fonts, new, Key::NORMAL, false, !dirty, Edit::New);
-    let unsaved = dirty || editor.file.is_none();
     let save = locale.editor_save();
     key(
         bar,
@@ -287,7 +264,7 @@ fn file_bar(
         save,
         Key::PRIMARY,
         false,
-        valid && unsaved,
+        valid && dirty,
         Edit::Save,
     );
     let discard = locale.editor_discard();
@@ -314,7 +291,7 @@ fn file_bar(
     ));
 }
 
-/// Sektor, „Reihe +“, der Admiral des Probespiels und „Probespielen“ (mit gewähltem Knoten auf einer gültigen Karte).
+/// Sektor (mit Ungespeichertem bleibt die Karte offen, bis gespeichert oder verworfen ist), „Reihe +“, der Admiral des Probespiels und „Probespielen“ (mit gewähltem Knoten auf einer gültigen Karte).
 fn map_bar(
     bar: &mut ChildSpawnerCommands,
     fonts: &Fonts,
@@ -324,14 +301,14 @@ fn map_bar(
 ) {
     for sector in 1..=SECTORS {
         let name = locale.editor_sector(sector);
-        let lit = editor.map.sector == sector;
+        let lit = editor.sector == sector;
         key(
             bar,
             fonts,
             &name,
             Key::NORMAL,
             lit,
-            true,
+            !editor.dirty(),
             Edit::Sector(sector),
         );
     }

@@ -1,6 +1,6 @@
 //! Der Run (`docs/run.md`, `docs/gegner.md`): drei Sektoren mit je einer Sternenkarte, die Gefechte gegen die Verbände
 //! ihrer Knoten, Beute, Werft, Schwarzmarkt und Ereignisse. Die Sternenkarten sind entworfen ([`SectorMap`], eine
-//! Datei je Karte in `assets/data/maps/`); der Run zieht je Sektor eine. Der Zustand liegt in öffentlichen Feldern,
+//! Datei je Sektor in `assets/data/maps/`). Der Zustand liegt in öffentlichen Feldern,
 //! jeder Schritt ist eine Methode, die eine ungültige Wahl mit [`RunError`] ablehnt. Der Zufall hängt nur an `seed`
 //! und `rolls`, also ist ein Run mit Seed und denselben Karten wiederholbar und nach dem Laden derselbe.
 
@@ -60,15 +60,12 @@ pub struct MapNode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SectorMap {
-    /// 1 bis [`SECTORS`].
-    pub sector: u32,
     pub rows: Vec<Vec<MapNode>>,
 }
 
 /// Was an einer Sternenkarte nicht stimmt; Knoten als (Reihe, Spalte).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapError {
-    Sector,
     /// Die letzte Reihe ist nicht genau ein Boss, oder ein Boss steht in einer anderen Reihe.
     Boss,
     EmptyRow(usize),
@@ -82,10 +79,12 @@ pub enum MapError {
 }
 
 impl SectorMap {
+    /// Der Dateiname der Karte dieses Sektors (1 bis [`SECTORS`]) in `assets/data/maps/`.
+    pub fn file(sector: u32) -> String {
+        format!("sector{sector}.json")
+    }
+
     pub fn check(&self) -> Result<(), MapError> {
-        if !(1..=SECTORS).contains(&self.sector) {
-            return Err(MapError::Sector);
-        }
         let Some((last, rows)) = self.rows.split_last() else {
             return Err(MapError::Boss);
         };
@@ -259,10 +258,10 @@ pub struct Run {
 }
 
 impl Run {
-    /// Zieht je Sektor eine der geprüften ([`SectorMap::check`]) Karten aus `maps`. Panikt, wenn für einen Sektor
-    /// keine da ist.
-    pub fn new(admiral: AdmiralId, seed: u64, maps: &[SectorMap]) -> Self {
-        let mut run = Run {
+    /// Ein Run über die geprüften ([`SectorMap::check`]) Karten der Sektoren, in ihrer Reihenfolge.
+    pub fn new(admiral: AdmiralId, seed: u64, maps: [SectorMap; SECTORS as usize]) -> Self {
+        let [first, upcoming @ ..] = maps.map(|map| map.rows);
+        Run {
             admiral,
             seed,
             rolls: 0,
@@ -273,25 +272,15 @@ impl Run {
             modules: Vec::new(),
             emergency_generator_used: false,
             sector: 1,
-            map: Vec::new(),
-            upcoming: Vec::new(),
+            map: first,
+            upcoming: upcoming.to_vec(),
             path: Vec::new(),
             stage: Stage::Map,
             burning: false,
             pilot: false,
             victories: 0,
             result: None,
-        };
-        let mut rng = run.rng();
-        let mut drawn = (1..=SECTORS).map(|sector| {
-            let of_sector: Vec<&SectorMap> =
-                maps.iter().filter(|map| map.sector == sector).collect();
-            let map = of_sector.choose(&mut rng).expect("eine Karte je Sektor");
-            map.rows.clone()
-        });
-        run.map = drawn.next().expect("Sektor 1");
-        run.upcoming = drawn.collect();
-        run
+        }
     }
 
     // --- Abfragen ---

@@ -1,5 +1,5 @@
-//! Der Karteneditor ohne Oberfläche (Einstellungen → Dev, [`Screen::Editor`](crate::run::Screen)): eine Sternenkarte
-//! aus `assets/data/maps/` laden, Schritt für Schritt bearbeiten ([`Edit`]), prüfen ([`SectorMap::check`]), im Format
+//! Der Karteneditor ohne Oberfläche (Einstellungen → Dev, [`Screen::Editor`](crate::run::Screen)): die Sternenkarte
+//! eines Sektors aus `assets/data/maps/` laden, Schritt für Schritt bearbeiten ([`Edit`]), prüfen ([`SectorMap::check`]), im Format
 //! der Dateien schreiben ([`map_json`]) und einen Knoten probespielen ([`MapEditor::test_run`]). Die Ansicht steht
 //! in `ui/dialogs/map_editor.rs`; sie legt die Ressource [`MapEditor`] beim ersten Öffnen an.
 
@@ -35,6 +35,7 @@ pub enum Edit {
     AddRow,
     Delete,
     Kind(NodeKind),
+    /// Lädt die Karte dieses Sektors.
     Sector(u32),
     Target(Target),
     /// Die Einheit der Palette (`None`: leer) geht an das Ziel ([`Target`]).
@@ -44,9 +45,6 @@ pub enum Edit {
     DropReinforcement(usize),
     DropReplacement(usize),
     Admiral(AdmiralId),
-    /// Blättert durch die Dateien.
-    File(isize),
-    New,
     Save,
     Discard,
 }
@@ -61,10 +59,8 @@ pub enum Note {
 #[derive(Resource, Debug)]
 pub struct MapEditor {
     dir: PathBuf,
-    /// Die Kartendateien des Ordners, nach Namen sortiert.
-    pub files: Vec<String>,
-    /// Die offene Datei; `None` ist eine neue Karte, die ihren Namen beim ersten Speichern bekommt.
-    pub file: Option<String>,
+    /// Der Sektor der offenen Karte, 1 bis [`SECTORS`].
+    pub sector: u32,
     pub map: SectorMap,
     /// Der Stand der Datei, zum Verwerfen und um Ungespeichertes zu erkennen.
     saved: SectorMap,
@@ -98,18 +94,16 @@ fn blank() -> SectorMap {
         encounter: Some(encounter(EnemyId::ScrapKing)),
     };
     SectorMap {
-        sector: 1,
         rows: vec![vec![battle_node(vec![0])], vec![boss]],
     }
 }
 
 impl MapEditor {
-    /// Öffnet die erste Karte des Ordners, ohne Dateien eine neue.
+    /// Öffnet die Karte von Sektor 1; ist sie unlesbar, eine leere.
     pub fn open(dir: PathBuf) -> Self {
         let mut editor = Self {
             dir,
-            files: Vec::new(),
-            file: None,
+            sector: 1,
             map: blank(),
             saved: blank(),
             selected: None,
@@ -117,10 +111,7 @@ impl MapEditor {
             admiral: AdmiralId::Osei,
             note: None,
         };
-        editor.list();
-        if let Some(name) = editor.files.first().cloned() {
-            editor.load(name);
-        }
+        editor.load(1);
         editor
     }
 
@@ -187,7 +178,11 @@ impl MapEditor {
                     }
                 }
             }
-            Edit::Sector(sector) => self.map.sector = sector,
+            Edit::Sector(sector) => {
+                if !self.dirty() {
+                    self.load(sector);
+                }
+            }
             Edit::Target(target) => self.target = target,
             Edit::Place(unit) => {
                 let target = self.target;
@@ -229,23 +224,6 @@ impl MapEditor {
                 }
             }
             Edit::Admiral(admiral) => self.admiral = admiral,
-            Edit::File(step) => {
-                if self.dirty() || self.files.is_empty() {
-                    return;
-                }
-                let at = (self.file.as_ref())
-                    .and_then(|file| self.files.iter().position(|name| name == file));
-                let next = at.map_or(0, |at| {
-                    (at as isize + step).rem_euclid(self.files.len() as isize) as usize
-                });
-                self.load(self.files[next].clone());
-            }
-            Edit::New => {
-                if !self.dirty() {
-                    (self.map, self.saved, self.file, self.selected) =
-                        (blank(), blank(), None, None);
-                }
-            }
             Edit::Save => self.save(),
             Edit::Discard => (self.map, self.selected) = (self.saved.clone(), None),
         }
@@ -281,17 +259,9 @@ impl MapEditor {
         }
     }
 
-    fn list(&mut self) {
-        let entries = std::fs::read_dir(&self.dir).into_iter().flatten().flatten();
-        self.files = entries
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .filter(|name| name.ends_with(".json"))
-            .collect();
-        self.files.sort();
-    }
-
-    /// Lädt eine Karte, auch eine, die die Prüfung nicht besteht; unlesbar bleibt die bisherige stehen.
-    fn load(&mut self, name: String) {
+    /// Lädt die Karte eines Sektors, auch eine, die die Prüfung nicht besteht; unlesbar bleibt die bisherige stehen.
+    fn load(&mut self, sector: u32) {
+        let name = SectorMap::file(sector);
         let read = std::fs::read_to_string(self.dir.join(&name))
             .map_err(|error| error.to_string())
             .and_then(|json| {
@@ -300,33 +270,22 @@ impl MapEditor {
         match read {
             Ok(map) => {
                 (self.saved, self.map) = (map.clone(), map);
-                (self.file, self.selected, self.note) = (Some(name), None, None);
+                (self.sector, self.selected, self.note) = (sector, None, None);
             }
             Err(error) => self.note = Some(Note::Failed(format!("{name}: {error}"))),
         }
     }
 
-    /// Schreibt die Karte, wenn sie stimmt; eine neue heißt `sector<n>_<x>.json` mit dem ersten freien Buchstaben,
-    /// danach mit Zahlen.
+    /// Schreibt die Karte in die Datei ihres Sektors, wenn sie stimmt.
     fn save(&mut self) {
         if self.map.check().is_err() {
             return;
         }
-        self.list();
-        let name = self.file.clone().unwrap_or_else(|| {
-            let letters = ('a'..='z').map(String::from);
-            letters
-                .chain((1..).map(|number: u32| number.to_string()))
-                .map(|tag| format!("sector{}_{tag}.json", self.map.sector))
-                .find(|name| !self.files.contains(name))
-                .expect("die Zahlen enden nicht")
-        });
+        let name = SectorMap::file(self.sector);
         self.note = Some(
             match std::fs::write(self.dir.join(&name), map_json(&self.map)) {
                 Ok(()) => {
                     self.saved = self.map.clone();
-                    self.file = Some(name.clone());
-                    self.list();
                     Note::Saved(name)
                 }
                 Err(error) => Note::Failed(format!("{name}: {error}")),
@@ -340,14 +299,12 @@ impl MapEditor {
         let (row, column) = self.selected?;
         self.map.check().ok()?;
         let rows = &self.map.rows;
-        let maps: Vec<SectorMap> = (1..=SECTORS)
-            .map(|sector| SectorMap {
-                sector,
-                rows: rows.clone(),
-            })
-            .collect();
-        let mut run = Run::new(self.admiral, seed, &maps);
-        run.sector = self.map.sector;
+        let mut run = Run::new(
+            self.admiral,
+            seed,
+            std::array::from_fn(|_| self.map.clone()),
+        );
+        run.sector = self.sector;
         run.upcoming.truncate((SECTORS - run.sector) as usize);
         let mut path = vec![column];
         for before in (0..row).rev() {
@@ -377,11 +334,7 @@ pub fn map_json(map: &SectorMap) -> String {
             format!("    [\n{}\n    ]", nodes.join(",\n"))
         })
         .collect();
-    format!(
-        "{{\n  \"sector\": {},\n  \"rows\": [\n{}\n  ]\n}}\n",
-        map.sector,
-        rows.join(",\n")
-    )
+    format!("{{\n  \"rows\": [\n{}\n  ]\n}}\n", rows.join(",\n"))
 }
 
 /// JSON in einer Zeile mit Leerzeichen, wie die Dateien es schreiben: `{ "kind": "event", "next": [0, 1] }`.
@@ -439,10 +392,9 @@ mod tests {
     /// Der Schreiber gibt jede Kartendatei Zeichen für Zeichen wieder: Speichern ändert nur, was bearbeitet wurde.
     #[test]
     fn files_keep_their_format() {
-        let editor = MapEditor::open(maps_dir());
-        assert!(editor.files.len() >= 9);
-        for name in &editor.files {
-            let json = std::fs::read_to_string(maps_dir().join(name)).unwrap();
+        for sector in 1..=SECTORS {
+            let name = SectorMap::file(sector);
+            let json = std::fs::read_to_string(maps_dir().join(&name)).unwrap();
             let map: SectorMap = serde_json::from_str(&json).unwrap();
             assert_eq!(map_json(&map), json, "{name}");
         }
@@ -536,39 +488,44 @@ mod tests {
                 editor.apply(Edit::Select(row, column));
                 let run = editor.test_run(1).unwrap();
                 assert_eq!(run.current(), Some((row, column)));
-                assert_eq!(run.sector, editor.map.sector);
+                assert_eq!(run.sector, editor.sector);
                 let battle = matches!(kind, NodeKind::Battle | NodeKind::Elite | NodeKind::Boss);
                 assert_eq!(matches!(run.stage, Stage::Battle { .. }), battle);
             }
         }
     }
 
-    /// Speichern schreibt eine neue Karte unter dem ersten freien Namen und nur, wenn sie stimmt.
+    /// Speichern schreibt die Datei des Sektors und nur, wenn die Karte stimmt; mit Ungespeichertem bleibt der
+    /// Sektor offen.
     #[test]
-    fn save_new_map() {
+    fn save_and_switch() {
         let dir = std::env::temp_dir().join(format!("voidfleet-editor-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("sector1_a.json"), map_json(&blank())).unwrap();
+        for sector in 1..=2 {
+            std::fs::write(dir.join(SectorMap::file(sector)), map_json(&blank())).unwrap();
+        }
         let mut editor = MapEditor::open(dir.clone());
-        assert_eq!(editor.file.as_deref(), Some("sector1_a.json"));
-        editor.apply(Edit::New);
+        editor.apply(Edit::Sector(2));
+        assert_eq!((editor.sector, editor.note.clone()), (2, None));
         editor.apply(Edit::Select(0, 0));
         editor.apply(Edit::Place(None));
         editor.apply(Edit::Save);
-        assert_eq!((editor.note.clone(), editor.files.len()), (None, 1));
+        assert_eq!(editor.note, None);
+        editor.apply(Edit::Sector(1));
+        assert_eq!(editor.sector, 2);
         editor.apply(Edit::Place(Some(EnemyId::Fireship)));
         editor.apply(Edit::Save);
-        assert_eq!(editor.note, Some(Note::Saved("sector1_b.json".into())));
+        assert_eq!(editor.note, Some(Note::Saved("sector2.json".into())));
         assert!(!editor.dirty());
+        let json = std::fs::read_to_string(dir.join("sector2.json")).unwrap();
+        assert_eq!(json, map_json(&editor.map));
 
-        // Mit Ungespeichertem bleibt die Karte offen; sonst blättert der Editor.
-        editor.apply(Edit::AddRow);
-        editor.apply(Edit::File(1));
-        assert_eq!(editor.file.as_deref(), Some("sector1_b.json"));
-        editor.apply(Edit::Discard);
-        editor.apply(Edit::File(1));
-        assert_eq!(editor.file.as_deref(), Some("sector1_a.json"));
-        assert_eq!(editor.map, blank());
+        // Eine fehlende Datei lässt die offene Karte stehen.
+        editor.apply(Edit::Sector(3));
+        assert_eq!(editor.sector, 2);
+        assert!(matches!(editor.note, Some(Note::Failed(_))));
+        editor.apply(Edit::Sector(1));
+        assert_eq!((editor.sector, &editor.map), (1, &blank()));
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
