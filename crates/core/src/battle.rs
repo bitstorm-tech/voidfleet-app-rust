@@ -672,7 +672,7 @@ impl Battle {
                 let base = self.card_damage(
                     value
                         + if evading {
-                            rules().cards.heat_seeker_evading_bonus
+                            CardId::HeatSeeker.extra()
                         } else {
                             0
                         },
@@ -690,7 +690,7 @@ impl Battle {
                 let base = self.card_damage(
                     value
                         + if emergency {
-                            rules().cards.coup_de_grace_emergency_bonus
+                            CardId::CoupDeGrace.extra()
                         } else {
                             0
                         },
@@ -752,13 +752,13 @@ impl Battle {
             }
             CardId::EmergencyShields => self.shield_flagship(value, events),
             CardId::HoldTheLine => {
-                self.flagship.hold_the_line += rules().cards.hold_the_line_retaliation;
+                self.flagship.hold_the_line += CardId::HoldTheLine.extra();
                 self.shield_flagship(value, events);
             }
             CardId::AblativeArmor => self.flagship.ablative += value,
             CardId::Overcharge => {
                 self.flagship.attack_bonus += value;
-                self.flagship.overcharge += rules().cards.overcharge_self_damage;
+                self.flagship.overcharge += CardId::Overcharge.extra();
             }
             CardId::PowerSurge => self.flagship.attack_bonus += value,
             CardId::RepairCrew => self.repair(value, events),
@@ -793,7 +793,7 @@ impl Battle {
                 self.maneuver(column, events);
             }
             CardId::Countermeasures => self.flagship.countermeasures += 1,
-            CardId::Scavenge => self.draw(rules().cards.scavenge_draw, events),
+            CardId::Scavenge => self.draw(CardId::Scavenge.extra() as usize, events),
             CardId::RedAlert => self.flagship.station_slots += 1,
             CardId::FireControlDoctrine => self.flagship.fire_control += value,
             CardId::BattleStations => self.flagship.battle_stations += value,

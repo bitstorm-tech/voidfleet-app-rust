@@ -16,13 +16,6 @@
     "focus_fire_vulnerability": 2,
     "follow_up_card_bonus": 2
   },
-  "cards": {
-    "heat_seeker_evading_bonus": 3,
-    "coup_de_grace_emergency_bonus": 5,
-    "hold_the_line_retaliation": 2,
-    "overcharge_self_damage": 3,
-    "scavenge_draw": 2
-  },
   "enemies": {
     "ram_damage": 10,
     "bolt_shield": 4,

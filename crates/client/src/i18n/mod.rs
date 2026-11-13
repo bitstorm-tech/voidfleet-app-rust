@@ -27,7 +27,7 @@ use voidfleet_core::{
     battle::{BattleResult, RuleError},
     board::{EnemySlot, Row},
     cards::{CardId, CardTarget, CardType, DeckCard},
-    data::{data, rules},
+    data::data,
     enemies::{Action, EnemyClass, EnemyId},
     events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
     modules::ModuleId,
@@ -39,22 +39,24 @@ use crate::{
     settings::{AnimationSpeed, Antialiasing, CursorId, Language, Settings, WindowMode},
 };
 
+/// Die Textdateien in `assets/data/text/` in der Reihenfolge von [`LANGUAGES`]: Name und Inhalt.
+// shortcut: eingebettet wie die Daten des Regelwerks, eine Änderung gilt also erst nach dem Neubauen.
+pub const TEXT_FILES: [(&str, &str); 2] = [
+    (
+        "en.json",
+        include_str!("../../../../assets/data/text/en.json"),
+    ),
+    (
+        "de.json",
+        include_str!("../../../../assets/data/text/de.json"),
+    ),
+];
+
 /// Die Texte je Sprache in der Reihenfolge von [`LANGUAGES`], flach nach Schlüssel (`card.torpedo.name`,
 /// `radio_lines.victory.0`); die Zahlen aus den Daten sind schon eingesetzt.
-// shortcut: eingebettet wie die Daten des Regelwerks, eine Änderung gilt also erst nach dem Neubauen.
 static TEXTS: LazyLock<[HashMap<String, String>; 2]> = LazyLock::new(|| {
     let data = serde_json::to_value(data()).expect("Daten des Regelwerks als JSON");
-    [
-        (
-            "en.json",
-            include_str!("../../../../assets/data/text/en.json"),
-        ),
-        (
-            "de.json",
-            include_str!("../../../../assets/data/text/de.json"),
-        ),
-    ]
-    .map(|(file, json)| {
+    TEXT_FILES.map(|(file, json)| {
         let tree: Value =
             serde_json::from_str(json).unwrap_or_else(|e| panic!("assets/data/text/{file}: {e}"));
         let mut texts = HashMap::new();
@@ -90,7 +92,7 @@ fn flatten(value: &Value, key: String, data: &Value, texts: &mut HashMap<String,
 
 /// Setzt die Zahlen aus den Daten ein: `{rules.battle.clock_start}`, `{admirals.osei.hull}`. Platzhalter ohne Punkt
 /// sind Argumente und bleiben stehen. Der Fehler nennt den Pfad, den es in den Daten nicht gibt.
-fn with_data(text: &str, data: &Value) -> Result<String, String> {
+pub fn with_data(text: &str, data: &Value) -> Result<String, String> {
     let mut out = String::new();
     let mut rest = text;
     while let Some((before, after)) = rest.split_once('{') {
@@ -112,8 +114,30 @@ fn with_data(text: &str, data: &Value) -> Result<String, String> {
     Ok(out + rest)
 }
 
+/// Füllt den Effekttext einer Karte mit dem Hauptwert `v` und dem Zweitwert `extra`: `{v}`, `{extra}`, dazu
+/// `{evading}` und `{emergency}`, der Wert gegen ein ausweichendes Ziel und eines im Notfall, und `{bonus}`, der
+/// Zuschlag als „ +2“ oder nichts.
+pub fn effect_text(template: &str, v: i32, extra: i32) -> String {
+    let bonus = if v > 0 {
+        format!(" +{v}")
+    } else {
+        String::new()
+    };
+    [
+        ("v", v.to_string()),
+        ("extra", extra.to_string()),
+        ("evading", (v + extra).to_string()),
+        ("emergency", (v + extra).to_string()),
+        ("bonus", bonus),
+    ]
+    .iter()
+    .fold(template.to_owned(), |text, (name, value)| {
+        text.replace(&format!("{{{name}}}"), value)
+    })
+}
+
 /// Schlüssel einer Id wie in den Dateien: `CoupDeGrace` wird `coup_de_grace`; die Felder einer Variante zählen nicht.
-fn snake(id: impl Debug) -> String {
+pub fn snake(id: impl Debug) -> String {
     let mut key = String::new();
     for letter in format!("{id:?}")
         .chars()
@@ -292,6 +316,11 @@ plain! {
     editor_back editor_open_call
     editor_add_step
 
+    // --- Befehlskarten-Editor ---
+    settings_card_editor card_editor_title card_editor_type card_editor_target card_editor_numbers card_editor_cost
+    card_editor_value card_editor_extra card_editor_upgraded card_editor_name card_editor_effect card_editor_valid
+    card_editor_hint
+
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close camera_view_toggle loading_failed
 
@@ -358,6 +387,8 @@ filled! {
     editor_failed(error: &str)
     editor_unsaved(file: &str)
     editor_column_fire(width: usize)
+    card_editor_error_text(card: &str, language: &str)
+    card_editor_error_numbers(card: &str)
 
     // --- Run ---
     result_lost_subtitle(flagship: &str)
@@ -573,27 +604,10 @@ impl Messages {
         self.text(&format!("card.{}.name", snake(card)))
     }
 
-    /// Effekttext mit dem Hauptwert `v` der (aufgewerteten) Karte, samt Zuschlägen im Gefecht. Dazu `{evading}` und
-    /// `{emergency}`, der Wert gegen ein ausweichendes Ziel und eines im Notfall, und `{bonus}`, der Zuschlag als
-    /// „ +2“ oder nichts.
+    /// Effekttext mit dem Hauptwert `v` der (aufgewerteten) Karte, samt Zuschlägen im Gefecht ([`effect_text`]).
     pub fn card_effect(&self, card: DeckCard, v: i32) -> String {
-        let bonus = if v > 0 {
-            format!(" +{v}")
-        } else {
-            String::new()
-        };
-        self.fill(
-            &format!("card.{}.effect", snake(card.id)),
-            &[
-                ("v", &v),
-                ("evading", &(v + rules().cards.heat_seeker_evading_bonus)),
-                (
-                    "emergency",
-                    &(v + rules().cards.coup_de_grace_emergency_bonus),
-                ),
-                ("bonus", &bonus),
-            ],
-        )
+        let template = self.text(&format!("card.{}.effect", snake(card.id)));
+        effect_text(template, v, card.id.extra())
     }
 
     /// Die Schlüsselwörter (`docs/karten.md`): Wort, wie es im Effekttext steht, und seine Erklärung.

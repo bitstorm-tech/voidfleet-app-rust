@@ -31,6 +31,7 @@
   "settings_models": "3D models",
   "models_hint": "Wheel: zoom · Drag left button: pan · Drag right button: rotate · Click a ship: destroy it",
   "settings_editor": "Map editor",
+  "settings_card_editor": "Card editor",
   "editor_title": "Map editor",
   "editor_hint": "Left click selects a node. Right click on a node in the next row adds or removes the edge to it.",
   "editor_save": "Save",
@@ -68,6 +69,20 @@
     "unreachable": "Row {row}, node {column}: no edge leads here.",
     "encounter": "Row {row}, node {column}: the formation is empty, too large, a back unit has nobody in front of it, or a unit has invalid stats."
   },
+  "card_editor_title": "Card editor",
+  "card_editor_type": "Type",
+  "card_editor_target": "Target",
+  "card_editor_numbers": "Numbers",
+  "card_editor_cost": "Cost",
+  "card_editor_value": "Value",
+  "card_editor_extra": "Second value",
+  "card_editor_upgraded": "Upgraded",
+  "card_editor_name": "Name",
+  "card_editor_effect": "Effect",
+  "card_editor_valid": "All cards are valid. Saved changes apply in the game after rebuilding.",
+  "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {bonus} the value as “ +2” or nothing; numbers from the data files by their path (docs/daten.md).",
+  "card_editor_error_text": "{card} ({language}): the name is empty or a placeholder in the effect does not resolve.",
+  "card_editor_error_numbers": "{card}: a number is below 0 or the second value is missing.",
   "settings_show_fps": "FPS counter",
   "on_off": {
     "on": "On",
@@ -422,7 +437,7 @@
     },
     "hold_the_line": {
       "name": "Hold the Line",
-      "effect": "Shields {v}, retaliation {rules.cards.hold_the_line_retaliation}."
+      "effect": "Shields {v}, retaliation {extra}."
     },
     "ablative_armor": {
       "name": "Ablative Armor",
@@ -430,7 +445,7 @@
     },
     "overcharge": {
       "name": "Overcharge",
-      "effect": "+{v} ATK this round; your flagship takes {rules.cards.overcharge_self_damage} damage at the end of your turn."
+      "effect": "+{v} ATK this round; your flagship takes {extra} damage at the end of your turn."
     },
     "power_surge": {
       "name": "Power Surge",
@@ -470,7 +485,7 @@
     },
     "scavenge": {
       "name": "Scavenge",
-      "effect": "Draw {rules.cards.scavenge_draw} commands."
+      "effect": "Draw {extra} commands."
     },
     "red_alert": {
       "name": "Red Alert",

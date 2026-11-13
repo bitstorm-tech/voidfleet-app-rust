@@ -31,6 +31,7 @@
   "settings_models": "3D-Modelle",
   "models_hint": "Mausrad: Zoom · Linke Maustaste ziehen: verschieben · Rechte Maustaste ziehen: drehen · Klick auf ein Schiff: Zerstörung",
   "settings_editor": "Karteneditor",
+  "settings_card_editor": "Befehlskarten-Editor",
   "editor_title": "Karteneditor",
   "editor_hint": "Linksklick wählt einen Knoten. Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin.",
   "editor_save": "Speichern",
@@ -68,6 +69,20 @@
     "unreachable": "Reihe {row}, Knoten {column}: keine Kante führt hierher.",
     "encounter": "Reihe {row}, Knoten {column}: Der Verband ist leer, zu groß, hinten steht eine Einheit ohne Vordermann, oder eine Einheit hat ungültige Werte."
   },
+  "card_editor_title": "Befehlskarten-Editor",
+  "card_editor_type": "Art",
+  "card_editor_target": "Ziel",
+  "card_editor_numbers": "Zahlen",
+  "card_editor_cost": "Kosten",
+  "card_editor_value": "Wert",
+  "card_editor_extra": "Zweitwert",
+  "card_editor_upgraded": "Aufgewertet",
+  "card_editor_name": "Name",
+  "card_editor_effect": "Effekt",
+  "card_editor_valid": "Alle Karten stimmen. Gespeichertes gilt im Spiel nach dem Neubauen.",
+  "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {bonus} der Wert als „ +2“ oder nichts; Zahlen aus den Datendateien über ihren Pfad (docs/daten.md).",
+  "card_editor_error_text": "{card} ({language}): Der Name ist leer oder ein Platzhalter im Effekt geht nicht auf.",
+  "card_editor_error_numbers": "{card}: Eine Zahl ist kleiner als 0 oder der Zweitwert fehlt.",
   "settings_show_fps": "FPS-Anzeige",
   "on_off": {
     "on": "An",
@@ -422,7 +437,7 @@
     },
     "hold_the_line": {
       "name": "Standhalten",
-      "effect": "Schilde {v}, Abwehrfeuer {rules.cards.hold_the_line_retaliation}."
+      "effect": "Schilde {v}, Abwehrfeuer {extra}."
     },
     "ablative_armor": {
       "name": "Ablativpanzerung",
@@ -430,7 +445,7 @@
     },
     "overcharge": {
       "name": "Überladung",
-      "effect": "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {rules.cards.overcharge_self_damage} Schaden."
+      "effect": "+{v} ATK in dieser Runde; dein Flaggschiff nimmt am Zugende {extra} Schaden."
     },
     "power_surge": {
       "name": "Energiestoß",
@@ -470,7 +485,7 @@
     },
     "scavenge": {
       "name": "Plündern",
-      "effect": "{rules.cards.scavenge_draw} Befehle ziehen."
+      "effect": "{extra} Befehle ziehen."
     },
     "red_alert": {
       "name": "Alarmstufe Rot",

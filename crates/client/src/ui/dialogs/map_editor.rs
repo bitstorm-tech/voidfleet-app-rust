@@ -60,7 +60,7 @@ struct EditorOverlay(Language, Vec2);
 
 /// Die Wurzel unter der Kopfzeile. Der Inhalt hängt oben, damit nichts springt, wenn das Feld des Knotens wächst.
 // shortcut: ohne Rollen; ein Verband mit vielen Verstärkungen ragt in einem kleinen Fenster unten hinaus.
-fn root() -> impl Bundle {
+pub(super) fn root() -> impl Bundle {
     (
         Node {
             position_type: PositionType::Absolute,
@@ -79,7 +79,7 @@ fn root() -> impl Bundle {
 }
 
 /// Eine Zeile aus Tasten und Text, die bei Platzmangel umbricht; ein [`gap`] schiebt, was folgt, an den rechten Rand.
-fn bar(width: Val) -> impl Bundle {
+pub(super) fn bar(width: Val) -> impl Bundle {
     (
         Node {
             width,
@@ -94,7 +94,7 @@ fn bar(width: Val) -> impl Bundle {
 }
 
 /// Der freie Platz einer Zeile.
-fn gap() -> impl Bundle {
+pub(super) fn gap() -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
@@ -105,7 +105,7 @@ fn gap() -> impl Bundle {
 }
 
 /// Ein Raster aus gleich breiten Tasten.
-fn grid(columns: Vec<RepeatedGridTrack>) -> impl Bundle {
+pub(super) fn grid(columns: Vec<RepeatedGridTrack>) -> impl Bundle {
     (
         Node {
             display: Display::Grid,
@@ -119,12 +119,12 @@ fn grid(columns: Vec<RepeatedGridTrack>) -> impl Bundle {
     )
 }
 
-fn label(fonts: &Fonts, text: impl Into<String>, color: Color) -> impl Bundle {
+pub(super) fn label(fonts: &Fonts, text: impl Into<String>, color: Color) -> impl Bundle {
     (theme::text(fonts.body(15.0), text, color), Pickable::IGNORE)
 }
 
 /// Die Überschrift einer Gruppe von Tasten.
-fn caption(fonts: &Fonts, text: &str) -> impl Bundle {
+pub(super) fn caption(fonts: &Fonts, text: &str) -> impl Bundle {
     (
         theme::caps(
             fonts.display_bold(12.0),
@@ -266,7 +266,7 @@ fn size_x(window: Vec2, height: f32) -> f32 {
 }
 
 /// Ein gerahmtes Feld wie die Karte im Spiel.
-fn frame(node: Node) -> impl Bundle {
+pub(super) fn frame(node: Node) -> impl Bundle {
     (
         Node {
             border: UiRect::all(px(1)),

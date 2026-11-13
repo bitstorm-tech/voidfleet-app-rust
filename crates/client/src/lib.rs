@@ -24,6 +24,7 @@
 
 pub mod assets;
 pub mod audio;
+pub mod card_editor;
 pub mod controller;
 pub mod data;
 pub mod dev;

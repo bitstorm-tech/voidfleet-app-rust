@@ -16,7 +16,7 @@ use bevy::{
     text::LineHeight,
     time::Stopwatch,
 };
-use voidfleet_core::cards::DeckCard;
+use voidfleet_core::cards::{CardTarget, CardType, DeckCard};
 
 use super::{
     Fonts, theme,
@@ -201,8 +201,8 @@ fn keyword_chunks<'a>(
 }
 
 /// Farbe des Screens einer Befehlskarte (`--card-rgb`).
-fn screen_color(card: DeckCard) -> Color {
-    palette::darkened(palette::card_type_color(card.id.card_type()), 0.25)
+fn screen_color(card_type: CardType) -> Color {
+    palette::darkened(palette::card_type_color(card_type), 0.25)
 }
 
 /// Das Wort mit großem Anfangsbuchstaben („durchschlagend“ → „Durchschlagend“).
@@ -226,10 +226,46 @@ pub fn command_card_with_bonus(
     bonus: i32,
     scale: f32,
 ) -> impl Bundle {
+    let text = assets.locale.card_with_bonus(card, bonus);
+    let face = Face {
+        name: text.name,
+        effect: text.effect,
+        cost: card.cost(),
+        card_type: card.id.card_type(),
+        target: card.id.target(),
+    };
+    card_face(
+        &assets.fonts,
+        &assets.art,
+        &assets.locale,
+        card,
+        face,
+        bonus,
+        scale,
+    )
+}
+
+/// Was auf einer Karte steht; im Spiel aus den Daten, im Karteneditor aus dem, was dort gerade steht.
+pub struct Face {
+    pub name: String,
+    pub effect: String,
+    pub cost: u32,
+    pub card_type: CardType,
+    pub target: CardTarget,
+}
+
+/// Eine Befehlskarte mit dieser Aufschrift in der Sprache von `locale`; `bonus` wie bei [`command_card_with_bonus`].
+pub fn card_face(
+    fonts: &Fonts,
+    art: &CardArt,
+    locale: &Locale,
+    card: DeckCard,
+    face: Face,
+    bonus: i32,
+    scale: f32,
+) -> impl Bundle {
     let s = |value: f32| px(value * scale);
-    let fonts = &assets.fonts;
-    let locale = &assets.locale;
-    let text = locale.card_with_bonus(card, bonus);
+    let text = face;
     let keywords = locale.keywords();
     // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
     let mut explained: Vec<String> = Vec::new();
@@ -246,7 +282,11 @@ pub fn command_card_with_bonus(
     }
     let explained = explained.join("\n");
     // Was sich gegenüber dem Text ohne Zuschlag ändert, ist eine erhöhte Zahl und leuchtet wie ein Schlüsselwort.
-    let unboosted = locale.card(card).effect;
+    let unboosted = if bonus == 0 {
+        text.effect.clone()
+    } else {
+        locale.card(card).effect
+    };
     let unboosted: Vec<_> = unboosted.split_whitespace().collect();
     // Je Wort ein Knoten, damit ein Schlüsselwort den Zeiger spürt; es zeigt sofort alle Schlüsselwörter der Karte.
     let effect_font = fonts.body(8.5 * scale);
@@ -304,11 +344,11 @@ pub fn command_card_with_bonus(
         .collect();
     let target = format!(
         "{} · {}",
-        locale.card_type(card.id.card_type()),
-        locale.card_target(card.id.target())
+        locale.card_type(text.card_type),
+        locale.card_target(text.target)
     );
-    let tint = screen_color(card);
-    let type_color = palette::card_type_color(card.id.card_type());
+    let tint = screen_color(text.card_type);
+    let type_color = palette::card_type_color(text.card_type);
     let key = move |width: f32| {
         (
             Node {
@@ -350,7 +390,7 @@ pub fn command_card_with_bonus(
                 BoxShadow(vec![theme::ring(Color::BLACK.with_alpha(0.35), 1.0)]),
                 Pickable::IGNORE,
                 children![
-                    clipped_art(assets.art.get(Card::Command(card.id)), 0.5, 2.0 * scale),
+                    clipped_art(art.get(Card::Command(card.id)), 0.5, 2.0 * scale),
                     shade(
                         &[
                             (tint.with_alpha(0.92), 0.0),
@@ -416,7 +456,7 @@ pub fn command_card_with_bonus(
                 children![(
                     theme::text(
                         fonts.display_bold(15.0 * scale),
-                        card.cost().to_string(),
+                        text.cost.to_string(),
                         palette::TEXT
                     ),
                     Pickable::IGNORE,

@@ -5,9 +5,9 @@ Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im 
 | Datei | Inhalt | Gilt ab |
 | --- | --- | --- |
 | `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nach dem Neubauen |
-| `cards.json` | Art, Ziel, Kosten und Wert jeder Karte samt aufgewerteter Fassung ([Karten](karten.md)) | nach dem Neubauen |
+| `cards.json` | Art, Ziel, Kosten, Wert und Zweitwert jeder Karte samt aufgewerteter Fassung ([Karten](karten.md)) | nach dem Neubauen |
 | `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nach dem Neubauen |
-| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Zweitwerte der Karten, Gegner, Module, Run | nach dem Neubauen |
+| `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nach dem Neubauen |
 | `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten, jede Einheit mit allen Werten, mit denen sie kämpft ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
 | `text/de.json`, `text/en.json` | jeder sichtbare Text, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
 
@@ -32,14 +32,18 @@ Was an einem Gegner Mechanik ist, steht im Code und hängt an seinem Namen: Plü
 
 ```json
 "torpedo": { "type": "attack", "target": "enemy", "cost": 2, "value": 6, "upgraded": { "value": 8 } },
+"heat_seeker": { "type": "attack", "target": "enemy", "cost": 2, "value": 5, "extra": 3, "upgraded": { "value": 7 } },
 "emp_blast": { "type": "debuff", "target": "enemy", "cost": 2, "value": 0, "upgraded": { "cost": 1 } }
 ```
 
 - `type`: `attack`, `buff`, `debuff`, `tactic` oder `doctrine`. `target`: `none`, `enemy` oder `column`.
 - `cost`: Befehlspunkte. `value`: der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung), 0 bei Karten ohne Zahl.
+- `extra`: der Zweitwert, nur bei diesen fünf Karten und bei ihnen Pflicht: Zuschlag des Wärmesuchers auf ein ausweichendes Ziel, des Gnadenstoßes auf eines im Notfall, Abwehrfeuer von Standhalten, Schaden der Überladung am eigenen Flaggschiff, Karten, die Plündern zieht.
 - `upgraded`: was die aufgewertete Fassung anders hat, `cost`, `value` oder beides; `{}` für keine Änderung.
 
-Die Zweitwerte (etwa der Zuschlag des Wärmesuchers) stehen in `rules.json` unter `cards`.
+### Der Befehlskarten-Editor
+
+Der Befehlskarten-Editor im Spiel bearbeitet `cards.json` und die Kartentexte (`card` in `text/en.json` und `text/de.json`): Einstellungen → Tab „Dev“ → „Befehlskarten-Editor“. Links stehen alle Karten in der Farbe ihrer Art, in der Mitte die gewählte als Vorschau je Sprache (Grundfassung und aufgewertet), rechts Art, Ziel, Kosten, Wert und Zweitwert mit `-` und `+` (die aufgewertete Fassung daneben; was sie ändert, leuchtet), darunter je Sprache Name und Effekttext als Textfelder. „Speichern“ schreibt nur, was die Prüfung besteht (kein leerer Name, jeder Platzhalter im Effekt geht auf), und nur die Dateien, die sich geändert haben, Zeichen für Zeichen im Format der vorhandenen. Die Dateien sind eingebettet: Was gespeichert ist, gilt im Spiel nach dem Neubauen (`cargo run` baut von selbst neu); bis dahin zeigt nur die Vorschau den neuen Stand. Neue Karten legt der Editor nicht an, die Bilder bleiben, wie sie sind.
 
 ## Admirale
 
@@ -54,11 +58,10 @@ Die Zweitwerte (etwa der Zuschlag des Wärmesuchers) stehen in `rules.json` unte
 
 ## Stellgrößen
 
-`rules.json` hat sechs Abschnitte; jeder Name sagt, was die Zahl stellt.
+`rules.json` hat fünf Abschnitte; jeder Name sagt, was die Zahl stellt.
 
 - `battle`: Handgröße, Befehlspunkte, Brandschaden (`ember_burn_damage` für Gegner von Reyes), die Schwellen für Brand und Notfall in Prozent der Hülle, der Beginn der Gefechtsuhr.
 - `stations`: Schadenskontrolle, die Grenze des Vorstoßes, Gegenfeuer, Fokusfeuer, Nachsetzen.
-- `cards`: die Zweitwerte von Wärmesucher, Gnadenstoß, Standhalten, Überladung und Plündern.
 - `enemies`: Rammschaden, Riegel, Kannibalisieren, die Brandschwelle des Plasmakreuzers.
 - `modules`: die Zahl jedes Moduls, das eine hat.
 - `run`: Schrott, Angebote, Preise, Reparatur, die Zahlen der Ereignisse. Spannen stehen als `[von, bis]`, beide Enden eingeschlossen.
@@ -123,7 +126,7 @@ Der Editor verschiebt keine Knoten innerhalb einer Reihe und keine Schritte inne
 - `{name}` ohne Punkt ist ein Wert, den das Spiel an dieser Stelle einsetzt (Runde, Schaden, Name einer Einheit). Welche es je Text gibt, zeigt die englische Datei; ein anderer Name bleibt als `{name}` stehen, der Test meldet ihn.
 - `{rules.battle.clock_start}`, `{admirals.osei.hull}`, `{cards.torpedo.value}` oder `{enemies.warden.hull}` setzen eine Zahl aus den Datendateien ein: Dateiname ohne Endung, dann der Weg zum Feld. So stimmt ein Text weiter, wenn der Wert sich ändert. Ein Pfad, den es nicht gibt, ist ein Fehler.
 - `one` und `other` sind Einzahl und Mehrzahl desselben Textes.
-- Kartentexte kennen `{v}` (Hauptwert der Karte, aufgewertet und mit Zuschlägen), `{evading}` und `{emergency}` (der Wert gegen ein ausweichendes Ziel und eines im Notfall) und `{bonus}` (der Zuschlag auf den Rammkurs als „ +2“ oder nichts).
+- Kartentexte kennen `{v}` (Hauptwert der Karte, aufgewertet und mit Zuschlägen), `{extra}` (ihr Zweitwert), `{evading}` und `{emergency}` (Haupt- und Zweitwert zusammen: der Wert gegen ein ausweichendes Ziel und eines im Notfall) und `{bonus}` (der Zuschlag auf den Rammkurs als „ +2“ oder nichts).
 - `card`, `admiral`, `module`, `enemy`, `event` und `event_option` tragen die Texte je Id, `rules_section` die Kapitel der Spielregeln (`heading`, `paragraphs`), `keywords` die Schlüsselwörter der Karten (das `word`, wie es im Effekttext steht, und seine Erklärung).
 - `radio_lines` sind die Untertitel der Funksprüche. Die Aufnahmen sind englisch, der englische Text ist das Gesprochene; je Spruch braucht jede Sprache so viele Zeilen wie es Aufnahmen gibt.
 

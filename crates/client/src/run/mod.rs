@@ -84,6 +84,8 @@ pub struct RunView {
     pub models: bool,
     /// Der Karteneditor ist offen (Einstellungen → Dev), ebenfalls über allem.
     pub editor: bool,
+    /// Der Befehlskarten-Editor ist offen (Einstellungen → Dev), ebenfalls über allem.
+    pub cards: bool,
     /// Der Run ist ein Probespiel aus dem Karteneditor: Er wird nicht gespeichert und endet im Editor, sobald sein
     /// Knoten erledigt ist oder der Spieler ihn verlässt.
     pub testing: bool,
@@ -109,6 +111,8 @@ pub enum Screen {
     Models,
     /// Der Karteneditor ([`crate::editor`]).
     Editor,
+    /// Der Befehlskarten-Editor ([`crate::card_editor`]).
+    Cards,
 }
 
 /// Der Bildschirm zu Run, laufendem Gefecht und Ansicht.
@@ -118,6 +122,9 @@ pub fn screen(run: Option<&Run>, battle: bool, view: &RunView) -> Screen {
     }
     if view.editor {
         return Screen::Editor;
+    }
+    if view.cards {
+        return Screen::Cards;
     }
     let Some(run) = run else {
         return if view.choosing {

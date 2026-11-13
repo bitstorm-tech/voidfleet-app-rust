@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::{ADMIRAL_IDS, AdmiralId};
-use crate::cards::{CardId, CardTarget, CardType, LOOT_POOL};
+use crate::cards::{CardId, CardTarget, CardType, EXTRA_CARDS, LOOT_POOL};
 use crate::enemies::{EnemyClass, EnemyId, Unit, valid_pattern};
 
 /// `enemies_defaults.json`: ein Gegner, seine Klasse und die Vorlage seiner Werte
@@ -45,8 +45,9 @@ pub enum Step {
 }
 
 /// `cards.json`: eine Karte. `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei
-/// Karten ohne Zahl), `upgraded` nennt, was die aufgewertete Fassung anders hat.
-#[derive(Debug, Deserialize, Serialize)]
+/// Karten ohne Zahl), `extra` der Zweitwert der Karten aus [`EXTRA_CARDS`], `upgraded` nennt, was die aufgewertete
+/// Fassung anders hat.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CardData {
     #[serde(rename = "type")]
@@ -54,13 +55,17 @@ pub struct CardData {
     pub target: CardTarget,
     pub cost: u32,
     pub value: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra: Option<i32>,
     pub upgraded: Upgrade,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Upgrade {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<i32>,
 }
 
@@ -82,7 +87,6 @@ pub struct AdmiralData {
 pub struct Rules {
     pub battle: BattleRules,
     pub stations: StationRules,
-    pub cards: CardRules,
     pub enemies: EnemyRules,
     pub modules: ModuleRules,
     pub run: RunRules,
@@ -118,22 +122,6 @@ pub struct StationRules {
     pub focus_fire_vulnerability: i32,
     /// Nachsetzen: Zuschlag für Angriffskarten auf brennende Ziele.
     pub follow_up_card_bonus: i32,
-}
-
-/// Die Zweitwerte der Karten.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct CardRules {
-    /// Wärmesucher auf ein ausweichendes Ziel: so viel mehr.
-    pub heat_seeker_evading_bonus: i32,
-    /// Gnadenstoß auf ein Ziel im Notfall: so viel mehr.
-    pub coup_de_grace_emergency_bonus: i32,
-    /// Standhalten: Hülle, die jeder Schütze verliert, der das Flaggschiff trifft.
-    pub hold_the_line_retaliation: i32,
-    /// Überladung: Schaden am Flaggschiff zum Zugende.
-    pub overcharge_self_damage: i32,
-    /// Plündern: so viele Karten ziehen.
-    pub scavenge_draw: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -184,6 +172,14 @@ pub struct RunRules {
     pub pilot_damage: i32,
     /// Flackern: so viel Prozent der maximalen Hülle gehen verloren, aufgerundet.
     pub flicker_hull_percent: i32,
+}
+
+impl CardData {
+    /// Keine Zahl negativ, und `extra` steht genau dann, wenn die Karte einen Zweitwert hat.
+    pub fn check(&self, has_extra: bool) -> bool {
+        let values = [Some(self.value), self.extra, self.upgraded.value];
+        values.into_iter().flatten().all(|value| value >= 0) && self.extra.is_some() == has_extra
+    }
 }
 
 /// `[von, bis]` als Spanne für den Zufall.
@@ -249,7 +245,14 @@ impl Data {
             );
         }
         for id in LOOT_POOL {
-            assert!(self.cards.contains_key(&id), "cards.json: {id:?} fehlt");
+            let card = self
+                .cards
+                .get(&id)
+                .unwrap_or_else(|| panic!("cards.json: {id:?} fehlt"));
+            assert!(
+                card.check(EXTRA_CARDS.contains(&id)),
+                "cards.json: {id:?}: Wert negativ oder `extra` fehlt bzw. steht, wo es keins gibt"
+            );
         }
         for id in ADMIRAL_IDS {
             assert!(

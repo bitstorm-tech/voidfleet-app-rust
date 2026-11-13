@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 
-use super::view_toggle::plain;
+use super::view_toggle::{plain, typing};
 use crate::{
     assets::AppState,
     settings::{Settings, WindowMode},
@@ -38,7 +38,9 @@ impl Plugin for FullscreenPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<ToggleFullscreen>().add_systems(
             Update,
-            (key_f, toggle).chain().run_if(in_state(AppState::Match)),
+            (key_f.run_if(not(typing)), toggle)
+                .chain()
+                .run_if(in_state(AppState::Match)),
         );
     }
 }

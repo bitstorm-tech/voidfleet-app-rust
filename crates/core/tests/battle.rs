@@ -533,12 +533,7 @@ fn order_matters() {
     let after = b.preview_card(0, Target::Enemy(cruiser)).unwrap()[0]
         .breakdown
         .base;
-    assert_eq!(
-        after - before,
-        voidfleet_core::data::rules()
-            .cards
-            .coup_de_grace_emergency_bonus
-    );
+    assert_eq!(after - before, CardId::CoupDeGrace.extra());
 
     // Energiestoß nach dem Schuss ändert ihn nicht mehr, davor schon.
     let shot = |boost_first: bool| {

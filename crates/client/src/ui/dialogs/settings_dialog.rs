@@ -775,6 +775,13 @@ pub(super) fn spawn(
                                             dev_button(fonts, locale.settings_editor(), |view| {
                                                 view.editor = true;
                                             }),
+                                            dev_button(
+                                                fonts,
+                                                locale.settings_card_editor(),
+                                                |view| {
+                                                    view.cards = true;
+                                                }
+                                            ),
                                         ],
                                     )],
                                 ),

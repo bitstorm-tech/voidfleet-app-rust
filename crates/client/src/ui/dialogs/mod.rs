@@ -20,6 +20,7 @@
 //! ein [`Modal`] offen ist.
 
 pub mod admiral_select;
+mod card_editor;
 pub mod main_menu;
 mod map_editor;
 pub mod result_screen;
@@ -405,6 +406,7 @@ impl Plugin for DialogsPlugin {
                 admiral_select::AdmiralSelectPlugin,
                 main_menu::MainMenuPlugin,
                 map_editor::MapEditorPlugin,
+                card_editor::CardEditorPlugin,
                 star_map::StarMapPlugin,
                 run_nodes::RunNodesPlugin,
                 result_screen::ResultScreenPlugin,

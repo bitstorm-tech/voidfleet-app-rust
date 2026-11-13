@@ -101,6 +101,13 @@ impl CardId {
         card.upgraded.cost.filter(|_| upgraded).unwrap_or(card.cost)
     }
 
+    /// Der Zweitwert einer Karte aus [`EXTRA_CARDS`]: Zuschlag des Wärmesuchers auf ein ausweichendes Ziel, des
+    /// Gnadenstoßes auf eines im Notfall, Abwehrfeuer von Standhalten, Schaden der Überladung am eigenen Flaggschiff,
+    /// Karten, die Plündern zieht; 0 bei allen anderen.
+    pub fn extra(self) -> i32 {
+        self.data().extra.unwrap_or(0)
+    }
+
     /// Der Hauptwert der Karte: Schaden (Rammkurs: Zuschlag auf das Doppelte der ATK), Schild, Reparatur, ATK-Bonus,
     /// Panzerung; 0 bei Karten ohne Zahl.
     pub fn value(self, upgraded: bool) -> i32 {
@@ -117,6 +124,15 @@ pub fn starter_deck(admiral: AdmiralId) -> Vec<DeckCard> {
     let deck = &data().admirals[&admiral].deck;
     deck.iter().copied().map(DeckCard::new).collect()
 }
+
+/// Die Karten mit einem Zweitwert ([`CardId::extra`]).
+pub const EXTRA_CARDS: [CardId; 5] = [
+    CardId::HeatSeeker,
+    CardId::CoupDeGrace,
+    CardId::HoldTheLine,
+    CardId::Overcharge,
+    CardId::Scavenge,
+];
 
 /// Alle Karten, aus denen die Beute kommt (im Prototyp ein gemeinsamer Pool).
 pub const LOOT_POOL: [CardId; 26] = {

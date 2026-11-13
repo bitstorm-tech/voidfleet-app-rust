@@ -4,7 +4,9 @@
 //! Dialog ([`Modal`]). Die Tastatur der Kamera liegt allein hier; die Maus liest die Kamera selbst.
 
 use bevy::{
+    input_focus::InputFocus,
     prelude::*,
+    text::EditableText,
     ui_widgets::{Activate, observe},
 };
 
@@ -21,6 +23,11 @@ pub(super) fn view_button(icons: &UiIcons, locale: &Locale) -> impl Bundle {
             },
         ),
     )
+}
+
+/// Ob ein Textfeld die Tastatur hat (Befehlskarten-Editor); dann gehören ihm auch F, V und die Pfeile.
+pub(super) fn typing(focus: Res<InputFocus>, inputs: Query<(), With<EditableText>>) -> bool {
+    focus.get().is_some_and(|entity| inputs.contains(entity))
 }
 
 /// Ob eine Taste ohne Strg, Cmd und Alt gedrückt ist; mit ihnen gehört sie dem System.
@@ -70,6 +77,9 @@ pub(super) struct ViewTogglePlugin;
 
 impl Plugin for ViewTogglePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, steer.run_if(in_state(AppState::Match)));
+        app.add_systems(
+            Update,
+            steer.run_if(in_state(AppState::Match)).run_if(not(typing)),
+        );
     }
 }

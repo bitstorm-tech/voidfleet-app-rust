@@ -203,7 +203,12 @@ pub(super) fn autoplay(
             info!("Rauchtest: Run vorbei, {:?}", run.result);
             play.finish(&mut commands, &mut exit);
         }
-        Screen::Menu | Screen::Admirals | Screen::Battle | Screen::Models | Screen::Editor => {}
+        Screen::Menu
+        | Screen::Admirals
+        | Screen::Battle
+        | Screen::Models
+        | Screen::Editor
+        | Screen::Cards => {}
     }
 }
 

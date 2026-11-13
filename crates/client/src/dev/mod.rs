@@ -221,6 +221,10 @@ fn start_screen(mut commands: Commands, screen: Res<DevScreen>, mut view: ResMut
             view.editor = true;
             return;
         }
+        "cards" => {
+            view.cards = true;
+            return;
+        }
         "market" => {
             let column = run.choices()[0];
             run.map[0][column].kind = NodeKind::Market;
