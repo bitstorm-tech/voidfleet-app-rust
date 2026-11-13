@@ -11,7 +11,7 @@
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
-    ui::{InteractionDisabled, Pressed},
+    ui::{InteractionDisabled, Pressed, UiSystems},
     ui_widgets::{Activate, Button},
 };
 
@@ -410,6 +410,7 @@ impl Plugin for ButtonPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(click_sound)
             .add_observer(add_corners)
-            .add_systems(Update, animate_keys);
+            // Nach `Update`: Tasten, die dort neu gebaut werden, zeigen schon im ersten Bild ihren Zustand.
+            .add_systems(PostUpdate, animate_keys.before(UiSystems::Prepare));
     }
 }

@@ -516,7 +516,9 @@ impl Plugin for ThemePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PostUpdate,
-            apply_opacity.before(bevy::ui::UiSystems::Layout),
+            apply_opacity
+                .after(bevy::ui::UiSystems::Prepare)
+                .before(bevy::ui::UiSystems::Layout),
         );
     }
 }
