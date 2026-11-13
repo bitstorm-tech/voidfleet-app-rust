@@ -30,8 +30,8 @@ use crate::{
         coords::{BOARD_CENTER, SlotRef},
         destruction::{DestroyHull, DestroyShip},
         effects::{
-            Beam, Bolt, Fizzle, HitVariant, Impact, Laser, Missile, Pulse, ReleaseTether,
-            ShieldImpact, TargetRing, Tether, Warp,
+            Beam, Bolt, HitVariant, Impact, Laser, Missile, Pulse, ReleaseTether, ShieldImpact,
+            TargetRing, Tether, Warp, bolt_duration,
         },
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
@@ -51,8 +51,8 @@ const ABOVE_SHIP: Vec3 = Vec3::new(0.0, 0.9, 0.0);
 const ORBIT: Vec3 = Vec3::new(0.0, 9.0, 0.0);
 /// Schüsse enden nicht in der Mitte, sondern so weit davor auf der Hülle.
 const HULL_RADIUS: f32 = 0.45;
-/// Ein Laser, der verfehlt, reicht so weit über sein Ziel hinaus ins Leere.
-const LASER_MISS_RANGE: f32 = 30.0;
+/// Ein Schuss, der verfehlt, fliegt so weit über sein Ziel hinaus, bis weit aus dem Bild.
+const MISS_RANGE: f32 = 60.0;
 /// Rammkurs: Der Rammer hält so weit vor der Mitte des Ziels.
 const RAM_STANDOFF: f32 = 1.1;
 /// Der Traktorstrahl greift von so hoch über dem Flaggschiff.
@@ -121,24 +121,21 @@ pub(super) enum Spot {
 /// Ein Effekt der Szene; das Skript wartet auf ihn.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Fx {
+    /// Verfehlt ein Schuss (`miss`), fliegt er durch `to` hindurch ins Leere.
     Bolt {
         from: Spot,
         to: Spot,
         color: Color,
-    },
-    /// Ein Bolzen, der ins Leere geht.
-    Fizzle {
-        from: Spot,
-        to: Spot,
-        color: Color,
+        miss: bool,
     },
     Beam {
         from: Spot,
         to: Spot,
         color: Color,
         width: f32,
+        miss: bool,
     },
-    /// Ein Laserstrahl aus einer Mündung der Einheit `from`; verfehlt er (`miss`), geht er durch `to` hindurch ins Leere.
+    /// Ein Laserstrahl aus einer Mündung der Einheit `from`.
     Laser {
         from: UnitRef,
         to: Spot,
@@ -523,24 +520,39 @@ impl Stage<'_, '_> {
 
     fn effect(&mut self, script: Entity, fx: Fx) {
         match fx {
-            Fx::Bolt { from, to, color } => {
+            Fx::Bolt {
+                from,
+                to,
+                color,
+                miss: true,
+            } => {
+                // Das Skript wartet nur, bis der Bolzen am Ziel vorbei ist; den Rest seines Flugs fliegt er für sich.
+                let from = self.point(from);
+                let aim = self.point(to);
+                let to = past(from, aim);
+                self.commands.spawn(Bolt { from, to, color });
+                self.await_job(script, Animation::new(bolt_duration(from, aim)));
+            }
+            Fx::Bolt {
+                from, to, color, ..
+            } => {
                 let from = self.point(from);
                 let to = self.shot_point(from, to);
                 self.await_job(script, Bolt { from, to, color });
-            }
-            Fx::Fizzle { from, to, color } => {
-                let from = self.point(from);
-                let to = self.point(to);
-                self.await_job(script, Fizzle { from, to, color });
             }
             Fx::Beam {
                 from,
                 to,
                 color,
                 width,
+                miss,
             } => {
                 let from = self.point(from);
-                let to = self.shot_point(from, to);
+                let to = if miss {
+                    past(from, self.point(to))
+                } else {
+                    self.shot_point(from, to)
+                };
                 self.await_job(
                     script,
                     Beam {
@@ -560,7 +572,7 @@ impl Stage<'_, '_> {
                 let aim = self.point(to);
                 let from = self.muzzle(from, aim);
                 let to = if miss {
-                    from + (aim - from).normalize_or_zero() * LASER_MISS_RANGE
+                    past(from, aim)
                 } else {
                     self.shot_point(from, to)
                 };
@@ -755,6 +767,11 @@ impl Stage<'_, '_> {
             }
         }
     }
+}
+
+/// Weit hinter `aim` auf der Linie von `from` durch `aim`: wohin ein Schuss fliegt, der verfehlt.
+fn past(from: Vec3, aim: Vec3) -> Vec3 {
+    from + (aim - from).normalize_or_zero() * MISS_RANGE
 }
 
 #[cfg(test)]

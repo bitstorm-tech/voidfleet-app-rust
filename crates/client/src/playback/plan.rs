@@ -17,7 +17,7 @@ use voidfleet_core::{
     battle::{BattleResult, Target},
     cards::{CardId, DeckCard},
     enemies::{Action, EnemyId},
-    events::{BattleEvent, Breakdown, MissReason, UnitRef},
+    events::{BattleEvent, Breakdown, UnitRef},
 };
 
 use super::{
@@ -588,7 +588,8 @@ impl Planner<'_> {
                         .is_some_and(|uid| unit_uid(target) == Some(uid));
                     context.covering = breakdown.covered.map(|(uid, _)| uid);
                     if !covering {
-                        script = script.then(self.projectile(source, target, context.weapon));
+                        script =
+                            script.then(self.projectile(source, target, context.weapon, false));
                     }
                     script = script.then(self.impact(
                         source,
@@ -603,8 +604,8 @@ impl Planner<'_> {
                         script = script.then([Cue::Unit(UnitRef::Flagship, Job::Withdraw)]);
                     }
                 }
-                BattleEvent::Missed { source, reason } => {
-                    script = script.and(self.missed(source, reason, context.weapon));
+                BattleEvent::Missed { source, .. } => {
+                    script = script.and(self.missed(source, context.weapon));
                 }
                 BattleEvent::Rammed { target } => {
                     context.ramming = true;
@@ -639,7 +640,8 @@ impl Planner<'_> {
     }
 
     /// Das Geschoss eines Schusses samt Mündungsklang.
-    fn projectile(&self, source: UnitRef, target: UnitRef, weapon: Weapon) -> Vec<Cue> {
+    /// Das Geschoss eines Schusses; verfehlt er (`miss`), fliegt es am Ziel vorbei aus dem Bild.
+    fn projectile(&self, source: UnitRef, target: UnitRef, weapon: Weapon, miss: bool) -> Vec<Cue> {
         let from = Spot::Unit(source);
         let to = Spot::Unit(target);
         let color = shot_color(source, self.admiral);
@@ -649,24 +651,27 @@ impl Planner<'_> {
                 from: source,
                 to,
                 color,
-                miss: false,
+                miss,
             },
             Weapon::Plasma => Fx::Bolt {
                 from,
                 to,
                 color: FIRE_FLASH,
+                miss,
             },
             Weapon::Rail => Fx::Beam {
                 from,
                 to,
                 color,
                 width: 1.0,
+                miss,
             },
             Weapon::Lance => Fx::Beam {
                 from,
                 to,
                 color: palette::TEXT,
                 width: 0.55,
+                miss,
             },
             Weapon::Missile => Fx::Missile { from, to, color },
             Weapon::Orbital => Fx::Beam {
@@ -674,10 +679,11 @@ impl Planner<'_> {
                 to,
                 color,
                 width: 1.3,
+                miss,
             },
             Weapon::Column(columns) => {
                 return std::iter::once(sound)
-                    .chain(column_beams(from, columns, color))
+                    .chain(column_beams(from, columns, color, miss))
                     .collect();
             }
             Weapon::Contact(_) => return Vec::new(),
@@ -757,50 +763,16 @@ impl Planner<'_> {
         marks.join(" · ")
     }
 
-    /// Ein Schuss ins Leere: Spaltenfeuer trifft die leere Spalte, sonst verpufft er am Platz des Flaggschiffs.
-    fn missed(&self, source: UnitRef, reason: MissReason, weapon: Weapon) -> Script {
-        let from = Spot::Unit(source);
-        let color = shot_color(source, self.admiral);
-        let sound = Cue::Sound(shot_sound(self.kind(source)), from);
-        let float = Cue::float(
+    /// Ein Schuss ins Leere: Das Geschoss fliegt am Flaggschiff (Spaltenfeuer: durch die leere Spalte) vorbei aus dem
+    /// Bild.
+    fn missed(&self, source: UnitRef, weapon: Weapon) -> Script {
+        let mut beat = self.projectile(source, UnitRef::Flagship, weapon, true);
+        beat.push(Cue::float(
             Spot::Unit(UnitRef::Flagship),
             self.locale.report_missed(),
             FloatTone::Buff,
-        );
-        match (weapon, reason) {
-            (Weapon::Column(columns), _) => {
-                let pulses = (0..3).filter(|&c| columns[c]).map(|column| {
-                    Cue::Fx(Fx::Pulse {
-                        at: Spot::Column(column),
-                        color,
-                        size: 1.6,
-                        duration: 0.5,
-                    })
-                });
-                Script::default()
-                    .then(std::iter::once(sound).chain(column_beams(from, columns, color)))
-                    .then(pulses.chain([float]))
-            }
-            (Weapon::Laser(_), _) => Script::default().then([
-                sound,
-                Cue::Fx(Fx::Laser {
-                    from: source,
-                    to: Spot::Unit(UnitRef::Flagship),
-                    color,
-                    miss: true,
-                }),
-                float,
-            ]),
-            _ => Script::default().then([
-                sound,
-                Cue::Fx(Fx::Fizzle {
-                    from,
-                    to: Spot::Unit(UnitRef::Flagship),
-                    color,
-                }),
-                float,
-            ]),
-        }
+        ));
+        Script::default().then(beat)
     }
 
     /// Eine Folge ohne Geschoss in einem Takt.
@@ -952,7 +924,7 @@ impl Planner<'_> {
                     ..Breakdown::default()
                 };
                 let weapon = Weapon::Laser(None);
-                let mut shot = self.projectile(UnitRef::Flagship, target, weapon);
+                let mut shot = self.projectile(UnitRef::Flagship, target, weapon, false);
                 shot.extend(self.impact(
                     UnitRef::Flagship,
                     target,
@@ -1027,6 +999,7 @@ fn column_beams(
     from: Spot,
     columns: [bool; 3],
     color: bevy::prelude::Color,
+    miss: bool,
 ) -> impl Iterator<Item = Cue> {
     (0..3).filter(move |&c| columns[c]).map(move |column| {
         Cue::Fx(Fx::Beam {
@@ -1034,6 +1007,7 @@ fn column_beams(
             to: Spot::Column(column),
             color,
             width: 1.6,
+            miss,
         })
     })
 }
@@ -1082,7 +1056,7 @@ fn units(event: &BattleEvent) -> Vec<UnitRef> {
 mod tests {
     use voidfleet_core::{
         board::{EnemySlot, Row},
-        events::{DestroyCause, IdleReason, Intent, UnitStats},
+        events::{DestroyCause, IdleReason, Intent, MissReason, UnitStats},
     };
 
     use super::*;

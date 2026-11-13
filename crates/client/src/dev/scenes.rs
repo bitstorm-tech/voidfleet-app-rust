@@ -7,7 +7,7 @@
 //! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu.
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
 //! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
-//! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und verpuffender Bolzen im Wechsel.
+//! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und ein Bolzen, der vorbeifliegt, im Wechsel.
 //! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
 //! - `show` — ein Modell zum Ansehen, als eigenes Schiff in der Mitte und als Gegner gegenüber (in seiner Gruppe:
 //!   Staffel, Paar oder einzeln); `VOIDFLEET_DEV_SHIP=<dateiname>` wählt es (wie `models/ships/<dateiname>.glb`, auch
@@ -35,8 +35,7 @@ use crate::{
         coords::SlotRef,
         destruction::DestroyShip,
         effects::{
-            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether, TargetRing,
-            Tether,
+            Beam, Bolt, HitVariant, Impact, Missile, Pulse, ReleaseTether, TargetRing, Tether,
         },
         floating_text::{FloatTone, FloatingText},
         motion::{Arrive, HitFlash, MoveShip},
@@ -411,9 +410,9 @@ fn run(
                     });
                 }
                 _ => {
-                    commands.spawn(Fizzle {
+                    commands.spawn(Bolt {
                         from: origin,
-                        to: center(&layout, enemy(Row::Back, 2)),
+                        to: origin.lerp(center(&layout, enemy(Row::Back, 2)), 6.0),
                         color: palette::PLAYER,
                     });
                 }

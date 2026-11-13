@@ -1,4 +1,4 @@
-//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen (auch verpuffende), die Zielmarke eines
+//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen, die Zielmarke eines
 //! umgelenkten Schusses, der Strahl der Railgun, der stehende Laserstrahl, die Rakete des Wärmesuchers mit Leuchtspur,
 //! der Traktorstrahl, Impulse, Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und
 //! der Austritt eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
@@ -31,8 +31,6 @@ const BOLT_CORE: f32 = 0.05;
 const BOLT_HALO: f32 = 0.34;
 const BOLT_HALO_FALLOFF: f32 = 1.5;
 const BOLT_HALO_OVERHANG: f32 = 1.2;
-/// Ein verpuffender Bolzen verblasst auf diesem letzten Anteil seiner Flugzeit und schrumpft dabei auf ein Drittel.
-const FIZZLE_FADE: f32 = 0.45;
 /// Zielmarke: Der Ring zieht sich von der ersten auf die zweite Größe zusammen.
 const TARGET_RING_SIZE: (f32, f32) = (3.4, 1.9);
 const TARGET_RING_DURATION: f32 = 0.42;
@@ -381,18 +379,6 @@ fn pop_bursts() -> [Burst; 3] {
     ]
 }
 
-/// Verpuffen: ein paar matte Funken in der Schussfarbe ziehen langsam weiter und verlöschen, ohne Blitz.
-fn fizzle_colors(color: Color) -> Vec<(f32, Srgba)> {
-    let srgba = color.to_srgba();
-    vec![
-        (0.0, srgba.with_alpha(0.7)),
-        (
-            1.0,
-            Srgba::new(srgba.red * 0.4, srgba.green * 0.4, srgba.blue * 0.4, 0.0),
-        ),
-    ]
-}
-
 /// Leuchtspur der Rakete: kleine, langsam verwehende Funken in der Schussfarbe.
 fn trail_colors(color: Color) -> Vec<(f32, Srgba)> {
     let srgba = color.to_srgba();
@@ -411,15 +397,6 @@ pub fn bolt_duration(from: Vec3, to: Vec3) -> f32 {
 /// Ein langer, dünner Leuchtbolzen mit Halo fliegt von `from` nach `to`.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Bolt {
-    pub from: Vec3,
-    pub to: Vec3,
-    pub color: Color,
-}
-
-/// Ein Bolzen, der verpufft: Er fliegt wie [`Bolt`], verblasst und schrumpft auf dem letzten Stück und zerstiebt dort in
-/// ein paar matten Funken, ohne Einschlag, Blitz und Klang.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct Fizzle {
     pub from: Vec3,
     pub to: Vec3,
     pub color: Color,
@@ -678,7 +655,6 @@ impl Plugin for EffectsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LastHit>()
             .add_observer(start_bolt)
-            .add_observer(start_fizzle)
             .add_observer(start_target_ring)
             .add_observer(start_beam)
             .add_observer(start_laser)
@@ -698,7 +674,6 @@ impl Plugin for EffectsPlugin {
                 Update,
                 (
                     fly_bolts,
-                    fly_fizzles,
                     fade,
                     fade_beams,
                     hold_lasers,
@@ -771,51 +746,6 @@ fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
 fn fly_bolts(mut bolts: Query<(&Bolt, &Animation, &mut Transform)>) {
     for (bolt, animation, mut transform) in &mut bolts {
         *transform = bolt_transform(bolt.from, bolt.to, animation.progress(), 1.0);
-    }
-}
-
-fn start_fizzle(add: On<Add<Fizzle>>, fizzles: Query<&Fizzle>, mut fx: Fx) {
-    let fizzle = *fizzles.get(add.entity).expect("verpuffender Bolzen");
-    let name = "Verpuffender Bolzen";
-    spawn_bolt(
-        &mut fx,
-        add.entity,
-        name,
-        fizzle.from,
-        fizzle.to,
-        fizzle.color,
-    );
-}
-
-fn fly_fizzles(
-    mut fizzles: Query<(&Fizzle, &Animation, &mut Transform, &Children)>,
-    parts: Query<&MeshMaterial3d<FxMaterial>>,
-    mut fx: Fx,
-) {
-    for (fizzle, animation, mut transform, children) in &mut fizzles {
-        let progress = animation.progress();
-        let left = ((1.0 - progress) / FIZZLE_FADE).min(1.0);
-        let size = (1.0 + 2.0 * left) / 3.0;
-        *transform = bolt_transform(fizzle.from, fizzle.to, progress, size);
-        for material in children.iter().filter_map(|part| parts.get(part).ok()) {
-            if let Some(mut material) = fx.materials.get_mut(&material.0) {
-                material.set_alpha(left);
-            }
-        }
-        if animation.is_done() {
-            let burst = Burst {
-                count: 16,
-                cone: 70f32.to_radians(),
-                speed: (0.4, 1.6),
-                life: (0.25, 0.55),
-                size: (0.05, 0.11),
-                stretch: 1.5,
-                colors: fizzle_colors,
-                ..Burst::DEFAULT
-            };
-            let axis = (fizzle.to - fizzle.from).normalize();
-            fx.burst(fizzle.to, axis, burst, fizzle.color, 1.0);
-        }
     }
 }
 
