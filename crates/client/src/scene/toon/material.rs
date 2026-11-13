@@ -5,8 +5,11 @@ use bevy::{
     mesh::MeshVertexBufferLayoutRef,
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
-    render::render_resource::{
-        AsBindGroup, Face, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError,
+    render::{
+        render_resource::{
+            AsBindGroup, Face, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError,
+        },
+        storage::ShaderBuffer,
     },
     shader::ShaderRef,
 };
@@ -17,6 +20,11 @@ use super::look::{
     TONE_SPREAD,
 };
 use crate::palette;
+
+/// Der eine Puffer des Blitzlichts, den alle Toon-Materialien teilen ([`super::ToonFlash`]): Ihn neu zu schreiben ändert
+/// kein Material, sonst bereitete Bevy während jeder Explosion jedes Bild alle Materialien samt Pipelines neu vor.
+pub const FLASH: Handle<ShaderBuffer> =
+    bevy::asset::uuid_handle!("57cba132-720b-4aed-873b-edd21504cc8f");
 
 const SHADER: &str = "shaders/toon.wesl";
 
@@ -96,8 +104,9 @@ pub struct ToonMaterial {
     pub opacity: f32,
     /// In der Lackierung der Gegner ([`livery`]).
     pub livery: bool,
-    /// Das Blitzlicht der Explosionen: Lage (xyz) und Stärke (w), siehe [`super::ToonFlash`].
-    pub flash: Vec4,
+    /// Das Blitzlicht der Explosionen ([`FLASH`]).
+    #[storage(7, read_only)]
+    pub flash: Handle<ShaderBuffer>,
     /// Glutmuster der Bruchflächen (nur `wreck`).
     #[texture(1)]
     #[sampler(2)]
@@ -130,7 +139,7 @@ impl ToonMaterial {
             overlay: Vec4::ZERO,
             opacity: 1.0,
             livery: false,
-            flash: Vec4::ZERO,
+            flash: FLASH,
             heat_texture,
             weather_texture,
             detail_texture,
@@ -146,7 +155,6 @@ pub struct ToonUniform {
     tone_dark: Vec4,
     /// rgb Glut der Bruchflächen.
     heat: Vec4,
-    flash: Vec4,
     /// xyz Richtung zum Hauptlicht.
     key: Vec4,
     /// x beleuchtet (1) oder genau seine Farbe (0), y Glanz, z Helligkeit, w Deckkraft.
@@ -243,7 +251,6 @@ impl From<&ToonMaterial> for ToonUniform {
             tone_mid: tones[1],
             tone_dark: tones[2],
             heat,
-            flash: material.flash,
             key: (KEY * Vec3::new(material.facing, 1.0, 1.0)).extend(0.0),
             surface: Vec4::new(
                 if lit { 1.0 } else { 0.0 },

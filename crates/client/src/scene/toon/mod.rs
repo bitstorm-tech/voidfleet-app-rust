@@ -28,7 +28,7 @@ pub mod look;
 pub mod material;
 pub mod outline;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::storage::ShaderBuffer};
 
 pub use material::{ToonMaterial, ToonSpec};
 pub use outline::{OutlineMaterial, ToonOutline};
@@ -62,10 +62,10 @@ impl Plugin for ToonPlugin {
     }
 }
 
-/// Gibt den Blitz an alle Toon-Materialien weiter.
-fn apply_flash(flash: Res<ToonFlash>, mut materials: ResMut<Assets<ToonMaterial>>) {
-    let value = flash.position.extend(flash.intensity);
-    for (_, material) in materials.iter_mut() {
-        material.flash = value;
-    }
+/// Schreibt den Blitz in den Puffer, den alle Toon-Materialien lesen (läuft auch im ersten Bild und legt ihn an).
+fn apply_flash(flash: Res<ToonFlash>, mut buffers: ResMut<Assets<ShaderBuffer>>) {
+    let value = flash.position.extend(flash.intensity).to_array();
+    buffers
+        .insert(&material::FLASH, ShaderBuffer::from(vec![value]))
+        .expect("UUID-Handle");
 }

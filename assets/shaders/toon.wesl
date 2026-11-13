@@ -16,8 +16,6 @@ struct ToonMaterial {
     tone_dark: vec4<f32>,
     // rgb: Glut der Bruchflächen
     heat: vec4<f32>,
-    // xyz: Lage des Blitzlichts, w: Stärke
-    flash: vec4<f32>,
     // xyz: Richtung zum Hauptlicht (je Seite gespiegelt)
     key: vec4<f32>,
     // x: beleuchtet (1) oder genau seine Farbe (0), y: Glanz des Materials, z: Helligkeit, w: Deckkraft
@@ -35,6 +33,8 @@ struct ToonMaterial {
 @group(constants::MATERIAL_BIND_GROUP) @binding(4) var weather_sampler: sampler;
 @group(constants::MATERIAL_BIND_GROUP) @binding(5) var detail_texture: texture_2d<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(6) var detail_sampler: sampler;
+// xyz: Lage des Blitzlichts, w: Stärke; ein Puffer für alle Materialien
+@group(constants::MATERIAL_BIND_GROUP) @binding(7) var<storage, read> flash: vec4<f32>;
 
 // Verlauf über Halb-Lambert (N·L · 0,5 + 0,5): Schatten → Halbschatten, Halbschatten → Licht; danach alles so viel
 // dunkler.
@@ -207,9 +207,9 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         color = mix(color * EXPOSURE, RIM_COLOR, RIM.y * pow(facing, RIM.x));
         color += GLINT_COLOR * pow(half_way, GLOSS.x) * GLOSS.y * gloss;
 
-        let to_flash = material.flash.xyz - in.world_position.xyz;
+        let to_flash = flash.xyz - in.world_position.xyz;
         let distance2 = dot(to_flash, to_flash);
-        let irradiance = material.flash.w * max(dot(normal, to_flash), 0.0) * inverseSqrt(distance2 + 1e-4) / (1.0 + distance2);
+        let irradiance = flash.w * max(dot(normal, to_flash), 0.0) * inverseSqrt(distance2 + 1e-4) / (1.0 + distance2);
         color += FLASH_COLOR * FLASH_LIFT * (band(FLASH_LOW, irradiance) + band(FLASH_HIGH, irradiance));
 
         // Die Glut ist außer auf Bruchflächen 0 (die Art entscheidet, nicht die UVs: auch toon-Flächen tragen welche)
