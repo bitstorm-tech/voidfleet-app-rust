@@ -4,10 +4,10 @@ Der Look ist „Used Future“: dunkle, kantige, abgenutzte Schiffe. Das Spiel z
 Verwitterung aus der Maske, ein paar leuchtende Akzente und keine Konturen (`assets/shaders/toon.wesl`). Referenz ist
 die Iron Dreadnought (`fleet/iron_dreadnought.py`): große, klare Primärformen, gegliedert durch Sekundär- und
 Tertiärformen, die zu Detailzonen mit Zweck gruppiert sind, dazu Kleinteile, die den Maßstab zeigen (Fenster, Flak,
-Antennen, Geländer). Die Kleinteile tragen alle Schiffe, die das Spiel lädt (`details` in ihren Modulen). Hive, Mirage,
-Drohne, Repair Drone, Trugbild und der Entwurf Broadside (im PvE-Run unbenutzt) stehen noch ohne sie da. Die Bastion
-trägt als erstes Schiff die Fassung für die Nahaufnahme: Fasen, glatte Rundteile, Feinteile und Beschriftung (unten,
-„Nahaufnahme“); sie ist dafür die Referenz (`fleet/bastion.py`).
+Antennen, Geländer). Die Kleinteile tragen alle Schiffe, die das Spiel lädt (`details` in ihren Modulen), und alle
+stehen in der Fassung für die Nahaufnahme: Fasen, glatte Rundteile, Feinteile und Beschriftung (unten, „Nahaufnahme“);
+Referenz dafür ist die Bastion (`fleet/bastion.py`). Hive, Mirage, Drohne, Repair Drone, Trugbild und der Entwurf
+Broadside (im PvE-Run unbenutzt) stehen noch in der groben Fassung da.
 
 Die Schiffe baut `tools/ships/` in Blender (`just ships`, `just ship-preview`); Dateinamen ohne Verzeichnis auf dieser
 Seite (`build.py`, `fleet/<id>.py`, `renders/<id>/`) liegen dort.
@@ -117,16 +117,27 @@ Die Kamera kommt viel näher heran, als das Brett zeigt: Bei größtem Zoom ist 
 (Full HD), auf Retina und 4K 345 bis 490 px, also das Zehn- bis Zwanzigfache der Brettgröße. Dort tragen drei Dinge,
 die auf dem Brett nichts kosten: Fasen an den großen Kanten, glatte Rundteile und eine vierte Stufe von Teilen unter
 0,05. Dazu kommen aus dem Shader die Fasen der Plattenkanten und die Feinstruktur (nächster Abschnitt). Die Bastion ist
-so gebaut; die übrigen Flaggschiffe und Schlachtschiffe folgen ihr.
+dafür die Referenz. Wie weit ein Schiff geht, hängt daran, wie nah die Kamera ihm kommt, also an seiner Gruppe auf dem
+Brett (`scene/formation.rs`):
+
+| Gruppe                                   | Schiffe                                                    | größter Zoom (Retina) | Feinteile          | Dreiecke | Maske |
+| ---------------------------------------- | ---------------------------------------------------------- | --------------------- | ------------------ | -------- | ----- |
+| einzeln (Flaggschiffe, Schlachtschiffe)  | Bastion, Vanguard, Pendulum, Pyre, Siegel, Dreadnought, Titan Carrier, Scrap King, Warden | 345–490 px je Einheit | alle, ab 0,012     | bis 40k  | 128   |
+| Paar (Kreuzer, Unterstützer), Maßstab 0,72 | Horizon Cruiser, Plasma Frigate, Signal Booster          | 250–350 px            | ab 0,018           | bis 22k  | 96    |
+| Staffel (Jäger), Maßstab 0,42            | Void Interceptor, Scrap Raider, Lance Bomber               | 145–205 px            | ab 0,03, sparsam   | bis 10k  | 64    |
+
+Ein Teil unter drei Pixeln bringt nichts: An Jägern entfallen Schraubenköpfe, Treppen und Gitterstäbe, dort tragen
+Fasen, glatte Rundteile, Wartungsklappen, Warnbänder und die Kennnummer. Die Staffel steht fünffach auf dem Brett, ihr
+Budget zählt also fünfmal.
 
 - **Fasen.** `vf.chamfer(teil, breite)` gibt jeder konvexen harten Kante eine eigene Fläche: Sie bekommt im Verlauf
   einen eigenen Ton und an beiden Rändern Kantenabrieb. An der Bastion 0,05 an Rumpf, Sockel und Aufbau, 0,04 an Decks,
   Schildwand, Zinnen und Schürzen, 0,015 bis 0,03 an Sekundärformen (Pylone, Anschlusskästen, Lukendeckel). Scharf
   bleiben Kleinteile, Kanten unter einer Zierlinie (sie säße sonst auf der Fase) und Teile, deren Fase dicker wäre als
   das halbe Teil.
-- **Rundungen.** Große runde Teile (Türme, Kränze, schwere Düsen) 40 Segmente, mittlere (kleine Düsen, Linsen,
-  Luken) 24, Masten 16. Formen, die kantig gemeint sind (der achteckige Bergfried, die Pylone), bleiben kantig und
-  werden gefast.
+- **Rundungen.** Große runde Teile (Türme, Kränze, schwere Düsen, runde Rümpfe im Querschnitt) 40 Segmente, mittlere
+  (kleine Düsen, Linsen, Luken) 24, Masten 16; an Paaren 32 und 20, an Jägern 24 und 16. Formen, die kantig gemeint sind
+  (der achteckige Bergfried, die Pylone), bleiben kantig und werden gefast.
 - **Feinteile** (Funktion `fine` am Ende von `build()`, nach `details`): Teile, die zeigen, wie groß das Schiff ist und
   wo man es betritt, wartet und verschraubt. Treppen zwischen den Decks (Stufen 0,026 hoch, also etwa 16 für 0,4 Höhe),
   Laufstege aus Gitterrost, Luken mit Rahmen, Scharnieren und Griff, Schraubenköpfe (Sechskant, Radius 0,013) an
@@ -135,12 +146,25 @@ so gebaut; die übrigen Flaggschiffe und Schlachtschiffe folgen ihr.
   Auch sie brauchen einen Ort mit Zweck und stehen in Zonen. Die ruhigen Flächen dazwischen dürfen kleiner werden (etwa
   eine halbe Einheit): In der Nahaufnahme tragen sie die Plattenfasen und die Feinstruktur.
 - **Beschriftung als flache Geometrie** (Platten 0,006 hoch, 0,002 eingesenkt): Wegelinien und Kennnummern in `paint`
-  (gebrochenes Weiß, vorerst eine Konstante im Modul) oder `dark`, Warnbänder aus schrägen Balken (`accent` auf `dark`).
-  Kennnummern in Segmentschrift; an Flanken auf jeder Seite für sich gesetzt und lesbar, auf Decks und Rückwänden so,
-  dass man sie von hinten oben liest (wie das Wappen). Groß bleibt nur, was Kennzeichen ist.
-- **Helfer.** `bolts`, `hatch`, `stairs`, `grating`, `stripes`, `number` und `spaced` stehen in `fleet/bastion.py` und
-  wandern mit dem zweiten Schiff, das sie braucht, nach `parts.py`.
-- **Maske.** Schiffe mit dieser Fassung bekommen in `look.WEATHER_DENSE` die doppelte Texeldichte (128 je Einheit).
+  (gebrochenes Weiß) auf dunklem Grund, in `dark` auf der Akzentfarbe und auf hellem Stahlblau (dort trägt `paint`
+  nicht); Warnbänder aus schrägen Balken (`accent` auf `dark`). Kennnummern in Segmentschrift, unter 0,16 Höhe werden
+  sie dünn; an Flanken auf jeder Seite für sich gesetzt und lesbar, auf Decks und Rückwänden so, dass man sie von hinten
+  oben liest (wie das Wappen). Jedes Einzelschiff und jedes Paar trägt eine eigene Nummer (Bastion 01, Vanguard 02,
+  Pendulum 03, Pyre 04, Warden 09, Dreadnought 17, Titan Carrier 23, Horizon Cruiser 31, Plasma Frigate 42, Signal
+  Booster 56), Jäger ein Staffelzeichen aus Streifen, der Scrap King nur die Reste einer fremden Nummer, das Siegel
+  keine. Groß bleibt nur, was Kennzeichen ist.
+- **Zum Charakter des Schiffs.** Die Feinteile erzählen, was das Schiff ist: an der Pendulum Messingfassungen,
+  Rundinstrumente und Wicklungen, an der Pyre Lamellen, Kühlmittelleitungen und Tankarmaturen, am Träger Katapult,
+  Fangseile und Zurrpunkte, am Scrap King und am Scrap Raider Heftnähte, Flicken, Ketten und Streben statt Luken und
+  Warnbändern. Das Siegel bleibt als Tarnkappenschiff glatt: bündige Klappen, Senkschrauben und Sägezahnnähte, keine
+  Fasen an den Facetten.
+- **Helfer** in `parts.py`: `bolts` (Schraubenköpfe), `spaced` (Punkte entlang eines Umrisses), `hatch` (Luke),
+  `stairs`, `grating` (Gitterrost), `stripes` (Warnband), `number` (Kennnummer), `deckhouse` (gefaster Brückenblock, der
+  im Deck steckt), `cover` (gewölbte Wartungsklappe auf einem runden Rumpf), `on_ring` (Ecke eines Querschnitts mit der
+  Richtung der Fläche); dazu die Materialien `steel_flat` und `paint` im Standardsatz. `stairs` und `grating` laufen
+  längs (y) und sind gespiegelt; wer sie anders braucht, kopiert sie ins Modul (so `gangway` an der Dreadnought,
+  `walkway` an der Vanguard, `catwalk` an der Pyre).
+- **Maske.** Die Texeldichte je Schiff steht in `look.WEATHER_DENSE` (Tabelle oben).
 
 ## Verwitterung
 
@@ -164,17 +188,18 @@ und die Feinstruktur dazu.
 - Grad je Schiff in `look.WEATHER` (Schrott 2,2, Mirage 0,5, Trugbild 0), Anteile je Material in
   `look.WEATHER_MATERIALS`. Ein neuer Materialschlüssel gilt als lackiert (eckig mit Platten, rund ohne); unlackierte
   Sonderfarben (Metall, Glas, Rost) dort eintragen.
-- Die erste Vorschau eines geänderten Schiffs backt seine Maske (Jäger etwa 15 s, Schlachtschiffe 1 bis 2 min, die
-  Bastion mit doppelter Dichte 8 bis 20 min und bis zu 8 GB Arbeitsspeicher), danach kommt sie aus dem Cache. Für
-  Probeläufe setzt `VF_DENSITY=32` die Dichte aller Schiffe herab (die Bastion backt dann in 45 s).
-- Dichte der Maske: 64 Texel je Einheit (`look.WEATHER_DENSITY`), für die Schiffe der Nahaufnahme 128
-  (`look.WEATHER_DENSE`). Das Spiel liest Schmutz als Verlauf; bei 32 wirkte er in der Nahaufnahme weich. Die Masken
-  sind 800 px (Lance Bomber) bis 6016 px (Bastion) groß; mehr als 8192 px darf keine werden (Grenze vieler
-  Grafikkarten).
+- Die erste Vorschau eines geänderten Schiffs backt seine Maske (Jäger etwa 15 s, Paare 1 min, Einzelschiffe 3 bis
+  4 min, die Bastion 10 min), danach kommt sie aus dem Cache. Für Probeläufe setzt `VF_DENSITY=32` die Dichte aller
+  Schiffe herab (die Bastion backt dann in 45 s). Bilder über 3072 px backt `weather.py` in Kacheln, damit der Speicher
+  nicht mit der Bildgröße wächst (Einzelschiffe 2 bis 3 GB, die Bastion 5 GB).
+- Dichte der Maske nach der Gruppe (`look.WEATHER_DENSE`, Tabelle oben): 128 Texel je Einheit für Einzelschiffe, 96 für
+  Paare, sonst 64 (`look.WEATHER_DENSITY`). Das Spiel liest Schmutz als Verlauf; bei 32 wirkte er in der Nahaufnahme
+  weich. Die Masken sind 864 px (Lance Bomber) bis 6048 px (Bastion) groß; mehr als 8192 px darf keine werden (Grenze
+  vieler Grafikkarten).
 - Die Maske liegt als `<id>_weather.ktx2` neben dem GLB, komprimiert (BC7, ein Byte je Texel statt vier) und mit
   Mip-Kette; Schiff und Wrack nennen sie im Vertrag (`mask`) und teilen das eine Bild. Zusammen belegen die Masken
-  etwa 106 MB Grafikspeicher, davon die Bastion 48 MB (unkomprimiert waren es bei einfacher Dichte 240 MB, die Bastion
-  ebenfalls 48 MB). `build.py` ruft dafür den Encoder `ctt` (`cargo install ctt-cli --locked --version 0.6.1`).
+  etwa 238 MB Grafikspeicher: die Bastion 49 MB, die übrigen Einzelschiffe 11 bis 23 MB, ein Paar 4 bis 5 MB, ein
+  Jäger gut 1 MB. `build.py` ruft dafür den Encoder `ctt` (`cargo install ctt-cli --locked --version 0.6.1`).
 
 ## Größen auf dem Brett
 
@@ -226,20 +251,33 @@ einen runden Rumpf eckig (Facettenstreifen) und nie einen Keilrumpf rund (Verlä
 
 ## Dreiecksbudget
 
-Obergrenzen mit Kleinteilen: Schlachtschiffe 16k, Flaggschiffe 18k, Kreuzer 12k, Jäger und Unterstützer 9k, Drohne 3k,
-Trugbild 1,5k (bleibt flach); in der Fassung für die Nahaufnahme Flaggschiffe und Schlachtschiffe 40k. Die Bastion
-liegt damit bei 31,8k (vorher 10,6k): 6,1k für glatte Rundteile und die Emitterknöpfe der Schildwand, 2,8k für Fasen,
-12,2k für Feinteile und Beschriftung (davon etwa 4k Schraubenköpfe zu je 20 Dreiecken). Eine volle Szene bleibt unter
-einer Viertelmillion Dreiecke. Die Dreadnought liegt bei 14,7k. Ohne Kleinteile sind es 11,2k (grobe Fassung 6,5k): Von
-den 4,7k für Details gehen etwa 2k in die vier Türme, 0,8k in die Bugkanonen, 0,6k in die Düsen, 0,4k in die Lüfter,
-0,4k in die RCS-Blöcke und 0,5k in den Rest. Die Kleinteile kosten 3,4k: Fenster 0,9k, Flak 0,7k, Kühlrippen 0,5k,
-Geländer und Leiter 0,5k, Rohre, Antennen, Kisten und Lichter 0,7k. Der Void Interceptor liegt bei 5,9k (4,7k ohne
-Kleinteile). Stand vom 12.11.2026: Scrap King 12,1k, Vanguard 11,3k, Pendulum 10,7k, Pyre 8,7k, Plasma
-Frigate 7,5k, Horizon Cruiser 7,2k, Titan Carrier 6,8k, Warden 6,3k, Signal Booster 5,0k, Scrap Raider 4,6k, Seal 3,5k
-(bleibt als Tarnkappenschiff glatt), Lance Bomber 3,4k. Das meiste geht in runde Teile: große mit 20–24 Segmenten, Ringe und Bälge mit 12–18, Düsenöffnungen mit 8,
-dünne Rohre und Antennen mit 6, `smooth` mit `subdiv` 1–2; Kasten, Platten und Stege kosten fast nichts, in Mengen
-(Fenster) aber doch. Die Wracks (wreck.py) entstehen automatisch und haben etwa das 1,2- bis 1,5-Fache (Dreadnought
-19,1k Dreiecke, 1,1 MB; Bastion 38,9k, 2,4 MB); ansehen (`wreck`) muss man sie trotzdem.
+Obergrenzen nach der Gruppe (Tabelle im Abschnitt „Nahaufnahme“): Einzelschiffe 40k, Paare 22k, Jäger 10k; Schiffe in
+der groben Fassung Drohne 3k, Trugbild 1,5k (bleibt flach). Stand vom 13.11.2026:
+
+| Schiff           | Dreiecke vorher | nachher | Wrack | Maske   |
+| ---------------- | --------------- | ------- | ----- | ------- |
+| bastion          | 10,6k           | 33,5k   | 40,7k | 6048 px |
+| pendulum         | 10,7k           | 34,4k   | 40,6k | 4096 px |
+| iron_dreadnought | 14,7k           | 33,8k   | 41,7k | 4096 px |
+| vanguard         | 11,3k           | 31,4k   | 38,4k | 4064 px |
+| pyre             | 8,7k            | 28,1k   | 35,0k | 4128 px |
+| scrap_king       | 12,1k           | 28,1k   | 35,1k | 3872 px |
+| warden           | 6,3k            | 25,4k   | 30,8k | 3616 px |
+| titan_carrier    | 6,8k            | 16,9k   | 22,3k | 4064 px |
+| seal             | 3,5k            | 8,2k    | 10,7k | 2880 px |
+| plasma_frigate   | 7,5k            | 18,9k   | 24,0k | 2016 px |
+| horizon_cruiser  | 7,2k            | 17,9k   | 21,0k | 1792 px |
+| signal_booster   | 5,0k            | 15,1k   | 18,8k | 1856 px |
+| void_interceptor | 5,9k            | 9,2k    | 11,7k | 1056 px |
+| scrap_raider     | 4,6k            | 6,1k    | 8,0k  | 992 px  |
+| lance_bomber     | 3,4k            | 6,0k    | 7,4k  | 864 px  |
+
+Wohin die Dreiecke gehen, an der Bastion: 6,1k für glatte Rundteile und die Emitterknöpfe der Schildwand, 2,8k für
+Fasen, 12,2k für Feinteile und Beschriftung (davon etwa 4k Schraubenköpfe zu je 20 Dreiecken), 1,8k für die feineren
+gemeinsamen Baugruppen (Flak, Geländer, Steuerdüsen). Das meiste geht in runde Teile und in Mengen kleiner Teile
+(Schrauben, Fenster, Gitterstäbe); Kasten, Platten und Stege kosten einzeln fast nichts. Die Wracks (wreck.py) entstehen
+automatisch und haben etwa das 1,2- bis 1,3-Fache; ansehen (`wreck`) muss man sie trotzdem. Die schwerste Szene (sechs
+Staffeln Void Interceptor und ein Flaggschiff) hat gut 300k Dreiecke.
 
 ## Silhouette und Wiedererkennbarkeit
 

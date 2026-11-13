@@ -9,6 +9,9 @@
 //! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und verpuffender Bolzen im Wechsel.
 //! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
+//! - `show` — ein Modell zum Ansehen, als eigenes Schiff in der Mitte und als Gegner gegenüber (in seiner Gruppe:
+//!   Staffel, Paar oder einzeln); `VOIDFLEET_DEV_SHIP=<dateiname>` wählt es (wie `models/ships/<dateiname>.glb`, auch
+//!   Entwürfe), ohne Angabe die Bastion.
 //!
 //! Außer `board` und `report` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
 
@@ -22,7 +25,7 @@ use voidfleet_core::{
 use crate::{
     assets::AppState,
     controller::Scripted,
-    data::ship_models::{ShipKind, ShipModels},
+    data::ship_models::{ShipKind, ShipModels, model_key, ships},
     game::Battle,
     palette,
     scene::{
@@ -52,6 +55,7 @@ pub enum DevScene {
     Move,
     Effects,
     Report,
+    Show(ShipKind),
 }
 
 impl DevScene {
@@ -69,6 +73,13 @@ impl DevScene {
             "move" => Some(Self::Move),
             "effects" => Some(Self::Effects),
             "report" => Some(Self::Report),
+            "show" => {
+                let name = std::env::var("VOIDFLEET_DEV_SHIP").unwrap_or_else(|_| "bastion".into());
+                let kind = ships().find(|kind| model_key(*kind) == name);
+                Some(Self::Show(
+                    kind.unwrap_or_else(|| panic!("unbekanntes Modell: {name}")),
+                ))
+            }
             other => panic!("unbekannte Dev-Szene: {other}"),
         }
     }
@@ -84,7 +95,7 @@ struct Loop {
 /// Abstand zwischen zwei Schritten der Schleife je Szene.
 fn period(scene: DevScene) -> f32 {
     match scene {
-        DevScene::Board | DevScene::Report => f32::INFINITY,
+        DevScene::Board | DevScene::Report | DevScene::Show(_) => f32::INFINITY,
         DevScene::Hit(_) => 1.3,
         DevScene::Destroy => 2.6,
         DevScene::Arrive => 2.2,
@@ -173,6 +184,10 @@ fn stage(
     };
     match *scene {
         DevScene::Report => {}
+        DevScene::Show(kind) => {
+            put(kind, own(1), (10, 10, 0));
+            put(kind, enemy(Row::Front, 1), (10, 10, 0));
+        }
         DevScene::Board => {
             let run = super::dev_run(AdmiralId::Kerr, true);
             let battle = Battle(run.start_battle());
@@ -246,7 +261,7 @@ fn run(
             .map(|(entity, ship, _)| (entity, ship.kind))
     };
     match *scene {
-        DevScene::Board | DevScene::Report => {}
+        DevScene::Board | DevScene::Report | DevScene::Show(_) => {}
         DevScene::Hit(variant) => {
             let (from, to, color) = if step.is_multiple_of(2) {
                 (own(1), enemy(Row::Front, 1), palette::PLAYER)

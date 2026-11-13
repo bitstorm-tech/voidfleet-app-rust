@@ -103,6 +103,7 @@ ARMOR = ("#5f6f84", "#414e60", "#262f3c")  # Panzerung, Schürzen, Kasematten: e
 DARK = ("#323a47", "#252c37", "#161b23")  # Dunkelteile: Gehäuse, Barbetten, Verschlüsse, Kiel
 STEEL = ("#6d7c8f", "#4a5667", "#2b3340")  # Rohre, Läufe, Düsenglocken (rund, mit Glanzpunkt)
 GLASS = tones("#2f5f7a")  # Kanzeln (rund, mit Glanzpunkt)
+PAINT = tones("#c3c0b4")  # Beschriftung (Wegelinien, Kennnummern): gebrochenes Weiß
 WRECK = tones("#3b3532")  # verkohlte Bruchflächen der Wracks
 
 # Zierlinie der Flaggschiffe: Licht-Ton = FLAGSHIP_TRIM aus crates/client/src/palette.rs; Schatten von Hand ins Warme

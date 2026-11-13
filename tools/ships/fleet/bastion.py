@@ -37,9 +37,9 @@ import math
 
 from mathutils import Vector
 
-import palette
 import vf
-from parts import badge, beam, engine, engine_details, flak, rail, rcs, sym, trim_line, trim_loop, vent, windows
+from parts import (badge, beam, bolts, engine, engine_details, flak, grating, hatch, number, rail, rcs, spaced, stairs, stripes, sym,
+                   trim_line, trim_loop, vent, windows)
 from vf import (Ship, box, chamfer, crystal, dish, grow, keel, loft, octagon, pipe, plate, post, rect, sec, segment, sphere, sweep, tube,
                 wedge)
 
@@ -56,12 +56,6 @@ GATE = (2.5, -2.75, 0.35, 3.2)
 CORNER = (2.3, 2.8, 1.5, 2.15)
 TOWER_R = (0.6, 0.57)  # Radius der Türme am Fuß und an der Oberkante
 ROUND = 40  # Segmente der großen runden Teile (Türme, Kränze, schwere Düsen)
-PAINT = "#c3c0b4"  # Markierungen (Wegelinien, Kennnummer): gebrochenes Weiß; fehlt in palette.py
-# Dreht ein Teil, das lokal nach +z schaut, in die Richtung des Schlüssels (`rot` in Grad)
-TURN = {"z": (0, 0, 0), "x": (0, 90, 0), "-x": (0, -90, 0), "y": (-90, 0, 0), "-y": (90, 0, 0)}
-# Ziffern der Kennnummer als Segmente: a oben, g Mitte, d unten, f/b oben links/rechts, e/c unten links/rechts
-DIGITS = {"0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg", "5": "acdfg", "6": "acdefg", "7": "abc", "8": "abcdefg",
-          "9": "abcdfg"}
 
 
 def wall_y(x):
@@ -169,99 +163,6 @@ def gate(s, m, mat, at, w, h, rot, mirror=False):
     for sx in (-1, 1):
         g.add(box(leaf - 0.02, h - 2 * bar - 0.04, 0.05), m["armor"], at=(sx * (gap + leaf) / 2, 0, 0))
     s.place(g, at=at, rot=rot, mirror=mirror)
-    g.bm.free()
-
-
-def bolts(s, mat, points, out="z", r=0.013, mirror=False):
-    """Sechskant-Schraubenköpfe an den Punkten auf einer Fläche, die nach `out` schaut (Schlüssel aus TURN oder
-    `rot`)."""
-    for point in points:
-        s.add(post(6, r, r, -0.006, 0.01), mat, at=point, rot=TURN.get(out, out), mirror=mirror)
-
-
-def spaced(points, step):
-    """Punkte im Abstand von etwa `step` entlang eines geschlossenen Linienzugs (x, y)."""
-    out = []
-    for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1]):
-        n = max(1, round(math.hypot(bx - ax, by - ay) / step))
-        out += [(ax + (bx - ax) * k / n, ay + (by - ay) * k / n) for k in range(n)]
-    return out
-
-
-def hatch(s, m, at, w, l, rot=(0, 0, 0), mirror=False):
-    """Wartungsluke auf einer Fläche (lokal +z nach außen, l längs y): dunkler Rahmen mit Schrauben in den Ecken,
-    gefaster Deckel, zwei Scharniere an einer Längsseite, Griff gegenüber. Die Scharniere sind eckig schattiert: Einen
-    runden Deckel an rundem Material hielte die Verwitterung für eine Mündung und schwärzte ihn mit Ruß."""
-    g = Ship("hatch")
-    g.add(box(w, l, 0.024), m["dark"], at=(0, 0, 0.004))
-    g.add(chamfer(box(w - 0.05, l - 0.05, 0.03), 0.01), m["armor"], at=(0, 0, 0.018))
-    for sy in (-1, 1):
-        g.add(tube(8, 0.014, 0.014, -0.04, 0.04), m["steel_flat"], at=(-(w / 2 - 0.02), sy * l * 0.27, 0.034))
-        g.add(box(0.012, 0.012, 0.02), m["steel_flat"], at=(w / 2 - 0.07, sy * 0.044, 0.04))
-    g.add(box(0.012, 0.1, 0.012), m["steel_flat"], at=(w / 2 - 0.07, 0, 0.052))
-    bolts(g, m["steel_flat"], [(sx * (w / 2 - 0.012), sy * (l / 2 - 0.012), 0.016) for sx in (-1, 1) for sy in (-1, 1)], r=0.01)
-    s.place(g, at=at, rot=rot, mirror=mirror)
-    g.bm.free()
-
-
-def stairs(s, m, x, y0, y1, z0, z1, width=0.11):
-    """Treppe längs einer Wand (Wandfläche bei x, Steuerbord und gespiegelt) von (y0, z0) hinauf nach (y1, z1): massive
-    Stufen von etwa 0,026 Höhe, außen eine Wange und ein Handlauf auf drei Pfosten."""
-    n = max(2, round((z1 - z0) / 0.026))
-    rise, run = (z1 - z0) / n, (y1 - y0) / n
-    for k in range(n):
-        s.add(box(width, abs(run), rise * (k + 1)), m["dark"], at=(x + width / 2, y0 + run * (k + 0.5), z0 + rise * (k + 1) / 2),
-              mirror=True)
-    out = x + width
-    s.add(beam((out, y0, z0 + 0.01), (out, y1, z1 + 0.01), 0.016, 0.05), m["armor"], mirror=True)
-    s.add(beam((out, y0, z0 + 0.1), (out, y1, z1 + 0.1), 0.012, 0.012), m["dark"], mirror=True)
-    for t in (0.0, 0.5, 1.0):
-        s.add(box(0.012, 0.012, 0.1), m["dark"], at=(out, y0 + t * (y1 - y0), z0 + t * (z1 - z0) + 0.055), mirror=True)
-
-
-def grating(s, m, x0, x1, y0, y1, z):
-    """Laufsteg aus Gitterrost auf einem Deck (Steuerbord und gespiegelt): dunkler Boden, Querstäbe alle 0,04, zwei
-    Längsholme."""
-    w, l, cx, cy = x1 - x0, y1 - y0, (x0 + x1) / 2, (y0 + y1) / 2
-    s.add(box(w, l, 0.012), m["dark"], at=(cx, cy, z + 0.002), mirror=True)
-    n = int(l / 0.04)
-    for k in range(n):
-        s.add(box(w, 0.012, 0.012), m["steel_flat"], at=(cx, y0 + (k + 0.5) * l / n, z + 0.01), mirror=True)
-    for x in (x0, x1):
-        s.add(box(0.016, l + 0.012, 0.022), m["armor"], at=(x, cy, z + 0.008), mirror=True)
-
-
-def stripes(s, m, at, w, l, rot=(0, 0, 0), mirror=False):
-    """Warnband auf einer Fläche (lokal l längs y, w quer, +z nach außen): dunkle Platte mit schrägen Balken in der
-    Akzentfarbe."""
-    g = Ship("stripes")
-    g.add(box(w + 0.012, l + 0.012, 0.008), m["dark"], at=(0, 0, 0.001))
-    n = max(2, round((l - w) / (1.6 * w)))
-    pitch = (l - w) / n
-    for k in range(n):
-        y = -l / 2 + k * pitch
-        g.add(plate([(-w / 2, y), (w / 2, y + w), (w / 2, y + w + pitch / 2), (-w / 2, y + pitch / 2)], 0.008, "xy"), m["accent"],
-              at=(0, 0, 0.005))
-    s.place(g, at=at, rot=rot, mirror=mirror)
-    g.bm.free()
-
-
-def number(s, mat, text, at, h, rot):
-    """Kennnummer in Schablonenschrift aus Segmenten, flach auf einer Fläche: lokal x die Leserichtung, y oben, +z nach
-    außen; `at` ist die Mitte, `h` die Ziffernhöhe. Waagerechte Segmente liegen zwischen den senkrechten, damit sich
-    keine Platten in einer Ebene überdecken."""
-    g = Ship("number")
-    w, t = 0.55 * h, 0.14 * h
-    gap = 0.2 * t
-    bars = {"a": (0, h / 2 - t / 2, w - 2 * t - 2 * gap, t), "g": (0, 0, w - 2 * t - 2 * gap, t), "d": (0, -h / 2 + t / 2, w - 2 * t - 2 * gap, t)}
-    for name, sx, sy in (("f", -1, 1), ("b", 1, 1), ("e", -1, -1), ("c", 1, -1)):
-        bars[name] = (sx * (w / 2 - t / 2), sy * h / 4, t, h / 2 - gap)
-    for k, digit in enumerate(text):
-        x = (k - (len(text) - 1) / 2) * (w + 1.6 * t)
-        for name in DIGITS[digit]:
-            cx, cy, sx, sy = bars[name]
-            g.add(box(sx, sy, 0.008), mat, at=(x + cx, cy, 0.002))
-    s.place(g, at=at, rot=rot)
     g.bm.free()
 
 
@@ -444,8 +345,6 @@ def fine(s, m, ky, ledge):
 def build():
     s = Ship("bastion")
     m = vf.materials(s.name, "battleship")
-    m["steel_flat"] = vf.toon(f"{s.name}_steel_flat", palette.STEEL)
-    m["paint"] = vf.toon(f"{s.name}_paint", PAINT)
 
     # ---------------------------------------------------------------- Rumpf, Keilbug, Sockel, Schürzen
     # Kastenrumpf auf einem gestuften Sockel (umgekehrte Stufenpyramide) mit Kiel; vorn ein Keilbug unter der Schildwand

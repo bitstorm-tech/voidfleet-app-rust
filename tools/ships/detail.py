@@ -93,7 +93,10 @@ def pixels():
 
 
 def write(target):
-    """Schreibt die Textur als KTX2 `target` (über das PNG im Cache der Masken)."""
+    """Schreibt die Textur als KTX2 `target` (über das PNG im Cache der Masken); liegt beides schon da, bleibt es
+    stehen, damit gleichzeitige Builds einander die Datei nicht unter den Händen neu schreiben."""
+    if os.path.exists(CACHE) and os.path.exists(target):
+        return
     os.makedirs(weather.CACHE, exist_ok=True)
     weather.write_png(CACHE, pixels())
     subprocess.run([os.environ.get("CTT", "ctt"), CACHE, "-o", target, "-f", "rgba8unorm", "--input-color-space", "linear", "--mipmap",

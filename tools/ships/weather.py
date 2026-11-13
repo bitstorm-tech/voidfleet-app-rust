@@ -11,8 +11,8 @@ Ablauf je Schiff (`apply`; build.py und preview.py rufen es nach dem Bau, vor de
   1. Abwicklung: eine UV-Ebene über das ganze Mesh (Smart UV Project, liefert bei gleichem Mesh dieselben UVs), Inseln
      mit MARGIN Texeln Abstand. Die Bildgröße folgt aus Fläche und Packdichte, damit das Schiff überall dieselbe
      Texeldichte bekommt (look.WEATHER_DENSITY Texel je Einheit, für die Schiffe in look.WEATHER_DENSE mehr).
-  2. Bake (Cycles, CPU, feste Saat, ohne Denoiser) einer Kopie des Schiffs mit einem Hilfsmaterial, allein in einer
-     eigenen Szene: Lage, Normale, Umgebungsverdeckung außen (Ritzen) und Material. Den Rand der Inseln füllen die
+  2. Bake (Cycles, CPU, feste Saat, ohne Denoiser; große Bilder in Kacheln) einer Kopie des Schiffs mit einem
+     Hilfsmaterial, allein in einer eigenen Szene: Lage, Normale, Umgebungsverdeckung außen (Ritzen) und Material. Den Rand der Inseln füllen die
      Nachbarflächen. Was sich aus der Geometrie genau messen lässt, misst Python je Texel: den Abstand zum nächsten
      Hindernis Richtung Bug (Schlieren; BVH-Strahl, der Raycast-Knoten von Cycles verfehlt im Bake zu viele Treffer) und
      den Abstand zur nächsten sichtbaren konvexen Kante (Abrieb; KD-Baum über Punkte entlang der Kanten, der Bevel-Knoten
@@ -76,6 +76,8 @@ AO_DISTANCE = 0.4  # Reichweite der Umgebungsverdeckung (Ritzen) in Einheiten
 LEE_LENGTH = 1.6  # Reichweite der Schlieren hinter einem Hindernis
 LEE_BIAS = 0.06  # so hoch muss es mindestens sein
 CHUNK = 1 << 21  # Texel je Portion beim Rechnen der Kanäle (etwa 1 GB Arbeitsspeicher)
+TILE = 3072  # größte Kantenlänge, die Cycles in einem Stück backt (etwa 2 GB)
+PAD = MARGIN + 2  # Überstand einer Kachel in Texeln
 
 
 # ---------------------------------------------------------------- Ablauf
@@ -256,44 +258,67 @@ def _bake_material():
     return mat, sources
 
 
-def bake(obj, size):
-    """Die gebackenen Größen je Texel (Blender-Reihenfolge, Zeile 0 unten): position, normal und rays (AO außen,
-    Materialindex, 1 = belegt; −1 außerhalb der Inseln und ihres Rands)."""
-    scene = _bake_scene()
-    mesh = obj.data.copy()
-    index = np.empty(len(mesh.polygons), dtype=np.int32)
-    mesh.polygons.foreach_get("material_index", index)
-    mesh.attributes.new("vf_material", "FLOAT", "FACE").data.foreach_set("value", index.astype(np.float32))
-    mesh.polygons.foreach_set("material_index", np.zeros_like(index))
-    mesh.materials.clear()
-    mat, sources = _bake_material()
-    mesh.materials.append(mat)
-    tmp = bpy.data.objects.new("VF_Bake", mesh)
-    scene.collection.objects.link(tmp)
-    view_layer = scene.view_layers[0]
-    view_layer.objects.active = tmp
-    tmp.select_set(True, view_layer=view_layer)
-    nodes, links = mat.node_tree.nodes, mat.node_tree.links
-    out = {}
-    for name, samples in (("position", 1), ("normal", 1), ("rays", SAMPLES)):
-        image = bpy.data.images.new(f"VF_Bake_{name}", size, size, alpha=True, float_buffer=True)
-        image.colorspace_settings.name = "Non-Color"
-        image.pixels.foreach_set(np.full(size * size * 4, -1.0, dtype=np.float32))
-        nodes["Target"].image = image
-        links.new(sources[name], nodes["Emission"].inputs["Color"])
-        scene.cycles.samples = samples
-        with bpy.context.temp_override(scene=scene, view_layer=view_layer, active_object=tmp, object=tmp,
-                                       selected_objects=[tmp], selected_editable_objects=[tmp]):
-            bpy.ops.object.bake(type="EMIT")
-        pixels = np.empty(size * size * 4, dtype=np.float32)
-        image.pixels.foreach_get(pixels)
-        out[name] = pixels.reshape(size, size, 4)[..., :3].copy()
-        bpy.data.images.remove(image)
-    bpy.data.objects.remove(tmp)
-    bpy.data.meshes.remove(mesh)
-    bpy.data.materials.remove(mat)
-    bpy.data.scenes.remove(scene)
-    return out
+class Bake:
+    """Backt Größen je Texel aus einer Kopie von `obj` (Blender-Reihenfolge, Zeile 0 unten). Bilder über TILE Texel
+    Kantenlänge entstehen in Kacheln: Cycles braucht je Texel gut 200 Bytes, ein Bild von 6000 px in einem Stück also
+    8 GB. Jede Kachel backt mit PAD Texeln Überstand, damit der Rand der Inseln (MARGIN) auch an ihrer Grenze stimmt.
+    Im Inneren der Inseln ist das Ergebnis dasselbe, nur das Rauschen der Verdeckung fällt anders."""
+
+    def __init__(self, obj, size):
+        self.size = size
+        self.scene = _bake_scene()
+        self.mesh = mesh = obj.data.copy()
+        index = np.empty(len(mesh.polygons), dtype=np.int32)
+        mesh.polygons.foreach_get("material_index", index)
+        mesh.attributes.new("vf_material", "FLOAT", "FACE").data.foreach_set("value", index.astype(np.float32))
+        mesh.polygons.foreach_set("material_index", np.zeros_like(index))
+        mesh.materials.clear()
+        self.mat, self.sources = _bake_material()
+        mesh.materials.append(self.mat)
+        self.obj = bpy.data.objects.new("VF_Bake", mesh)
+        self.scene.collection.objects.link(self.obj)
+        self.view_layer = self.scene.view_layers[0]
+        self.view_layer.objects.active = self.obj
+        self.obj.select_set(True, view_layer=self.view_layer)
+        self.uv = _uvs(mesh).astype(np.float64)
+
+    def render(self, name, samples):
+        """Die Größe `name` als Feld (Höhe, Breite, 3): `position`, `normal` oder `rays` (AO außen, Materialindex,
+        1 = belegt; −1 außerhalb der Inseln und ihres Rands)."""
+        size, nodes = self.size, self.mat.node_tree.nodes
+        self.mat.node_tree.links.new(self.sources[name], nodes["Emission"].inputs["Color"])
+        self.scene.cycles.samples = samples
+        tiles = -(-size // TILE)
+        pad = PAD if tiles > 1 else 0
+        # In einem Stück füllt den Rand einer Insel die Nachbarfläche (Blender kopiert deren Texel aus dem Bild). In
+        # Kacheln liegt die oft in einer anderen: dort den Rand aus den eigenen Randtexeln fortsetzen
+        self.scene.render.bake.margin_type = "EXTEND" if tiles > 1 else "ADJACENT_FACES"
+        edges = [round(size * k / tiles) for k in range(tiles + 1)]
+        out = np.empty((size, size, 3), dtype=np.float32)
+        for y0, y1 in zip(edges, edges[1:]):
+            for x0, x1 in zip(edges, edges[1:]):
+                w, h = x1 - x0 + 2 * pad, y1 - y0 + 2 * pad
+                if tiles > 1:  # die Kachel samt Überstand füllt den UV-Raum; in einem Stück bleiben die UVs unberührt
+                    shifted = (self.uv * size - (x0 - pad, y0 - pad)) / (w, h)
+                    self.mesh.uv_layers.active.data.foreach_set("uv", shifted.astype(np.float32).ravel())
+                image = bpy.data.images.new(f"VF_Bake_{name}", w, h, alpha=True, float_buffer=True)
+                image.colorspace_settings.name = "Non-Color"
+                image.pixels.foreach_set(np.full(w * h * 4, -1.0, dtype=np.float32))
+                nodes["Target"].image = image
+                with bpy.context.temp_override(scene=self.scene, view_layer=self.view_layer, active_object=self.obj, object=self.obj,
+                                               selected_objects=[self.obj], selected_editable_objects=[self.obj]):
+                    bpy.ops.object.bake(type="EMIT")
+                pixels = np.empty(w * h * 4, dtype=np.float32)
+                image.pixels.foreach_get(pixels)
+                out[y0:y1, x0:x1] = pixels.reshape(h, w, 4)[pad:h - pad, pad:w - pad, :3]
+                bpy.data.images.remove(image)
+        return out
+
+    def free(self):
+        bpy.data.objects.remove(self.obj)
+        bpy.data.meshes.remove(self.mesh)
+        bpy.data.materials.remove(self.mat)
+        bpy.data.scenes.remove(self.scene)
 
 
 # ---------------------------------------------------------------- Rauschen (numpy, feste Saat)
@@ -548,15 +573,17 @@ def _plates(p, n):
 
 
 def mask(obj, size, grade):
-    """Die Maske als RGBA-Bytes (Blender-Reihenfolge). Die Kanäle entstehen in Portionen von CHUNK Texeln: So wächst
-    der Speicher nicht mit der Bildgröße (die Bastion hat bei 128 Texeln je Einheit über 40 Millionen Texel)."""
-    geo = bake(obj, size)
-    rays = geo.pop("rays")
+    """Die Maske als RGBA-Bytes (Blender-Reihenfolge). Gebacken wird in Kacheln (`Bake`), die Kanäle entstehen in
+    Portionen von CHUNK Texeln: So bleibt der Speicher auch für die Bastion mit 128 Texeln je Einheit (36 Millionen
+    Texel) unter 3 GB."""
+    baker = Bake(obj, size)
+    rays = baker.render("rays", SAMPLES)
     covered = rays[..., 2] > 0.5
     material = rays[..., 1].ravel().copy()
     ao = _blur(rays[..., 0].astype(np.float64), covered).ravel()
-    del rays
-    position, normal = geo["position"].reshape(-1, 3), geo["normal"].reshape(-1, 3)
+    del rays  # erst jetzt Lage und Normale: Das Glätten braucht selbst viel Platz
+    position, normal = baker.render("position", 1).reshape(-1, 3), baker.render("normal", 1).reshape(-1, 3)
+    baker.free()
     materials = list(obj.data.materials)
     table = np.array([weights(m, obj.name) for m in materials])
     solid, sources = _solid_tree(obj.data), emitters(obj)

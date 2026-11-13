@@ -112,11 +112,15 @@ GLOW_MIX = (0.9, 0.55)
 # ---------------------------------------------------------------- Verwitterung (weather.py backt die Maske, toon.wesl
 # und preview.py setzen sie mit denselben Schwellen und Farben um; Farben linear, sie wirken als Faktor)
 
-# Texel je Blender-Einheit, gleichmäßig über ein Schiff. Darunter (32) wird der Schmutz in der Nahaufnahme weich.
-# Dichter sind die Schiffe, an die die Kamera am nächsten herankommt (die Flaggschiffe nach dem Detailpass). VF_DENSITY
-# setzt für Probeläufe eine andere Dichte für alle (ein Bake mit 128 dauert das Vierfache).
+# Texel je Blender-Einheit, gleichmäßig über ein Schiff. Darunter (32) wird der Schmutz in der Nahaufnahme weich. Dichter
+# sind die Schiffe, an die die Kamera näher herankommt (docs/stilregeln.md, „Nahaufnahme“): die einzeln stehenden
+# (Flaggschiffe, Schlachtschiffe, Bosse) doppelt, die Paare anderthalbfach. VF_DENSITY setzt für Probeläufe eine andere
+# Dichte für alle (ein Bake mit 128 dauert das Vierfache und braucht bei der Bastion bis zu 8 GB).
 WEATHER_DENSITY = 64
-WEATHER_DENSE = {"bastion": 128}
+WEATHER_DENSE = {
+    **dict.fromkeys(("bastion", "vanguard", "pendulum", "pyre", "seal", "iron_dreadnought", "titan_carrier", "scrap_king", "warden"), 128),
+    **dict.fromkeys(("horizon_cruiser", "plasma_frigate", "signal_booster"), 96),
+}
 WEATHER = {"scrap_raider": 2.2, "scrap_king": 2.2, "mirage": 0.5, "decoy": 0.0}  # Grad je Schiff, sonst 1
 # Anteile je Material (Schlüssel aus vf.materials bzw. dem Schiffsmodul): Schmutz, Ruß, Kantenabrieb, Platten. Ohne
 # Eintrag gelten lackierte Flächen: eckig mit Platten, rund ohne. Lichter und Hologramme bleiben ohne.

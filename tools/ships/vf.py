@@ -130,9 +130,9 @@ def smooth_normals(mat):
 
 
 def materials(ship, ship_class):
-    """Standardsatz eines Schiffs, Namen `<ship>_<key>`: eckig `hull`, `armor`, `dark`, `accent`; rund `hull_round`,
-    `armor_round`, `dark_round`, `accent_round` (Türme), `steel` (Rohre), `glass` (Kanzeln); Lichter `glow` (Lichtbänder,
-    Leuchtfeuer), `core` (Brennkammer), `window`. Rumpf, Panzerung, Akzent und Lichtfarbe kommen aus der Klasse
+    """Standardsatz eines Schiffs, Namen `<ship>_<key>`: eckig `hull`, `armor`, `dark`, `accent`, `steel_flat` (Stahl
+    an Feinteilen), `paint` (Beschriftung); rund `hull_round`, `armor_round`, `dark_round`, `accent_round` (Türme), `steel`
+    (Rohre), `glass` (Kanzeln); Lichter `glow` (Lichtbänder, Leuchtfeuer), `core` (Brennkammer), `window`. Rumpf, Panzerung, Akzent und Lichtfarbe kommen aus der Klasse
     (palette.CLASSES). Flaggschiffe
     (palette.FLAGSHIPS) nehmen Akzent und Lichter ihres Admirals und bekommen dazu `signal` (Kennzeichen in der
     UI-Farbe) und `trim` (Zierlinie). Weitere Materialien legt das Schiff selbst an (`toon`, `light`)."""
@@ -146,6 +146,8 @@ def materials(ship, ship_class):
         "armor": toon(f"{ship}_armor", look["armor"]),
         "dark": toon(f"{ship}_dark", palette.DARK),
         "accent": toon(f"{ship}_accent", accent),
+        "steel_flat": toon(f"{ship}_steel_flat", palette.STEEL),
+        "paint": toon(f"{ship}_paint", palette.PAINT),
         "hull_round": toon(f"{ship}_hull_round", look["hull"], round=True),
         "armor_round": toon(f"{ship}_armor_round", look["armor"], round=True),
         "dark_round": toon(f"{ship}_dark_round", palette.DARK, round=True),
