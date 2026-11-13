@@ -296,11 +296,12 @@ fn rebuild_row(
     *shown = next;
 }
 
-/// Welches Exemplar ein Klick auf einen Stapel meint: das gewählte, sonst das erste.
+/// Welches Exemplar ein Klick auf einen Stapel meint: das gewählte, sonst das letzte. Der Stapel liegt an der Stelle
+/// des ersten Exemplars; spielt man ein späteres, behalten alle Karten ihren Platz.
 fn pick(stack: &HandStack, hud: &HudState) -> usize {
     hud.selected
         .filter(|index| stack.0.contains(index))
-        .unwrap_or(stack.0[0])
+        .unwrap_or(stack.0[stack.0.len() - 1])
 }
 
 fn click_card(
@@ -408,6 +409,28 @@ mod tests {
             stacks_of(&hand),
             vec![(hand[0], vec![0, 2]), (hand[1], vec![1])]
         );
+    }
+
+    #[test]
+    fn playing_from_a_stack_keeps_the_order() {
+        let mut hand = [
+            CardId::Scavenge,
+            CardId::Torpedo,
+            CardId::RedAlert,
+            CardId::Torpedo,
+        ]
+        .map(DeckCard::new)
+        .to_vec();
+        let order = |hand: &[DeckCard]| {
+            stacks_of(hand)
+                .into_iter()
+                .map(|(card, _)| card)
+                .collect::<Vec<_>>()
+        };
+        let before = order(&hand);
+        let stack = HandStack(stacks_of(&hand)[1].1.clone());
+        hand.remove(pick(&stack, &HudState::default()));
+        assert_eq!(order(&hand), before);
     }
 
     #[test]
