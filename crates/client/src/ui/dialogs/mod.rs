@@ -19,6 +19,7 @@
 //! Escape schließt einen offenen Dialog in [`DialogSystems`]; wer Escape selbst auswertet, läuft davor und prüft, ob
 //! ein [`Modal`] offen ist.
 
+mod admiral_editor;
 pub mod admiral_select;
 mod card_editor;
 pub mod main_menu;
@@ -407,6 +408,7 @@ impl Plugin for DialogsPlugin {
                 main_menu::MainMenuPlugin,
                 map_editor::MapEditorPlugin,
                 card_editor::CardEditorPlugin,
+                admiral_editor::AdmiralEditorPlugin,
                 star_map::StarMapPlugin,
                 run_nodes::RunNodesPlugin,
                 result_screen::ResultScreenPlugin,

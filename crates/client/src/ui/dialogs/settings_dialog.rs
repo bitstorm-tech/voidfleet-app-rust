@@ -782,6 +782,13 @@ pub(super) fn spawn(
                                                     view.cards = true;
                                                 }
                                             ),
+                                            dev_button(
+                                                fonts,
+                                                locale.settings_admiral_editor(),
+                                                |view| {
+                                                    view.admiral_editor = true;
+                                                }
+                                            ),
                                         ],
                                     )],
                                 ),

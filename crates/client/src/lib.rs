@@ -22,6 +22,7 @@
 // üblich (so empfiehlt es auch Bevy).
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+pub mod admiral_editor;
 pub mod assets;
 pub mod audio;
 pub mod card_editor;

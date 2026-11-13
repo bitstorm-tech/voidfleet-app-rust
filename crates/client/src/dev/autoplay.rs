@@ -208,7 +208,8 @@ pub(super) fn autoplay(
         | Screen::Battle
         | Screen::Models
         | Screen::Editor
-        | Screen::Cards => {}
+        | Screen::Cards
+        | Screen::AdmiralEditor => {}
     }
 }
 

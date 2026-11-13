@@ -11,7 +11,11 @@ use bevy::{
     ui_widgets::{Activate, Button, observe},
     window::PrimaryWindow,
 };
-use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
+use voidfleet_core::{
+    admirals::{ADMIRAL_IDS, AdmiralId},
+    cards::DeckCard,
+    data::{AdmiralData, data},
+};
 
 use super::{AdmiralChosen, Density, board_overlay, overlay_backdrop, overlay_hint, overlay_title};
 use crate::{
@@ -117,22 +121,21 @@ fn section_label(fonts: &Fonts, label: &str, stars: Option<Handle<Image>>) -> im
     )
 }
 
-/// Die Karte eines Admirals.
-fn admiral_card(
+/// Die Karte eines Admirals mit diesen Werten (die des Spiels oder des Admirals-Editors), ohne Klick.
+pub(super) fn admiral_card(
     fonts: &Fonts,
     icons: &UiIcons,
     portraits: &AdmiralPortraits,
     art: &CardArt,
     locale: &Locale,
     admiral: AdmiralId,
+    values: &AdmiralData,
     density: Density,
 ) -> impl Bundle {
     let color = palette::admiral_color(admiral);
     let text = locale.admiral(admiral);
     let flagship = admiral.flagship();
-    let signature = locale.card(voidfleet_core::cards::DeckCard::new(
-        admiral.signature_card(),
-    ));
+    let signature = locale.card(DeckCard::new(values.signature_card));
     let (portrait, name, epithet, ship_name, body, line_height, choose_size, choose_pad) =
         match density {
             Density::Regular => (120.0, 24.0, 17.0, 18.0, 14.5, 1.3, 18.0, 6.0),
@@ -145,9 +148,6 @@ fn admiral_card(
         ..default()
     };
     (
-        AdmiralCard(admiral),
-        Button,
-        Hovered::default(),
         Node {
             flex_basis: px(330),
             flex_shrink: 1.0,
@@ -167,7 +167,6 @@ fn admiral_card(
         },
         BoxShadow::default(),
         UiOpacity(1.0),
-        observe(choose),
         children![
             // Porträt, unten in die Karte auslaufend.
             (
@@ -263,9 +262,9 @@ fn admiral_card(
                                     format!(
                                         "{} {} · {} {}",
                                         locale.stats_hull(),
-                                        admiral.hull(),
+                                        values.hull,
                                         locale.stats_atk(),
-                                        admiral.attack()
+                                        values.attack
                                     ),
                                     palette::TEXT_DIM
                                 ),
@@ -403,8 +402,18 @@ fn show(
         return;
     };
     let density = overlay.density;
-    let cards = ADMIRAL_IDS
-        .map(|admiral| admiral_card(&fonts, &icons, &portraits, &art, &locale, admiral, density));
+    let cards = ADMIRAL_IDS.map(|admiral| {
+        let values = &data().admirals[&admiral];
+        (
+            AdmiralCard(admiral),
+            Button,
+            Hovered::default(),
+            observe(choose),
+            admiral_card(
+                &fonts, &icons, &portraits, &art, &locale, admiral, values, density,
+            ),
+        )
+    });
     commands.spawn((
         Name::new("Admiralswahl"),
         overlay,

@@ -81,7 +81,7 @@ pub struct Upgrade {
 
 /// `admirals.json`: ein Admiral mit Hülle und ATK seines Flaggschiffs, dem Wert seiner Schild-Station, der
 /// Kennkarte und dem Startdeck.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AdmiralData {
     pub hull: i32,
@@ -192,6 +192,16 @@ impl CardData {
     }
 }
 
+impl AdmiralData {
+    /// Hülle positiv, ATK und Schild nicht negativ, ein Startdeck, in dem die Kennkarte steckt.
+    pub fn check(&self) -> bool {
+        self.hull > 0
+            && self.attack >= 0
+            && self.shield_station >= 0
+            && self.deck.contains(&self.signature_card)
+    }
+}
+
 /// `[von, bis]` als Spanne für den Zufall.
 pub fn span([from, to]: [u32; 2]) -> RangeInclusive<u32> {
     from..=to
@@ -282,11 +292,17 @@ impl Data {
                 ));
             }
         }
-        if let Some(id) = ADMIRAL_IDS
-            .iter()
-            .find(|id| !self.admirals.contains_key(id))
-        {
-            return Err(format!("admirals.json: {id:?} fehlt"));
+        for id in ADMIRAL_IDS {
+            let admiral = self
+                .admirals
+                .get(&id)
+                .ok_or(format!("admirals.json: {id:?} fehlt"))?;
+            if !admiral.check() {
+                return Err(format!(
+                    "admirals.json: {id:?}: Hülle nicht positiv, ATK oder Schild negativ oder Kennkarte nicht im \
+                     Startdeck"
+                ));
+            }
         }
         let run = &self.rules.run;
         for [from, to] in [

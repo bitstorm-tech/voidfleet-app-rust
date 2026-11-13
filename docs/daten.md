@@ -6,7 +6,7 @@ Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im 
 | --- | --- | --- |
 | `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nächster Start |
 | `cards/<id>.json` | je Karte eine Datei: Art, Ziel, Kosten, Wert und Zweitwert samt aufgewerteter Fassung, Name und Effekttext je Sprache ([Karten](karten.md)) | nächster Start, aus dem Befehlskarten-Editor sofort |
-| `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nächster Start |
+| `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nächster Start, aus dem Admirals-Editor sofort |
 | `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Gegner, Module, Run | nächster Start |
 | `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten, jede Einheit mit allen Werten, mit denen sie kämpft ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
 | `text/de.json`, `text/en.json` | jeder sichtbare Text außer denen der Karten, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
@@ -66,7 +66,11 @@ Der Befehlskarten-Editor im Spiel bearbeitet die Kartendateien: Einstellungen �
 }
 ```
 
-`shield_station` ist, was die Schild-Station schluckt; `signature_card` die Kennkarte, die die Admiralswahl zeigt; `deck` das Startdeck, Karte für Karte. Flaggschiff, Passiv und Admiralsstation hängen im Code am Admiral.
+`shield_station` ist, was die Schild-Station schluckt; `signature_card` die Kennkarte, die die Admiralswahl zeigt; `deck` das Startdeck, Karte für Karte; die Kennkarte muss darin stecken, die Hülle ist mindestens 1. Flaggschiff, Passiv und Admiralsstation hängen im Code am Admiral.
+
+### Der Admirals-Editor
+
+Der Admirals-Editor im Spiel bearbeitet `admirals.json`: Einstellungen → Tab „Dev“ → „Admirals-Editor“. Links stehen die vier Admirale, in der Mitte der gewählte als Karte der Admiralswahl mit den Werten des Editors, rechts Hülle und ATK des Flaggschiffs und die Schild-Station mit `-` und `+`, darunter das Startdeck je Karte mit ihrer Anzahl (ein Klick auf den Namen macht sie zur Kennkarte, sie leuchtet) und alle Karten zum Hinzufügen. „Speichern“ schreibt nur, was die Prüfung besteht, Zeichen für Zeichen im Format der Datei; danach gelten die Werte sofort im Spiel für jeden neuen Run. Zahlen, die Texte aus den Daten einsetzen (`{admirals.osei.shield_station}`), folgen erst beim nächsten Start. Namen und Texte der Admirale stehen in den Textdateien, die Zahlen ihrer Admiralsstationen in `rules.json`.
 
 ## Stellgrößen
 

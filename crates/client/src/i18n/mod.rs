@@ -349,6 +349,10 @@ plain! {
     card_editor_value card_editor_extra card_editor_upgraded card_editor_name card_editor_effect card_editor_valid
     card_editor_hint
 
+    // --- Admirals-Editor ---
+    settings_admiral_editor admiral_editor_title admiral_editor_numbers admiral_editor_shields admiral_editor_deck
+    admiral_editor_add admiral_editor_valid admiral_editor_hint
+
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close camera_view_toggle loading_failed
 
@@ -417,6 +421,7 @@ filled! {
     editor_column_fire(width: usize)
     card_editor_error_text(card: &str, language: &str)
     card_editor_error_numbers(card: &str)
+    admiral_editor_error(admiral: &str)
 
     // --- Run ---
     result_lost_subtitle(flagship: &str)
