@@ -50,8 +50,8 @@ const LASER_SPARKS: f32 = 70.0;
 const LASER_FADE: f32 = 0.15;
 /// Rakete: Welteinheiten pro Sekunde entlang der Bahn, Höhe und seitlicher Schwung der Kurve.
 const MISSILE_SPEED: f32 = 8.0;
-/// Maßstab des Torpedo-Modells (5,75 lang, also gut 0,85 auf dem Brett).
-const MISSILE_SCALE: f32 = 0.15;
+/// Maßstab des Torpedo-Modells (5,75 lang, also 0,4 auf dem Brett).
+const MISSILE_SCALE: f32 = 0.07;
 const MISSILE_LENGTH: f32 = 5.75 * MISSILE_SCALE;
 const TRAIL_RATE: f32 = 220.0;
 /// Traktorstrahl: dünner als die Railgun, flimmert (Hz), blendet ein und aus.
@@ -1013,9 +1013,10 @@ fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
         ))
         .add_children(&[model]);
     let trail = Burst {
+        spread: 0.03,
         speed: (0.1, 0.5),
         life: (0.35, 0.7),
-        size: (0.1, 0.16),
+        size: (0.05, 0.08),
         grow: 0.2,
         gravity: 0.3,
         colors: trail_colors,
