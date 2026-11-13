@@ -55,7 +55,8 @@ const SHAKE_MAX: f32 = 0.3;
 /// Wie ein Schuss aussieht.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Weapon {
-    Bolt(Option<HitVariant>),
+    /// Ein stehender Strahl aus einem Geschütz; der Schaden folgt, wenn er erlischt.
+    Laser(Option<HitVariant>),
     Rail,
     Plasma,
     Missile,
@@ -72,7 +73,7 @@ enum Weapon {
 impl Weapon {
     fn variant(self) -> Option<HitVariant> {
         match self {
-            Self::Bolt(variant) => variant,
+            Self::Laser(variant) => variant,
             Self::Rail | Self::Lance => Some(HitVariant::Pierce),
             Self::Plasma => Some(HitVariant::Fire),
             Self::Missile | Self::Orbital => Some(HitVariant::Fireball),
@@ -153,7 +154,7 @@ impl Planner<'_> {
         match self.admiral {
             AdmiralId::Kerr => Weapon::Rail,
             AdmiralId::Reyes => Weapon::Plasma,
-            AdmiralId::Osei | AdmiralId::Vance => Weapon::Bolt(None),
+            AdmiralId::Osei | AdmiralId::Vance => Weapon::Laser(None),
         }
     }
 
@@ -254,7 +255,7 @@ impl Planner<'_> {
 
     fn plain(&self) -> Context {
         Context {
-            weapon: Weapon::Bolt(None),
+            weapon: Weapon::Laser(None),
             covering: None,
             ramming: false,
         }
@@ -328,8 +329,8 @@ impl Planner<'_> {
             CardId::Torpedo | CardId::HeatSeeker => shots(Weapon::Missile),
             CardId::OrbitalStrike => shots(Weapon::Orbital),
             CardId::CoupDeGrace => shots(Weapon::Lance),
-            CardId::Firebomb => shots(Weapon::Bolt(Some(HitVariant::Fire))),
-            CardId::VolleyFire => salvo(Weapon::Bolt(None)),
+            CardId::Firebomb => shots(Weapon::Laser(Some(HitVariant::Fire))),
+            CardId::VolleyFire => salvo(Weapon::Laser(None)),
             CardId::Barrage => salvo(Weapon::Missile),
             CardId::Bombardment => salvo(Weapon::Orbital),
             CardId::CollisionCourse => self.sequence(
@@ -379,7 +380,7 @@ impl Planner<'_> {
             | CardId::RepairCrew
             | CardId::TractorBeam
             | CardId::MicroJump
-            | CardId::EvasiveAction => shots(Weapon::Bolt(None)),
+            | CardId::EvasiveAction => shots(Weapon::Laser(None)),
         }
     }
 
@@ -519,7 +520,7 @@ impl Planner<'_> {
         };
         let beat = match action {
             Action::Fire if plasma => return script.and(fire(Weapon::Plasma)),
-            Action::Fire => return script.and(fire(Weapon::Bolt(None))),
+            Action::Fire => return script.and(fire(Weapon::Laser(None))),
             Action::ColumnFire { columns } => return script.and(fire(Weapon::Column(columns))),
             Action::Ram => {
                 return script
@@ -644,7 +645,12 @@ impl Planner<'_> {
         let color = shot_color(source, self.admiral);
         let sound = Cue::Sound(shot_sound(self.kind(source)), from);
         let fx = match weapon {
-            Weapon::Bolt(_) => Fx::Bolt { from, to, color },
+            Weapon::Laser(_) => Fx::Laser {
+                from: source,
+                to,
+                color,
+                miss: false,
+            },
             Weapon::Plasma => Fx::Bolt {
                 from,
                 to,
@@ -775,6 +781,16 @@ impl Planner<'_> {
                     .then(std::iter::once(sound).chain(column_beams(from, columns, color)))
                     .then(pulses.chain([float]))
             }
+            (Weapon::Laser(_), _) => Script::default().then([
+                sound,
+                Cue::Fx(Fx::Laser {
+                    from: source,
+                    to: Spot::Unit(UnitRef::Flagship),
+                    color,
+                    miss: true,
+                }),
+                float,
+            ]),
             _ => Script::default().then([
                 sound,
                 Cue::Fx(Fx::Fizzle {
@@ -935,7 +951,7 @@ impl Planner<'_> {
                     lethal: after.hull == 0,
                     ..Breakdown::default()
                 };
-                let weapon = Weapon::Bolt(None);
+                let weapon = Weapon::Laser(None);
                 let mut shot = self.projectile(UnitRef::Flagship, target, weapon);
                 shot.extend(self.impact(
                     UnitRef::Flagship,
@@ -1318,9 +1334,9 @@ mod tests {
         ];
         let script = planner.step(&step);
         let cues = script.cues();
-        let bolts = cues
+        let lasers = cues
             .iter()
-            .filter(|cue| matches!(cue, Cue::Fx(Fx::Bolt { .. })))
+            .filter(|cue| matches!(cue, Cue::Fx(Fx::Laser { .. })))
             .count();
         let numbers: Vec<&str> = cues
             .iter()
@@ -1329,7 +1345,7 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(bolts, 1);
+        assert_eq!(lasers, 1);
         assert_eq!(numbers, ["gedeckt: 4 → Wachkreuzer", ""]);
     }
 }

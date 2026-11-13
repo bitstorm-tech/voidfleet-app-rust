@@ -106,6 +106,38 @@ pub fn model_key(kind: ShipKind) -> &'static str {
     }
 }
 
+/// Ein Punkt aus dem Bauskript eines Schiffs (`tools/ships/fleet/<datei>.py`: x steuerbord, y achtern, z oben) im Raum
+/// seines Modells auf dem Brett (Nase nach −Z, siehe [`crate::scene::coords`]).
+const fn gun(x: f32, y: f32, z: f32) -> Vec3 {
+    Vec3::new(-x, z, y)
+}
+
+/// Die Mündungen der Geschütze eines Schiffs im Raum seines Modells: Dort beginnt ein Laserstrahl. Die Werte stammen
+/// aus den Bauskripten und ändern sich mit dem Modell; eingetragen sind die Schiffe, die Laser feuern (Flaggschiffe
+/// über Karten und Waffenstation, Gegner über Zielfeuer), die übrigen feuern aus ihrer Mitte.
+pub fn muzzles(kind: ShipKind) -> &'static [Vec3] {
+    match model_key(kind) {
+        // Mittlere Linse der Emitterbänke an den Tortürmen
+        "bastion" => const { &[gun(3.02, -3.27, 1.75), gun(-3.02, -3.27, 1.75)] },
+        // Rohre des vorderen Zwillingsturms
+        "vanguard" => const { &[gun(0.175, -1.06, 1.41), gun(-0.175, -1.06, 1.41)] },
+        // Mündungsjoch der Railgun
+        "pendulum" => const { &[gun(0.0, -5.84, 2.0)] },
+        // Glutkugel des Plasmawerfers
+        "pyre" => const { &[gun(0.0, -5.7, 0.25)] },
+        // Bugkanonen unter den Flügelwurzeln
+        "void_interceptor" => const { &[gun(0.42, -3.08, -0.2), gun(-0.42, -3.08, -0.2)] },
+        "seal" => const { &[gun(0.8, -2.82, -0.17), gun(-0.8, -2.82, -0.17)] },
+        // Rohre des Zwillingsturms am Bug
+        "horizon_cruiser" => const { &[gun(0.16, -3.23, 0.64), gun(-0.16, -3.23, 0.64)] },
+        // Flak am Deckrand beiderseits des Bugs
+        "titan_carrier" => const { &[gun(1.63, -3.16, 0.85), gun(-1.63, -3.16, 0.85)] },
+        // Beutekanone unter dem Bug
+        "scrap_king" => const { &[gun(0.0, -5.22, -1.0)] },
+        _ => &[],
+    }
+}
+
 /// Ob ein Schiff die Lackierung der Gegner trägt ([`crate::scene::toon::material::livery`]): die Gegner mit den alten
 /// Rümpfen, nicht die Bosse mit eigenen und nicht die Flaggschiffe.
 pub fn livery(kind: ShipKind) -> bool {

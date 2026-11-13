@@ -1,7 +1,7 @@
-//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Laserbolzen (auch verpuffende), die Zielmarke eines
-//! umgelenkten Schusses, der Strahl der Railgun, die Rakete des Wärmesuchers mit Leuchtspur, der Traktorstrahl, Impulse,
-//! Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und der Austritt
-//! eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
+//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen (auch verpuffende), die Zielmarke eines
+//! umgelenkten Schusses, der Strahl der Railgun, der stehende Laserstrahl, die Rakete des Wärmesuchers mit Leuchtspur,
+//! der Traktorstrahl, Impulse, Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und
+//! der Austritt eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
 //! Blitz). Alle räumen sich nach dem Abspielen selbst weg.
 //!
 //! Jeder Effekt ist ein Auftrag ([`crate::scene::animation`]): Man spawnt seine Komponente und wartet, wenn nötig, auf
@@ -41,6 +41,13 @@ const PULSE_ALPHA: f32 = 0.55;
 const BEAM_CORE: f32 = 0.07;
 const BEAM_SHEATH: f32 = 0.26;
 const BEAM_DURATION: f32 = 0.52;
+/// Laser: So lange steht der Strahl; er ist dünner als die Railgun, flimmert (Hz), sprüht am Ziel Funken (je Sekunde)
+/// und verblasst auf dem letzten Anteil seiner Dauer.
+const LASER_DURATION: f32 = 1.4;
+const LASER_WIDTH: f32 = 0.6;
+const LASER_SHIMMER: f32 = 16.0;
+const LASER_SPARKS: f32 = 70.0;
+const LASER_FADE: f32 = 0.15;
 /// Rakete: Welteinheiten pro Sekunde entlang der Bahn, Höhe und seitlicher Schwung der Kurve.
 const MISSILE_SPEED: f32 = 8.0;
 /// Maßstab des Torpedo-Modells (5,75 lang, also gut 0,85 auf dem Brett).
@@ -435,6 +442,15 @@ pub struct Beam {
     pub width: f32,
 }
 
+/// Ein Laserstrahl steht eine Weile zwischen `from` (der Mündung) und `to`, flimmert und sprüht am Ziel Funken. Wer auf
+/// ihn wartet, lässt den Schaden folgen, sobald er erlischt.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Laser {
+    pub from: Vec3,
+    pub to: Vec3,
+    pub color: Color,
+}
+
 /// Torpedo: Das Modell des Torpedos fliegt geradlinig von `from` auf `to`, mit Leuchtspur am Heck.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Missile {
@@ -665,6 +681,7 @@ impl Plugin for EffectsPlugin {
             .add_observer(start_fizzle)
             .add_observer(start_target_ring)
             .add_observer(start_beam)
+            .add_observer(start_laser)
             .add_observer(start_missile)
             .add_observer(start_tether)
             .add_observer(release_tether)
@@ -684,6 +701,7 @@ impl Plugin for EffectsPlugin {
                     fly_fizzles,
                     fade,
                     fade_beams,
+                    hold_lasers,
                     fly_missiles,
                     hold_tethers,
                     open_portals,
@@ -913,6 +931,61 @@ fn fade_beams(
             transform.scale.y = widen;
             if let Some(mut material) = materials.get_mut(&material.0) {
                 material.set_alpha(0.6 * (1.0 - progress));
+            }
+        }
+    }
+}
+
+fn start_laser(add: On<Add<Laser>>, lasers: Query<&Laser>, mut fx: Fx) {
+    let laser = *lasers.get(add.entity).expect("Laser");
+    // Der Auftrag steht am Ziel, damit ihm die Funken folgen und mit ihm versiegen; der Strahl hängt relativ daran.
+    let origin = laser.from - laser.to;
+    let parts = spawn_beam(&mut fx, origin, Vec3::ZERO, laser.color, LASER_WIDTH);
+    fx.commands
+        .entity(add.entity)
+        .insert((
+            Name::new("Laser"),
+            Transform::from_translation(laser.to),
+            Visibility::default(),
+            Animation::new(LASER_DURATION),
+            parts,
+        ))
+        .add_children(&[parts.core, parts.sheath]);
+    let sparks = Burst {
+        speed: (0.6, 2.2),
+        life: (0.15, 0.4),
+        size: (0.04, 0.09),
+        stretch: 2.0,
+        colors: shot,
+        ..Burst::DEFAULT
+    };
+    fx.commands.spawn((
+        Name::new("Laser-Funken"),
+        Transform::from_translation(laser.to),
+        Particles::stream(
+            sparks,
+            laser.color,
+            1.0,
+            SPHERE,
+            Emitter::new(LASER_SPARKS, Some(add.entity)),
+        ),
+    ));
+}
+
+fn hold_lasers(
+    lasers: Query<(&BeamParts, &Animation), With<Laser>>,
+    parts: Query<&MeshMaterial3d<FxMaterial>>,
+    mut materials: ResMut<Assets<FxMaterial>>,
+    time: Res<Time>,
+) {
+    let shimmer = 0.8 + 0.2 * (time.elapsed_secs() * LASER_SHIMMER * std::f32::consts::TAU).sin();
+    for (beam_parts, animation) in &lasers {
+        let alpha = ((1.0 - animation.progress()) / LASER_FADE).min(1.0) * shimmer;
+        for (part, strength) in [(beam_parts.core, 1.0), (beam_parts.sheath, 0.5)] {
+            if let Ok(material) = parts.get(part)
+                && let Some(mut material) = materials.get_mut(&material.0)
+            {
+                material.set_alpha(strength * alpha);
             }
         }
     }

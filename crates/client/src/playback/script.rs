@@ -19,7 +19,7 @@ use voidfleet_core::{
 use super::Playback;
 use crate::{
     audio::{PlaySound, RadioCue, Say, SoundId},
-    data::ship_models::{ShipKind, ShipModels},
+    data::ship_models::{ShipKind, ShipModels, muzzles},
     game::Battle,
     palette,
     scene::{
@@ -30,8 +30,8 @@ use crate::{
         coords::{BOARD_CENTER, SlotRef},
         destruction::{DestroyHull, DestroyShip},
         effects::{
-            Beam, Bolt, Fizzle, HitVariant, Impact, Missile, Pulse, ReleaseTether, ShieldImpact,
-            TargetRing, Tether, Warp,
+            Beam, Bolt, Fizzle, HitVariant, Impact, Laser, Missile, Pulse, ReleaseTether,
+            ShieldImpact, TargetRing, Tether, Warp,
         },
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
@@ -51,6 +51,8 @@ const ABOVE_SHIP: Vec3 = Vec3::new(0.0, 0.9, 0.0);
 const ORBIT: Vec3 = Vec3::new(0.0, 9.0, 0.0);
 /// Schüsse enden nicht in der Mitte, sondern so weit davor auf der Hülle.
 const HULL_RADIUS: f32 = 0.45;
+/// Ein Laser, der verfehlt, reicht so weit über sein Ziel hinaus ins Leere.
+const LASER_MISS_RANGE: f32 = 30.0;
 /// Rammkurs: Der Rammer hält so weit vor der Mitte des Ziels.
 const RAM_STANDOFF: f32 = 1.1;
 /// Der Traktorstrahl greift von so hoch über dem Flaggschiff.
@@ -135,6 +137,13 @@ pub(super) enum Fx {
         to: Spot,
         color: Color,
         width: f32,
+    },
+    /// Ein Laserstrahl aus einer Mündung der Einheit `from`; verfehlt er (`miss`), geht er durch `to` hindurch ins Leere.
+    Laser {
+        from: UnitRef,
+        to: Spot,
+        color: Color,
+        miss: bool,
     },
     Missile {
         from: Spot,
@@ -374,6 +383,26 @@ impl Stage<'_, '_> {
         (scale, hulls)
     }
 
+    /// Die Mündung einer Einheit, die `toward` am nächsten liegt, an einem stehenden Modell ihrer Gruppe; ohne Mündung
+    /// ([`muzzles`]) ihre Mitte.
+    fn muzzle(&self, unit: UnitRef, toward: Vec3) -> Vec3 {
+        let Some((ship, center)) = self.ship(unit) else {
+            return self.point(Spot::Unit(unit));
+        };
+        let muzzles = self
+            .ships
+            .get(ship)
+            .map_or(&[][..], |(_, ship, _)| muzzles(ship.kind));
+        self.hulls_of(ship)
+            .1
+            .into_iter()
+            .filter(|(.., standing)| *standing)
+            .filter_map(|(hull, ..)| self.hulls.get(hull).ok())
+            .flat_map(|(_, _, global)| muzzles.iter().map(|&at| global.transform_point(at)))
+            .min_by(|a, b| a.distance(toward).total_cmp(&b.distance(toward)))
+            .unwrap_or(center)
+    }
+
     /// Wo ein Schuss von `from` die Hülle bei `to` trifft: bei einer Einheit am vordersten stehenden Modell ihrer
     /// Gruppe, das sich das Schiff für den Treffer-Blitz merkt.
     fn hull_point(&mut self, from: Vec3, to: Spot) -> Vec3 {
@@ -520,6 +549,21 @@ impl Stage<'_, '_> {
                         width,
                     },
                 );
+            }
+            Fx::Laser {
+                from,
+                to,
+                color,
+                miss,
+            } => {
+                let aim = self.point(to);
+                let from = self.muzzle(from, aim);
+                let to = if miss {
+                    from + (aim - from).normalize_or_zero() * LASER_MISS_RANGE
+                } else {
+                    self.shot_point(from, to)
+                };
+                self.await_job(script, Laser { from, to, color });
             }
             Fx::Missile { from, to, color } => {
                 let from = self.point(from);

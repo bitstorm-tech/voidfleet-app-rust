@@ -2,8 +2,8 @@
 //! als Modellgruppen (Gegner in ihrer Lackierung, ein Kreuzermodell brennend und ausgebrannt, Rumpfbrüche) und ihre
 //! Wracks mit glühenden Bruchflächen und ein Geist auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das
 //! Gefecht beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Sternen, alle Marken am Boden und die stummen Effekte (Bolzen,
-//! verpuffender Bolzen, Zielmarke, Strahl, Rakete mit Leuchtspur, Schildaufbau, Impuls, Hyperraum-Austritt mit Blitz
-//! und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
+//! verpuffender Bolzen, Zielmarke, Strahl, Laser, Rakete mit Leuchtspur, Schildaufbau, Impuls, Hyperraum-Austritt mit
+//! Blitz und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.
 
 use bevy::prelude::*;
@@ -12,7 +12,7 @@ use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 use super::{
     aura::ShipAura,
     coords::{BOARD_CENTER, Side, facing},
-    effects::{Beam, Bolt, Burn, Fizzle, Missile, Pulse, ShieldFlare, TargetRing, Warp},
+    effects::{Beam, Bolt, Burn, Fizzle, Laser, Missile, Pulse, ShieldFlare, TargetRing, Warp},
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
     ship::{BreakApart, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
@@ -118,6 +118,11 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
         to: at(4.0),
         color: palette::PLAYER,
         width: 1.0,
+    });
+    commands.spawn(Laser {
+        from: at(-4.0),
+        to: at(4.0),
+        color: palette::ENEMY,
     });
     commands.spawn(Missile {
         from: at(-4.0),
