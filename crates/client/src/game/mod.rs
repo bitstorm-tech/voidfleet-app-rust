@@ -147,11 +147,14 @@ pub fn fixture_battle(admiral: voidfleet_core::admirals::AdmiralId) -> battle::B
         modules: Vec::new(),
         emergency_generator_available: false,
         encounter: Encounter {
-            front: [None, Some(EnemyId::GuardCruiser), Some(EnemyId::Besieger)],
-            back: [Some(EnemyId::Raiders), None, None],
+            front: [
+                None,
+                Some(EnemyId::GuardCruiser.into()),
+                Some(EnemyId::Besieger.into()),
+            ],
+            back: [Some(EnemyId::Raiders.into()), None, None],
             ..Encounter::default()
         },
-        hull_percent: 100,
     };
     battle::Battle::new(setup, 1)
 }

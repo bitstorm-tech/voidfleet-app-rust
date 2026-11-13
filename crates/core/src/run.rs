@@ -115,7 +115,11 @@ impl SectorMap {
                     Some(encounter) => {
                         let covered = (encounter.back.iter().zip(&encounter.front))
                             .all(|(back, front)| back.is_none() || front.is_some());
-                        battle && covered && (1..=MAX_ENEMIES).contains(&encounter.units().count())
+                        let count = encounter.units().count();
+                        battle
+                            && covered
+                            && (1..=MAX_ENEMIES).contains(&count)
+                            && encounter.units().all(|(unit, _)| unit.valid())
                     }
                 };
                 if !valid {
@@ -371,7 +375,6 @@ impl Run {
                 emergency_generator_available: self.has(ModuleId::EmergencyGenerator)
                     && !self.emergency_generator_used,
                 encounter: encounter.expect("Gefechtsknoten mit Verband"),
-                hull_percent: 100 + rules().run.sector_hull_percent * (self.sector - 1),
             },
             seed,
         );

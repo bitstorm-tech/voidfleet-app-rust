@@ -54,12 +54,19 @@
   "editor_saved": "Saved: {file}",
   "editor_failed": "Error: {error}",
   "editor_unsaved": "{file} (unsaved)",
+  "editor_values": "3 · Stats and pattern",
+  "editor_back": "Back",
+  "editor_open_call": "Stats",
+  "editor_armor": "Armor",
+  "editor_reset": "Reset",
+  "editor_add_step": "Add step",
+  "editor_column_fire": "Column fire ×{width}",
   "editor_error": {
     "boss": "The last row must be exactly one boss, and no boss may stand anywhere else.",
     "empty_row": "Row {row} is empty.",
     "edges": "Row {row}, node {column}: no edge leaving it, or an edge leading nowhere.",
     "unreachable": "Row {row}, node {column}: no edge leads here.",
-    "encounter": "Row {row}, node {column}: the formation is empty, too large, or a back unit has nobody in front of it."
+    "encounter": "Row {row}, node {column}: the formation is empty, too large, a back unit has nobody in front of it, or a unit has invalid stats."
   },
   "settings_show_fps": "FPS counter",
   "on_off": {

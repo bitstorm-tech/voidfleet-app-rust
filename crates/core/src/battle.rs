@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::admirals::{AdmiralId, AdmiralStation, Station};
 use crate::board::{COLUMNS, EnemySlot, MAX_ENEMIES};
 use crate::cards::{CardId, CardTarget, CardType, DeckCard};
-use crate::data::rules;
-use crate::enemies::{Action, EnemyClass, EnemyId};
+use crate::data::{Step, rules};
+use crate::enemies::{Action, EnemyClass, EnemyId, Unit, action, step_index};
 use crate::events::{
     BattleEvent, Breakdown, DestroyCause, Hit, IdleReason, Intent, MissReason, UnitRef, UnitStats,
 };
@@ -28,40 +28,39 @@ pub struct BattleSetup {
     /// Das Modul Notaggregat ist da und im Run noch nicht verbraucht.
     pub emergency_generator_available: bool,
     pub encounter: Encounter,
-    /// Hülle der Gegner in Prozent (Sektor 1 100, Sektor 2 125, Sektor 3 150), aufgerundet.
-    pub hull_percent: u32,
 }
 
 /// Ein Verband, wie er zu Beginn auf dem Brett steht: je Reihe die drei Spalten von links nach rechts. So steht
-/// er auch an den Knoten der Sternenkarten (`assets/data/maps/`).
+/// er auch an den Knoten der Sternenkarten (`assets/data/maps/`), jede Einheit mit allen ihren Werten.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Encounter {
-    pub front: [Option<EnemyId>; COLUMNS],
+    pub front: [Option<Unit>; COLUMNS],
     #[serde(default)]
-    pub back: [Option<EnemyId>; COLUMNS],
+    pub back: [Option<Unit>; COLUMNS],
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reinforcements: Vec<Reinforcement>,
     /// Gegenflotte: Fällt eine Eskorte, rückt die nächste in ihren Slot nach.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub replacements: Vec<EnemyId>,
+    pub replacements: Vec<Unit>,
 }
 
 impl Encounter {
     /// Die Einheiten samt Slot in der Reihenfolge von [`EnemySlot::ALL`].
-    pub fn units(&self) -> impl Iterator<Item = (EnemyId, EnemySlot)> {
-        let ids = self.front.into_iter().chain(self.back);
-        ids.zip(EnemySlot::ALL)
-            .filter_map(|(id, slot)| Some((id?, slot)))
+    pub fn units(&self) -> impl Iterator<Item = (&Unit, EnemySlot)> {
+        let units = self.front.iter().chain(&self.back);
+        units
+            .zip(EnemySlot::ALL)
+            .filter_map(|(unit, slot)| Some((unit.as_ref()?, slot)))
     }
 }
 
 /// Angesagte Verstärkung: trifft im Gegnerzug der Runde `round` ein.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reinforcement {
     pub round: u32,
-    pub unit: EnemyId,
+    pub unit: Unit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,7 +143,7 @@ impl Flagship {
     }
 }
 
-/// Eine gegnerische Einheit. `intents` sind die nächsten beiden Aktionen, `step` der nächste Schritt des Musters.
+/// Eine gegnerische Einheit. `intents` sind die nächsten beiden Aktionen, `step` der nächste Schritt von `pattern`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Enemy {
     pub uid: u32,
@@ -152,6 +151,11 @@ pub struct Enemy {
     pub slot: EnemySlot,
     pub hull: i32,
     pub max_hull: i32,
+    /// ATK vor Gefechtsuhr und Spotter.
+    pub attack: i32,
+    /// Fester Abzug je Treffer.
+    pub armor: i32,
+    pub pattern: Vec<Step>,
     pub burning: bool,
     pub shield: i32,
     pub charged: bool,
@@ -223,8 +227,7 @@ pub struct Battle {
     pub emergency_generator_available: bool,
     pub emergency_generator_used: bool,
     pub reinforcements: Vec<Reinforcement>,
-    pub replacements: Vec<EnemyId>,
-    pub hull_percent: u32,
+    pub replacements: Vec<Unit>,
     pub result: Option<BattleResult>,
     next_uid: u32,
     rng: StdRng,
@@ -272,7 +275,6 @@ impl Battle {
             emergency_generator_used: false,
             reinforcements: setup.encounter.reinforcements.clone(),
             replacements: setup.encounter.replacements.clone(),
-            hull_percent: setup.hull_percent,
             result: None,
             next_uid: 1,
             rng: StdRng::seed_from_u64(seed),
@@ -284,8 +286,8 @@ impl Battle {
         let mut events = Vec::new();
         battle.draw_pile.shuffle(&mut battle.rng);
         battle.draw(battle.hand_size(), &mut events);
-        for (id, slot) in setup.encounter.units() {
-            battle.spawn(id, slot, false, &mut events);
+        for (unit, slot) in setup.encounter.units() {
+            battle.spawn(unit, slot, false, &mut events);
         }
         battle
     }
@@ -327,8 +329,7 @@ impl Battle {
             .enemies
             .iter()
             .filter(|e| e.id == EnemyId::Spotter && !e.silenced);
-        let attack =
-            enemy.id.attack() + self.clock() + spotters.count() as i32 - self.flagship.jammer;
+        let attack = enemy.attack + self.clock() + spotters.count() as i32 - self.flagship.jammer;
         let attack = attack.max(0);
         if enemy.emergency() {
             half_up(attack)
@@ -924,7 +925,7 @@ impl Battle {
         let enemy = &mut self.enemies[i];
         let was = enemy.emergency();
         breakdown.shielded = enemy.shield.min(rest);
-        breakdown.armor = enemy.id.armor().min(rest - breakdown.shielded);
+        breakdown.armor = enemy.armor.min(rest - breakdown.shielded);
         breakdown.hull = (rest - breakdown.shielded - breakdown.armor).min(enemy.hull);
         enemy.shield -= breakdown.shielded;
         enemy.hull -= breakdown.hull;
@@ -1019,8 +1020,8 @@ impl Battle {
             }
         }
         if !self.replacements.is_empty() {
-            let id = self.replacements.remove(0);
-            self.spawn(id, enemy.slot, true, events);
+            let unit = self.replacements.remove(0);
+            self.spawn(&unit, enemy.slot, true, events);
         }
         self.check_won(events);
     }
@@ -1128,7 +1129,7 @@ impl Battle {
             .partition(|r| r.round <= round);
         self.reinforcements = later;
         for Reinforcement { unit, .. } in due {
-            self.reinforce(unit, events);
+            self.reinforce(&unit, events);
         }
         for uid in self.uids() {
             let Some(i) = self.index(uid) else { continue };
@@ -1191,8 +1192,16 @@ impl Battle {
                 }
                 Action::Charge => self.enemies[i].charged = true,
                 Action::Evade | Action::TargetLock => {}
-                // Trifft sofort ein und steht damit in der nächsten Runde auf dem Brett.
-                Action::Call(unit) => self.reinforce(unit, events),
+                // Trifft sofort ein und steht damit in der nächsten Runde auf dem Brett. Die Ansage ist der Schritt
+                // `step - 2` des Musters; dort steht die gerufene Einheit mit ihren Werten.
+                Action::Call(_) => {
+                    let enemy = &self.enemies[i];
+                    let step = &enemy.pattern[step_index(&enemy.pattern, enemy.step - 2)];
+                    if let Step::Call(unit) = step {
+                        let unit = unit.clone();
+                        self.reinforce(&unit, events);
+                    }
+                }
                 Action::Bolt => {
                     for enemy in &mut self.enemies {
                         enemy.shield += rules().enemies.bolt_shield;
@@ -1319,7 +1328,7 @@ impl Battle {
         let column = self.flagship.column;
         for enemy in &mut self.enemies {
             if !enemy.stasis && !enemy.arrived {
-                enemy.intents = [enemy.intents[1], enemy.id.action(enemy.step, column)];
+                enemy.intents = [enemy.intents[1], action(&enemy.pattern, enemy.step, column)];
                 enemy.step += 1;
                 if enemy.id == EnemyId::Raiders && enemy.hit {
                     enemy.intents[0] = Action::Evade;
@@ -1371,7 +1380,7 @@ impl Battle {
 
     /// Stellt eine Einheit auf und lässt sie ihre ersten beiden Absichten ansagen.
     /// Stellt Verstärkung in den ersten freien Slot, solange die Grenze nicht erreicht ist.
-    fn reinforce(&mut self, unit: EnemyId, events: &mut Vec<BattleEvent>) {
+    fn reinforce(&mut self, unit: &Unit, events: &mut Vec<BattleEvent>) {
         let free = EnemySlot::ALL
             .into_iter()
             .find(|s| self.enemies.iter().all(|e| e.slot != *s));
@@ -1382,25 +1391,28 @@ impl Battle {
 
     fn spawn(
         &mut self,
-        id: EnemyId,
+        unit: &Unit,
         slot: EnemySlot,
         arrived: bool,
         events: &mut Vec<BattleEvent>,
     ) {
-        let max_hull = (id.hull() * self.hull_percent as i32 + 99) / 100;
+        let pattern = unit.pattern.clone();
         let column = self.flagship.column;
         let uid = self.next_uid;
         self.next_uid += 1;
         self.enemies.push(Enemy {
             uid,
-            id,
+            id: unit.id,
             slot,
-            hull: max_hull,
-            max_hull,
+            hull: unit.hull,
+            max_hull: unit.hull,
+            attack: unit.attack,
+            armor: unit.armor,
             burning: false,
             shield: 0,
             charged: false,
-            intents: [id.action(0, column), id.action(1, column)],
+            intents: [action(&pattern, 0, column), action(&pattern, 1, column)],
+            pattern,
             step: 2,
             hit: false,
             stasis: false,

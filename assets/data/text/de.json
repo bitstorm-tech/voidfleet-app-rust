@@ -54,12 +54,19 @@
   "editor_saved": "Gespeichert: {file}",
   "editor_failed": "Fehler: {error}",
   "editor_unsaved": "{file} (ungespeichert)",
+  "editor_values": "3 · Werte und Ablauf",
+  "editor_back": "Zurück",
+  "editor_open_call": "Werte",
+  "editor_armor": "Panzerung",
+  "editor_reset": "Zurücksetzen",
+  "editor_add_step": "Schritt anhängen",
+  "editor_column_fire": "Spaltenfeuer ×{width}",
   "editor_error": {
     "boss": "Die letzte Reihe muss genau ein Boss sein, und sonst darf nirgends einer stehen.",
     "empty_row": "Reihe {row} ist leer.",
     "edges": "Reihe {row}, Knoten {column}: keine Kante hinaus oder eine Kante ins Leere.",
     "unreachable": "Reihe {row}, Knoten {column}: keine Kante führt hierher.",
-    "encounter": "Reihe {row}, Knoten {column}: Der Verband ist leer, zu groß, oder hinten steht eine Einheit ohne Vordermann."
+    "encounter": "Reihe {row}, Knoten {column}: Der Verband ist leer, zu groß, hinten steht eine Einheit ohne Vordermann, oder eine Einheit hat ungültige Werte."
   },
   "settings_show_fps": "FPS-Anzeige",
   "on_off": {

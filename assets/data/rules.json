@@ -38,7 +38,6 @@
     "reinforced_frames_hull": 10
   },
   "run": {
-    "sector_hull_percent": 25,
     "battle_scrap": [10, 20],
     "elite_scrap": [25, 40],
     "boss_scrap": 60,

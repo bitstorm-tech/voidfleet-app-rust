@@ -288,7 +288,9 @@ plain! {
     // --- Karteneditor ---
     settings_editor editor_title editor_hint editor_save editor_discard editor_play editor_add_row
     editor_add_node editor_delete_node editor_empty editor_reinforcements editor_replacements editor_map editor_admiral
-    editor_target editor_unit editor_valid editor_no_node
+    editor_target editor_unit editor_valid editor_no_node editor_values editor_armor editor_reset
+    editor_back editor_open_call
+    editor_add_step
 
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close camera_view_toggle loading_failed
@@ -355,6 +357,7 @@ filled! {
     editor_saved(file: &str)
     editor_failed(error: &str)
     editor_unsaved(file: &str)
+    editor_column_fire(width: usize)
 
     // --- Run ---
     result_lost_subtitle(flagship: &str)

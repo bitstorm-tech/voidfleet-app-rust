@@ -1,21 +1,21 @@
 {
   "rows": [
     [
-      { "kind": "battle", "next": [0], "encounter": { "front": ["raiders", "raiders", null], "back": [null, null, null] } },
-      { "kind": "battle", "next": [0], "encounter": { "front": [null, "raiders", null], "back": [null, "guard_cruiser", null] } },
-      { "kind": "battle", "next": [1], "encounter": { "front": [null, "fireship", null], "back": [null, "guard_cruiser", null] } },
-      { "kind": "battle", "next": [2, 3], "encounter": { "front": ["guard_cruiser", "guard_cruiser", null], "back": [null, null, null] } }
+      { "kind": "battle", "next": [0], "encounter": { "front": [{ "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null], "back": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null] } },
+      { "kind": "battle", "next": [1], "encounter": { "front": [null, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null] } },
+      { "kind": "battle", "next": [2, 3], "encounter": { "front": [{ "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } }
     ],
     [
-      { "kind": "battle", "next": [0], "encounter": { "front": ["guard_cruiser", "guard_cruiser", null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0], "encounter": { "front": [{ "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } },
       { "kind": "shipyard", "next": [1] },
-      { "kind": "battle", "next": [2], "encounter": { "front": [null, "fireship", null], "back": [null, null, null] } },
-      { "kind": "battle", "next": [2], "encounter": { "front": [null, "guard_cruiser", null], "back": [null, null, null] } }
+      { "kind": "battle", "next": [2], "encounter": { "front": [null, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [2], "encounter": { "front": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } }
     ],
     [
-      { "kind": "battle", "next": [0, 1, 2], "encounter": { "front": [null, "guard_cruiser", null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0, 1, 2], "encounter": { "front": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } },
       { "kind": "event", "next": [2] },
-      { "kind": "battle", "next": [2], "encounter": { "front": [null, "fireship", null], "back": [null, null, null] } }
+      { "kind": "battle", "next": [2], "encounter": { "front": [null, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, null, null] } }
     ],
     [
       { "kind": "event", "next": [0] },
@@ -23,28 +23,28 @@
       { "kind": "shipyard", "next": [0, 1, 2] }
     ],
     [
-      { "kind": "battle", "next": [0], "encounter": { "front": [null, "fireship", null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, null, null] } },
       { "kind": "shipyard", "next": [1] },
       { "kind": "event", "next": [2] }
     ],
     [
-      { "kind": "battle", "next": [0], "encounter": { "front": [null, "guard_cruiser", null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } },
       { "kind": "event", "next": [0, 1] },
-      { "kind": "battle", "next": [2], "encounter": { "front": [null, "guard_cruiser", null], "back": [null, null, null] } }
+      { "kind": "battle", "next": [2], "encounter": { "front": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [null, null, null] } }
     ],
     [
-      { "kind": "battle", "next": [0, 1], "encounter": { "front": ["fireship", "fireship", null], "back": [null, null, null] } },
+      { "kind": "battle", "next": [0, 1], "encounter": { "front": [{ "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, null, null] } },
       { "kind": "market", "next": [1, 2] },
-      { "kind": "elite", "next": [2, 3], "encounter": { "front": [null, "besieger", null], "back": [null, null, null] } }
+      { "kind": "elite", "next": [2, 3], "encounter": { "front": [null, { "id": "besieger", "hull": 30, "attack": 8, "armor": 2, "pattern": ["charge", { "column_fire": 1 }, { "shields": 10 }] }, null], "back": [null, null, null] } }
     ],
     [
       { "kind": "shipyard", "next": [0] },
       { "kind": "event", "next": [0] },
       { "kind": "event", "next": [0] },
-      { "kind": "battle", "next": [0], "encounter": { "front": [null, "fireship", null], "back": [null, "guard_cruiser", null] } }
+      { "kind": "battle", "next": [0], "encounter": { "front": [null, { "id": "fireship", "hull": 6, "attack": 2, "armor": 0, "pattern": ["evade", "evade", "ram"] }, null], "back": [null, { "id": "guard_cruiser", "hull": 16, "attack": 4, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null] } }
     ],
     [
-      { "kind": "boss", "next": [], "encounter": { "front": ["raiders", "raiders", null], "back": [null, "scrap_king", null] } }
+      { "kind": "boss", "next": [], "encounter": { "front": [{ "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null], "back": [null, { "id": "scrap_king", "hull": 60, "attack": 7, "armor": 0, "pattern": ["fire", "fire", { "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }] }, null] } }
     ]
   ]
 }

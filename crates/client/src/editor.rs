@@ -1,5 +1,6 @@
 //! Der Karteneditor ohne Oberfläche (Einstellungen → Dev, [`Screen::Editor`](crate::run::Screen)): die Sternenkarte
-//! eines Sektors aus `assets/data/maps/` laden, Schritt für Schritt bearbeiten ([`Edit`]), prüfen ([`SectorMap::check`]), im Format
+//! eines Sektors aus `assets/data/maps/` laden, Schritt für Schritt bearbeiten ([`Edit`]; jede Einheit mit ihren Werten
+//! und ihrem Muster, auch die gerufenen), prüfen ([`SectorMap::check`]), im Format
 //! der Dateien schreiben ([`map_json`]) und einen Knoten probespielen ([`MapEditor::test_run`]). Die Ansicht steht
 //! in `ui/dialogs/map_editor.rs`; sie legt die Ressource [`MapEditor`] beim ersten Öffnen an.
 
@@ -10,21 +11,34 @@ use serde::Serialize;
 use voidfleet_core::{
     admirals::AdmiralId,
     battle::{Encounter, Reinforcement},
-    board::Row,
-    enemies::EnemyId,
+    board::{COLUMNS, Row},
+    data::Step,
+    enemies::{EnemyId, Unit},
     run::{MapNode, NodeKind, Run, SECTORS, SectorMap},
 };
 
-/// Wohin die nächste Einheit aus der Palette geht.
+/// Wohin die nächste Einheit aus der Palette geht. Ein Feld und ein Eintrag einer Liste tragen eine Einheit, deren
+/// Werte und Muster der Editor dann zeigt ([`MapEditor::unit`]); eine Liste selbst nimmt neue Einträge an.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target {
     Slot(Row, usize),
     Reinforcement,
     Replacement,
+    ReinforcementEntry(usize),
+    ReplacementEntry(usize),
 }
 
-/// Ein Schritt im Editor. Knoten sind (Reihe, Spalte); was einen Knoten ändert, meint den gewählten.
+/// Ein Wert einer Einheit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stat {
+    Hull,
+    Attack,
+    Armor,
+}
+
+/// Ein Schritt im Editor. Knoten sind (Reihe, Spalte); was einen Knoten ändert, meint den gewählten, was eine Einheit
+/// ändert, die gezeigte ([`MapEditor::unit`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Edit {
     Select(usize, usize),
     /// Setzt oder löscht die Kante vom gewählten Knoten zu diesem, wenn er in der nächsten Reihe steht.
@@ -38,12 +52,25 @@ pub enum Edit {
     /// Lädt die Karte dieses Sektors.
     Sector(u32),
     Target(Target),
-    /// Die Einheit der Palette (`None`: leer) geht an das Ziel ([`Target`]).
+    /// Die Einheit der Palette (`None`: leer) geht an das Ziel ([`Target`]), mit den Werten ihrer Vorlage.
     Place(Option<EnemyId>),
     /// Verschiebt die Runde der Verstärkung mit diesem Index.
     Round(usize, i32),
     DropReinforcement(usize),
     DropReplacement(usize),
+    /// Ändert einen Wert der Einheit um so viel.
+    Stat(Stat, i32),
+    /// Hängt einen Schritt an ihr Muster; die folgenden meinen ihren Schritt mit Index.
+    AddStep(Step),
+    DropStep(usize),
+    /// Verstellt den Wert eines Schritts ([`adjust`]).
+    StepValue(usize, i32),
+    /// Zeigt die Einheit, die dieser Schritt ruft.
+    OpenCall(usize),
+    /// Zurück zur Einheit, die die gezeigte ruft.
+    CloseCall,
+    /// Die Einheit bekommt wieder die Werte ihrer Vorlage aus `enemies_defaults.json`.
+    ResetUnit,
     Admiral(AdmiralId),
     Save,
     Discard,
@@ -66,6 +93,8 @@ pub struct MapEditor {
     saved: SectorMap,
     pub selected: Option<(usize, usize)>,
     pub target: Target,
+    /// Der Weg vom Ziel zur gezeigten Einheit: je gerufener Einheit der Index ihres Schritts im Muster davor.
+    pub calls: Vec<usize>,
     /// Mit diesem Admiral und seinem Startdeck läuft das Probespiel.
     pub admiral: AdmiralId,
     pub note: Option<Note>,
@@ -73,7 +102,7 @@ pub struct MapEditor {
 
 fn encounter(unit: EnemyId) -> Encounter {
     Encounter {
-        front: [None, Some(unit), None],
+        front: [None, Some(unit.into()), None],
         ..default()
     }
 }
@@ -108,6 +137,7 @@ impl MapEditor {
             saved: blank(),
             selected: None,
             target: Target::Slot(Row::Front, 1),
+            calls: Vec::new(),
             admiral: AdmiralId::Osei,
             note: None,
         };
@@ -130,8 +160,66 @@ impl MapEditor {
         self.map.rows.get_mut(row)?.get_mut(column)
     }
 
+    /// Die Einheiten vom Ziel bis zur gezeigten: die im Ziel, dann je Eintrag von [`Self::calls`] die gerufene.
+    pub fn chain(&self) -> Vec<&Unit> {
+        let encounter = self.node().and_then(|node| node.encounter.as_ref());
+        let Some(mut unit) = encounter.and_then(|encounter| root(encounter, self.target)) else {
+            return Vec::new();
+        };
+        let mut chain = vec![unit];
+        for &step in &self.calls {
+            let Some(Step::Call(called)) = unit.pattern.get(step) else {
+                break;
+            };
+            unit = called;
+            chain.push(unit);
+        }
+        chain
+    }
+
+    /// Die gezeigte Einheit, deren Werte und Muster der Editor bearbeitet.
+    pub fn unit(&self) -> Option<&Unit> {
+        let chain = self.chain();
+        (chain.len() == self.calls.len() + 1).then(|| chain[self.calls.len()])
+    }
+
+    fn unit_mut(&mut self) -> Option<&mut Unit> {
+        let (target, calls) = (self.target, self.calls.clone());
+        let mut unit = root_mut(self.node_mut()?.encounter.as_mut()?, target)?;
+        for step in calls {
+            let Some(Step::Call(called)) = unit.pattern.get_mut(step) else {
+                return None;
+            };
+            unit = called;
+        }
+        Some(unit)
+    }
+
+    fn edit_unit(&mut self, change: impl FnOnce(&mut Unit)) {
+        if let Some(unit) = self.unit_mut() {
+            change(unit);
+        }
+    }
+
     pub fn apply(&mut self, edit: Edit) {
         self.note = None;
+        // Was nicht an der gezeigten Einheit arbeitet, kann den Weg zu ihr abschneiden: zurück zum Ziel.
+        let keep = matches!(
+            edit,
+            Edit::Stat(..)
+                | Edit::AddStep(_)
+                | Edit::DropStep(_)
+                | Edit::StepValue(..)
+                | Edit::OpenCall(_)
+                | Edit::CloseCall
+                | Edit::ResetUnit
+                | Edit::Round(..)
+                | Edit::Admiral(_)
+                | Edit::Save
+        );
+        if !keep {
+            self.calls.clear();
+        }
         match edit {
             Edit::Select(row, column) => self.selected = Some((row, column)),
             Edit::Edge(row, column) => {
@@ -190,6 +278,7 @@ impl MapEditor {
                 else {
                     return;
                 };
+                let unit = unit.map(Unit::from);
                 match (target, unit) {
                     (Target::Slot(Row::Front, column), unit) => encounter.front[column] = unit,
                     (Target::Slot(Row::Back, column), unit) => encounter.back[column] = unit,
@@ -199,6 +288,11 @@ impl MapEditor {
                             .push(Reinforcement { round: 3, unit });
                     }
                     (Target::Replacement, Some(unit)) => encounter.replacements.push(unit),
+                    (Target::ReinforcementEntry(_) | Target::ReplacementEntry(_), Some(unit)) => {
+                        if let Some(entry) = root_mut(encounter, target) {
+                            *entry = unit;
+                        }
+                    }
                     (_, None) => {}
                 }
             }
@@ -214,6 +308,9 @@ impl MapEditor {
                     && index < encounter.reinforcements.len()
                 {
                     encounter.reinforcements.remove(index);
+                    if matches!(self.target, Target::ReinforcementEntry(_)) {
+                        self.target = Target::Reinforcement;
+                    }
                 }
             }
             Edit::DropReplacement(index) => {
@@ -221,8 +318,40 @@ impl MapEditor {
                     && index < encounter.replacements.len()
                 {
                     encounter.replacements.remove(index);
+                    if matches!(self.target, Target::ReplacementEntry(_)) {
+                        self.target = Target::Replacement;
+                    }
                 }
             }
+            Edit::Stat(stat, by) => self.edit_unit(|unit| {
+                let (value, min) = match stat {
+                    Stat::Hull => (&mut unit.hull, 1),
+                    Stat::Attack => (&mut unit.attack, 0),
+                    Stat::Armor => (&mut unit.armor, 0),
+                };
+                *value = (*value + by).max(min);
+            }),
+            Edit::AddStep(step) => self.edit_unit(|unit| unit.pattern.push(step)),
+            // Der letzte Schritt bleibt: Ein Muster ist nie leer.
+            Edit::DropStep(index) => self.edit_unit(|unit| {
+                if unit.pattern.len() > 1 && index < unit.pattern.len() {
+                    unit.pattern.remove(index);
+                }
+            }),
+            Edit::StepValue(index, by) => self.edit_unit(|unit| {
+                if let Some(step) = unit.pattern.get_mut(index) {
+                    *step = adjust(step, by);
+                }
+            }),
+            Edit::OpenCall(index) => {
+                if let Some(Step::Call(_)) = self.unit().and_then(|unit| unit.pattern.get(index)) {
+                    self.calls.push(index);
+                }
+            }
+            Edit::CloseCall => {
+                self.calls.pop();
+            }
+            Edit::ResetUnit => self.edit_unit(|unit| *unit = Unit::from(unit.id)),
             Edit::Admiral(admiral) => self.admiral = admiral,
             Edit::Save => self.save(),
             Edit::Discard => (self.map, self.selected) = (self.saved.clone(), None),
@@ -320,6 +449,49 @@ impl MapEditor {
         run.path = path;
         run.advance(column).ok()?;
         Some(run)
+    }
+}
+
+/// Die Einheit in einem Feld oder Eintrag einer Liste.
+fn root(encounter: &Encounter, target: Target) -> Option<&Unit> {
+    match target {
+        Target::Slot(Row::Front, column) => encounter.front[column].as_ref(),
+        Target::Slot(Row::Back, column) => encounter.back[column].as_ref(),
+        Target::ReinforcementEntry(index) => Some(&encounter.reinforcements.get(index)?.unit),
+        Target::ReplacementEntry(index) => encounter.replacements.get(index),
+        Target::Reinforcement | Target::Replacement => None,
+    }
+}
+
+fn root_mut(encounter: &mut Encounter, target: Target) -> Option<&mut Unit> {
+    match target {
+        Target::Slot(Row::Front, column) => encounter.front[column].as_mut(),
+        Target::Slot(Row::Back, column) => encounter.back[column].as_mut(),
+        Target::ReinforcementEntry(index) => {
+            Some(&mut encounter.reinforcements.get_mut(index)?.unit)
+        }
+        Target::ReplacementEntry(index) => encounter.replacements.get_mut(index),
+        Target::Reinforcement | Target::Replacement => None,
+    }
+}
+
+/// Ein Schritt mit verstelltem Wert: Spaltenfeuer 1 bis 3 Spalten breit, Schilde ab 1, Verstärkung die Vorlage der
+/// Einheit `by` Plätze weiter in [`EnemyId::ALL`] (im Kreis); Schritte ohne Wert bleiben.
+pub fn adjust(step: &Step, by: i32) -> Step {
+    match step {
+        Step::ColumnFire(width) => {
+            Step::ColumnFire(width.saturating_add_signed(by as isize).clamp(1, COLUMNS))
+        }
+        Step::Shields(amount) => Step::Shields((amount + by).max(1)),
+        Step::Call(unit) => {
+            let all = EnemyId::ALL;
+            let at = all
+                .iter()
+                .position(|&id| id == unit.id)
+                .expect("jede Id steht in ALL");
+            Step::Call(all[(at as i32 + by).rem_euclid(all.len() as i32) as usize].into())
+        }
+        step => step.clone(),
     }
 }
 
@@ -436,9 +608,73 @@ mod tests {
         editor.apply(Edit::Target(Target::Replacement));
         editor.apply(Edit::Place(Some(EnemyId::Fireship)));
         let encounter = editor.node().unwrap().encounter.clone().unwrap();
-        assert_eq!(encounter.back[1], Some(EnemyId::Spotter));
+        assert_eq!(encounter.back[1], Some(EnemyId::Spotter.into()));
         assert_eq!(encounter.reinforcements[0].round, 1);
-        assert_eq!(encounter.replacements, [EnemyId::Fireship]);
+        assert_eq!(encounter.replacements, [EnemyId::Fireship.into()]);
+
+        // Werte und Muster der Einheit im Feld; neue Einheiten kommen mit ihrer Vorlage.
+        editor.apply(Edit::Target(Target::Slot(Row::Back, 1)));
+        editor.apply(Edit::Stat(Stat::Hull, -100));
+        editor.apply(Edit::Stat(Stat::Armor, 2));
+        editor.apply(Edit::DropStep(0));
+        editor.apply(Edit::AddStep(Step::Evade));
+        editor.apply(Edit::AddStep(Step::Shields(6)));
+        editor.apply(Edit::StepValue(2, -10));
+        editor.apply(Edit::AddStep(Step::Call(EnemyId::Seal.into())));
+        editor.apply(Edit::StepValue(3, 1));
+        editor.apply(Edit::DropStep(0));
+        let unit = editor.unit().unwrap();
+        assert_eq!((unit.id, unit.hull, unit.armor), (EnemyId::Spotter, 1, 2));
+        let raiders = Unit::from(EnemyId::Raiders);
+        let pattern = [Step::Evade, Step::Shields(1), Step::Call(raiders.clone())];
+        assert_eq!(unit.pattern, pattern);
+
+        // Die gerufene Einheit hat eigene Werte; „Zurück“ zeigt wieder die rufende.
+        editor.apply(Edit::OpenCall(0));
+        assert!(editor.calls.is_empty());
+        editor.apply(Edit::OpenCall(2));
+        assert_eq!(editor.unit(), Some(&raiders));
+        editor.apply(Edit::Stat(Stat::Attack, 3));
+        assert_eq!(editor.chain().len(), 2);
+        editor.apply(Edit::CloseCall);
+        let Step::Call(called) = &editor.unit().unwrap().pattern[2] else {
+            panic!("Ruf");
+        };
+        assert_eq!(called.attack, 5);
+        assert_eq!(editor.map.check(), Ok(()));
+        let json = map_json(&editor.map);
+        let line = r#"{ "id": "spotter", "hull": 1, "attack": 2, "armor": 2, "pattern": ["evade", { "shields": 1 }, { "call": { "id": "raiders", "hull": 8, "attack": 5, "armor": 0, "pattern": ["fire"] } }] }"#;
+        assert!(json.contains(line), "{json}");
+        assert_eq!(
+            serde_json::from_str::<SectorMap>(&json).unwrap(),
+            editor.map
+        );
+        editor.apply(Edit::DropStep(0));
+        editor.apply(Edit::DropStep(0));
+        editor.apply(Edit::DropStep(0));
+        assert_eq!(editor.unit().unwrap().pattern.len(), 1);
+        editor.apply(Edit::ResetUnit);
+        assert_eq!(editor.unit(), Some(&EnemyId::Spotter.into()));
+
+        // Ein Eintrag der Liste: Die Palette ersetzt ihn, seine Werte stehen zur Wahl; fällt er, bleibt die Liste Ziel.
+        editor.apply(Edit::Target(Target::ReinforcementEntry(0)));
+        editor.apply(Edit::Place(Some(EnemyId::Besieger)));
+        editor.apply(Edit::Stat(Stat::Hull, 10));
+        let encounter = editor.node().unwrap().encounter.clone().unwrap();
+        assert_eq!(encounter.reinforcements.len(), 1);
+        assert_eq!(
+            encounter.reinforcements[0].unit.hull,
+            Unit::from(EnemyId::Besieger).hull + 10
+        );
+        editor.apply(Edit::Target(Target::ReplacementEntry(0)));
+        editor.apply(Edit::Stat(Stat::Hull, 1));
+        assert_eq!(
+            editor.unit().unwrap().hull,
+            Unit::from(EnemyId::Fireship).hull + 1
+        );
+        editor.apply(Edit::DropReplacement(0));
+        assert_eq!(editor.target, Target::Replacement);
+
         editor.apply(Edit::DropReinforcement(0));
         editor.apply(Edit::DropReplacement(0));
         editor.apply(Edit::Target(Target::Slot(Row::Front, 1)));

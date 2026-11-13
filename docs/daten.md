@@ -1,14 +1,14 @@
 # Daten
 
-Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im Code bleiben die Mechanik (was eine Karte, eine Station, ein Muster oder ein Modul tut), die 3D-Modelle, Animationen, Effekte und der Ton. Die Regelseiten erklären die Regeln und nennen die Startwerte; es gilt, was in den Dateien steht, und wer dort einen Wert ändert, zieht die Tabelle der Regelseite nach.
+Alle Zahlen, Inhalte und Texte des Spiels stehen als JSON in `assets/data/`. Im Code bleiben die Mechanik (was eine Karte, eine Station, ein Muster oder ein Modul tut), die 3D-Modelle, Animationen, Effekte und der Ton. Die Regelseiten erklären die Regeln und nennen die Startwerte; es gilt, was in den Dateien steht (für die Gegner: in den Kartendateien), und wer dort einen Wert ändert, zieht die Tabelle der Regelseite nach.
 
 | Datei | Inhalt | Gilt ab |
 | --- | --- | --- |
-| `enemies.json` | Klasse, Hülle, ATK, Panzerung und Muster jedes Gegners ([Gegner](gegner.md)) | nach dem Neubauen |
+| `enemies_defaults.json` | Klasse jedes Gegners und die Vorlage seiner Werte und seines Musters für den Karteneditor ([Gegner](gegner.md)) | nach dem Neubauen |
 | `cards.json` | Art, Ziel, Kosten und Wert jeder Karte samt aufgewerteter Fassung ([Karten](karten.md)) | nach dem Neubauen |
 | `admirals.json` | Hülle, ATK, Schild-Station, Kennkarte und Startdeck jedes Admirals ([Admirale](admirale.md)) | nach dem Neubauen |
 | `rules.json` | alle übrigen Stellgrößen: Gefecht, Stationen, Zweitwerte der Karten, Gegner, Module, Run | nach dem Neubauen |
-| `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
+| `maps/sector1.json` bis `sector3.json` | die Sternenkarte je Sektor samt Verband je Knoten, jede Einheit mit allen Werten, mit denen sie kämpft ([Der Run](run.md#die-sternenkarte)) | nächster neuer Run |
 | `text/de.json`, `text/en.json` | jeder sichtbare Text, je Sprache eine Datei ([Texte](#texte)) | nach dem Neubauen |
 
 Die ersten vier Dateien und die Texte sind in das Programm eingebettet (`cargo run` baut nach einer Änderung von selbst neu), die Sternenkarten liest das Spiel zur Laufzeit. `cargo test -p voidfleet-core` prüft Daten und Sternenkarten: Jeder Gegner, jede Karte und jeder Admiral braucht seinen Eintrag, ein unbekanntes oder fehlendes Feld ist ein Fehler mit Dateiname und Stelle. `cargo test -p voidfleet-client i18n` prüft die Texte. Neue Gegner, Karten, Admirale oder Module entstehen nicht in den Dateien: Sie brauchen einen Namen im Code, Mechanik, Modell und Texte.
@@ -21,9 +21,10 @@ Namen in den Dateien sind die Ids des Codes in Kleinschreibung mit Unterstrich. 
 "warden": { "class": "battleship", "hull": 90, "attack": 15, "armor": 1, "pattern": ["charge", "charge", { "column_fire": 2 }, { "shields": 15 }] }
 ```
 
-- `class`: `fighter`, `cruiser`, `battleship` oder `flagship`; sie bestimmt die Modellgruppe auf dem Brett.
-- `hull`: Hülle vor dem Zuschlag je Sektor. `attack`: ATK. `armor`: fester Abzug je Treffer.
-- `pattern`: die Aktionsfolge, Schritt für Schritt angesagt, danach von vorn. Endet sie mit `ram`, bleibt sie dort stehen. Schritte: `"fire"` (Zielfeuer), `{ "column_fire": 1 }` (Spaltenfeuer auf so viele Spalten: die des Flaggschiffs, dann die linke Nachbarspalte, aus der linken Spalte die rechte), `"ram"`, `{ "shields": 6 }`, `"evade"`, `"charge"`, `"target_lock"`, `{ "call": "raiders" }` (ruft diese Einheit), `"bolt"` (Riegel).
+- `class`: `fighter`, `cruiser`, `battleship` oder `flagship`; sie bestimmt die Modellgruppe auf dem Brett. Sie gilt im Spiel.
+- `hull`, `attack`, `armor` und `pattern` sind nur die **Vorlage**: Der Karteneditor füllt damit eine Einheit, die er neu in einen Verband setzt. Das Gefecht liest sie nie; es gelten die Werte der Einheit in der Kartendatei ([Sternenkarten](#sternenkarten)). Eine Änderung hier ändert also keine Karte.
+- `hull`: Hülle. `attack`: ATK. `armor`: fester Abzug je Treffer.
+- `pattern`: die Aktionsfolge, Schritt für Schritt angesagt, danach von vorn. Endet sie mit `ram`, bleibt sie dort stehen. Schritte: `"fire"` (Zielfeuer), `{ "column_fire": 1 }` (Spaltenfeuer auf so viele Spalten: die des Flaggschiffs, dann die linke Nachbarspalte, aus der linken Spalte die rechte), `"ram"`, `{ "shields": 6 }`, `"evade"`, `"charge"`, `"target_lock"`, `{ "call": <Einheit> }` (ruft diese Einheit mit allen ihren Werten, etwa `{ "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }`), `"bolt"` (Riegel).
 
 Was an einem Gegner Mechanik ist, steht im Code und hängt an seinem Namen: Plünderer weichen nach einem Treffer aus, Torpedo-Staffeln feuern mit doppelter ATK, der Plasmakreuzer zündet früher, der Spotter ist Unterstützer, der Schrottkönig kannibalisiert, mit dem Siegel fällt die Gegenflotte.
 
@@ -60,7 +61,7 @@ Die Zweitwerte (etwa der Zuschlag des Wärmesuchers) stehen in `rules.json` unte
 - `cards`: die Zweitwerte von Wärmesucher, Gnadenstoß, Standhalten, Überladung und Plündern.
 - `enemies`: Rammschaden, Riegel, Kannibalisieren, die Brandschwelle des Plasmakreuzers.
 - `modules`: die Zahl jedes Moduls, das eine hat.
-- `run`: Zuschlag auf die Hülle der Gegner je Sektor, Schrott, Angebote, Preise, Reparatur, die Zahlen der Ereignisse. Spannen stehen als `[von, bis]`, beide Enden eingeschlossen.
+- `run`: Schrott, Angebote, Preise, Reparatur, die Zahlen der Ereignisse. Spannen stehen als `[von, bis]`, beide Enden eingeschlossen.
 
 ## Sternenkarten
 
@@ -70,14 +71,14 @@ Je Sektor eine JSON-Datei in `assets/data/maps/`: `sector1.json`, `sector2.json`
 {
   "rows": [
     [
-      { "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null], "back": [null, null, null] } }
+      { "kind": "battle", "next": [0, 1], "encounter": { "front": [null, { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null], "back": [null, null, null] } }
     ],
     [
       { "kind": "event", "next": [0] },
       { "kind": "shipyard", "next": [0] }
     ],
     [
-      { "kind": "boss", "next": [], "encounter": { "front": ["raiders", "raiders", null], "back": [null, "scrap_king", null] } }
+      { "kind": "boss", "next": [], "encounter": { "front": [{ "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null, null], "back": [{ "id": "scrap_king", "hull": 60, "attack": 7, "armor": 0, "pattern": ["fire", "fire", { "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }] }, null, null] } }
     ]
   ]
 }
@@ -87,9 +88,10 @@ Je Sektor eine JSON-Datei in `assets/data/maps/`: `sector1.json`, `sector2.json`
 - `rows`: die Reihen in Flugrichtung (die erste liegt auf dem Schirm unten), in jeder die Knoten von links nach rechts. Die letzte Reihe ist genau ein Boss, sonst steht nirgends einer.
 - `kind`: `battle`, `elite`, `event`, `shipyard`, `market` oder `boss`.
 - `next`: die Knoten der nächsten Reihe, zu denen eine Kante führt, als Positionen ab 0, aufsteigend. Jeder Knoten hat eine Kante hinaus (außer dem Boss) und eine hinein (außer in der ersten Reihe).
-- `encounter`: der Verband des Knotens, Pflicht an `battle`, `elite` und `boss`, sonst verboten. `front` und `back` sind die beiden Reihen des Bretts mit ihren drei Spalten von links nach rechts, `null` ist ein leerer Slot. Ein bis vier Einheiten; hinten steht nur, wer einen Vordermann hat. Die Gegner heißen `raiders`, `fireship`, `torpedo_wing`, `guard_cruiser`, `plasma_cruiser`, `spotter`, `besieger`, `carrier`, `scrap_king`, `warden` und `seal` ([Gegner](gegner.md)). `back` darf fehlen.
-- `reinforcements` im Verband (darf fehlen): angesagte Verstärkung, etwa `[{ "round": 3, "unit": "guard_cruiser" }]`; sie trifft im Gegnerzug dieser Runde ein.
-- `replacements` im Verband (darf fehlen): die Nachrücker der Gegenflotte in ihrer Reihenfolge, etwa `["guard_cruiser", "guard_cruiser"]`.
+- `encounter`: der Verband des Knotens, Pflicht an `battle`, `elite` und `boss`, sonst verboten. `front` und `back` sind die beiden Reihen des Bretts mit ihren drei Spalten von links nach rechts, `null` ist ein leerer Slot, sonst steht dort eine Einheit. Ein bis vier Einheiten; hinten steht nur, wer einen Vordermann hat. `back` darf fehlen.
+- Eine **Einheit** nennt immer alle ihre Werte: `{ "id": "guard_cruiser", "hull": 20, "attack": 5, "armor": 0, "pattern": ["evade", { "shields": 6 }, "fire"] }`, Felder wie in `enemies_defaults.json` ohne `class`. Die Kartendatei ist die einzige Quelle dieser Werte: Nichts wird je Sektor hochgerechnet, nichts kommt aus `enemies_defaults.json`. `id` ist einer von `raiders`, `fireship`, `torpedo_wing`, `guard_cruiser`, `plasma_cruiser`, `spotter`, `besieger`, `carrier`, `scrap_king`, `warden` und `seal` ([Gegner](gegner.md)); an ihm hängen Modell, Klasse und die Sonderregeln (Ausweichen der Plünderer und so weiter). Hülle mindestens 1, ATK und Panzerung nicht negativ, das Muster nicht leer, Spaltenfeuer 1 bis 3 Spalten, Schilde positiv, gerufene Einheiten ebenso gültig.
+- `reinforcements` im Verband (darf fehlen): angesagte Verstärkung, etwa `[{ "round": 3, "unit": <Einheit> }]`; sie trifft im Gegnerzug dieser Runde ein.
+- `replacements` im Verband (darf fehlen): die Nachrücker der Gegenflotte in ihrer Reihenfolge, als Liste von Einheiten.
 
 Das Spiel liest die Karten bei jedem neuen Run, ohne Neubauen; eine falsche Datei beendet es mit ihrem Namen und dem Fehler. Ein laufender Run behält die Karten, mit denen er begonnen hat.
 
@@ -99,11 +101,12 @@ Der Karteneditor im Spiel bearbeitet dieselben Dateien: Einstellungen → Tab �
 
 - **Datei**: „Sektor 1–3“ öffnet die Karte des Sektors. „Speichern“ schreibt nur eine Karte, die die Prüfung besteht, in die Datei ihres Sektors. Mit ungespeicherten Änderungen bleibt die Karte offen, bis gespeichert oder verworfen ist.
 - **Karte**: Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin; dasselbe tun rechts am gewählten Knoten die Tasten „Kanten zu Reihe n“, eine je Knoten der nächsten Reihe, die leuchtet, wenn die Kante steht. Das „+“ rechts neben einer Reihe legt dort einen Knoten an, „Reihe +“ eine Reihe vor dem Boss; beide hängen das Neue so ein, dass die Karte gültig bleibt.
-- **Knoten**: rechts die Art (die letzte Reihe ist der Boss und bleibt es) und „Knoten löschen“; fällt der letzte Knoten einer Reihe, fällt die Reihe. An Gefecht, Elite und Boss steht der Verband als zwei Reihen mit drei Spalten: erst ein Feld wählen, dann die Einheit aus der Palette („Leer“ räumt das Feld). „Verstärkung +“ und „Nachrücker +“ sind Ziele wie ein Feld; die Runde einer Verstärkung stellen `-` und `+`, `x` nimmt einen Eintrag heraus.
+- **Knoten**: rechts die Art (die letzte Reihe ist der Boss und bleibt es) und „Knoten löschen“; fällt der letzte Knoten einer Reihe, fällt die Reihe. An Gefecht, Elite und Boss steht der Verband als zwei Reihen mit drei Spalten: erst ein Feld wählen, dann die Einheit aus der Palette („Leer“ räumt das Feld). „Verstärkung +“ und „Nachrücker +“ sind Ziele, an die die Palette einen neuen Eintrag hängt; die Runde einer Verstärkung stellen `-` und `+`, `x` nimmt einen Eintrag heraus, ein Klick auf seinen Namen macht ihn zum Ziel (die Palette ersetzt ihn dann). Eine neue Einheit kommt mit den Werten ihrer Vorlage aus `enemies_defaults.json`.
+- **Einheit**: Ist ein Feld oder Eintrag mit einer Einheit das Ziel, folgen ihre Werte und ihr Ablauf: Hülle, ATK und Panzerung mit `-` und `+` (was von der Vorlage abweicht, leuchtet; der Name trägt dann ein `*`), darunter die Schritte des Musters in ihrer Folge, je mit `-` und `+` für ihren Wert (Breite des Spaltenfeuers, Schild, gerufene Einheit) und `x` (der letzte Schritt bleibt), dann die Schritte zum Anhängen. Ein Ruf hat dazu „Werte“: Der Editor zeigt dann die gerufene Einheit, über ihr den Weg dorthin („Trägerschiff › Plünderer“) und „Zurück“. „Zurücksetzen“ gibt der gezeigten Einheit wieder Werte und Muster ihrer Vorlage.
 - **Prüfung**: Die Zeile unter den Tasten nennt, was an der Karte nicht stimmt, der Knoten dazu trägt einen roten Ring. Es ist dieselbe Prüfung wie im Test.
 - **Probespielen**: spielt den gewählten Knoten mit dem gewählten Admiral und seinem Startdeck im Sektor der Karte, ohne zu speichern, auch die Karte nicht. Ist der Knoten erledigt (nach der Beute, der Werft, dem Markt, dem Ereignis) oder führt der Weg über „Hauptmenü“ hinaus, steht wieder der Editor da. Ein Run, der vorher lief, bleibt gespeichert und geht im Hauptmenü weiter.
 
-Der Editor verschiebt keine Knoten innerhalb einer Reihe, legt keine Dateien an und stellt keine Werte der Gegner; die stehen in `enemies.json`.
+Der Editor verschiebt keine Knoten innerhalb einer Reihe und keine Schritte innerhalb eines Musters, legt keine Dateien an und ändert `enemies_defaults.json` nicht.
 
 ## Texte
 

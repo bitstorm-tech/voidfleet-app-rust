@@ -12,7 +12,7 @@ use std::collections::VecDeque;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use voidfleet_core::{
-    enemies::EnemyClass,
+    enemies::{EnemyClass, Unit},
     events::{Intent, UnitRef, UnitStats},
 };
 
@@ -685,7 +685,7 @@ impl Stage<'_, '_> {
         let (kind, uid, stats, max_hull) = match unit {
             UnitRef::Enemy { uid, id, .. } => {
                 let enemy = battle.and_then(|battle| battle.enemy(uid));
-                let max_hull = enemy.map_or(id.hull(), |enemy| enemy.max_hull);
+                let max_hull = enemy.map_or_else(|| Unit::from(id).hull, |enemy| enemy.max_hull);
                 let stats = UnitStats {
                     hull: max_hull,
                     shield: 0,

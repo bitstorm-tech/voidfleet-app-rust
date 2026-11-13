@@ -12,11 +12,11 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::{ADMIRAL_IDS, AdmiralId};
-use crate::board::COLUMNS;
 use crate::cards::{CardId, CardTarget, CardType, LOOT_POOL};
-use crate::enemies::{EnemyClass, EnemyId};
+use crate::enemies::{EnemyClass, EnemyId, Unit, valid_pattern};
 
-/// `enemies.json`: ein Gegner. Die Hülle gilt vor der Sektor-Skalierung, `armor` ist der feste Abzug je Treffer.
+/// `enemies_defaults.json`: ein Gegner, seine Klasse und die Vorlage seiner Werte
+/// ([`Unit::from`](crate::enemies::Unit)); im Gefecht gelten die Werte aus der Kartendatei.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnemyData {
@@ -29,8 +29,8 @@ pub struct EnemyData {
 }
 
 /// Ein Schritt eines Musters. Spaltenfeuer nennt seine Breite in Spalten, Schilde ihren Wert, Verstärkung die
-/// gerufene Einheit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+/// gerufene Einheit mit allen Werten.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Step {
     Fire,
@@ -40,7 +40,7 @@ pub enum Step {
     Evade,
     Charge,
     TargetLock,
-    Call(EnemyId),
+    Call(Unit),
     Bolt,
 }
 
@@ -163,8 +163,6 @@ pub struct ModuleRules {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RunRules {
-    /// Je Sektor nach dem ersten so viel Prozent mehr Hülle für die Gegner.
-    pub sector_hull_percent: u32,
     pub battle_scrap: [u32; 2],
     pub elite_scrap: [u32; 2],
     pub boss_scrap: u32,
@@ -205,8 +203,8 @@ pub fn data() -> &'static Data {
     static DATA: LazyLock<Data> = LazyLock::new(|| {
         let data = Data {
             enemies: parse(
-                "enemies.json",
-                include_str!("../../../assets/data/enemies.json"),
+                "enemies_defaults.json",
+                include_str!("../../../assets/data/enemies_defaults.json"),
             ),
             cards: parse(
                 "cards.json",
@@ -242,19 +240,13 @@ impl Data {
             let enemy = self
                 .enemies
                 .get(&id)
-                .unwrap_or_else(|| panic!("enemies.json: {id:?} fehlt"));
+                .unwrap_or_else(|| panic!("enemies_defaults.json: {id:?} fehlt"));
+            let values = enemy.hull > 0 && enemy.attack >= 0 && enemy.armor >= 0;
             assert!(
-                !enemy.pattern.is_empty(),
-                "enemies.json: {id:?} ohne Muster"
+                values && valid_pattern(&enemy.pattern),
+                "enemies_defaults.json: {id:?}: Werte negativ, Muster leer, Spaltenfeuer zu breit, Schild \
+                 nicht positiv oder gerufene Einheit ungültig"
             );
-            for step in &enemy.pattern {
-                if let Step::ColumnFire(width) = *step {
-                    assert!(
-                        (1..=COLUMNS).contains(&width),
-                        "enemies.json: {id:?} feuert auf {width} Spalten"
-                    );
-                }
-            }
         }
         for id in LOOT_POOL {
             assert!(self.cards.contains_key(&id), "cards.json: {id:?} fehlt");

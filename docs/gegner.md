@@ -6,7 +6,7 @@ Was ein Gegner tun kann und wie Absichten gelten, steht in [Gefecht](gefecht.md#
 
 Jeder Gegnertyp folgt einem Muster aus Zielregel und Aktionsfolge. Ein Muster darf würfeln, welchen Zweig es als Nächstes ansagt; die Ansage selbst gilt exakt. Das ist neben der Hand der einzige Zufall im Gefecht. Bisher sind alle Muster feste Folgen.
 
-Werte und Muster stehen in `assets/data/enemies.json` ([Daten](daten.md#gegner)); die Tabelle nennt die Startwerte. Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände fliegen in Gegner-Lackierung, die Bosse haben eigene Rümpfe.
+Die Tabelle nennt die Vorlage aus `assets/data/enemies_defaults.json` ([Daten](daten.md#gegner)). Im Gefecht gelten die Werte und Muster, die jede Einheit in der Kartendatei ihres Sektors trägt ([Daten](daten.md#sternenkarten)); dort können sie von Knoten zu Knoten abweichen. Die Spalte Modell nennt den Rumpf in `assets/models/ships/`. Die Verbände fliegen in Gegner-Lackierung, die Bosse haben eigene Rümpfe.
 
 | Gegner | Klasse | Hülle | ATK | Modell | Muster |
 | --- | --- | --- | --- | --- | --- |
@@ -27,6 +27,6 @@ Werte und Muster stehen in `assets/data/enemies.json` ([Daten](daten.md#gegner))
 | 2 Die Stille | 2 bis 3 Einheiten in Formation mit Deckung, erste Spotter, Torpedo-Staffeln und Belagerer | Belagerer mit zwei Wachkreuzern in der Front | **Der Wächter.** Eine automatische Verteidigungsstation (`warden`), Hülle 90, Panzerung 1, unbeweglich, zwei Wachkreuzer davor. Hauptgeschütz: zwei Runden Aufladen, dann Spaltenfeuer 30 über zwei angesagte Spalten. Dazwischen Schilde 15. Wer nicht in der dritten Spalte steht, muss dorthin manövrieren, die Aufladung brechen oder springen. |
 | 3 Die Schwelle | 3 bis 4 Einheiten, Verstärkung, Spotter mit Belagerern und Trägerschiffen | Zwei Belagerer mit Spotter | **Die Gegenflotte.** Kommandantin Vey mit ihrem Flaggschiff Siegel (`seal`), Hülle 50, ATK 8, und drei Eskorten; sie bewacht das Wurmloch nach Hause. Kommandofähigkeit Riegel, angesagt wie jede Aktion: Alle ihre Einheiten schlucken 4, ohne ihre eigene Aktion zu verlieren. Fällt eine Eskorte, springt eine neue ein, zweimal. Sie ist das einzige gegnerische Flaggschiff im Run und spielt mit Absichten, nach denselben Regeln für Schaden und Zustände wie der Spieler. |
 
-Die Hülle aller Gegner steigt je Sektor um ein Viertel des Grundwerts, auch bei Elite und Boss; die Tabellen nennen die Grundwerte.
+Die Gegner werden je Sektor nicht automatisch stärker: Was ein Gegner in Sektor 2 oder 3 an Hülle, ATK und Panzerung hat, steht an seinem Knoten in der Kartendatei. Die Karten geben den Gegnern ab Sektor 2 ein Viertel mehr Hülle als die Vorlage, ab Sektor 3 die Hälfte, auch Elite und Boss.
 
 Welcher Verband an welchem Knoten steht, legen die Sternenkarten fest ([Daten](daten.md#sternenkarten)); die Tabelle ist die Vorgabe für ihren Entwurf.

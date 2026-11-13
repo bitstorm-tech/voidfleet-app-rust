@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 use voidfleet_core::battle::{Battle, BattleResult, Encounter};
 use voidfleet_core::cards::{CardId, DeckCard};
-use voidfleet_core::enemies::EnemyId;
+use voidfleet_core::data::Step;
+use voidfleet_core::enemies::{EnemyId, Unit};
 use voidfleet_core::modules::ModuleId;
 use voidfleet_core::run::{
     EventId, EventOption, Gain, MapError, NodeKind, Run, RunError, SECTORS, SectorMap, Stage,
@@ -25,7 +26,7 @@ fn new_run(admiral: AdmiralId, seed: u64) -> Run {
 
 fn raiders() -> Encounter {
     Encounter {
-        front: [None, Some(EnemyId::Raiders), None],
+        front: [None, Some(EnemyId::Raiders.into()), None],
         ..Encounter::default()
     }
 }
@@ -78,9 +79,9 @@ fn sternenkarten() {
 #[test]
 fn karte_prüfen() {
     let json = r#"{ "rows": [
-        [{ "kind": "battle", "next": [0, 1], "encounter": { "front": [null, "raiders", null] } }],
+        [{ "kind": "battle", "next": [0, 1], "encounter": { "front": [null, { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null] } }],
         [{ "kind": "event", "next": [0] }, { "kind": "shipyard", "next": [0] }],
-        [{ "kind": "boss", "next": [], "encounter": { "front": ["raiders", null, null], "back": ["scrap_king", null, null] } }]
+        [{ "kind": "boss", "next": [], "encounter": { "front": [{ "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }, null, null], "back": [{ "id": "scrap_king", "hull": 60, "attack": 7, "armor": 0, "pattern": ["fire", { "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }] }, null, null] } }]
     ] }"#;
     let good: SectorMap = serde_json::from_str(json).unwrap();
     assert_eq!(good.check(), Ok(()));
@@ -130,19 +131,53 @@ fn karte_prüfen() {
         Err(MapError::Encounter(1, 0))
     );
     assert_eq!(
-        broken(|m| encounter(m).front = [None; 3]),
+        broken(|m| encounter(m).front = Default::default()),
         Err(MapError::Encounter(0, 0))
     );
     assert_eq!(
-        broken(|m| encounter(m).back[0] = Some(EnemyId::Spotter)),
+        broken(|m| encounter(m).back[0] = Some(EnemyId::Spotter.into())),
         Err(MapError::Encounter(0, 0))
     );
     assert_eq!(
         broken(|m| {
-            encounter(m).front = [Some(EnemyId::Raiders); 3];
-            encounter(m).back = [Some(EnemyId::Raiders); 3];
+            encounter(m).front = std::array::from_fn(|_| Some(EnemyId::Raiders.into()));
+            encounter(m).back = std::array::from_fn(|_| Some(EnemyId::Raiders.into()));
         }),
         Err(MapError::Encounter(0, 0))
+    );
+    // Die Werte einer Einheit: ein leeres Muster oder eine ungültige gerufene Einheit stimmt nicht.
+    fn custom(pattern: Vec<Step>) -> Option<Unit> {
+        Some(Unit {
+            pattern,
+            ..EnemyId::Raiders.into()
+        })
+    }
+    assert_eq!(
+        broken(|m| encounter(m).front[0] = custom(vec![Step::ColumnFire(2)])),
+        Ok(())
+    );
+    assert_eq!(
+        broken(|m| encounter(m).front[0] = custom(Vec::new())),
+        Err(MapError::Encounter(0, 0))
+    );
+    assert_eq!(
+        broken(|m| {
+            let called = Unit {
+                hull: 0,
+                ..EnemyId::Raiders.into()
+            };
+            encounter(m).front[0] = custom(vec![Step::Call(called)]);
+        }),
+        Err(MapError::Encounter(0, 0))
+    );
+    // Eine Einheit nennt alle Werte; nur die Id reicht nicht.
+    assert!(
+        serde_json::from_str::<SectorMap>(&json.replacen(
+            r#"{ "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] }"#,
+            r#""raiders""#,
+            1
+        ))
+        .is_err()
     );
     // Ein Tippfehler im Feldnamen fällt beim Lesen auf.
     assert!(serde_json::from_str::<SectorMap>(&json.replace("next", "nxt")).is_err());
@@ -199,13 +234,13 @@ fn gefecht_starten() {
     let battle = run.start_battle();
     assert!(!battle.flagship.burning && !battle.emergency_generator_available);
 
-    // Der Verband des Knotens steht auf dem Brett; je Sektor ein Viertel mehr Hülle, aufgerundet.
-    for (sector, hull) in [(1, 14), (2, 18), (3, 21)] {
+    // Der Verband des Knotens steht auf dem Brett, in jedem Sektor mit genau den Werten aus der Karte.
+    for (sector, hull) in [(1, 14), (2, 14), (3, 14)] {
         let mut run = new_run(AdmiralId::Kerr, 2);
         run.sector = sector;
         let column = run.choices()[0];
         run.map[0][column].encounter = Some(Encounter {
-            front: [Some(EnemyId::PlasmaCruiser), None, None],
+            front: [Some(EnemyId::PlasmaCruiser.into()), None, None],
             ..Encounter::default()
         });
         run.advance(column).unwrap();

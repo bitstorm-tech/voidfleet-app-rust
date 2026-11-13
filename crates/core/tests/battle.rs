@@ -4,7 +4,8 @@ use voidfleet_core::battle::{
 };
 use voidfleet_core::board::{EnemySlot, Row};
 use voidfleet_core::cards::{CardId, CardTarget, DeckCard, starter_deck};
-use voidfleet_core::enemies::{Action, EnemyId};
+use voidfleet_core::data::Step;
+use voidfleet_core::enemies::{Action, EnemyId, Unit};
 use voidfleet_core::events::{
     BattleEvent, Breakdown, DestroyCause, IdleReason, MissReason, UnitRef,
 };
@@ -15,8 +16,8 @@ fn battle(admiral: AdmiralId, units: &[(EnemyId, Row, usize)]) -> Battle {
     let mut encounter = Encounter::default();
     for &(id, row, column) in units {
         match row {
-            Row::Front => encounter.front[column] = Some(id),
-            Row::Back => encounter.back[column] = Some(id),
+            Row::Front => encounter.front[column] = Some(id.into()),
+            Row::Back => encounter.back[column] = Some(id.into()),
         }
     }
     Battle::new(
@@ -28,7 +29,6 @@ fn battle(admiral: AdmiralId, units: &[(EnemyId, Row, usize)]) -> Battle {
             modules: vec![],
             emergency_generator_available: false,
             encounter,
-            hull_percent: 100,
         },
         7,
     )
@@ -113,6 +113,65 @@ fn example_round() -> Battle {
     besieger.intents = [Action::ColumnFire { columns: MID }, Action::Shields(10)];
     besieger.step = 6;
     b
+}
+
+/// Eine Einheit kämpft mit den Werten aus der Karte, ohne Zuschlag je Sektor: Hülle, ATK, Panzerung und ihr Muster.
+/// Ruft sie Verstärkung, kommt die gerufene Einheit mit den Werten, die im Ruf stehen.
+#[test]
+fn unit_values() {
+    let called = Unit {
+        hull: 3,
+        attack: 9,
+        pattern: vec![Step::Charge],
+        ..EnemyId::Raiders.into()
+    };
+    let mut encounter = Encounter::default();
+    encounter.front[1] = Some(Unit {
+        id: EnemyId::Carrier,
+        hull: 20,
+        attack: 5,
+        armor: 3,
+        pattern: vec![Step::Evade, Step::Call(called), Step::ColumnFire(3)],
+    });
+    let admiral = AdmiralId::Osei;
+    let mut b = Battle::new(
+        BattleSetup {
+            admiral,
+            hull: admiral.hull(),
+            max_hull: admiral.hull(),
+            deck: starter_deck(admiral),
+            modules: vec![],
+            emergency_generator_available: false,
+            encounter,
+        },
+        7,
+    );
+    let carrier = uid(&b, EnemyId::Carrier);
+    let enemy = b.enemy(carrier).unwrap();
+    assert_eq!((enemy.max_hull, enemy.armor), (20, 3));
+    assert_eq!(b.enemy_attack(enemy), 5);
+    let actions = b.announced(carrier).map(|intent| intent.action);
+    assert_eq!(actions, [Action::Evade, Action::Call(EnemyId::Raiders)]);
+    b.end_turn();
+    let actions = b.announced(carrier).map(|intent| intent.action);
+    let all = [true; 3];
+    assert_eq!(
+        actions,
+        [
+            Action::Call(EnemyId::Raiders),
+            Action::ColumnFire { columns: all }
+        ]
+    );
+    b.end_turn();
+    let raiders = b
+        .enemies
+        .iter()
+        .find(|e| e.id == EnemyId::Raiders)
+        .expect("gerufen");
+    assert_eq!(
+        (raiders.max_hull, raiders.attack, &raiders.pattern),
+        (3, 9, &vec![Step::Charge])
+    );
 }
 
 #[test]
@@ -654,7 +713,7 @@ fn seal_bolt_and_replacements() {
             (EnemyId::Seal, Row::Back, 1),
         ],
     );
-    b.replacements = vec![EnemyId::Raiders];
+    b.replacements = vec![EnemyId::Raiders.into()];
     unit(&mut b, EnemyId::GuardCruiser).hull = 5;
     let mut events = b
         .run_station(

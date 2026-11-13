@@ -1,11 +1,13 @@
 //! Die Ansicht des Karteneditors ([`Screen::Editor`], Einstellungen → Dev) über [`MapEditor`]. Zwei Zeilen über die
 //! ganze Breite: die Karte je Sektor mit ihrer Datei (speichern, verwerfen) und rechts „Schließen“; darunter die Karte
-//! („Reihe +“) und rechts das Probespiel (Admiral, „Probespielen“). Links die Karte wie im Spiel mit einem „+“ je Reihe,
-//! rechts der gewählte Knoten: Titel und „Knoten löschen“, die Art, die Kanten zur nächsten Reihe als Tasten, dann in
-//! zwei Schritten der Verband — erst das Ziel (ein Feld der zwei Reihen, Verstärkung oder Nachrücker), dann die Einheit
-//! aus der Palette. Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht
-//! die Kante dorthin. Eine Zeile unter den Tasten nennt, was an der Karte nicht stimmt; der Knoten dazu trägt einen
-//! roten Ring.
+//! („Reihe +“) und rechts das Probespiel (Admiral, „Probespielen“). Links die Karte wie im Spiel mit einem „+“ je
+//! Reihe, rechts der gewählte Knoten: Titel und „Knoten löschen“, die Art, die Kanten zur nächsten Reihe als Tasten,
+//! dann in zwei Schritten der Verband — erst das Ziel (ein Feld der zwei Reihen, Verstärkung oder Nachrücker), dann die
+//! Einheit aus der Palette. Steht im gewählten Feld eine Einheit, folgen ihre Werte (Hülle, ATK, Panzerung mit −/+; was
+//! von `enemies_defaults.json` abweicht, leuchtet) und ihr Ablauf: die Schritte in Folge, je mit −/+ für ihren Wert und
+//! „x“, darunter die Schritte zum Anhängen. Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten
+//! Reihe setzt oder löscht die Kante dorthin. Eine Zeile unter den Tasten nennt, was an der Karte nicht stimmt; der
+//! Knoten dazu trägt einen roten Ring.
 //!
 //! Jede Änderung am [`MapEditor`] baut die Ansicht neu.
 
@@ -19,7 +21,8 @@ use voidfleet_core::{
     admirals::ADMIRAL_IDS,
     battle::Encounter,
     board::Row,
-    enemies::EnemyId,
+    data::Step,
+    enemies::{EnemyId, Unit, action},
     run::{MapError, NodeKind, SECTORS, SectorMap},
 };
 
@@ -32,7 +35,7 @@ use super::{
 };
 use crate::{
     assets::AppState,
-    editor::{Edit, MapEditor, Note, Target},
+    editor::{Edit, MapEditor, Note, Stat, Target},
     game::{Battle, LeaveBattle},
     i18n::Locale,
     palette,
@@ -150,7 +153,9 @@ fn key(
     let mut key = parent.spawn((
         button::text_button(fonts.display_bold(14.0), label, look, node),
         Enabled(enabled),
-        observe(move |_: On<Activate>, mut editor: ResMut<MapEditor>| editor.apply(edit)),
+        observe(move |_: On<Activate>, mut editor: ResMut<MapEditor>| {
+            editor.apply(edit.clone());
+        }),
     ));
     if lit {
         key.insert(Lit);
@@ -452,7 +457,7 @@ fn map_board(
             let color = kind_look(node.kind, icons).0;
             let units: Vec<&str> = (node.encounter.iter())
                 .flat_map(Encounter::units)
-                .map(|(unit, _)| locale.enemy(unit))
+                .map(|(unit, _)| locale.enemy(unit.id))
                 .collect();
             let mut key = board.spawn((
                 button::button(
@@ -594,16 +599,20 @@ fn node_panel(
             RepeatedGridTrack::fr(3, 1.0),
         ]))
         .with_children(|slots| {
-            for (side, row) in [(Row::Back, encounter.back), (Row::Front, encounter.front)] {
+            for (side, row) in [(Row::Back, &encounter.back), (Row::Front, &encounter.front)] {
                 slots.spawn(label(fonts, locale.row_name(side), palette::TEXT_DIM));
-                for (slot, unit) in row.into_iter().enumerate() {
+                for (slot, unit) in row.iter().enumerate() {
                     let target = Target::Slot(side, slot);
-                    let name = unit.map_or(locale.editor_empty(), |unit| locale.enemy(unit));
-                    let look = unit.map_or(Key::NORMAL, unit_look);
+                    let name = unit
+                        .as_ref()
+                        .map_or(locale.editor_empty().to_owned(), |unit| {
+                            marked_name(locale, unit)
+                        });
+                    let look = unit.as_ref().map_or(Key::NORMAL, |unit| unit_look(unit.id));
                     key(
                         slots,
                         fonts,
-                        name,
+                        &name,
                         look,
                         editor.target == target,
                         true,
@@ -638,7 +647,8 @@ fn node_panel(
                 );
                 for (index, entry) in encounter.reinforcements.iter().enumerate() {
                     list.spawn(entry_line()).with_children(|line| {
-                        unit_label(line, fonts, locale, entry.unit);
+                        let target = Target::ReinforcementEntry(index);
+                        entry_key(line, fonts, locale, editor, &entry.unit, target);
                         let earlier = entry.round > 1;
                         let round = Edit::Round(index, -1);
                         key(line, fonts, "-", Key::NORMAL, false, earlier, round);
@@ -663,9 +673,10 @@ fn node_panel(
                     true,
                     Edit::Target(target),
                 );
-                for (index, &unit) in encounter.replacements.iter().enumerate() {
+                for (index, unit) in encounter.replacements.iter().enumerate() {
                     list.spawn(entry_line()).with_children(|line| {
-                        unit_label(line, fonts, locale, unit);
+                        let target = Target::ReplacementEntry(index);
+                        entry_key(line, fonts, locale, editor, unit, target);
                         let drop = Edit::DropReplacement(index);
                         key(line, fonts, "x", Key::DANGER, false, true, drop);
                     });
@@ -705,6 +716,217 @@ fn node_panel(
                 Edit::Place(None),
             );
         });
+    if let Some(unit) = editor.unit() {
+        unit_panel(panel, fonts, locale, editor, unit);
+    }
+}
+
+/// Der Name einer Einheit; ein Stern, wenn ihre Werte oder ihr Muster von der Vorlage in `enemies_defaults.json`
+/// abweichen.
+fn marked_name(locale: &Locale, unit: &Unit) -> String {
+    let mark = if *unit == Unit::from(unit.id) {
+        ""
+    } else {
+        "*"
+    };
+    format!("{}{mark}", locale.enemy(unit.id))
+}
+
+/// Ein Eintrag einer Liste als Taste: Sie macht ihn zum Ziel, und er leuchtet, solange er es ist.
+fn entry_key(
+    line: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    locale: &Locale,
+    editor: &MapEditor,
+    unit: &Unit,
+    target: Target,
+) {
+    let name = marked_name(locale, unit);
+    let lit = editor.target == target;
+    key(
+        line,
+        fonts,
+        &name,
+        unit_look(unit.id),
+        lit,
+        true,
+        Edit::Target(target),
+    );
+}
+
+/// Die gezeigte Einheit (im Ziel oder von dort aus gerufen): der Weg dorthin mit „Zurück“ und „Zurücksetzen“, ihre
+/// Werte mit −/+ (was von der Vorlage in `enemies_defaults.json` abweicht, leuchtet), ihr Ablauf als Folge von
+/// Schritten (je −/+ für den Wert, am Ruf „Werte“ für die gerufene Einheit, und „x“; der letzte bleibt) und die
+/// Schritte zum Anhängen.
+fn unit_panel(
+    panel: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    locale: &Locale,
+    editor: &MapEditor,
+    unit: &Unit,
+) {
+    let base = Unit::from(unit.id);
+    panel.spawn(bar(Val::Auto)).with_children(|head| {
+        head.spawn(caption(fonts, locale.editor_values()));
+        if !editor.calls.is_empty() {
+            let names: Vec<&str> = (editor.chain().into_iter())
+                .map(|unit| locale.enemy(unit.id))
+                .collect();
+            head.spawn(label(fonts, names.join(" › "), palette::TEXT));
+            let back = locale.editor_back();
+            key(head, fonts, back, Key::NORMAL, false, true, Edit::CloseCall);
+        }
+        head.spawn(gap());
+        let reset = locale.editor_reset();
+        key(
+            head,
+            fonts,
+            reset,
+            Key::DANGER,
+            false,
+            *unit != base,
+            Edit::ResetUnit,
+        );
+    });
+    panel.spawn(bar(Val::Auto)).with_children(|stats| {
+        for (stat, name, value, base, steps) in [
+            (
+                Stat::Hull,
+                locale.stats_hull(),
+                unit.hull,
+                base.hull,
+                &[10, 1][..],
+            ),
+            (
+                Stat::Attack,
+                locale.stats_atk(),
+                unit.attack,
+                base.attack,
+                &[1],
+            ),
+            (
+                Stat::Armor,
+                locale.editor_armor(),
+                unit.armor,
+                base.armor,
+                &[1],
+            ),
+        ] {
+            stats.spawn(entry_line()).with_children(|line| {
+                line.spawn(label(fonts, name, palette::TEXT_DIM));
+                for &by in steps {
+                    let edit = Edit::Stat(stat, -by);
+                    key(
+                        line,
+                        fonts,
+                        &format!("-{by}"),
+                        Key::NORMAL,
+                        false,
+                        true,
+                        edit,
+                    );
+                }
+                let color = if value == base {
+                    palette::TEXT
+                } else {
+                    theme::ACCENT
+                };
+                line.spawn(label(fonts, value.to_string(), color));
+                for &by in steps.iter().rev() {
+                    let edit = Edit::Stat(stat, by);
+                    key(
+                        line,
+                        fonts,
+                        &format!("+{by}"),
+                        Key::NORMAL,
+                        false,
+                        true,
+                        edit,
+                    );
+                }
+            });
+        }
+    });
+    let pattern = &unit.pattern;
+    panel.spawn(bar(Val::Auto)).with_children(|steps| {
+        for (index, step) in pattern.iter().enumerate() {
+            if index > 0 {
+                steps.spawn(label(fonts, "→", palette::TEXT_DIM));
+            }
+            steps.spawn(entry_line()).with_children(|line| {
+                let valued = matches!(step, Step::ColumnFire(_) | Step::Shields(_) | Step::Call(_));
+                if valued {
+                    let edit = Edit::StepValue(index, -1);
+                    key(line, fonts, "-", Key::NORMAL, false, true, edit);
+                }
+                line.spawn(label(fonts, step_name(locale, step), palette::TEXT));
+                if valued {
+                    let edit = Edit::StepValue(index, 1);
+                    key(line, fonts, "+", Key::NORMAL, false, true, edit);
+                }
+                if let Step::Call(called) = step {
+                    let open = Edit::OpenCall(index);
+                    let look = unit_look(called.id);
+                    key(
+                        line,
+                        fonts,
+                        locale.editor_open_call(),
+                        look,
+                        false,
+                        true,
+                        open,
+                    );
+                }
+                let drop = Edit::DropStep(index);
+                key(
+                    line,
+                    fonts,
+                    "x",
+                    Key::DANGER,
+                    false,
+                    pattern.len() > 1,
+                    drop,
+                );
+            });
+        }
+    });
+    panel.spawn(caption(fonts, locale.editor_add_step()));
+    // Werte stellt danach −/+ am Schritt.
+    let steps = [
+        Step::Fire,
+        Step::ColumnFire(1),
+        Step::Ram,
+        Step::Shields(6),
+        Step::Evade,
+        Step::Charge,
+        Step::TargetLock,
+        Step::Call(EnemyId::Raiders.into()),
+        Step::Bolt,
+    ];
+    panel
+        .spawn(grid(RepeatedGridTrack::fr(3, 1.0)))
+        .with_children(|keys| {
+            for step in steps {
+                let name = step_name(locale, &step);
+                key(
+                    keys,
+                    fonts,
+                    &name,
+                    Key::NORMAL,
+                    false,
+                    true,
+                    Edit::AddStep(step),
+                );
+            }
+        });
+}
+
+/// Der Name eines Schritts; Spaltenfeuer mit seiner Breite statt mit Spalten.
+fn step_name(locale: &Locale, step: &Step) -> String {
+    match step {
+        Step::ColumnFire(width) => locale.editor_column_fire(*width),
+        step => locale.action(action(std::slice::from_ref(step), 0, 0)),
+    }
 }
 
 /// Eine der zwei Listen (Verstärkung, Nachrücker): halbe Breite, die Einträge untereinander.
@@ -731,18 +953,6 @@ fn entry_line() -> impl Bundle {
         },
         Pickable::IGNORE,
     )
-}
-
-/// Der Name einer Einheit in der Farbe ihrer Klasse; er nimmt den freien Platz seiner Zeile.
-fn unit_label(line: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, unit: EnemyId) {
-    let color = palette::enemy_class_color(unit.class());
-    line.spawn((
-        label(fonts, locale.enemy(unit), color),
-        Node {
-            flex_grow: 1.0,
-            ..default()
-        },
-    ));
 }
 
 /// Die Taste einer Einheit in der Farbe ihrer Klasse.
