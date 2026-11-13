@@ -15,6 +15,7 @@
 //! - [`run`] — der Run als Ressource: Bildschirm, Wahlen, Gefechte der Knoten, Speicherstand `run.json`.
 //! - [`controller`] — verbindet Gefecht, Szene und Oberfläche: Auswahl, Klicks, Hervorhebung, Vorschau, Musik.
 //! - [`playback`] — Wiedergabe der Ereignisse einer Aktion (vorerst nur Log und Bordfunk).
+//! - [`editor`] — der Karteneditor ohne Oberfläche: Sternenkarten bearbeiten, prüfen, schreiben, probespielen.
 //! - [`dev`] — Rauchtest für Läufe ohne Spieler (`VOIDFLEET_SMOKE_*`) und Vorschau-Szenen (`VOIDFLEET_DEV_SCENE`).
 
 // Bevy-Systeme nehmen ihre Ressourcen und Abfragen als Parameter; viele davon und verschachtelte Abfragetypen sind dort
@@ -26,6 +27,7 @@ pub mod audio;
 pub mod controller;
 pub mod data;
 pub mod dev;
+pub mod editor;
 pub mod game;
 pub mod i18n;
 pub mod palette;

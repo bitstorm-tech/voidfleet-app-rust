@@ -4,7 +4,8 @@
 //! Zwei Arten:
 //! - Overlays, die sich selbst aus [`Screen`](crate::run::Screen) bzw. [`Battle`](crate::game::Battle) ableiten:
 //!   Hauptmenü ([`main_menu`]), Admiralswahl ([`admiral_select`]), Sternenkarte ([`star_map`]), die Knoten des Runs
-//!   und sein Ende ([`run_nodes`]), das Ergebnis eines Gefechts ([`result_screen`]).
+//!   und sein Ende ([`run_nodes`]), das Ergebnis eines Gefechts ([`result_screen`]), der Karteneditor
+//!   (`map_editor`).
 //! - Dialoge hinter den Icon-Knöpfen oben rechts ([`Dialog`]): ein Steuerpult über abgedunkeltem Hintergrund, als
 //!   [`Modal`] markiert. Sie öffnen per Knopf oder [`OpenDialog`]; „Schließen“ oder Escape schließt sie, ein Klick auf
 //!   den Hintergrund nicht. Höchstens einer ist offen.
@@ -20,6 +21,7 @@
 
 pub mod admiral_select;
 pub mod main_menu;
+mod map_editor;
 pub mod result_screen;
 pub mod rules;
 pub mod run_nodes;
@@ -402,6 +404,7 @@ impl Plugin for DialogsPlugin {
             .add_plugins((
                 admiral_select::AdmiralSelectPlugin,
                 main_menu::MainMenuPlugin,
+                map_editor::MapEditorPlugin,
                 star_map::StarMapPlugin,
                 run_nodes::RunNodesPlugin,
                 result_screen::ResultScreenPlugin,

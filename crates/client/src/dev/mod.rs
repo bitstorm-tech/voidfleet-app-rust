@@ -10,9 +10,9 @@
 //! Spieler ([`autoplay`]), mit Screenshots an jeder Station (`<stamm>-<nr>-<station>.png` neben
 //! `VOIDFLEET_SMOKE_SCREENSHOT`). Rauchtest und Vorschau-Szenen speichern keinen Run ([`RunSave`] ohne Pfad).
 //!
-//! `VOIDFLEET_DEV_SCREEN=menu|runs|admirals|market|gallery|abandon|won|lost|models` lässt den Rauchtest statt am
+//! `VOIDFLEET_DEV_SCREEN=menu|runs|admirals|market|gallery|abandon|won|lost|models|editor` lässt den Rauchtest statt am
 //! ersten Gefecht an einem Bildschirm um den Run beginnen (Hauptmenü ohne und mit drei Speicherständen, Admiralswahl,
-//! Schwarzmarkt, Deckgalerie, „Run abbrechen“, Run-Ende, Modellschau), zum Ansehen per Screenshot.
+//! Schwarzmarkt, Deckgalerie, „Run abbrechen“, Run-Ende, Modellschau, Karteneditor), zum Ansehen per Screenshot.
 //!
 //! `VOIDFLEET_DEV_SCENE` startet statt des Gefechts eine Vorschau-Szene ([`scenes`]), auch ohne Rauchtest. Ohne die
 //! Variablen tut das Plugin nichts außer der Modellschau ([`viewer`]), die der Tab „Dev“ der Einstellungen öffnet.
@@ -39,6 +39,7 @@ use voidfleet_core::{admirals::AdmiralId, battle::BattleResult, modules::ModuleI
 
 use crate::{
     assets::AppState,
+    editor::{Edit, MapEditor},
     run::{ActiveRun, RunSave, RunView, Screen, new_run},
     scene::camera::CameraCommand,
     ui::dialogs::run_nodes::{AbandonPrompt, Gallery, Purpose},
@@ -190,6 +191,20 @@ fn start_screen(mut commands: Commands, screen: Res<DevScreen>, mut view: ResMut
         }
         "models" => {
             view.models = true;
+            return;
+        }
+        "editor" => {
+            // Mit gewähltem Elite-Knoten, damit das Bild auch Verband und Palette zeigt.
+            let mut editor = MapEditor::open(crate::asset_root().join("data/maps"));
+            let elite = editor.map.rows.iter().enumerate().find_map(|(row, nodes)| {
+                let column = nodes.iter().position(|node| node.kind == NodeKind::Elite)?;
+                Some((row, column))
+            });
+            if let Some((row, column)) = elite {
+                editor.apply(Edit::Select(row, column));
+            }
+            commands.insert_resource(editor);
+            view.editor = true;
             return;
         }
         "market" => {

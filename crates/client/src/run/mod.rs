@@ -82,6 +82,11 @@ pub struct RunView {
     pub outcome: Option<EventOutcome>,
     /// Die Modellschau ist offen (Einstellungen → Dev); sie liegt über allem, auch über einem laufenden Run.
     pub models: bool,
+    /// Der Karteneditor ist offen (Einstellungen → Dev), ebenfalls über allem.
+    pub editor: bool,
+    /// Der Run ist ein Probespiel aus dem Karteneditor: Er wird nicht gespeichert und endet im Editor, sobald sein
+    /// Knoten erledigt ist oder der Spieler ihn verlässt.
+    pub testing: bool,
 }
 
 /// Was gerade zu sehen ist.
@@ -102,12 +107,17 @@ pub enum Screen {
     Ended,
     /// Die Modellschau ([`crate::dev::viewer`]).
     Models,
+    /// Der Karteneditor ([`crate::editor`]).
+    Editor,
 }
 
 /// Der Bildschirm zu Run, laufendem Gefecht und Ansicht.
 pub fn screen(run: Option<&Run>, battle: bool, view: &RunView) -> Screen {
     if view.models {
         return Screen::Models;
+    }
+    if view.editor {
+        return Screen::Editor;
     }
     let Some(run) = run else {
         return if view.choosing {
@@ -167,7 +177,7 @@ pub fn apply(run: &mut Run, action: RunAction) -> Result<Option<EventOutcome>, R
 }
 
 /// Seed eines neuen Runs aus der Systemzeit.
-fn time_seed() -> u64 {
+pub(crate) fn time_seed() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |time| time.as_nanos() as u64)
@@ -199,7 +209,10 @@ impl Plugin for RunPlugin {
                     run_actions.run_if(on_message::<RunAction>),
                     finish_battle.run_if(on_message::<PlaybackFinished>),
                     start_battle,
-                    save_run.run_if(resource_exists_and_changed::<ActiveRun>),
+                    save_run
+                        .run_if(resource_exists_and_changed::<ActiveRun>)
+                        .run_if(|view: Res<RunView>| !view.testing),
+                    end_test,
                     update_screen,
                 )
                     .chain()
@@ -227,8 +240,10 @@ fn follow_flow(
                 }
                 commands.remove_resource::<ActiveRun>();
                 leave.write(LeaveBattle);
+                // Wer ein Probespiel verlässt, landet wieder im Karteneditor.
                 *view = RunView {
                     choosing: step == RunFlow::NewRun,
+                    editor: view.testing,
                     ..RunView::default()
                 };
             }
@@ -350,6 +365,28 @@ fn save_run(run: Res<ActiveRun>, save: Res<RunSave>) {
     }
 }
 
+/// Ein Probespiel aus dem Karteneditor endet, sobald sein Knoten erledigt ist: Der Run steht wieder auf der Karte
+/// oder ist entschieden, und Gefecht und Ergebnis eines Ereignisses sind gesehen.
+fn end_test(
+    mut commands: Commands,
+    run: Option<Res<ActiveRun>>,
+    battle: Option<Res<Battle>>,
+    mut view: ResMut<RunView>,
+) {
+    if let Some(run) = run
+        && view.testing
+        && battle.is_none()
+        && view.outcome.is_none()
+        && (run.stage == Stage::Map || run.result.is_some())
+    {
+        commands.remove_resource::<ActiveRun>();
+        *view = RunView {
+            editor: true,
+            ..RunView::default()
+        };
+    }
+}
+
 /// Hält [`Screen`] aktuell; außerhalb des Gefechts spielt die ruhige Musik.
 fn update_screen(
     run: Option<Res<ActiveRun>>,
@@ -397,6 +434,11 @@ mod tests {
             ..view
         };
         assert_eq!(screen(Some(&run), true, &models), Screen::Models);
+        let editor = RunView {
+            editor: true,
+            ..view
+        };
+        assert_eq!(screen(Some(&run), true, &editor), Screen::Editor);
     }
 
     /// Erste Reihe: immer Gefechte. Sieg → Beute → Karte, die nächste Reihe ist wählbar.

@@ -40,10 +40,10 @@ pub struct Encounter {
     pub front: [Option<EnemyId>; COLUMNS],
     #[serde(default)]
     pub back: [Option<EnemyId>; COLUMNS],
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reinforcements: Vec<Reinforcement>,
     /// Gegenflotte: Fällt eine Eskorte, rückt die nächste in ihren Slot nach.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub replacements: Vec<EnemyId>,
 }
 

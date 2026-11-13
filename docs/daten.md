@@ -94,6 +94,18 @@ Je Sternenkarte eine JSON-Datei in `assets/data/maps/`; der Dateiname ist frei, 
 
 Das Spiel liest die Karten bei jedem neuen Run, ohne Neubauen; eine falsche Datei beendet es mit ihrem Namen und dem Fehler. Ein laufender Run behält die Karten, mit denen er begonnen hat.
 
+### Der Karteneditor
+
+Der Karteneditor im Spiel bearbeitet dieselben Dateien: Einstellungen → Tab „Dev“ → „Karteneditor“. Wer die Dateien lieber von Hand oder per Agent ändert, braucht ihn nicht; beide Wege schreiben dasselbe Format, der Editor Zeichen für Zeichen so wie die vorhandenen Dateien.
+
+- **Datei**: `<` und `>` blättern durch die Karten des Ordners, „Neu“ beginnt eine Karte aus einem Gefecht und dem Boss. „Speichern“ schreibt nur eine Karte, die die Prüfung besteht; eine neue heißt `sector<n>_<x>.json` mit dem ersten freien Buchstaben. Mit ungespeicherten Änderungen bleibt die Karte offen, bis gespeichert oder verworfen ist.
+- **Karte**: Linksklick wählt einen Knoten, Rechtsklick auf einen Knoten der nächsten Reihe setzt oder löscht die Kante dorthin. Das „+“ rechts neben einer Reihe legt dort einen Knoten an, „Reihe +“ eine Reihe vor dem Boss; beide hängen das Neue so ein, dass die Karte gültig bleibt. „Sektor 1–3“ stellt den Sektor.
+- **Knoten**: rechts die Art (die letzte Reihe ist der Boss und bleibt es) und „Knoten löschen“; fällt der letzte Knoten einer Reihe, fällt die Reihe. An Gefecht, Elite und Boss steht der Verband als zwei Reihen mit drei Spalten: erst ein Feld wählen, dann die Einheit aus der Palette („Leer“ räumt das Feld). „Verstärkung +“ und „Nachrücker +“ sind Ziele wie ein Feld; die Runde einer Verstärkung stellen `-` und `+`, `x` nimmt einen Eintrag heraus.
+- **Prüfung**: Die Zeile unter den Tasten nennt, was an der Karte nicht stimmt, der Knoten dazu trägt einen roten Ring. Es ist dieselbe Prüfung wie im Test.
+- **Probespielen**: spielt den gewählten Knoten mit dem gewählten Admiral und seinem Startdeck im Sektor der Karte, ohne zu speichern, auch die Karte nicht. Ist der Knoten erledigt (nach der Beute, der Werft, dem Markt, dem Ereignis) oder führt der Weg über „Hauptmenü“ hinaus, steht wieder der Editor da. Ein Run, der vorher lief, bleibt gespeichert und geht im Hauptmenü weiter.
+
+Der Editor verschiebt keine Knoten innerhalb einer Reihe, benennt und löscht keine Dateien und stellt keine Werte der Gegner; die stehen in `enemies.json`.
+
 ## Texte
 
 `text/en.json` und `text/de.json` enthalten jeden sichtbaren Text; Englisch ist die Ausgangssprache. Beide Dateien haben dieselben Schlüssel. Ein Schlüssel heißt wie die Stelle, an der der Text steht (`hud_end_turn`, `market_title`); Gruppen fassen zusammen, was an einer Id hängt:

@@ -31,7 +31,7 @@ use voidfleet_core::{
     enemies::{Action, EnemyClass, EnemyId},
     events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
     modules::ModuleId,
-    run::{EventId, EventOption, NodeKind},
+    run::{EventId, EventOption, MapError, NodeKind},
 };
 
 use crate::{
@@ -285,6 +285,11 @@ plain! {
     settings_effects_volume settings_voice_volume settings_attack_speed settings_movement_speed
     settings_animation_speed settings_language settings_cursor settings_cursor_size settings_models models_hint
 
+    // --- Karteneditor ---
+    settings_editor editor_title editor_hint editor_new editor_save editor_discard editor_play editor_add_row
+    editor_add_node editor_delete_node editor_empty editor_reinforcements editor_replacements editor_encounter_hint
+    editor_valid editor_new_file editor_no_node
+
     // --- Regeln, Dialoge und Knöpfe, Laden ---
     rules_title dialog_close fullscreen_enter fullscreen_exit camera_view_toggle loading_failed
 
@@ -342,6 +347,14 @@ filled! {
     hud_hull(hull: i32, max_hull: i32)
     checklist_station(station: &str)
     loading_assets(percent: u32)
+
+    // --- Karteneditor; Reihe und Knoten zählen ab 1 ---
+    editor_sector(sector: u32)
+    editor_node(row: usize, column: usize, kind: &str)
+    editor_saved(file: &str)
+    editor_failed(error: &str)
+    editor_unsaved(file: &str)
+    editor_reinforcement(round: u32, unit: &str)
 
     // --- Run ---
     result_lost_subtitle(flagship: &str)
@@ -414,6 +427,22 @@ impl Messages {
             .map_while(|index| self.texts.get(&format!("{key}.{index}")))
             .map(String::as_str)
             .collect()
+    }
+
+    /// Was an einer Sternenkarte nicht stimmt, für den Karteneditor; Reihe und Knoten zählen ab 1.
+    pub fn editor_error(&self, error: MapError) -> String {
+        let (name, row, column) = match error {
+            MapError::Sector => ("sector", 0, 0),
+            MapError::Boss => ("boss", 0, 0),
+            MapError::EmptyRow(row) => ("empty_row", row, 0),
+            MapError::Edges(row, column) => ("edges", row, column),
+            MapError::Unreachable(row, column) => ("unreachable", row, column),
+            MapError::Encounter(row, column) => ("encounter", row, column),
+        };
+        self.fill(
+            &format!("editor_error.{name}"),
+            &[("row", &(row + 1)), ("column", &(column + 1))],
+        )
     }
 
     pub fn on_off(&self, on: bool) -> &'static str {
@@ -1031,6 +1060,16 @@ mod tests {
             ]
             .into_iter()
             .for_each(|id| plain(locale.rule_error(id)));
+            [
+                MapError::Sector,
+                MapError::Boss,
+                MapError::EmptyRow(0),
+                MapError::Edges(0, 0),
+                MapError::Unreachable(0, 0),
+                MapError::Encounter(0, 0),
+            ]
+            .into_iter()
+            .for_each(|error| plain(&locale.editor_error(error)));
             [Row::Front, Row::Back]
                 .into_iter()
                 .for_each(|id| plain(locale.row_name(id)));

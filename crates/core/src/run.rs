@@ -52,7 +52,7 @@ pub enum NodeKind {
 pub struct MapNode {
     pub kind: NodeKind,
     pub next: Vec<usize>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub encounter: Option<Encounter>,
 }
 

@@ -32,13 +32,13 @@ use crate::{
 };
 
 /// Abstand der äußeren Knoten vom Rand der Karte.
-const MARGIN: f32 = 36.0;
+pub(super) const MARGIN: f32 = 36.0;
 const NODE: f32 = 44.0;
 const BOSS_NODE: f32 = 62.0;
 /// Platz der Legende neben der Karte (Breite samt Abstand).
 const LEGEND: f32 = 320.0;
 /// Die Knotenarten in der Reihenfolge der Legende.
-const KINDS: [NodeKind; 6] = [
+pub(super) const KINDS: [NodeKind; 6] = [
     NodeKind::Battle,
     NodeKind::Elite,
     NodeKind::Event,
@@ -89,11 +89,14 @@ pub fn layout(map: &[Vec<MapNode>], size: Vec2) -> MapLayout {
                 node.next.iter().map(move |&next| (row, column, next))
             })
         })
-        .map(|(row, column, next)| MapEdge {
-            from: (row, column),
-            to: (row + 1, next),
-            a: nodes[row][column],
-            b: nodes[row + 1][next],
+        // Eine Kante ins Leere (der Karteneditor zeigt auch Karten, die nicht stimmen) fällt weg.
+        .filter_map(|(row, column, next)| {
+            Some(MapEdge {
+                from: (row, column),
+                to: (row + 1, next),
+                a: nodes[row][column],
+                b: *nodes.get(row + 1)?.get(next)?,
+            })
         })
         .collect();
     MapLayout { nodes, edges }
@@ -146,7 +149,10 @@ pub fn edge_state(run: &Run, edge: &MapEdge) -> EdgeState {
 }
 
 /// Farbe und Zeichen einer Knotenart; Gefecht, Elite und Boss tragen ein Icon.
-fn kind_look(kind: NodeKind, icons: &UiIcons) -> (Color, Result<Handle<Image>, &'static str>) {
+pub(super) fn kind_look(
+    kind: NodeKind,
+    icons: &UiIcons,
+) -> (Color, Result<Handle<Image>, &'static str>) {
     match kind {
         NodeKind::Battle => (palette::ENEMY, Ok(icons.crosshair.clone())),
         NodeKind::Elite => (palette::DEBUFF, Ok(icons.crosshair.clone())),
@@ -337,7 +343,7 @@ fn spawn_legend_entry(
 }
 
 /// Zeichen einer Knotenart (Icon oder Buchstabe) für ein Feld der Kantenlänge `size`.
-fn spawn_glyph(
+pub(super) fn spawn_glyph(
     key: &mut ChildSpawnerCommands,
     fonts: &Fonts,
     icons: &UiIcons,
@@ -368,7 +374,7 @@ fn spawn_glyph(
     }
 }
 
-fn edge_node(edge: &MapEdge, state: EdgeState) -> impl Bundle {
+pub(super) fn edge_node(edge: &MapEdge, state: EdgeState) -> impl Bundle {
     let (width, color) = match state {
         EdgeState::Path => (4.0, palette::SELECT.with_alpha(0.9)),
         EdgeState::Open => (3.0, palette::SELECT.with_alpha(0.55)),
@@ -394,7 +400,7 @@ fn edge_node(edge: &MapEdge, state: EdgeState) -> impl Bundle {
     )
 }
 
-fn node_size(kind: NodeKind) -> f32 {
+pub(super) fn node_size(kind: NodeKind) -> f32 {
     if kind == NodeKind::Boss {
         BOSS_NODE
     } else {
@@ -403,7 +409,7 @@ fn node_size(kind: NodeKind) -> f32 {
 }
 
 /// Ring um den aktuellen Knoten.
-fn current_ring(center: Vec2, kind: NodeKind) -> impl Bundle {
+pub(super) fn current_ring(center: Vec2, kind: NodeKind) -> impl Bundle {
     let size = node_size(kind) + 18.0;
     (
         Node {

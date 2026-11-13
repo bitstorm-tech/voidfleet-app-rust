@@ -4,7 +4,7 @@
 //! Größe und der Sprache; „Video“ mit dem Fenstermodus (Fenster, maximiert, Vollbild), der Kantenglättung (nur die
 //! Stufen, die die Grafikkarte kann), VSync und der FPS-Anzeige;
 //! „Sound“ mit den Reglern für Musik, Effekte und Bordfunk; „Dev“ mit dem Weg in die Modellschau
-//! ([`crate::dev::viewer`]). Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den
+//! ([`crate::dev::viewer`]) und in den Karteneditor ([`crate::editor`]). Jede Wahl schreibt direkt in [`Settings`] und gilt sofort; die Tasten folgen den
 //! Einstellungen, auch wenn sie anderswo umgeschaltet werden (Vollbild per F). Die Felder liegen übereinander, damit der
 //! Dialog beim Wechsel der Tabs seine Größe behält.
 
@@ -760,7 +760,23 @@ pub(super) fn spawn(
                                 ),
                                 (
                                     panel(SettingsTab::Dev),
-                                    children![models_button(fonts, locale)]
+                                    children![(
+                                        Node {
+                                            flex_direction: FlexDirection::Column,
+                                            align_items: AlignItems::FlexStart,
+                                            row_gap: px(10),
+                                            padding: UiRect::bottom(px(8)),
+                                            ..default()
+                                        },
+                                        children![
+                                            dev_button(fonts, locale.settings_models(), |view| {
+                                                view.models = true;
+                                            }),
+                                            dev_button(fonts, locale.settings_editor(), |view| {
+                                                view.editor = true;
+                                            }),
+                                        ],
+                                    )],
                                 ),
                             ],
                         ),
@@ -830,19 +846,19 @@ fn menu_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
     )
 }
 
-/// „3D-Modelle“: schließt die Einstellungen und öffnet die Modellschau.
-fn models_button(fonts: &Fonts, locale: &Locale) -> impl Bundle {
+/// Eine Taste des Tabs „Dev“ („3D-Modelle“, „Karteneditor“): schließt die Einstellungen und öffnet ihr Werkzeug.
+fn dev_button(fonts: &Fonts, label: &str, open: fn(&mut RunView)) -> impl Bundle {
     (
         button::text_button(
             fonts.display_bold(18.0),
-            locale.settings_models(),
+            label,
             Key::PRIMARY,
             Node {
                 padding: UiRect::axes(px(22), px(9)),
                 ..default()
             },
         ),
-        observe(|_: On<Activate>, mut view: ResMut<RunView>| view.models = true),
+        observe(move |_: On<Activate>, mut view: ResMut<RunView>| open(&mut view)),
         observe(close_dialogs),
     )
 }
