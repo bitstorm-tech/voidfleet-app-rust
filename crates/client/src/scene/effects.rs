@@ -23,10 +23,14 @@ use super::{
 };
 use crate::audio::{PlaySound, SoundId};
 
-/// Bolzen: Welteinheiten pro Sekunde und Streckung entlang der Flugbahn.
+/// Bolzen: Welteinheiten pro Sekunde, Länge, Durchmesser des fast weißen Kerns und des weichen Halos in der Schussfarbe
+/// (der zum Rand hin mit diesem Exponenten verläuft und vorn und hinten etwas übersteht).
 const BOLT_SPEED: f32 = 15.0;
-const BOLT_STRETCH: f32 = 5.0;
-const BOLT_SIZE: f32 = 0.16;
+const BOLT_LENGTH: f32 = 2.2;
+const BOLT_CORE: f32 = 0.05;
+const BOLT_HALO: f32 = 0.34;
+const BOLT_HALO_FALLOFF: f32 = 1.5;
+const BOLT_HALO_OVERHANG: f32 = 1.2;
 /// Ein verpuffender Bolzen verblasst auf diesem letzten Anteil seiner Flugzeit und schrumpft dabei auf ein Drittel.
 const FIZZLE_FADE: f32 = 0.45;
 /// Zielmarke: Der Ring zieht sich von der ersten auf die zweite Größe zusammen.
@@ -397,7 +401,7 @@ pub fn bolt_duration(from: Vec3, to: Vec3) -> f32 {
     from.distance(to) / BOLT_SPEED
 }
 
-/// Ein gestreckter Leuchtbolzen fliegt von `from` nach `to`.
+/// Ein langer, dünner Leuchtbolzen mit Halo fliegt von `from` nach `to`.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Bolt {
     pub from: Vec3,
@@ -691,62 +695,94 @@ impl Plugin for EffectsPlugin {
     }
 }
 
-fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
-    let bolt = bolts.get(add.entity).expect("Bolzen");
-    let material = fx.material(FxMaterial::light(light(bolt.color)));
-    let mesh = Mesh3d(fx.assets.sphere.clone());
-    fx.commands.entity(add.entity).insert((
-        Name::new("Bolzen"),
-        mesh,
-        material,
-        Transform::from_translation(bolt.from)
-            .looking_at(bolt.to, Vec3::Y)
-            .with_scale(Vec3::new(BOLT_SIZE, BOLT_SIZE, BOLT_SIZE * BOLT_STRETCH)),
-        Animation::new(bolt_duration(bolt.from, bolt.to)),
-    ));
+/// Hängt Kern und Halo eines Bolzens an `entity` und stellt ihn an den Anfang seiner Bahn.
+fn spawn_bolt(fx: &mut Fx, entity: Entity, name: &'static str, from: Vec3, to: Vec3, color: Color) {
+    let (beam, sphere) = (fx.assets.beam.clone(), fx.assets.sphere.clone());
+    let core = fx.material(FxMaterial::light(light(lighten(color, 0.7))));
+    let halo = fx.material(FxMaterial {
+        rim: -BOLT_HALO_FALLOFF,
+        ..FxMaterial::light(light(color))
+    });
+    fx.commands
+        .entity(entity)
+        .insert((
+            Name::new(name),
+            bolt_transform(from, to, 0.0, 1.0),
+            Visibility::default(),
+            Animation::new(bolt_duration(from, to)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Name::new("Bolzen-Kern"),
+                Mesh3d(beam),
+                core,
+                Transform::from_scale(Vec3::new(BOLT_CORE, BOLT_CORE, BOLT_LENGTH)),
+            ));
+            parent.spawn((
+                Name::new("Bolzen-Halo"),
+                Mesh3d(sphere),
+                halo,
+                Transform::from_scale(Vec3::new(
+                    BOLT_HALO,
+                    BOLT_HALO,
+                    BOLT_LENGTH * BOLT_HALO_OVERHANG,
+                )),
+            ));
+        });
 }
 
-/// Erst langsam, dann gleichmäßig: `easeInCubic` zu 40 %.
-fn bolt_travel(progress: f32) -> f32 {
-    EaseFunction::CubicIn.sample_clamped(progress) * 0.4 + progress * 0.6
+/// Lage eines Bolzens bei `progress`: Die Spitze fliegt von `from` nach `to` (erst langsam, dann gleichmäßig:
+/// `easeInCubic` zu 40 %), der Bolzen wächst dabei aus `from` heraus auf seine Länge; `size` skaliert ihn im Ganzen.
+fn bolt_transform(from: Vec3, to: Vec3, progress: f32, size: f32) -> Transform {
+    let travel = EaseFunction::CubicIn.sample_clamped(progress) * 0.4 + progress * 0.6;
+    let head = from.distance(to) * travel;
+    let length = head.clamp(0.01, BOLT_LENGTH * size);
+    let direction = (to - from).normalize();
+    Transform::from_translation(from + direction * (head - length / 2.0))
+        .looking_to(direction, Vec3::Y)
+        .with_scale(Vec3::new(size, size, length / BOLT_LENGTH))
+}
+
+fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
+    let bolt = *bolts.get(add.entity).expect("Bolzen");
+    spawn_bolt(
+        &mut fx, add.entity, "Bolzen", bolt.from, bolt.to, bolt.color,
+    );
 }
 
 fn fly_bolts(mut bolts: Query<(&Bolt, &Animation, &mut Transform)>) {
     for (bolt, animation, mut transform) in &mut bolts {
-        transform.translation = bolt.from.lerp(bolt.to, bolt_travel(animation.progress()));
+        *transform = bolt_transform(bolt.from, bolt.to, animation.progress(), 1.0);
     }
 }
 
 fn start_fizzle(add: On<Add<Fizzle>>, fizzles: Query<&Fizzle>, mut fx: Fx) {
-    let fizzle = fizzles.get(add.entity).expect("verpuffender Bolzen");
-    let material = fx.material(FxMaterial::light(light(fizzle.color)));
-    let mesh = Mesh3d(fx.assets.sphere.clone());
-    fx.commands.entity(add.entity).insert((
-        Name::new("Verpuffender Bolzen"),
-        mesh,
-        material,
-        Transform::from_translation(fizzle.from).looking_at(fizzle.to, Vec3::Y),
-        Animation::new(bolt_duration(fizzle.from, fizzle.to)),
-    ));
+    let fizzle = *fizzles.get(add.entity).expect("verpuffender Bolzen");
+    let name = "Verpuffender Bolzen";
+    spawn_bolt(
+        &mut fx,
+        add.entity,
+        name,
+        fizzle.from,
+        fizzle.to,
+        fizzle.color,
+    );
 }
 
 fn fly_fizzles(
-    mut fizzles: Query<(
-        &Fizzle,
-        &Animation,
-        &mut Transform,
-        &MeshMaterial3d<FxMaterial>,
-    )>,
+    mut fizzles: Query<(&Fizzle, &Animation, &mut Transform, &Children)>,
+    parts: Query<&MeshMaterial3d<FxMaterial>>,
     mut fx: Fx,
 ) {
-    for (fizzle, animation, mut transform, material) in &mut fizzles {
+    for (fizzle, animation, mut transform, children) in &mut fizzles {
         let progress = animation.progress();
-        transform.translation = fizzle.from.lerp(fizzle.to, bolt_travel(progress));
         let left = ((1.0 - progress) / FIZZLE_FADE).min(1.0);
-        let size = BOLT_SIZE * (1.0 + 2.0 * left) / 3.0;
-        transform.scale = Vec3::new(size, size, size * BOLT_STRETCH);
-        if let Some(mut material) = fx.materials.get_mut(&material.0) {
-            material.set_alpha(left);
+        let size = (1.0 + 2.0 * left) / 3.0;
+        *transform = bolt_transform(fizzle.from, fizzle.to, progress, size);
+        for material in children.iter().filter_map(|part| parts.get(part).ok()) {
+            if let Some(mut material) = fx.materials.get_mut(&material.0) {
+                material.set_alpha(left);
+            }
         }
         if animation.is_done() {
             let burst = Burst {
