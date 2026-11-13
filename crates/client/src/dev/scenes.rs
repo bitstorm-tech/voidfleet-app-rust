@@ -6,7 +6,7 @@
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
 //! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu.
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
-//! - `move` — Spaltenwechsel des Flaggschiffs und Traktorstrahl auf der Gegnerseite.
+//! - `move` — Spaltenwechsel des Flaggschiffs, dem die Türme des Belagerers folgen, und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und ein Bolzen, der vorbeifliegt, im Wechsel.
 //! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
 //! - `show` — ein Modell zum Ansehen, als eigenes Schiff in der Mitte und als Gegner gegenüber (in seiner Gruppe:
@@ -225,11 +225,7 @@ fn stage(
                 enemy(Row::Back, 0),
                 (8, 8, 0),
             );
-            put(
-                ShipKind::Enemy(EnemyId::Carrier),
-                enemy(Row::Front, 2),
-                (26, 26, 0),
-            );
+            put(BESIEGER, enemy(Row::Front, 2), (30, 30, 0));
         }
     }
 }

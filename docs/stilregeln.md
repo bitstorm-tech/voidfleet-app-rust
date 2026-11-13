@@ -98,7 +98,8 @@ Referenz für Kleinteile und Zonen sind die Detailzonen der Iron Dreadnought:
 - **Bug:** Bugpanzer-Kappe (`armor`) um die Spitze; Kanonen mit Blendenbalg vor dem Verschluss, Kühlmantel, Laufschelle
   und zweiteiliger Mündungsbremse (Stahlkern im Spalt).
 - **Türme:** `parts.turret_details`, also Barbettenring, Entfernungsmesser-Ohren mit Linse, Turmluke, Blendenbälge,
-  Mündungsringe.
+  Mündungsringe. Türme drehen sich im Spiel zum Flaggschiff: Was auf einem Turm sitzt, entsteht im Block
+  `with s.turret(at, …)` (`vf.Ship.turret`), sonst bleibt es beim Schwenken stehen.
 - **Flanke:** zweite Plattenlage auf der Schürze; Kabelkanal (`dark`, 0,1 × 0,1) unter der Deckkante bis zur Kasematte,
   mit Anschlusskasten; Kasematte mit Deckel, Luke, Lüfter und Lichtband; `parts.rcs` an den vorderen und hinteren
   Rumpfecken.

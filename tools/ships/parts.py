@@ -27,7 +27,8 @@ DIGITS = {"0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg", "5"
 
 def turret(s, m, at, r=0.5, barrel=1.35, yaw=0.0, mirror=False):
     """Zwillingsturm: Barbette, gerundetes Gehäuse in der Akzentfarbe, Blende, zwei dicke Rohre mit Hülse und Mündung.
-    `at` ist die Mitte der Barbette auf dem Deck, `r` der Turmradius; die Rohre zeigen nach -Y, gedreht um `yaw`."""
+    `at` ist die Mitte der Barbette auf dem Deck, `r` der Turmradius; die Rohre zeigen nach -Y, gedreht um `yaw`.
+    Gehäuse und Rohre drehen sich im Spiel (`Ship.turret`), die Barbette bleibt stehen."""
     x, y, z = at
     s.add(post(40, r * 1.06, r * 1.0, 0.0, 0.14), m["dark_round"], at=(x, y, z), mirror=mirror)
     g = Ship("turret")
@@ -39,7 +40,8 @@ def turret(s, m, at, r=0.5, barrel=1.35, yaw=0.0, mirror=False):
         g.add(tube(24, rb * 1.5, rb * 1.4, -0.42 * barrel, -1.0 * r), m["dark_round"], at=(dx, 0, 0.04 * r))
         g.add(tube(24, rb, rb * 0.92, -barrel, -0.4 * barrel), m["steel"], at=(dx, 0, 0.04 * r))
         g.add(tube(24, rb * 1.32, rb * 1.32, -barrel - 0.06, -barrel + 0.16), m["dark_round"], at=(dx, 0, 0.04 * r))
-    s.place(g, at=(x, y, z + 0.14 + 0.44 * r), rot=(0, 0, yaw), mirror=mirror)
+    with s.turret(at, yaw, mirror):
+        s.place(g, at=(x, y, z + 0.14 + 0.44 * r), rot=(0, 0, yaw), mirror=mirror)
     g.bm.free()
 
 
@@ -72,7 +74,8 @@ def turret_details(s, m, at, r=0.5, barrel=1.35, yaw=0.0, mirror=False):
     for dx in (-0.38 * r, 0.38 * r):
         g.add(bellows(24, rb * 1.55, -1.14 * r, -1.48 * r), m["armor_round"], at=(dx, 0, 0.04 * r))
         g.add(tube(24, rb * 1.4, rb * 1.4, -barrel + 0.22, -barrel + 0.28), m["dark_round"], at=(dx, 0, 0.04 * r))
-    s.place(g, at=(x, y, z + 0.14 + 0.44 * r), rot=(0, 0, yaw), mirror=mirror)
+    with s.turret(at, yaw, mirror):
+        s.place(g, at=(x, y, z + 0.14 + 0.44 * r), rot=(0, 0, yaw), mirror=mirror)
     g.bm.free()
 
 

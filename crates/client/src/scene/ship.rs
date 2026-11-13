@@ -7,7 +7,8 @@
 //! sie eigene Kopien ihrer Toon- und Kontur-Materialien, denn Seite, Glut und Lichter ([`ToonState`]) gelten je Schiff, Verfall und
 //! Treffer-Blitz ([`HullWear`]) je Modell, die Lackierung der Gegner ([`livery`]) je Art. [`BreakApart`] tauscht die
 //! sichtbaren Modelle gegen ihre Bruchstücke, die exakt an ihrer Stelle liegen, und meldet sie je Modell mit
-//! [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt.
+//! [`WreckReady`]: je Stück eine Entity mit dem Ursprung im Schwerpunkt. Die drehbaren Türme der Gegner ([`Turret`])
+//! folgen dem Flaggschiff.
 //!
 //! ```ignore
 //! let ship = spawn_ship(&mut commands, &models, ShipKind::Enemy(EnemyId::PlasmaCruiser));
@@ -153,6 +154,20 @@ pub struct WreckReady {
     pub pieces: Vec<Entity>,
 }
 
+/// Ein drehbarer Turm in der Szene eines [`Hull`]: der glTF-Knoten `<id>_turret_<k>` (`tools/ships/vf.py`,
+/// `split_turrets`), Ursprung auf seiner Hochachse, die Rohre lokal nach +Z. An Gegnern richtet er sich auf das
+/// Flaggschiff aus, sonst bleibt er, wie das Modell ihn baut.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Turret {
+    /// Der [`Hull`], in dessen Szene er steht.
+    pub hull: Entity,
+    /// Lage im Modell.
+    pub rest: Transform,
+}
+
+/// Wie schnell ein Turm nachführt: Anteil des Restwinkels je Sekunde (exponentiell).
+const TURRET_TRACKING: f32 = 5.0;
+
 /// Maßstab des Modells unter der Wurzel.
 /// Flaggschiffe (auch das Siegel) sind um [`FLAGSHIP_SCALE`] größer, wie in der Vorschau von `tools/ships`.
 fn model_scale(kind: ShipKind) -> f32 {
@@ -238,7 +253,7 @@ impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(break_apart)
             .add_observer(prepare_instance)
-            .add_systems(Update, sync_toon_state);
+            .add_systems(Update, (sync_toon_state, aim_turrets));
     }
 }
 
@@ -282,6 +297,7 @@ fn prepare_instance(
     mut ships: Query<(Option<&Ship>, Has<Ghost>, &ToonState, &mut ShipMaterials)>,
     children: Query<&Children>,
     parts: Query<&MeshMaterial3d<ToonMaterial>>,
+    nodes: Query<(&Name, &Transform)>,
     mut materials: ResMut<Assets<ToonMaterial>>,
 ) {
     let Ok((hull_of, wear)) = hulls.get(ready.entity) else {
@@ -298,6 +314,14 @@ fn prepare_instance(
     let mut copies: HashMap<AssetId<ToonMaterial>, Handle<ToonMaterial>> = HashMap::default();
     commands.entity(ready.entity).insert(ModelReady);
     for part in children.iter_descendants(ready.entity) {
+        if let Ok((name, rest)) = nodes.get(part)
+            && name.contains("_turret_")
+        {
+            commands.entity(part).insert(Turret {
+                hull: ready.entity,
+                rest: *rest,
+            });
+        }
         let Ok(template) = parts.get(part) else {
             continue;
         };
@@ -359,5 +383,37 @@ fn sync_toon_state(
                 }
             }
         }
+    }
+}
+
+/// Dreht die Türme der Gegner gleitend auf das Flaggschiff (um ihre Hochachse); alle übrigen kehren in ihre Lage im
+/// Modell zurück.
+fn aim_turrets(
+    time: Res<Time>,
+    ships: Query<(&Ship, &GlobalTransform)>,
+    mut turrets: Query<(Entity, &Turret, &ChildOf, &mut Transform)>,
+    ancestors: Query<&ChildOf>,
+    globals: Query<&GlobalTransform>,
+) {
+    let flagship = ships
+        .iter()
+        .find(|(ship, _)| matches!(ship.kind, ShipKind::Flagship(_)))
+        .map(|(_, global)| global.translation());
+    let blend = 1.0 - (-TURRET_TRACKING * time.delta_secs()).exp();
+    for (entity, turret, parent, mut transform) in &mut turrets {
+        let enemy = ancestors
+            .iter_ancestors(entity)
+            .find_map(|ancestor| ships.get(ancestor).ok())
+            .is_some_and(|(ship, _)| matches!(ship.kind, ShipKind::Enemy(_)));
+        let aim = flagship
+            .filter(|_| enemy)
+            .zip(globals.get(parent.parent()).ok())
+            .map(|(target, parent)| {
+                let to =
+                    parent.affine().inverse().transform_point3(target) - turret.rest.translation;
+                Quat::from_rotation_y(to.x.atan2(to.z))
+            })
+            .unwrap_or(turret.rest.rotation);
+        transform.rotation = transform.rotation.slerp(aim, blend);
     }
 }

@@ -178,18 +178,19 @@ def fine(s, m, z):
 
     # ---------------------------------------------------------------- Türme: Schraubenkranz, Dach, Steigeisen, Gefahrenkreis
     # Schrauben im Barbettenring jedes Turms, auf dem Dach zwei Handläufe (sie enden vor den Mündungen des Turms
-    # darüber) und ein Periskop; an der hohen Barbette des überhöhten Turms Steigeisen nach achtern und auf dem Deck um
-    # ihn der Schwenkkreis der Rohre als Linie
+    # darüber) und ein Periskop, die mit dem Turm drehen; an der hohen Barbette des überhöhten Turms Steigeisen nach
+    # achtern und auf dem Deck um ihn der Schwenkkreis der Rohre als Linie
     for (x, y, tz), r, _ in TURRETS:
         bolts(s, m["steel"], [(x + 1.125 * r * cos(a), y + 1.125 * r * sin(a), tz + 0.05) for a in (11.25 + 22.5 * k for k in range(16))], mirror=x > 0)
 
         def roof(dy):
             return tz + 0.14 + 0.86 * r + 0.02 * (dy + 0.5 * r) / 1.1
 
-        for sx in (-0.66 * r, 0.66 * r):
-            rail(s, m, (x + sx, y - 0.4 * r, roof(-0.4 * r)), (x + sx, y + 0.25 * r, roof(0.25 * r)), 3, mirror=x > 0, h=0.05)
-        s.add(box(0.08, 0.06, 0.05), m["dark"], at=(x + 0.3 * r, y - 0.28 * r, roof(-0.28 * r) + 0.018), mirror=x > 0)
-        s.add(box(0.05, 0.012, 0.02), m["steel_flat"], at=(x + 0.3 * r, y - 0.28 * r - 0.03, roof(-0.28 * r) + 0.026), mirror=x > 0)
+        with s.turret((x, y, tz), mirror=x > 0):
+            for sx in (-0.66 * r, 0.66 * r):
+                rail(s, m, (x + sx, y - 0.4 * r, roof(-0.4 * r)), (x + sx, y + 0.25 * r, roof(0.25 * r)), 3, mirror=x > 0, h=0.05)
+            s.add(box(0.08, 0.06, 0.05), m["dark"], at=(x + 0.3 * r, y - 0.28 * r, roof(-0.28 * r) + 0.018), mirror=x > 0)
+            s.add(box(0.05, 0.012, 0.02), m["steel_flat"], at=(x + 0.3 * r, y - 0.28 * r - 0.03, roof(-0.28 * r) + 0.026), mirror=x > 0)
     for k in range(4):
         h = 0.035 + 0.06 * k
         r = 0.56 - 0.02 * h / 0.335 + 0.008

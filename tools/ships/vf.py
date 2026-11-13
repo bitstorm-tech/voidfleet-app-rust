@@ -2,7 +2,8 @@
 
 Konventionen (Blender-Koordinaten): Die Nase zeigt nach -Y, oben ist +Z, Steuerbord ist +X. Nach dem glTF-Export
 (Y-up) zeigt die Nase nach glTF +Z; der Bevy-Loader dreht das Modell um 180° (`crates/client/src/scene/coords.rs`).
-Jedes Schiff ist ein einziges Mesh aus geschlossenen, sich überlappenden Primitiven (`Ship.add`), ohne gemalte
+Jedes Schiff ist ein Mesh (die drehbaren Türme exportiert `split_turrets` je als eigenes) aus geschlossenen, sich
+überlappenden Primitiven (`Ship.add`), ohne gemalte
 Texturen; Fasen an den großen Kanten setzt `chamfer`. UVs und die Maske der Verwitterung kommen nach dem Bau aus
 weather.py. Auf dem Brett
 liegt der Slot bei Blender-z −1,4, bei Flaggschiffen wegen ihres Faktors 1,1 bei −1,27 (`slot`): Kein Teil darf darunter,
@@ -39,9 +40,10 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
       toon-Material, dazu Glut. glTF: baseColorFactor = Licht-Ton, emissiveFactor = `heat`, emissiveTexture = Glutmuster
       (Graustufen, kachelbar, Sampler REPEAT).
 
-Aufbau: `<id>.glb` ist ein Knoten mit einem Mesh, je Material ein Primitive (POSITION, NORMAL, Indizes); `<id>_wreck.glb`
-hat je Bruchstück einen Knoten (Ursprung im Schwerpunkt). TEXCOORD_0 (eine UV-Ebene) tragen genau die Primitive, deren
-Material eine Textur nutzt: toon mit Maske (UVs der Abwicklung, auch auf den alten Flächen der Bruchstücke) und die
+Aufbau: `<id>.glb` ist ein Knoten mit einem Mesh, je Material ein Primitive (POSITION, NORMAL, Indizes), darunter je
+drehbarem Turm ein Kindknoten `<id>_turret_<k>` (Ursprung in der Mitte der Barbette, Rohre lokal nach glTF +Z,
+`split_turrets`); `<id>_wreck.glb` hat je Bruchstück einen Knoten (Ursprung im Schwerpunkt). TEXCOORD_0 (eine
+UV-Ebene) tragen genau die Primitive, deren Material eine Textur nutzt: toon mit Maske (UVs der Abwicklung, auch auf den alten Flächen der Bruchstücke) und die
 Bruchflächen (Box-UVs des Glutmusters); Lichter und Hologramme nicht (`_tidy_gltf`). Materialien heißen
 `<id>_<schlüssel>` (siehe `materials`), keine glTF-Erweiterungen. Nur Hologramme sind
 doubleSided, alle anderen einseitig: Jede Hülle ist geschlossen und nach außen orientiert, auch gespiegelte Teile und die
@@ -55,6 +57,7 @@ import json
 import math
 import random
 import struct
+from contextlib import contextmanager
 
 import bmesh
 import bpy
@@ -526,6 +529,9 @@ class Ship:
         self.bm = bmesh.new()
         self.materials = []
         self.rng = random.Random(name)
+        self.mounts = self.bm.faces.layers.int.new("turret")
+        self.mount = None
+        self.turrets = []
 
     def add(self, part, mat, at=(0, 0, 0), rot=(0, 0, 0), scale=1.0, mirror=False):
         """Teil (bmesh) mit Material einfügen; `rot` in Grad, `mirror` spiegelt zusätzlich an x=0."""
@@ -543,6 +549,24 @@ class Ship:
     def _merge(self, part, index, matrix, flip=False):
         for face in _append(self.bm, part, matrix, flip):
             face.material_index = index
+            face[self.mounts] = self.mount[flip] if self.mount else 0
+
+    @contextmanager
+    def turret(self, at, yaw=0.0, mirror=False):
+        """Was in diesem Block dazukommt, gehört zum drehbaren Turm über `at` (Mitte der Barbette, Rohre in Ruhe nach -Y,
+        gedreht um `yaw` Grad), mit `mirror` auch zu seinem Spiegelbild; derselbe `at` meint denselben Turm.
+        `split_turrets` trennt ihn vor dem Export als eigenes Objekt ab, das der Client dreht."""
+        at = tuple(at)
+        keys = [(at, yaw)] + ([((-at[0], at[1], at[2]), -yaw)] if mirror else [])
+        for key in keys:
+            if key not in self.turrets:
+                self.turrets.append(key)
+        indices = [self.turrets.index(key) + 1 for key in keys]
+        self.mount = (indices[0], indices[-1])
+        try:
+            yield
+        finally:
+            self.mount = None
 
     def place(self, group, at=(0, 0, 0), rot=(0, 0, 0), mirror=False):
         """Eine fertig gebaute Baugruppe (ebenfalls ein Ship) transformiert einfügen."""
@@ -555,6 +579,7 @@ class Ship:
         for m, flip in transforms:
             for face in _append(self.bm, group.bm, m, flip):
                 face.material_index = index[face.material_index]
+                face[self.mounts] = self.mount[flip] if self.mount else 0
         return self
 
     def lift(self, dz):
@@ -586,8 +611,48 @@ class Ship:
         for mat in self.materials:
             mesh.materials.append(mat)
         obj = bpy.data.objects.new(self.name, mesh)
+        obj["turrets"] = [[*at, yaw] for at, yaw in self.turrets]
         collection.objects.link(obj)
         return obj
+
+
+def split_turrets(obj):
+    """Trennt die Türme (`Ship.turret`) als Kindobjekte `<id>_turret_<k>` ab und liefert sie: Ursprung in der Mitte der
+    Barbette, um `yaw` gedreht, die Rohre zeigen lokal nach -Y (nach dem Export glTF +Z). Nach Maske und Wrack
+    aufrufen, die das ganze Schiff brauchen."""
+    turrets = obj.get("turrets", [])
+    if "turrets" in obj:
+        del obj["turrets"]
+    children = []
+    for k, (x, y, z, yaw) in enumerate(turrets, 1):
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        layer = bm.faces.layers.int["turret"]
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[layer] != k], context="FACES")
+        pivot = Vector((x, y, z))
+        bmesh.ops.transform(bm, matrix=Matrix.Rotation(-math.radians(yaw), 4, "Z") @ Matrix.Translation(-pivot), verts=bm.verts)
+        bm.faces.layers.int.remove(layer)
+        mesh = bpy.data.meshes.new(f"{obj.name}_turret_{k}")
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        old = bpy.data.objects.get(mesh.name)
+        if old:
+            bpy.data.objects.remove(old)
+        child = bpy.data.objects.new(mesh.name, mesh)
+        child.location, child.rotation_euler, child.parent = pivot, (0, 0, math.radians(yaw)), obj
+        obj.users_collection[0].objects.link(child)
+        children.append(child)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    layer = bm.faces.layers.int.get("turret")
+    if layer:
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[layer]], context="FACES")
+        bm.faces.layers.int.remove(layer)
+        bm.to_mesh(obj.data)
+    bm.free()
+    return children
 
 
 def slot(ship):

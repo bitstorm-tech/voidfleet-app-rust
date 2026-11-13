@@ -37,7 +37,7 @@ use crate::{
         formation::{Hull, formation, visible_hulls},
         labels::ShipCaption,
         motion::{Arrive, Charge, HitFlash, MoveShip, Withdraw},
-        ship::{AimedHull, Ship, ShipModel, Wreck, spawn_ship},
+        ship::{AimedHull, Ship, ShipModel, Turret, Wreck, spawn_ship},
         status::{ShieldStrike, ShipBounds, ShipStatus},
     },
     ui::{AppendLog, ShowBanner, ShowRoundBanner},
@@ -53,6 +53,8 @@ const ORBIT: Vec3 = Vec3::new(0.0, 9.0, 0.0);
 const HULL_RADIUS: f32 = 0.45;
 /// Ein Schuss, der verfehlt, fliegt so weit über sein Ziel hinaus, bis weit aus dem Bild.
 const MISS_RANGE: f32 = 60.0;
+/// Eine Mündung so nah an der Hochachse eines Turms (im Raum des Modells) dreht mit ihm: weiter als die längsten Rohre.
+const TURRET_REACH: f32 = 2.0;
 /// Rammkurs: Der Rammer hält so weit vor der Mitte des Ziels.
 const RAM_STANDOFF: f32 = 1.1;
 /// Der Traktorstrahl greift von so hoch über dem Flaggschiff.
@@ -267,6 +269,8 @@ pub(super) struct Stage<'w, 's> {
     groups: Query<'w, 's, &'static Children, (With<ShipModel>, Without<Wreck>)>,
     hulls: Query<'w, 's, (&'static Hull, &'static Visibility, &'static GlobalTransform)>,
     aimed: Query<'w, 's, &'static mut AimedHull>,
+    turrets: Query<'w, 's, (&'static Turret, &'static GlobalTransform, &'static ChildOf)>,
+    globals: Query<'w, 's, &'static GlobalTransform>,
     bounds: Query<'w, 's, (&'static ShipBounds, &'static GlobalTransform)>,
     statuses: Query<'w, 's, &'static mut ShipStatus>,
     captions: Query<'w, 's, &'static mut ShipCaption>,
@@ -394,10 +398,32 @@ impl Stage<'_, '_> {
             .1
             .into_iter()
             .filter(|(.., standing)| *standing)
-            .filter_map(|(hull, ..)| self.hulls.get(hull).ok())
-            .flat_map(|(_, _, global)| muzzles.iter().map(|&at| global.transform_point(at)))
+            .filter_map(|(hull, ..)| Some((hull, self.hulls.get(hull).ok()?.2)))
+            .flat_map(|(hull, global)| muzzles.iter().map(move |&at| self.turned(hull, global, at)))
             .min_by(|a, b| a.distance(toward).total_cmp(&b.distance(toward)))
             .unwrap_or(center)
+    }
+
+    /// Ein Punkt `at` im Raum des Modells `hull` in der Welt; liegt er an einem drehbaren Turm ([`Turret`]), dreht er
+    /// mit ihm.
+    fn turned(&self, hull: Entity, model: &GlobalTransform, at: Vec3) -> Vec3 {
+        let point = model.transform_point(at);
+        let to_model = model.affine().inverse();
+        self.turrets
+            .iter()
+            .filter(|(turret, ..)| turret.hull == hull)
+            .filter_map(|(turret, global, parent)| {
+                let rest = self
+                    .globals
+                    .get(parent.parent())
+                    .ok()?
+                    .mul_transform(turret.rest);
+                let reach = to_model.transform_point3(rest.translation()).distance(at);
+                (reach < TURRET_REACH)
+                    .then(|| (global.affine() * rest.affine().inverse()).transform_point3(point))
+            })
+            .next()
+            .unwrap_or(point)
     }
 
     /// Wo ein Schuss von `from` die Hülle bei `to` trifft: bei einer Einheit am vordersten stehenden Modell ihrer
