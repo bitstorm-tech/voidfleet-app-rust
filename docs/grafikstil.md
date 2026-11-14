@@ -148,11 +148,12 @@ kippen (Gold, Messing).
 | <span style="color:#2F5F7A">■</span> `GLASS`    | `#2F5F7A` | `#17445D`    | `#092A3C` | Kanzeln (mit Glanz)                      |
 | <span style="color:#F4D68C">■</span> `TRIM`     | `#F4D68C` | `#C9A05A`    | `#7F5A2C` | Zierlinie der Flaggschiffe               |
 | <span style="color:#3B3532">■</span> `WRECK`    | `#3B3532` | `#2C2624`    | `#1C1816` | verkohlte Bruchflächen                   |
+| <span style="color:#8C1C2C">■</span> `GORE`     | `#8C1C2C` | `#6C0519`    | `#46020B` | rohes Fleisch: Bruchflächen der Wesen    |
 
 Lichter haben genau eine Farbe: Positions- und Zierlichter `#5CC4FF`, Brennkammern `#C8F0FF`, Fenster `#9FE0FF`,
 Schildemitter `#FF3FA6`, Plasma `#B45CFF`, Positionslichter rot `#FF5040` und grün `#50FF7A`, Glut der Bruchflächen
-`#FF9945`. Welches Material wohin gehört und wie viel Akzent ein Schiff trägt, regeln die
-[Stilregeln](stilregeln.md).
+`#FF9945`, Leuchtsaft in den Bruchflächen der Wesen `#45E0C8`. Welches Material wohin gehört und wie viel Akzent ein
+Schiff trägt, regeln die [Stilregeln](stilregeln.md).
 
 ### Regeln für Farben
 
@@ -210,7 +211,11 @@ Effekte, Partikel, Marken, Balken und Pads sind selbstleuchtend und unbeleuchtet
 - **Fünf Einschläge.** Funken, Feuerball, Entladung, Durchschlag, Brand (`HitVariant`); eine neue Waffe wählt eine
   davon, statt eine sechste zu erfinden.
 - **Zerstörung in drei Akten.** Todeskampf, Detonation, Wrack mit glühenden, abkühlenden Bruchstücken. Je größer das
-  Schiff, desto größer die Detonation; Flaggschiffe gehen in der Farbe ihres Admirals unter.
+  Schiff, desto größer die Detonation; Flaggschiffe gehen in der Farbe ihres Admirals unter. Die Wesen explodieren
+  nicht, sie platzen: Der Leib schwillt pulsierend an und windet sich, die Organe leuchten auf, Wunden spritzen Blut
+  und Leuchtsaft; dann reißt er auf, Blut, Leuchtsaft und ein Nebel aus Blut statt Ruß fliegen davon, und die Brocken
+  (rohes Fleisch im Schnitt, `GORE`) bluten, statt zu brennen. Der Unbekannte Kontakt tut das träge wie in Zeitlupe,
+  die Brut in einem Zucken.
 - **Bewegung hat Gewicht.** Schiffe fliegen nur vorwärts, in Kurven und Schleifen mit Schräglage; Schlachtschiffe
   und Flaggschiffe gleiten behäbig (`scene/maneuver.rs`). Ein Treffer ist ein kurzer Blitz am Modell, am Flaggschiff
   mit Wackeln. Jede Animation ist ein Auftrag mit Ende und folgt der eingestellten Animationsgeschwindigkeit;

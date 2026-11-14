@@ -1,7 +1,7 @@
 //! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen, die Zielmarke eines umgelenkten Schusses,
 //! der Strahl der Railgun, der stehende Laserstrahl, der aufgeladene Schuss, die Rakete des Wärmesuchers mit Leuchtspur,
 //! der Traktorstrahl, Impulse, Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und
-//! der Austritt eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
+//! der Austritt eines Schiffs aus dem Hyperraum; für die Wesen statt Feuer Blut: Wunden, das Platzen, blutende Brocken; dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
 //! Blitz). Alle räumen sich nach dem Abspielen selbst weg.
 //!
 //! Jeder Effekt ist ein Auftrag ([`crate::scene::animation`]): Man spawnt seine Komponente und wartet, wenn nötig, auf
@@ -18,7 +18,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, world_serialization::WorldAsset
 use super::{
     animation::{Animation, AnimationFinished, AnimationScope, AnimationSystems},
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
-    particles::{Burst, Emitter, Particles, SPHERE, ember, shot, smoke, soot},
+    particles::{Burst, Emitter, Particles, SPHERE, blood, ember, gore, shot, smoke, soot},
     toon::ToonFlash,
 };
 use crate::audio::{PlaySound, SoundId};
@@ -85,6 +85,8 @@ const TETHER_FADE_OUT: f32 = 0.3;
 const FLASH_DURATION: f32 = 0.14;
 const RING_SIZE: f32 = 2.6;
 const RING_DURATION: f32 = 0.3;
+/// Bis der Kern einer Detonation verglüht ist.
+pub const DETONATION_CORE: f32 = 0.38;
 /// Ab dieser Größe (Kreuzer) klingt die Detonation nach großer Explosion.
 const LARGE_BLAST: f32 = 1.4;
 /// Hyperraum: Größen in Vielfachen des Schiffsradius.
@@ -285,6 +287,9 @@ pub enum BlastStyle {
     Fire,
     /// Reaktorbruch: die Energie zuckt in Fäden heraus, das Feuer bleibt kleiner, kaum Ruß.
     Energy,
+    /// Ein Leib platzt: Blut spritzt nach allen Seiten und fällt, dicke Batzen, glimmender Leuchtsaft in der Farbe der
+    /// Energie und ein Nebel aus Blut statt Ruß; kein Feuer.
+    Flesh,
 }
 
 impl BlastStyle {
@@ -360,8 +365,121 @@ impl BlastStyle {
                 embers(50),
                 soot(16, (2.0, 3.0)),
             ],
+            Self::Flesh => vec![
+                Burst {
+                    count: 170,
+                    speed: (3.0, 9.0),
+                    life: (0.7, 1.4),
+                    size: (0.05, 0.12),
+                    grow: 0.0,
+                    stretch: 3.0,
+                    gravity: -4.0,
+                    opaque: true,
+                    colors: blood,
+                    ..Burst::DEFAULT
+                },
+                Burst {
+                    count: 40,
+                    speed: (1.5, 5.0),
+                    life: (1.0, 1.8),
+                    size: (0.14, 0.28),
+                    grow: 0.2,
+                    stretch: 1.6,
+                    gravity: -3.0,
+                    opaque: true,
+                    colors: blood,
+                    ..Burst::DEFAULT
+                },
+                Burst {
+                    count: 70,
+                    speed: (2.0, 7.0),
+                    life: (0.6, 1.3),
+                    size: (0.05, 0.1),
+                    stretch: 2.5,
+                    gravity: -3.0,
+                    colors: shot,
+                    ..Burst::DEFAULT
+                },
+                Burst {
+                    count: 26,
+                    speed: (0.6, 1.8),
+                    life: (1.6, 2.8),
+                    size: (0.5, 0.9),
+                    grow: 1.8,
+                    gravity: -0.15,
+                    opaque: true,
+                    colors: gore,
+                    ..Burst::DEFAULT
+                },
+            ],
         }
     }
+}
+
+/// Derselbe Schwarm in anderem Tempo: unter 1 läuft er wie in Zeitlupe (gleiche Wege, mehr Zeit), träge wie ein großer
+/// Leib.
+fn paced(burst: Burst, tempo: f32) -> Burst {
+    Burst {
+        speed: (burst.speed.0 * tempo, burst.speed.1 * tempo),
+        life: (burst.life.0 / tempo, burst.life.1 / tempo),
+        gravity: burst.gravity * tempo * tempo,
+        ..burst
+    }
+}
+
+/// Wunde: ein Strahl Blut, ein paar Batzen, Spritzer Leuchtsaft und ein Hauch Blutnebel.
+fn spurt_bursts() -> [Burst; 4] {
+    let deg = |degrees: f32| degrees.to_radians();
+    [
+        Burst {
+            count: 40,
+            cone: deg(25.0),
+            speed: (2.5, 6.0),
+            life: (0.5, 1.0),
+            size: (0.05, 0.11),
+            grow: 0.0,
+            stretch: 3.0,
+            gravity: -4.0,
+            opaque: true,
+            colors: blood,
+            ..Burst::DEFAULT
+        },
+        Burst {
+            count: 10,
+            cone: deg(40.0),
+            speed: (1.0, 3.0),
+            life: (0.7, 1.2),
+            size: (0.1, 0.18),
+            grow: 0.2,
+            gravity: -3.0,
+            opaque: true,
+            colors: blood,
+            ..Burst::DEFAULT
+        },
+        Burst {
+            count: 16,
+            cone: deg(35.0),
+            speed: (2.0, 5.0),
+            life: (0.4, 0.8),
+            size: (0.04, 0.08),
+            stretch: 2.0,
+            gravity: -3.0,
+            colors: shot,
+            ..Burst::DEFAULT
+        },
+        Burst {
+            count: 5,
+            cone: deg(50.0),
+            speed: (0.3, 0.8),
+            life: (0.8, 1.4),
+            size: (0.25, 0.4),
+            grow: 1.5,
+            gravity: -0.1,
+            opaque: true,
+            colors: gore,
+            ..Burst::DEFAULT
+        },
+    ]
 }
 
 /// Sekundärexplosion: ein Riss in der Hülle, aus dem Feuer, Funken und ein Rauchpilz brechen.
@@ -542,13 +660,27 @@ pub struct Warp {
 }
 
 /// Detonation eines Schiffs: Kern und Blitz, eine flache und eine aufrechte Druckwelle, die Schwärme des Stils und das
-/// Blitzlicht. Endet, sobald der Kern verglüht ist; der Rest läuft weiter.
+/// Blitzlicht; ein Leib ([`BlastStyle::Flesh`]) platzt nur, mit einem letzten Aufleuchten seiner Organe. Endet, sobald
+/// der Kern verglüht ist; der Rest läuft weiter. `tempo` 1 ist ein Schiff; darunter läuft alles träger
+/// (Zeitlupe), darüber hastiger.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Detonation {
     pub position: Vec3,
     pub energy: Color,
     pub size: f32,
     pub style: BlastStyle,
+    pub tempo: f32,
+}
+
+/// Eine Wunde im Leib eines Wesens reißt auf: Blut schießt in Richtung `outward` heraus, dazu Leuchtsaft in `color`;
+/// `size` wie bei [`SecondaryExplosion`], `tempo` wie bei [`Detonation`].
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Spurt {
+    pub position: Vec3,
+    pub outward: Vec3,
+    pub color: Color,
+    pub size: f32,
+    pub tempo: f32,
 }
 
 /// Feuer und Rauch schlagen `duration` Sekunden aus einem Trümmerstück und erlöschen dann; `spread` ist die halbe
@@ -560,6 +692,22 @@ pub struct Burn {
     pub spread: f32,
     pub duration: f32,
 }
+
+/// Blut tropft `duration` Sekunden aus einem Fleischbrocken, dazwischen glimmt Leuchtsaft in `color`; sonst wie
+/// [`Burn`], `tempo` wie bei [`Detonation`].
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Bleed {
+    pub piece: Entity,
+    pub color: Color,
+    pub size: f32,
+    pub spread: f32,
+    pub duration: f32,
+    pub tempo: f32,
+}
+
+/// Ein Brand oder eine Blutung folgt diesem Trümmerstück.
+#[derive(Component, Clone, Copy, Debug)]
+struct OnPiece(Entity);
 
 /// Ein Lichtblitz, der die Schiffe aufhellt: springt auf `intensity` und klingt quadratisch ab.
 #[derive(Component, Clone, Copy, Debug)]
@@ -717,6 +865,8 @@ impl Plugin for EffectsPlugin {
             .add_observer(start_warp)
             .add_observer(start_detonation)
             .add_observer(start_burn)
+            .add_observer(start_spurt)
+            .add_observer(start_bleed)
             .add_systems(
                 Update,
                 (
@@ -1584,7 +1734,37 @@ fn open_portals(
 
 fn start_detonation(add: On<Add<Detonation>>, detonations: Query<&Detonation>, mut fx: Fx) {
     let blast = *detonations.get(add.entity).expect("Detonation");
-    let (position, energy, size) = (blast.position, blast.energy, blast.size);
+    let (position, energy, size, tempo) = (blast.position, blast.energy, blast.size, blast.tempo);
+    for burst in blast.style.bursts() {
+        fx.burst(position, Vec3::Y, paced(burst, tempo), energy, size);
+    }
+    if blast.style == BlastStyle::Flesh {
+        // Kein Feuerball und keine Druckwelle: Die Organe leuchten ein letztes Mal auf, ein großer Leib tiefer und
+        // langsamer.
+        fx.sound(
+            PlaySound::new(SoundId::FleshBurst)
+                .at(position)
+                .rate(tempo.powf(0.4)),
+        );
+        fx.sprite(
+            position,
+            light(lighten(energy, 0.5)),
+            1.6 * size,
+            0.3 / tempo,
+            SpriteKind::Flash,
+        );
+        fx.flash_light(position, 10.0 * size, 0.5 / tempo);
+        fx.commands.entity(add.entity).insert((
+            Name::new("Platzen"),
+            Pulse {
+                position,
+                color: energy,
+                size: 0.9 * size,
+                duration: DETONATION_CORE / tempo,
+            },
+        ));
+        return;
+    }
     fx.sound(
         PlaySound::new(if size >= LARGE_BLAST {
             SoundId::ExplosionLarge
@@ -1596,9 +1776,6 @@ fn start_detonation(add: On<Add<Detonation>>, detonations: Query<&Detonation>, m
     );
     if blast.style == BlastStyle::Energy {
         fx.sound(PlaySound::new(SoundId::ReactorBreach).at(position));
-    }
-    for burst in blast.style.bursts() {
-        fx.burst(position, Vec3::Y, burst, energy, size);
     }
     fx.sprite(
         position,
@@ -1631,9 +1808,32 @@ fn start_detonation(add: On<Add<Detonation>>, detonations: Query<&Detonation>, m
             position,
             color: core,
             size: 1.2 * size,
-            duration: 0.38,
+            duration: DETONATION_CORE,
         },
     ));
+}
+
+fn start_spurt(add: On<Add<Spurt>>, spurts: Query<&Spurt>, mut fx: Fx) {
+    let spurt = *spurts.get(add.entity).expect("Wunde");
+    fx.sound(
+        PlaySound::new(SoundId::FleshBurst)
+            .at(spurt.position)
+            .volume(0.35)
+            .rate(1.2 * spurt.tempo.powf(0.4)),
+    );
+    for burst in spurt_bursts() {
+        let burst = paced(burst, spurt.tempo);
+        fx.burst(
+            spurt.position,
+            spurt.outward,
+            burst,
+            spurt.color,
+            spurt.size,
+        );
+    }
+    fx.commands
+        .entity(add.entity)
+        .insert((Name::new("Wunde"), Animation::new(0.22 / spurt.tempo)));
 }
 
 fn start_burn(
@@ -1648,6 +1848,7 @@ fn start_burn(
         .map_or(Vec3::ZERO, GlobalTransform::translation);
     fx.commands.entity(add.entity).insert((
         Name::new("Brand"),
+        OnPiece(burn.piece),
         Transform::from_translation(at),
         Animation::new(burn.duration),
     ));
@@ -1687,13 +1888,65 @@ fn start_burn(
     }
 }
 
-/// Brände folgen ihrem Trümmerstück; die Ströme folgen dem Brand und versiegen mit ihm.
-fn follow_pieces(
-    mut burns: Query<(&Burn, &mut Transform)>,
-    pieces: Query<&GlobalTransform, Without<Burn>>,
+fn start_bleed(
+    add: On<Add<Bleed>>,
+    bleeds: Query<&Bleed>,
+    pieces: Query<&GlobalTransform>,
+    mut fx: Fx,
 ) {
-    for (burn, mut transform) in &mut burns {
-        if let Ok(piece) = pieces.get(burn.piece) {
+    let bleed = *bleeds.get(add.entity).expect("Blutung");
+    let at = pieces
+        .get(bleed.piece)
+        .map_or(Vec3::ZERO, GlobalTransform::translation);
+    fx.commands.entity(add.entity).insert((
+        Name::new("Blutung"),
+        OnPiece(bleed.piece),
+        Transform::from_translation(at),
+        Animation::new(bleed.duration),
+    ));
+    let drops = Burst {
+        spread: bleed.spread,
+        speed: (0.2, 0.8),
+        life: (0.6, 1.2),
+        size: (0.05, 0.1),
+        grow: 0.0,
+        stretch: 2.0,
+        gravity: -2.5,
+        opaque: true,
+        colors: blood,
+        ..Burst::DEFAULT
+    };
+    let ichor = Burst {
+        spread: bleed.spread,
+        speed: (0.1, 0.4),
+        life: (0.5, 1.0),
+        size: (0.04, 0.08),
+        gravity: -1.0,
+        colors: shot,
+        ..Burst::DEFAULT
+    };
+    for (burst, rate) in [(drops, 45.0), (ichor, 12.0)] {
+        fx.commands.spawn((
+            Name::new("Blutung-Partikel"),
+            Transform::from_translation(at),
+            Particles::stream(
+                paced(burst, bleed.tempo),
+                bleed.color,
+                bleed.size,
+                SPHERE,
+                Emitter::new(rate, Some(add.entity)),
+            ),
+        ));
+    }
+}
+
+/// Brände und Blutungen folgen ihrem Trümmerstück; die Ströme folgen ihnen und versiegen mit ihnen.
+fn follow_pieces(
+    mut spills: Query<(&OnPiece, &mut Transform)>,
+    pieces: Query<&GlobalTransform, Without<OnPiece>>,
+) {
+    for (on, mut transform) in &mut spills {
+        if let Ok(piece) = pieces.get(on.0) {
             transform.translation = piece.translation();
         }
     }

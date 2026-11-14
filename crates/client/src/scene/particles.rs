@@ -106,6 +106,24 @@ pub fn soot(_: Color) -> Vec<(f32, Srgba)> {
     ]
 }
 
+/// Blut der Wesen: hellrot, wo es aus dem Leib schießt, dann dunkel und zäh.
+pub fn blood(_: Color) -> Vec<(f32, Srgba)> {
+    vec![
+        (0.0, Srgba::new(0.85, 0.07, 0.1, 1.0)),
+        (0.5, Srgba::new(0.55, 0.03, 0.07, 0.95)),
+        (1.0, Srgba::new(0.3, 0.01, 0.04, 0.0)),
+    ]
+}
+
+/// Blutnebel: ein dunkelroter Schleier, der verweht (statt Ruß).
+pub fn gore(_: Color) -> Vec<(f32, Srgba)> {
+    vec![
+        (0.0, Srgba::new(0.6, 0.05, 0.08, 0.65)),
+        (0.4, Srgba::new(0.4, 0.03, 0.06, 0.45)),
+        (1.0, Srgba::new(0.22, 0.02, 0.05, 0.0)),
+    ]
+}
+
 /// Energie in der Schussfarbe: weiß aufblitzend, dann in der Farbe verblassend.
 pub fn shot(color: Color) -> Vec<(f32, Srgba)> {
     let color = color.to_srgba();

@@ -3,6 +3,12 @@
 //! glühende Bruchstücke auseinanderfliegen, brennen, abkühlen und verblassen. Jedes Schiff hat sein eigenes Profil;
 //! Flaggschiffe gehen in der Farbe ihres Admirals unter, mit den größten Detonationen.
 //!
+//! Die Wesen (der Unbekannte Kontakt und seine Brut, [`BlastStyle::Flesh`]) explodieren nicht, sie platzen: Im
+//! Todeskampf schwillt der Leib pulsierend an und windet sich, seine Organe leuchten auf, Wunden reißen auf und
+//! spritzen Blut ([`Spurt`]); dann platzt er, und rohe, blutverschmierte Fleischbrocken fliegen davon, bluten
+//! ([`Bleed`]) und verlieren ihr Leuchten. Das Tempo im Profil macht den großen Leib träge wie in Zeitlupe und die
+//! Brut hastig.
+//!
 //! [`DestroyShip`] ist ein Auftrag: Er meldet sein Ende, sobald die Detonation ihre Wucht entfaltet hat (wie das
 //! Original, auf das die Rundenwiedergabe wartet). Die Trümmer fliegen und brennen für sich weiter und nehmen das
 //! Schiff am Ende mit. Das Schiff verliert dabei seinen Slot ([`OnSlot`]). [`DestroyHull`] zerstört so ein einzelnes
@@ -22,7 +28,7 @@ use super::{
     animation::{Animation, AnimationSystems, random_between, random_in_cone},
     board::OnSlot,
     camera::CameraCommand,
-    effects::{BlastStyle, Burn, Detonation, SecondaryExplosion},
+    effects::{BlastStyle, Bleed, Burn, DETONATION_CORE, Detonation, SecondaryExplosion, Spurt},
     formation::Hull,
     motion::HitFlash,
     ship::{BreakApart, Ship, ShipModel, ToonState, WreckReady, spawn_hull},
@@ -51,6 +57,8 @@ pub struct DestructionProfile {
     pub shake: f32,
     /// Wie lange die Trümmer sichtbar bleiben, bevor sie verblassen (Sekunden).
     pub linger: f32,
+    /// 1 für ein Schiff; darunter läuft der Untergang träger (Pulsieren, Spritzer, Taumeln, Fallen), darüber hastiger.
+    pub tempo: f32,
 }
 
 const FIGHTER_ENERGY: Color = Color::srgb(1.0, 0.45, 0.15);
@@ -60,7 +68,7 @@ const CYAN: Color = Color::srgb(0.2, 0.9, 1.0);
 
 impl DestructionProfile {
     pub fn of(kind: ShipKind) -> Self {
-        use BlastStyle::{Energy, Fire};
+        use BlastStyle::{Energy, Fire, Flesh};
         let profile = |energy, style, size, agony: f32, pops, force, shake, linger: f32| Self {
             energy,
             style,
@@ -70,6 +78,7 @@ impl DestructionProfile {
             force,
             shake,
             linger: linger / 1000.0,
+            tempo: 1.0,
         };
         let flagship = |admiral, style| {
             profile(
@@ -117,12 +126,17 @@ impl DestructionProfile {
                 EnemyId::Warden => profile(CYAN, Energy, 2.6, 2100.0, 9, 3.0, 0.6, 3200.0),
                 // Siegel: das gegnerische Flaggschiff.
                 EnemyId::Seal => profile(palette::ENEMY, Energy, 2.3, 1700.0, 8, 3.5, 0.5, 2900.0),
-                // Das Fremde: der längste Todeskampf und die größte Detonation des Spiels, in seinem Leuchten.
-                EnemyId::UnknownContact => {
-                    profile(palette::ALIEN, Energy, 3.0, 2600.0, 12, 3.0, 0.7, 3600.0)
-                }
-                // Brut: platzt wie ein Jäger, in seinem Leuchten.
-                EnemyId::Brood => profile(palette::ALIEN, Energy, 0.9, 300.0, 1, 5.0, 0.1, 1300.0),
+                // Das Fremde: der längste Todeskampf des Spiels, schwer und langsam; dann platzt der Leib, und die Brocken
+                // treiben träge davon.
+                EnemyId::UnknownContact => Self {
+                    tempo: 0.45,
+                    ..profile(palette::ALIEN, Flesh, 3.0, 3400.0, 10, 1.4, 0.5, 4800.0)
+                },
+                // Brut: schwillt in einem Zucken an und zerplatzt.
+                EnemyId::Brood => Self {
+                    tempo: 1.3,
+                    ..profile(palette::ALIEN, Flesh, 0.85, 380.0, 2, 4.5, 0.08, 1300.0)
+                },
             },
             ShipKind::Flagship(flagship_id) => match flagship_id {
                 FlagshipId::Bastion => flagship(AdmiralId::Osei, Fire),
@@ -139,8 +153,6 @@ impl DestructionProfile {
 /// Sekundär- und Nachexplosionen sind kleiner als die Detonation; die Hülle blitzt dabei nur leicht.
 const POP_SIZE: f32 = 0.9;
 const POP_FLASH: f32 = 0.2;
-/// Bis der Kern der Detonation verglüht ist (Ende des Auftrags nach dem Todeskampf).
-const DETONATION_CORE: f32 = 0.38;
 /// Ausblenden der Trümmer am Ende.
 const FADE: f32 = 0.7;
 /// Trümmer: Sinken und Abbremsen (Anteil pro Sekunde).
@@ -164,6 +176,20 @@ const DISTRESS_JITTER: f32 = 0.07;
 const DISTRESS_SINK: f32 = 0.3;
 const DISTRESS_PITCH: f32 = 7.0 * std::f32::consts::PI / 180.0;
 const DISTRESS_ROLL: f32 = 22.0 * std::f32::consts::PI / 180.0;
+/// Todeskampf eines Leibs: Pulsschläge pro Sekunde (mal Tempo), wie weit er bis zum Platzen anschwillt, die Tiefe des
+/// Pulsierens, das letzte Aufblähen kurz davor und wie weit er sich windet; seine Organe leuchten bis zu so viel heller.
+const THROB: f32 = 2.2;
+const SWELL: f32 = 0.2;
+const WOBBLE: f32 = 0.06;
+const BULGE: f32 = 0.12;
+const WRITHE_ROLL: f32 = 12.0 * std::f32::consts::PI / 180.0;
+const WRITHE_PITCH: f32 = 5.0 * std::f32::consts::PI / 180.0;
+const ORGAN_SURGE: f32 = 1.5;
+/// Brocken eines Leibs: blutverschmiert (linear, Anteil frisch und danach), der Leuchtsaft in den Schnitten glimmt
+/// so hell und erlischt mit den Organen.
+const BLOOD_SMEAR: Vec3 = Vec3::new(0.22, 0.0, 0.01);
+const SMEAR: (f32, f32) = (0.55, 0.3);
+const ICHOR_GLOW: f32 = 3.0;
 /// Hüllenpunkte: Strahlen aus diesem Kegel um „oben“, Abstand zur Hülle.
 const SURFACE_CONE: f32 = 75.0 * std::f32::consts::PI / 180.0;
 const SURFACE_CLEARANCE: f32 = 0.05;
@@ -388,55 +414,123 @@ fn begin(
             pose: Transform::default(),
         },
         Transform::from_translation(center),
+        // Ein Leib ächzt nass statt metallisch, ein träger tiefer.
         LoopingSound {
             volume: (profile.agony / 1.6).min(1.0),
-            ..LoopingSound::new(SoundId::HullStress)
+            rate: profile.tempo.powf(0.4),
+            ..LoopingSound::new(if profile.style == BlastStyle::Flesh {
+                SoundId::FleshStrain
+            } else {
+                SoundId::HullStress
+            })
         },
         Animation::new(profile.agony + DETONATION_CORE),
     ));
 }
 
-/// Das Schiff zittert immer stärker, sackt ab und krängt, Risse brechen auf; dann die Detonation.
+/// Lage eines Leibs im Todeskampf nach `beat` Sekunden (mal Tempo) bei `amount` (0..1): Er schwillt um `pivot` an,
+/// pulsiert ungleichmäßig, bläht sich vor dem Platzen ein letztes Mal auf, windet sich langsam und sackt ein wenig ab;
+/// dazu sein Pulsschlag (−1..1).
+fn writhe(beat: f32, amount: f32, side: f32, pivot: Vec3) -> (Transform, f32) {
+    let phase = beat * THROB * std::f32::consts::TAU;
+    let (heave, jiggle) = (phase.sin(), (1.7 * phase + 1.3).sin());
+    let depth = WOBBLE * (0.3 + 0.7 * amount);
+    let last = ((amount - 0.85) / 0.15).clamp(0.0, 1.0);
+    let swell = SWELL * amount * amount + BULGE * last * last * (3.0 - 2.0 * last);
+    let scale = Vec3::new(
+        1.0 + swell + depth * heave,
+        1.0 + 0.8 * swell - 0.6 * depth * heave + 0.4 * depth * jiggle,
+        1.0 + swell + depth * jiggle,
+    );
+    let rotation = Quat::from_euler(
+        EulerRot::YXZ,
+        0.0,
+        WRITHE_PITCH * amount * (0.5 * phase + 0.8).sin(),
+        side * WRITHE_ROLL * amount * (0.5 * phase).sin(),
+    );
+    let sink = Vec3::Y * (-0.5 * DISTRESS_SINK * amount * amount);
+    let translation = pivot + sink - rotation * (scale * pivot);
+    (
+        Transform {
+            translation,
+            rotation,
+            scale,
+        },
+        heave,
+    )
+}
+
+/// Das Schiff zittert immer stärker, sackt ab und krängt, Risse brechen auf; dann die Detonation. Ein Leib schwillt
+/// stattdessen an und windet sich, seine Organe leuchten im Pulsschlag auf, und aus Wunden spritzt Blut; dann platzt er.
 fn agonize(
     mut commands: Commands,
     mut jobs: Query<(Entity, &DestroyShip, &mut Agony, &Animation)>,
-    ships: Query<(&GlobalTransform, Option<&ShipBounds>, &Children), With<Ship>>,
+    mut ships: Query<
+        (
+            &GlobalTransform,
+            Option<&ShipBounds>,
+            &Children,
+            &mut ToonState,
+        ),
+        With<Ship>,
+    >,
     mut models: Query<&mut Transform, With<ShipModel>>,
     mut camera: MessageWriter<CameraCommand>,
 ) {
     for (job, destroy, mut agony, animation) in &mut jobs {
-        let Ok((global, bounds, children)) = ships.get(destroy.ship) else {
+        let Ok((global, bounds, children, mut state)) = ships.get_mut(destroy.ship) else {
             continue;
         };
         let profile = agony.profile;
+        let flesh = profile.style == BlastStyle::Flesh;
         let center = bounds.map_or(global.translation(), |bounds| bounds.world_center(global));
         if !agony.detonated && animation.seconds() < profile.agony {
             let amount = animation.seconds() / profile.agony.max(1e-3);
-            let jitter = DISTRESS_JITTER * (0.2 + 0.8 * amount * amount);
-            let shake = || (rand::random::<f32>() - 0.5) * jitter;
-            let pose =
+            let pose = if flesh {
+                let pivot = global.affine().inverse().transform_point3(center);
+                let beat = animation.seconds() * profile.tempo;
+                let (pose, heave) = writhe(beat, amount, agony.list_side, pivot);
+                state.lights = 1.0 + ORGAN_SURGE * amount * (0.5 + 0.5 * heave);
+                pose
+            } else {
+                let jitter = DISTRESS_JITTER * (0.2 + 0.8 * amount * amount);
+                let shake = || (rand::random::<f32>() - 0.5) * jitter;
                 Transform::from_xyz(shake(), -DISTRESS_SINK * amount * amount + shake(), shake())
                     .with_rotation(Quat::from_euler(
                         EulerRot::YXZ,
                         0.0,
                         -DISTRESS_PITCH * amount * amount,
                         agony.list_side * DISTRESS_ROLL * amount.powi(3),
-                    ));
+                    ))
+            };
             for child in children.iter() {
                 if let Ok(mut model) = models.get_mut(child) {
-                    model.translation = pose.translation;
-                    model.rotation = pose.rotation;
+                    *model = pose;
                 }
             }
             agony.pose = pose;
             while agony.next < agony.pops.len() && agony.pops[agony.next].1 <= amount {
                 let point = agony.pops[agony.next].0;
                 agony.next += 1;
-                commands.spawn(SecondaryExplosion {
-                    position: point,
-                    outward: (point - center).normalize_or(Vec3::Y),
-                    size: POP_SIZE * profile.size.powf(0.75),
-                });
+                let (outward, size) = (
+                    (point - center).normalize_or(Vec3::Y),
+                    POP_SIZE * profile.size.powf(0.75),
+                );
+                if flesh {
+                    commands.spawn(Spurt {
+                        position: point,
+                        outward,
+                        color: profile.energy,
+                        size,
+                        tempo: profile.tempo,
+                    });
+                } else {
+                    commands.spawn(SecondaryExplosion {
+                        position: point,
+                        outward,
+                        size,
+                    });
+                }
                 camera.write(CameraCommand::Shake(profile.shake * 0.25));
                 commands.spawn(HitFlash {
                     strength: POP_FLASH,
@@ -462,6 +556,7 @@ fn agonize(
                 energy: profile.energy,
                 size: profile.size,
                 style: profile.style,
+                tempo: profile.tempo,
             });
         }
     }
@@ -495,8 +590,7 @@ fn scatter_wreck(
     let mut model_transform = Transform::default();
     for child in ship_children.iter() {
         if let Ok(mut model) = models.get_mut(child) {
-            model.translation = awaiting.pose.translation;
-            model.rotation = awaiting.pose.rotation;
+            *model = awaiting.pose;
             model_transform = *model;
         }
     }
@@ -552,7 +646,7 @@ fn scatter_wreck(
                     piece,
                     velocity: direction * speed / world_per_local,
                     axis: random_in_cone(Vec3::Y, std::f32::consts::PI),
-                    spin: random_between((1.5, 4.5)) / mass.sqrt(),
+                    spin: random_between((1.5, 4.5)) / mass.sqrt() * profile.tempo,
                     scale: transform.scale,
                 },
                 extent,
@@ -564,12 +658,24 @@ fn scatter_wreck(
     let burning = (profile.size * 1.5 / share).ceil() as usize;
     let aftershocks = (profile.size / share).round() as usize;
     for (body, extent) in bodies.iter().take(burning) {
-        commands.spawn(Burn {
-            piece: body.piece,
-            size: 0.3 + 0.3 * extent,
-            spread: extent * 0.35,
-            duration: profile.linger,
-        });
+        let (piece, size, spread) = (body.piece, 0.3 + 0.3 * extent, extent * 0.35);
+        if profile.style == BlastStyle::Flesh {
+            commands.spawn(Bleed {
+                piece,
+                color: profile.energy,
+                size,
+                spread,
+                duration: profile.linger,
+                tempo: profile.tempo,
+            });
+        } else {
+            commands.spawn(Burn {
+                piece,
+                size,
+                spread,
+                duration: profile.linger,
+            });
+        }
     }
     let aftershocks = bodies
         .iter()
@@ -588,7 +694,8 @@ fn scatter_wreck(
     ));
 }
 
-/// Trümmer fliegen und taumeln, Bruchkanten kühlen ab, Lichter erlöschen flackernd, zuletzt verblasst alles.
+/// Trümmer fliegen und taumeln, Bruchkanten kühlen ab, Lichter erlöschen flackernd, zuletzt verblasst alles. Die Brocken
+/// eines Leibs sind blutverschmiert, und statt Glut erlischt der Leuchtsaft in ihren Schnitten mit den Organen.
 fn fly_pieces(
     mut commands: Commands,
     mut scatters: Query<(&mut Scatter, &Animation)>,
@@ -600,9 +707,11 @@ fn fly_pieces(
         let t = animation.seconds();
         let dt = animation.delta();
         let profile = scatter.profile;
+        let flesh = profile.style == BlastStyle::Flesh;
+        let pace = profile.tempo;
         for body in &mut scatter.bodies {
-            body.velocity.y -= GRAVITY * dt;
-            body.velocity *= (-DRAG * dt).exp();
+            body.velocity.y -= GRAVITY * pace * pace * dt;
+            body.velocity *= (-DRAG * pace * dt).exp();
             if let Ok((mut transform, _)) = pieces.get_mut(body.piece) {
                 transform.translation += body.velocity * dt;
                 transform
@@ -618,23 +727,45 @@ fn fly_pieces(
         scatter.aftershocks.retain(|(_, at)| *at > t);
         for piece in due {
             if let Ok((_, global)) = pieces.get(piece) {
-                commands.spawn(SecondaryExplosion {
-                    position: global.translation(),
-                    outward: random_in_cone(Vec3::Y, std::f32::consts::PI),
-                    size: POP_SIZE * 0.8 * profile.size.powf(0.75),
-                });
-                camera.write(CameraCommand::Shake(profile.shake * 0.3));
+                let (position, outward, size) = (
+                    global.translation(),
+                    random_in_cone(Vec3::Y, std::f32::consts::PI),
+                    POP_SIZE * 0.8 * profile.size.powf(0.75),
+                );
+                if flesh {
+                    commands.spawn(Spurt {
+                        position,
+                        outward,
+                        color: profile.energy,
+                        size,
+                        tempo: pace,
+                    });
+                } else {
+                    commands.spawn(SecondaryExplosion {
+                        position,
+                        outward,
+                        size,
+                    });
+                    camera.write(CameraCommand::Shake(profile.shake * 0.3));
+                }
             }
         }
         let heat = (1.0 - t / COOL_TIME).max(0.0);
-        let glow = COLD.lerp(WHITE_HOT, heat * heat) * (EMBERS + HEAT_BOOST * heat.powi(3));
-        let glare = (1.0 - t / GLARE_TIME).max(0.0).powi(2);
+        let life = (1.0 - t * pace / LIGHTS_OUT).max(0.0);
+        let glow = if flesh {
+            profile.energy.to_linear().to_vec3() * ICHOR_GLOW * life * life
+        } else {
+            COLD.lerp(WHITE_HOT, heat * heat) * (EMBERS + HEAT_BOOST * heat.powi(3))
+        };
+        let glare = (1.0 - t * pace / GLARE_TIME).max(0.0).powi(2);
         let fade = ((t - profile.linger) / FADE).clamp(0.0, 1.0);
         if let Ok(mut state) = ships.get_mut(scatter.ship) {
             state.heat = Some(LinearRgba::rgb(glow.x, glow.y, glow.z));
-            state.lights = (1.0 - t / LIGHTS_OUT).max(0.0) * (0.5 + 0.5 * rand::random::<f32>());
+            state.lights = life * (0.5 + 0.5 * rand::random::<f32>());
             state.overlay = if fade > 0.0 {
                 Vec3::ZERO.extend(fade)
+            } else if flesh {
+                BLOOD_SMEAR.extend(SMEAR.1 + (SMEAR.0 - SMEAR.1) * glare)
             } else {
                 GLARE.extend(0.75 * glare)
             };

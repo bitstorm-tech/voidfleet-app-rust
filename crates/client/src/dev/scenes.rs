@@ -4,7 +4,8 @@
 //! - `hit` — zwei Schiffe beschießen sich abwechselnd: Mündungsimpuls, Bolzen, Treffer-Blitz, Einschlag, Schwebetext;
 //!   daneben ein Belagerer mit Rumpfbrüchen, das Kreuzer-Paar im Notfall (ein Modell ausgebrannt und brennend);
 //!   `VOIDFLEET_DEV_HIT=sparks|fireball|discharge|pierce|fire` erzwingt eine Variante.
-//! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu.
+//! - `destroy` — die Schiffe gehen nacheinander unter (darunter zwei Staffeln) und landen danach neu; mit
+//!   `VOIDFLEET_DEV_SHIP=<dateiname>` immer wieder dieses eine Modell als Gegner in der Mitte (etwa `unknown_contact`).
 //! - `arrive` — Schiffe fallen auf beiden Seiten aus dem Hyperraum in ihre Slots.
 //! - `move` — Spaltenwechsel des Flaggschiffs, dem die Türme des Belagerers folgen, und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und ein Bolzen, der vorbeifliegt, im Wechsel.
@@ -58,7 +59,7 @@ use crate::{
 pub enum DevScene {
     Board,
     Hit(Option<HitVariant>),
-    Destroy,
+    Destroy(Option<ShipKind>),
     Arrive,
     Move,
     Effects,
@@ -74,22 +75,20 @@ impl DevScene {
                 .into_iter()
                 .find(|variant| format!("{variant:?}").eq_ignore_ascii_case(&name))
         });
+        let ship = std::env::var("VOIDFLEET_DEV_SHIP").ok().map(|name| {
+            let kind = ships().find(|kind| model_key(*kind) == name);
+            kind.unwrap_or_else(|| panic!("unbekanntes Modell: {name}"))
+        });
         match std::env::var("VOIDFLEET_DEV_SCENE").ok()?.as_str() {
             "board" => Some(Self::Board),
             "hit" => Some(Self::Hit(hit)),
-            "destroy" => Some(Self::Destroy),
+            "destroy" => Some(Self::Destroy(ship)),
             "arrive" => Some(Self::Arrive),
             "move" => Some(Self::Move),
             "effects" => Some(Self::Effects),
             "report" => Some(Self::Report),
             "breach" => Some(Self::Breach),
-            "show" => {
-                let name = std::env::var("VOIDFLEET_DEV_SHIP").unwrap_or_else(|_| "bastion".into());
-                let kind = ships().find(|kind| model_key(*kind) == name);
-                Some(Self::Show(
-                    kind.unwrap_or_else(|| panic!("unbekanntes Modell: {name}")),
-                ))
-            }
+            "show" => Some(Self::Show(ship.unwrap_or(BASTION))),
             other => panic!("unbekannte Dev-Szene: {other}"),
         }
     }
@@ -107,7 +106,7 @@ fn period(scene: DevScene) -> f32 {
     match scene {
         DevScene::Board | DevScene::Report | DevScene::Breach | DevScene::Show(_) => f32::INFINITY,
         DevScene::Hit(_) => 1.3,
-        DevScene::Destroy => 2.6,
+        DevScene::Destroy(_) => 2.6,
         DevScene::Arrive => 2.2,
         DevScene::Move => 2.4,
         DevScene::Effects => 1.6,
@@ -223,9 +222,12 @@ const BASTION: ShipKind = ShipKind::Flagship(FlagshipId::Bastion);
 const CRUISER: ShipKind = ShipKind::Enemy(EnemyId::GuardCruiser);
 const BESIEGER: ShipKind = ShipKind::Enemy(EnemyId::Besieger);
 
-/// Die Slots der Szene `destroy`, reihum.
-fn destroy_slots() -> [SlotRef; 6] {
-    [
+/// Die Slots der Szene `destroy`, reihum; ein gewähltes Modell steht allein in der Mitte der Gegnerfront.
+fn destroy_slots(ship: Option<ShipKind>) -> Vec<SlotRef> {
+    if ship.is_some() {
+        return vec![enemy(Row::Front, 1)];
+    }
+    vec![
         own(0),
         enemy(Row::Front, 0),
         enemy(Row::Back, 1),
@@ -272,9 +274,9 @@ fn stage(
             put(CRUISER, enemy(Row::Front, 1), (3, 16, 0));
             put(BESIEGER, enemy(Row::Back, 2), (6, 30, 0));
         }
-        DevScene::Destroy => {
-            let kinds: Vec<ShipKind> = crate::data::ship_models::ships().collect();
-            for (index, slot) in destroy_slots().into_iter().enumerate() {
+        DevScene::Destroy(ship) => {
+            let kinds: Vec<ShipKind> = ship.map_or_else(|| ships().collect(), |kind| vec![kind]);
+            for (index, slot) in destroy_slots(ship).into_iter().enumerate() {
                 put(kinds[index * 2 % kinds.len()], slot, (10, 10, 0));
             }
         }
@@ -369,8 +371,8 @@ fn run(
                     ));
                 });
         }
-        DevScene::Destroy => {
-            let slots = destroy_slots();
+        DevScene::Destroy(ship) => {
+            let slots = destroy_slots(ship);
             let slot = slots[step as usize % slots.len()];
             if let Some((ship, kind)) = ship_on(slot) {
                 info!("Dev-Szene: {slot:?} geht unter (Bild {})", frame.0);

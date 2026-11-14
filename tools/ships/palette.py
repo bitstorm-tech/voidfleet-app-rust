@@ -105,6 +105,7 @@ STEEL = ("#6d7c8f", "#4a5667", "#2b3340")  # Rohre, Läufe, Düsenglocken (rund,
 GLASS = tones("#2f5f7a")  # Kanzeln (rund, mit Glanzpunkt)
 PAINT = tones("#c3c0b4")  # Beschriftung (Wegelinien, Kennnummern): gebrochenes Weiß
 WRECK = tones("#3b3532")  # verkohlte Bruchflächen der Wracks
+GORE = tones("#8c1c2c")  # rohes Fleisch: Bruchflächen der Wesen (Unbekannter Kontakt, Brut)
 
 # Zierlinie der Flaggschiffe: Licht-Ton = FLAGSHIP_TRIM aus crates/client/src/palette.rs; Schatten von Hand ins Warme
 # gezogen, abgeleitet würden sie olivgrün
@@ -121,6 +122,7 @@ GREEN = "#50ff7a"  # Positionslicht Steuerbord
 AMBER = "#ffb347"  # Werkzeuglichter der Repair Drone
 PLASMA = "#b45cff"  # Plasma: Leitungen der Plasma Frigate, Reaktor des Titan Carriers, Düsen der Drohne
 HEAT = "#ff9945"  # Glut der Bruchflächen, heiß (das Spiel lässt sie abkühlen)
+ICHOR = "#45e0c8"  # Leuchtsaft in den Bruchflächen der Wesen, ALIEN aus palette.rs (das Spiel lässt ihn erlöschen)
 
 # ---------------------------------------------------------------- Schiffsklassen
 

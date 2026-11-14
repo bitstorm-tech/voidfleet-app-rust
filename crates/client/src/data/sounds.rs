@@ -45,6 +45,9 @@ pub enum SoundId {
     ExplosionSmall,
     ExplosionLarge,
     ReactorBreach,
+    // Untergang der Wesen: der Leib ächzt und schwillt (Schleife), dann platzt er
+    FleshStrain,
+    FleshBurst,
     // Triebwerke (Schleifen)
     EngineLight,
     EngineMedium,
@@ -64,7 +67,7 @@ pub enum SoundId {
 }
 
 impl SoundId {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 26] = [
         Self::LaserLight,
         Self::LaserMedium,
         Self::CannonHeavy,
@@ -76,6 +79,8 @@ impl SoundId {
         Self::ExplosionSmall,
         Self::ExplosionLarge,
         Self::ReactorBreach,
+        Self::FleshStrain,
+        Self::FleshBurst,
         Self::EngineLight,
         Self::EngineMedium,
         Self::EngineHeavy,
@@ -105,6 +110,8 @@ impl SoundId {
             Self::ExplosionSmall => "explosion_small",
             Self::ExplosionLarge => "explosion_large",
             Self::ReactorBreach => "reactor_breach",
+            Self::FleshStrain => "flesh_strain",
+            Self::FleshBurst => "flesh_burst",
             Self::EngineLight => "engine_light",
             Self::EngineMedium => "engine_medium",
             Self::EngineHeavy => "engine_heavy",
@@ -134,6 +141,7 @@ impl SoundId {
             | Self::ImpactEnergy
             | Self::HullStress
             | Self::ExplosionLarge
+            | Self::FleshBurst
             | Self::Victory
             | Self::Defeat => 2,
             _ => 1,
@@ -154,6 +162,8 @@ impl SoundId {
             Self::ExplosionSmall => 0.65,
             Self::ExplosionLarge => 1.0,
             Self::ReactorBreach => 0.7,
+            Self::FleshStrain => 0.6,
+            Self::FleshBurst => 0.9,
             Self::EngineLight | Self::EngineMedium => 0.3,
             Self::EngineHeavy => 0.35,
             Self::OrbitalStrike => 0.8,

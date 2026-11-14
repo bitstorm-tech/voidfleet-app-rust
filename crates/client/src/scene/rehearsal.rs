@@ -3,7 +3,7 @@
 //! Wracks mit glühenden Bruchflächen und ein Geist auf dem Brett, damit Bevy alle Pipelines übersetzt, bevor das
 //! Gefecht beginnt. Dazu Balken mit Verlustvorschau, Totenkopf und Sternen, alle Marken am Boden und die stummen Effekte (Bolzen,
 //! Zielmarke, Strahl, Laser, Rakete mit Leuchtspur, Schildaufbau, Impuls, Hyperraum-Austritt mit
-//! Blitz und Partikeln, Brand mit Rauch, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
+//! Blitz und Partikeln, Brand mit Rauch, Blutung, brennende und glühende Schiffe). Neue Darstellungsvarianten gehören deshalb auch hierher. Am Ende des Ladens
 //! verschwindet alles wieder; die Effekte räumen sich selbst weg.
 
 use bevy::prelude::*;
@@ -13,8 +13,8 @@ use super::{
     aura::ShipAura,
     coords::{BOARD_CENTER, Side, facing},
     effects::{
-        Beam, Bolt, Burn, ChargedBeam, Laser, Missile, Pulse, ShieldFlare, TargetRing, WARP_COLOR,
-        Warp,
+        Beam, Bleed, Bolt, Burn, ChargedBeam, Laser, Missile, Pulse, ShieldFlare, TargetRing,
+        WARP_COLOR, Warp,
     },
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
     ship::{BreakApart, ToonState, spawn_ghost, spawn_ship},
@@ -155,6 +155,14 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
             size: 0.5,
             spread: 0.3,
             duration: 0.5,
+        });
+        commands.spawn(Bleed {
+            piece,
+            color: palette::ALIEN,
+            size: 0.5,
+            spread: 0.3,
+            duration: 0.5,
+            tempo: 1.0,
         });
     }
 }

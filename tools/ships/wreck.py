@@ -4,7 +4,8 @@ aber ohne Abhängigkeit) und exportiert die Stücke als `<id>_wreck.glb` für di
 Jede Zelle ist das, was von allen Teilen des Schiffs übrig bleibt, nachdem die Mittelsenkrechten zu den
 übrigen Zellkernen alles jenseits weggeschnitten haben; die Schnittflächen werden geschlossen und bekommen
 das Wrack-Material `<id>_wreck` (Art "wreck" im Material-Vertrag, siehe vf.py): verkohlte Töne und ein Glutmuster
-als Emissionstextur, das der Client zur Laufzeit abkühlen lässt. Die Schnittflächen bekommen Box-UVs fürs Glutmuster
+als Emissionstextur, das der Client zur Laufzeit abkühlen lässt; die Wesen (Flächen mit Haut) sind innen rohes Fleisch
+mit Leuchtsaft im Muster statt Glut. Die Schnittflächen bekommen Box-UVs fürs Glutmuster
 und sind flach schattiert; die übrigen Flächen behalten Material, Normalen und UVs des Schiffs (die Schnitte
 interpolieren sie), also auch seine Verwitterung, alles in derselben UV-Ebene. Jedes Stück ist ein
 eigenes Objekt mit dem Ursprung in seinem Schwerpunkt, damit es sich darum drehen kann; die Stücke liegen im selben
@@ -45,6 +46,9 @@ CELLS = {
     "warden": 22,
     "scrap_king": 20,
     "seal": 14,
+    # Die Wesen platzen in Fetzen: der große Leib in viele.
+    "unknown_contact": 26,
+    "brood": 10,
 }
 # Splitter mit weniger Flächen verschwinden; sie wären auf dem Brett ohnehin nur Pixel.
 MIN_FACES = 16
@@ -101,11 +105,11 @@ def heat_image():
     return image
 
 
-def wreck_material(ship):
+def wreck_material(ship, being=False):
     """Bruchflächen `<ship>_wreck`: verkohlte Töne, Emission = Glutmuster × Glutfarbe (Export als emissiveTexture
-    mit emissiveFactor)."""
-    mat = vf.surface(f"{ship}_wreck", {"kind": "wreck", "tones": list(palette.WRECK), "heat": palette.HEAT}, palette.WRECK[0],
-                     emission=palette.HEAT)
+    mit emissiveFactor). Ein Wesen (`being`) ist innen rohes Fleisch, durchzogen von Leuchtsaft statt Glut."""
+    tones, glow = (palette.GORE, palette.ICHOR) if being else (palette.WRECK, palette.HEAT)
+    mat = vf.surface(f"{ship}_wreck", {"kind": "wreck", "tones": list(tones), "heat": glow}, tones[0], emission=glow)
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
     heat = nodes.new("ShaderNodeTexImage")
@@ -114,7 +118,7 @@ def wreck_material(ship):
     mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
     mix.inputs[0].default_value = 1.0
     links.new(heat.outputs["Color"], vf._socket(mix.inputs, "A_Color"))
-    vf._socket(mix.inputs, "B_Color").default_value = (*palette.linear(palette.HEAT), 1.0)
+    vf._socket(mix.inputs, "B_Color").default_value = (*palette.linear(glow), 1.0)
     links.new(vf._socket(mix.outputs, "Result_Color"), bsdf.inputs["Emission Color"])
     return mat
 
@@ -252,7 +256,7 @@ def build(obj, cells=None, seed=None):
     hologram = all(vf.spec(m)["kind"] == "hologram" for m in materials)
     wreck_index = None
     if not hologram:
-        materials.append(wreck_material(ship_id))
+        materials.append(wreck_material(ship_id, any("skin" in vf.spec(m) for m in materials)))
         wreck_index = len(materials) - 1
 
     base = bmesh.new()
