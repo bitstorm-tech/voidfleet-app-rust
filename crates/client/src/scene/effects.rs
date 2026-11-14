@@ -26,17 +26,17 @@ use crate::audio::{PlaySound, SoundId};
 /// Bolzen: Welteinheiten pro Sekunde, Länge, Durchmesser des fast weißen Kerns und des weichen Halos in der Schussfarbe
 /// (der zum Rand hin mit diesem Exponenten verläuft und vorn und hinten etwas übersteht).
 const BOLT_SPEED: f32 = 15.0;
-const BOLT_LENGTH: f32 = 2.2;
-const BOLT_CORE: f32 = 0.04;
+const BOLT_LENGTH: f32 = 1.65;
+const BOLT_CORE: f32 = 0.03;
 /// Der Kern bleibt schwach, damit er die Fäden der Plasmahülle nicht überstrahlt.
 const BOLT_CORE_GLOW: f32 = 0.3;
-const BOLT_HALO: f32 = 0.5;
+const BOLT_HALO: f32 = 0.375;
 const BOLT_HALO_FALLOFF: f32 = 1.5;
 const BOLT_HALO_OVERHANG: f32 = 1.2;
 const BOLT_HALO_GLOW: f32 = 0.2;
 /// Plasmahülle zwischen Kern und Halo: Durchmesser, Helligkeit über der Schussfarbe und wie schnell ihre Fäden um den
 /// Bolzen und von der Spitze nach hinten fließen (UV je Sekunde).
-const BOLT_PLASMA: f32 = 0.3;
+const BOLT_PLASMA: f32 = 0.225;
 const BOLT_PLASMA_GLOW: f32 = 0.55;
 const BOLT_PLASMA_FLOW: Vec2 = Vec2::new(0.35, 2.2);
 /// Glutspur des Bolzens: abtropfende Funken je Sekunde.
@@ -807,10 +807,10 @@ fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
         &mut fx, add.entity, "Bolzen", bolt.from, bolt.to, bolt.color,
     );
     let embers = Burst {
-        spread: 0.12,
+        spread: 0.09,
         speed: (0.2, 0.9),
         life: (0.25, 0.55),
-        size: (0.09, 0.16),
+        size: (0.07, 0.12),
         grow: 0.2,
         colors: ember,
         ..Burst::DEFAULT
