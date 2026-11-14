@@ -296,7 +296,8 @@ impl FromWorld for FxAssets {
 /// Kantenlänge der Plasmatextur.
 const PLASMA_SIZE: u32 = 128;
 
-/// Plasmafäden: verwirbeltes, gefaltetes Rauschen, dessen Grate als helle Fäden stehen; kachelt in beiden Richtungen.
+/// Plasmafäden: verwirbeltes, gefaltetes Rauschen, dessen Grate als helle Fäden stehen, grobe Knoten vor feinen Fäden,
+/// damit sie auch auf einem kleinen Bolzen lesbar bleiben; kachelt in beiden Richtungen.
 fn plasma() -> Image {
     let mut canvas = Canvas::new(PLASMA_SIZE);
     canvas.fill_with(|point| {
@@ -306,10 +307,10 @@ fn plasma() -> Image {
         let ridges = (0..4)
             .map(|octave| {
                 let ridge = 1.0 - (2.0 * value_noise(p, 2 << octave) - 1.0).abs();
-                ridge.powi(6) * 0.5f32.powi(octave)
+                ridge.powi(6) * 0.4f32.powi(octave)
             })
             .sum::<f32>()
-            / 1.875;
+            / 1.624;
         Some(Srgba::WHITE.with_alpha((ridges * 1.8).min(1.0)))
     });
     let mut image = canvas.into_image();

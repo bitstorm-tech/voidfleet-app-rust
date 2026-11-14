@@ -193,7 +193,7 @@ Effekte, Partikel, Marken, Balken und Pads sind selbstleuchtend und unbeleuchtet
   Ein Laser ist ein Strahl von A nach B: Er steht gut eine Sekunde zwischen einem Geschütz des Schützen und dem Ziel,
   flimmert und sprüht dort Funken; der Treffer zählt, wenn er erlischt. Ein Bolzen (Plasma) fliegt als langer, dünner
   Strich: fast weißer Kern in einer brodelnden Hülle aus Plasmafäden (prozedurale Textur, die nach hinten fließt) und
-  einem weichen Halo der Schussfarbe.
+  einem weichen Halo der Schussfarbe; hinter ihm tropft eine Glutspur ab.
 - **Wirkung in Bedeutungsfarbe.** Pulse, Schwebezahlen und Marken einer Karte tragen die Farbe ihrer Wirkung (Schaden,
   Heilung, Schild, Bonus, Malus), nicht eine eigene.
 - **Feuer ist warm, Sprung ist kühl.** Einschläge, Brände, Explosionen und Glut laufen von Weißgelb über Orange nach

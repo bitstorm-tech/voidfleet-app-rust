@@ -37,8 +37,10 @@ const BOLT_HALO_GLOW: f32 = 0.2;
 /// Plasmahülle zwischen Kern und Halo: Durchmesser, Helligkeit über der Schussfarbe und wie schnell ihre Fäden um den
 /// Bolzen und von der Spitze nach hinten fließen (UV je Sekunde).
 const BOLT_PLASMA: f32 = 0.3;
-const BOLT_PLASMA_GLOW: f32 = 1.1;
+const BOLT_PLASMA_GLOW: f32 = 0.55;
 const BOLT_PLASMA_FLOW: Vec2 = Vec2::new(0.35, 2.2);
+/// Glutspur des Bolzens: abtropfende Funken je Sekunde.
+const BOLT_EMBERS: f32 = 140.0;
 /// Zielmarke: Der Ring zieht sich von der ersten auf die zweite Größe zusammen.
 const TARGET_RING_SIZE: (f32, f32) = (3.4, 1.9);
 const TARGET_RING_DURATION: f32 = 0.42;
@@ -804,6 +806,26 @@ fn start_bolt(add: On<Add<Bolt>>, bolts: Query<&Bolt>, mut fx: Fx) {
     spawn_bolt(
         &mut fx, add.entity, "Bolzen", bolt.from, bolt.to, bolt.color,
     );
+    let embers = Burst {
+        spread: 0.12,
+        speed: (0.2, 0.9),
+        life: (0.25, 0.55),
+        size: (0.09, 0.16),
+        grow: 0.2,
+        colors: ember,
+        ..Burst::DEFAULT
+    };
+    fx.commands.spawn((
+        Name::new("Glutspur"),
+        Transform::from_translation(bolt.from),
+        Particles::stream(
+            embers,
+            bolt.color,
+            1.0,
+            SPHERE,
+            Emitter::new(BOLT_EMBERS, Some(add.entity)),
+        ),
+    ));
 }
 
 fn fly_bolts(mut bolts: Query<(&Bolt, &Animation, &mut Transform)>) {
