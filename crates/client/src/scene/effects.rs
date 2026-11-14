@@ -27,15 +27,17 @@ use crate::audio::{PlaySound, SoundId};
 /// (der zum Rand hin mit diesem Exponenten verläuft und vorn und hinten etwas übersteht).
 const BOLT_SPEED: f32 = 15.0;
 const BOLT_LENGTH: f32 = 2.2;
-const BOLT_CORE: f32 = 0.05;
-const BOLT_HALO: f32 = 0.34;
+const BOLT_CORE: f32 = 0.04;
+/// Der Kern bleibt schwach, damit er die Fäden der Plasmahülle nicht überstrahlt.
+const BOLT_CORE_GLOW: f32 = 0.3;
+const BOLT_HALO: f32 = 0.5;
 const BOLT_HALO_FALLOFF: f32 = 1.5;
 const BOLT_HALO_OVERHANG: f32 = 1.2;
-const BOLT_HALO_GLOW: f32 = 0.35;
+const BOLT_HALO_GLOW: f32 = 0.2;
 /// Plasmahülle zwischen Kern und Halo: Durchmesser, Helligkeit über der Schussfarbe und wie schnell ihre Fäden um den
 /// Bolzen und von der Spitze nach hinten fließen (UV je Sekunde).
-const BOLT_PLASMA: f32 = 0.26;
-const BOLT_PLASMA_GLOW: f32 = 0.7;
+const BOLT_PLASMA: f32 = 0.3;
+const BOLT_PLASMA_GLOW: f32 = 1.1;
 const BOLT_PLASMA_FLOW: Vec2 = Vec2::new(0.35, 2.2);
 /// Zielmarke: Der Ring zieht sich von der ersten auf die zweite Größe zusammen.
 const TARGET_RING_SIZE: (f32, f32) = (3.4, 1.9);
@@ -737,12 +739,13 @@ fn spawn_bolt(fx: &mut Fx, entity: Entity, name: &'static str, from: Vec3, to: V
         fx.assets.sphere.clone(),
         fx.assets.spindle.clone(),
     );
-    let core = fx.material(FxMaterial::light(light(lighten(color, 0.7))));
+    let core = fx.material(FxMaterial::light(
+        light(lighten(color, 0.7)) * BOLT_CORE_GLOW,
+    ));
     let plasma = fx.material(FxMaterial {
         rim: -1.0,
         flow: BOLT_PLASMA_FLOW,
-        ..FxMaterial::light(light(lighten(color, 0.2)) * BOLT_PLASMA_GLOW)
-            .with_texture(fx.assets.plasma.clone())
+        ..FxMaterial::light(light(color) * BOLT_PLASMA_GLOW).with_texture(fx.assets.plasma.clone())
     });
     let halo = fx.material(FxMaterial {
         rim: -BOLT_HALO_FALLOFF,
