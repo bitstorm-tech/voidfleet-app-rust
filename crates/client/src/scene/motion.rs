@@ -15,19 +15,23 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
-use voidfleet_core::enemies::EnemyClass;
+use voidfleet_core::enemies::{EnemyClass, EnemyId};
 
 use super::{
     animation::{Animation, AnimationScope, AnimationSystems},
     board::{BoardEntities, attach},
     coords::SlotRef,
-    effects::Warp,
+    effects::{WARP_COLOR, Warp},
     formation::HullWear,
     maneuver::Flight,
     ship::{Ship, ShipModel, ToonState},
     status::{ShipBounds, ShipParts, ShipStatus},
 };
-use crate::audio::{LoopingSound, SoundId};
+use crate::{
+    audio::{LoopingSound, SoundId},
+    data::ship_models::ShipKind,
+    palette,
+};
 
 /// Deploy: so weit hinter dem Pad (Welteinheiten) fällt das Schiff aus dem Hyperraum; anfangs ist es um diesen Faktor
 /// in die Länge gezogen und dafür schmaler, auf diesem Anteil der Flugzeit schnappt es zurück. Die Hülle glüht dabei hell.
@@ -158,6 +162,14 @@ impl Plugin for MotionPlugin {
     }
 }
 
+/// Die Farbe des Portals, aus dem ein Schiff fällt: das Blau der Sprünge, beim Fremden und seiner Brut ihr Türkis.
+fn warp_color(kind: ShipKind) -> Color {
+    match kind {
+        ShipKind::Enemy(EnemyId::UnknownContact | EnemyId::Brood) => palette::ALIEN,
+        _ => WARP_COLOR,
+    }
+}
+
 /// Der Deploy beginnt, sobald das Modell gemessen ist: Balken und Marken verschwinden, das Schiff rückt hinter das Pad,
 /// das Portal öffnet sich.
 fn begin_arrivals(
@@ -194,6 +206,7 @@ fn begin_arrivals(
             position: bounds.world_center(global),
             forward: global.forward().as_vec3(),
             size: bounds.world_radius(),
+            color: warp_color(ship.kind),
         });
         commands.entity(job).insert((
             ModelBase {

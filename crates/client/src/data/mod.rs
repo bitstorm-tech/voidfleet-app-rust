@@ -59,6 +59,8 @@ impl FileKey for EnemyId {
             Self::ScrapKing => "scrap_king",
             Self::Warden => "warden",
             Self::Seal => "seal",
+            Self::UnknownContact => "unknown_contact",
+            Self::Brood => "brood",
         }
     }
 }

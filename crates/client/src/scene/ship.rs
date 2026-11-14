@@ -31,6 +31,8 @@ use super::{
     markers::ShipMarkers,
     toon::ToonMaterial,
 };
+use voidfleet_core::enemies::EnemyId;
+
 use crate::data::ship_models::{ShipKind, ShipModels, livery};
 
 /// Schiffe sind für den Hangar modelliert und auf dem Brett zu groß: Maßstab der Wurzel …
@@ -40,6 +42,9 @@ pub const MODEL_SCALE: f32 = 0.5;
 /// Flaggschiffe heben sich durch ihre Größe ab: Ihre Modelle sind schon gut ein Fünftel größer gebaut, dazu dieser
 /// Faktor. Die Bastion, das breiteste, bleibt so knapp 2 breit (Slots liegen 2,2 auseinander).
 pub const FLAGSHIP_SCALE: f32 = 1.1;
+/// Der Unbekannte Kontakt steht allein auf seiner Seite und ist das größte Schiff des Spiels: Er ragt über seinen Slot
+/// in die leeren Nachbarn (sein Slot liegt im Modell bei −1,4 / 1,3, `tools/ships/fleet/unknown_contact.py`).
+pub const CONTACT_SCALE: f32 = 1.3;
 
 /// Ein Schiff auf dem Brett: ein Gegner (`uid` aus dem Gefecht) oder das Flaggschiff des Spielers (`uid` 0).
 #[derive(Component, Clone, Debug)]
@@ -169,13 +174,14 @@ pub struct Turret {
 const TURRET_TRACKING: f32 = 5.0;
 
 /// Maßstab des Modells unter der Wurzel.
-/// Flaggschiffe (auch das Siegel) sind um [`FLAGSHIP_SCALE`] größer, wie in der Vorschau von `tools/ships`.
+/// Flaggschiffe (auch das Siegel) sind um [`FLAGSHIP_SCALE`] größer, wie in der Vorschau von `tools/ships`, der
+/// Unbekannte Kontakt um [`CONTACT_SCALE`].
 fn model_scale(kind: ShipKind) -> f32 {
     MODEL_SCALE
-        * if kind.is_flagship() {
-            FLAGSHIP_SCALE
-        } else {
-            1.0
+        * match kind {
+            ShipKind::Enemy(EnemyId::UnknownContact) => CONTACT_SCALE,
+            _ if kind.is_flagship() => FLAGSHIP_SCALE,
+            _ => 1.0,
         }
 }
 

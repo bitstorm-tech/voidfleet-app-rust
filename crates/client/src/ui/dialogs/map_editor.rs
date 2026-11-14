@@ -621,7 +621,7 @@ fn node_panel(
                 }
             }
         });
-    // Die zwei Listen nebeneinander: oben die Taste, die die Liste zum Ziel macht, darunter ihre Einträge.
+    // Die Listen nebeneinander: oben die Taste, die die Liste zum Ziel macht, darunter ihre Einträge.
     panel
         .spawn((
             Node {
@@ -679,6 +679,26 @@ fn node_panel(
                         entry_key(line, fonts, locale, editor, unit, target);
                         let drop = Edit::DropReplacement(index);
                         key(line, fonts, "x", Key::DANGER, false, true, drop);
+                    });
+                }
+            });
+            // Der Durchbruch: die Taste macht ihn zum Ziel, darunter steht seine eine Einheit.
+            lists.spawn(list()).with_children(|list| {
+                let target = Target::Breach;
+                let lit = editor.target == target;
+                let name = locale.editor_breach();
+                key(
+                    list,
+                    fonts,
+                    name,
+                    Key::NORMAL,
+                    lit,
+                    true,
+                    Edit::Target(target),
+                );
+                if let Some(unit) = &encounter.breach {
+                    list.spawn(entry_line()).with_children(|line| {
+                        entry_key(line, fonts, locale, editor, unit, target);
                     });
                 }
             });

@@ -1,6 +1,6 @@
 //! Teilt die Ereignisse einer Aktion in Schritte. Ein Schritt beginnt mit einem Kopf (Karte, Station, Aktion einer
-//! Einheit, Rundenbeginn …) und nimmt alle Folgen bis zum nächsten Kopf mit (Treffer, Brände, Zerstörung, Nachrücker,
-//! Absichten). Gleichartiges ohne Entscheidungswert läuft zusammen: Verstärkung, die gemeinsam eintrifft, Einheiten,
+//! Einheit, Rundenbeginn, Durchbruch …) und nimmt alle Folgen bis zum nächsten Kopf mit (Treffer, Brände, Zerstörung,
+//! Nachrücker, Absichten). Gleichartiges ohne Entscheidungswert läuft zusammen: Verstärkung, die gemeinsam eintrifft, Einheiten,
 //! die nacheinander ausweichen, aufladen oder Schilde heben, aussetzende Einheiten und die Brände der Auflösung.
 
 use std::mem::{Discriminant, discriminant};
@@ -31,17 +31,21 @@ fn head(event: &BattleEvent, previous: Option<&BattleEvent>) -> Option<Head> {
         | BattleEvent::SelfDamage { .. }
         | BattleEvent::Returned
         | BattleEvent::RoundStarted { .. }
+        | BattleEvent::Breach
         | BattleEvent::BattleEnded { .. } => Some(Head::Alone),
         BattleEvent::EnemyAction { action, .. } => match action {
             Action::Evade | Action::Charge | Action::Shields(_) => bundle(Some(*action)),
             _ => Some(Head::Alone),
         },
-        BattleEvent::Idle { .. } | BattleEvent::BurnTick { .. } => bundle(None),
+        BattleEvent::Idle { .. }
+        | BattleEvent::BurnTick { .. }
+        | BattleEvent::Regenerated { .. } => bundle(None),
         BattleEvent::Arrived { .. } => match previous {
             Some(
                 BattleEvent::Destroyed { .. }
                 | BattleEvent::Cannibalized { .. }
-                | BattleEvent::Emergency { .. },
+                | BattleEvent::Emergency { .. }
+                | BattleEvent::Breach,
             ) => None,
             _ => bundle(None),
         },

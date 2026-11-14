@@ -1,4 +1,22 @@
-# Offene Punkte (Stand 13.11.2026, nach dem PvE-Umbau)
+# Offene Punkte (Stand 14.11.2026, nach dem PvE-Umbau)
+
+## Der Durchbruch (14.11.2026)
+
+Der Boss von Sektor 3 hat eine zweite Hälfte: Fällt das Siegel, bricht der Unbekannte Kontakt durch, das einzige Alien-Schiff des Spiels (`docs/gegner.md`, „Der Durchbruch“; ansehen mit `just scene breach`).
+
+- [ ] **Gemessen, nicht gespielt**: Die Zahlen beider Hälften stammen aus dem Simulator (`docs/balance.md`). Osei gewinnt am seltensten (53 % gegen 56 bis 59 %): Mit ATK 8 dauert sein Gefecht gegen das Fremde am längsten, und sein Abwehrfeuer trifft einen einzelnen Schützen nur einmal je Runde. Ob der Schlag mit 52 Schaden über alle Spalten für einen Menschen fair ist, zeigt das Spielen: Wer weder Kurzsprung noch Gegenmaßnahmen, EMP-Stoß oder Funkstille im Deck hat, schluckt ihn mit Schilden nur zum Teil.
+- [ ] **Funksprüche** `seal_broken` und `unknown_contact` (je zwei Aufnahmen, ElevenLabs v3 über fal.ai) hat niemand angehört. Die beiden der Gegenflotte sind mit Regieanweisung aufgenommen (`[panicked]`, `[shouting]`); spricht die Stimme sie mit, neu aufnehmen.
+- [ ] **Eigene Klänge fehlen**: Das Fremde feuert mit dem Plasmaschuss, der Riss klingt nach Reaktorbruch und EMP, und es brummt beim Eintreffen wie das Triebwerk eines Schlachtschiffs.
+- [ ] **Der Schlag** über alle drei Spalten sieht aus wie jedes Spaltenfeuer (drei Strahlen), nur in seinem Türkis; ein eigenes Bild (ein Strahl aus dem Schlund, der über das Brett fegt) fehlt.
+- [ ] **Texte nach dem Sieg**: Funk und Log sprechen auch nach dem Fall des Fremden von der „feindlichen Flotte“ (`radio_lines.victory`, `log_battle_ended.won`); ein Abspann fehlt, das Run-Ende zeigt nur zwei Sätze (`run_won_text`).
+- [ ] **Tooltip der Gefechtsuhr** nennt „ab Runde 8“ (`hud_clock_hint`), auch wenn sie nach dem Durchbruch von vorn zählt.
+- [ ] **Der Riss** ist das Sprung-Portal in Türkis und groß (`Fx::Warp`), dazu zwei Pulse; er schließt sich, bevor das Fremde hereinfällt. Ein eigenes Bild des Wurmlochs, das über die ganze Sequenz offen steht, fehlt, ebenso ein Wechsel der Musik.
+- [ ] **Wiedergabe unter dem Software-Renderer**: Die Sequenz ist auf dem Linux-Server nur in Einzelbildern geprüft (etwa vier Bilder je Sekunde); Tempo und Reihenfolge der Takte (`BREACH_LEAD`, `BREACH_STAGGER` in `playback/plan.rs`) hat niemand in Echtzeit gesehen.
+- [ ] **Karteneditor**: „Durchbruch“ setzt die Einheit; welcher Verband einen trägt, prüft niemand (sinnvoll ist er nur am Boss).
+- [ ] **Modell des Fremden, Abstand zum Konzeptbild**: Von vorn stehen die Flügel flacher als die hohen Sicheln des Konzepts (so sind im Brettwinkel beide Leuchtfelder zu sehen); Länge zu Spannweite 1 : 0,50 statt 1 : 0,43; die Flughaut hat drei Lagen mit harter Grenze statt eines Verlaufs, der Knochenschwamm ist ein Netz aus Bälkchen, und die feine Oberfläche (Poren, Muskelfasern, Schuppenzeichnung) fehlt, weil die Pipeline keine gemalten Texturen kennt.
+- [ ] **Shader für das Fremde**: Die Flughaut ist deckend (durchscheinend ist nur `hologram`); die großen Leuchtflächen wirken durch `GLOW_BOOST` (`toon/look.rs`) eher grell cyan als türkis und flach; nichts pulsiert (`ToonState.lights` ließe sich für diesen Boss modulieren); die Bruchflächen seines Wracks glühen orange wie Stahl (`wreck.py` setzt `palette.HEAT`, `destruction.rs` überschreibt mit `COLD` und `WHITE_HOT`); sein Wrack hat nur 12 Stücke (`wreck.CELLS` ohne Eintrag, Einzelschiffe sonst 20 bis 22).
+- [ ] **Am Modell ungeprüft**: der größte Zoom (gesehen bis etwa 114 px je Einheit), Wrack und Untergang im Spiel (nur in der Vorschau), die Brut außer in Brettgröße. In der Seitenansicht verdeckt der Lebensbalken den hinteren Flügel.
+- [ ] **Masken-Cache**: `look.py` hat Einträge für die Materialien des Fremden bekommen, und der Hash der Masken deckt die Datei ab: Der nächste Bau jedes anderen Schiffs backt neu (Bastion etwa 15 min). Der Inhalt sollte gleich bleiben, geprüft ist es nicht.
 
 ## Spielgefühl und Balance (erst spielen, dann stellen)
 

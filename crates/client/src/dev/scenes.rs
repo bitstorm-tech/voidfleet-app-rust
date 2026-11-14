@@ -9,25 +9,33 @@
 //! - `move` — Spaltenwechsel des Flaggschiffs, dem die Türme des Belagerers folgen, und Traktorstrahl auf der Gegnerseite.
 //! - `effects` — Railgun-Strahl, Rakete, Traktorstrahl, Schildhülle an und aus, Zielmarke und ein Bolzen, der vorbeifliegt, im Wechsel.
 //! - `report` — die erzählte Wiedergabe in Dauerschleife mit erfundenen Ereignissen ([`super::report`]).
+//! - `breach` — der Boss von Sektor 3 mit Vance: Nach ein paar Sekunden fällt das Siegel unter der Waffen-Station, der
+//!   Durchbruch läuft ab, und das Gefecht gegen den Unbekannten Kontakt steht zum Spielen da. Mit
+//!   `VOIDFLEET_DEV_TURNS=<n>` beendet die Szene danach `n` Züge von selbst (sein Zielfeuer, die Brut, der Schlag).
 //! - `show` — ein Modell zum Ansehen, als eigenes Schiff in der Mitte und als Gegner gegenüber (in seiner Gruppe:
 //!   Staffel, Paar oder einzeln); `VOIDFLEET_DEV_SHIP=<dateiname>` wählt es (wie `models/ships/<dateiname>.glb`, auch
 //!   Entwürfe), ohne Angabe die Bastion.
 //!
-//! Außer `board` und `report` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still ([`Scripted`]).
+//! Außer `board`, `report` und `breach` stellen die Szenen ihre Schiffe selbst und legen Controller und Abgleich still
+//! ([`Scripted`]).
 
 use bevy::{diagnostic::FrameCount, prelude::*, time::Stopwatch};
 use voidfleet_core::{
-    admirals::{AdmiralId, FlagshipId},
+    admirals::{AdmiralId, FlagshipId, Station},
+    battle::Target,
     board::{EnemySlot, Row},
     enemies::EnemyId,
+    run::SECTORS,
 };
 
 use crate::{
     assets::AppState,
     controller::Scripted,
     data::ship_models::{ShipKind, ShipModels, model_key, ships},
-    game::Battle,
+    editor::{Edit, MapEditor},
+    game::{Battle, PlayerAction},
     palette,
+    run::ActiveRun,
     scene::{
         animation::{Animation, AnimationFinished},
         board::{BoardEntities, OnSlot, anchor_position, place},
@@ -41,6 +49,7 @@ use crate::{
         motion::{Arrive, HitFlash, MoveShip},
         ship::{Ship, spawn_ship},
         status::ShipStatus,
+        sync::BoardMode,
     },
 };
 
@@ -54,6 +63,7 @@ pub enum DevScene {
     Move,
     Effects,
     Report,
+    Breach,
     Show(ShipKind),
 }
 
@@ -72,6 +82,7 @@ impl DevScene {
             "move" => Some(Self::Move),
             "effects" => Some(Self::Effects),
             "report" => Some(Self::Report),
+            "breach" => Some(Self::Breach),
             "show" => {
                 let name = std::env::var("VOIDFLEET_DEV_SHIP").unwrap_or_else(|_| "bastion".into());
                 let kind = ships().find(|kind| model_key(*kind) == name);
@@ -94,7 +105,7 @@ struct Loop {
 /// Abstand zwischen zwei Schritten der Schleife je Szene.
 fn period(scene: DevScene) -> f32 {
     match scene {
-        DevScene::Board | DevScene::Report | DevScene::Show(_) => f32::INFINITY,
+        DevScene::Board | DevScene::Report | DevScene::Breach | DevScene::Show(_) => f32::INFINITY,
         DevScene::Hit(_) => 1.3,
         DevScene::Destroy => 2.6,
         DevScene::Arrive => 2.2,
@@ -112,7 +123,9 @@ pub(super) fn plugin(app: &mut App, scene: DevScene) {
             );
         return;
     }
-    if scene != DevScene::Board {
+    if scene == DevScene::Breach {
+        app.add_systems(Update, breach_shot);
+    } else if scene != DevScene::Board {
         app.insert_resource(Scripted);
     }
     app.insert_resource(scene)
@@ -124,6 +137,56 @@ pub(super) fn plugin(app: &mut App, scene: DevScene) {
             run.run_if(in_state(AppState::Match))
                 .before(crate::scene::sync::SyncSystems),
         );
+}
+
+/// Szene `breach`: So lange steht die Gegenflotte, bevor das Siegel fällt (die Ankunft aus dem Hyperraum ist dann
+/// vorbei).
+const BREACH_DELAY: f32 = 7.0;
+
+/// Szene `breach`, mit `VOIDFLEET_DEV_TURNS`: so lange steht das Brett in der Planung, bevor der Zug von selbst endet.
+const TURN_DELAY: f32 = 2.0;
+
+/// Szene `breach`: Das Siegel fällt unter der Waffen-Station, sobald das Gefecht steht; der Durchbruch folgt. Danach
+/// enden so viele Züge von selbst, wie `VOIDFLEET_DEV_TURNS` nennt.
+fn breach_shot(
+    battle: Option<ResMut<Battle>>,
+    mode: Option<Res<State<BoardMode>>>,
+    time: Res<Time>,
+    mut waited: Local<f32>,
+    mut fired: Local<bool>,
+    mut turns: Local<Option<u32>>,
+    mut actions: MessageWriter<PlayerAction>,
+) {
+    let (Some(mut battle), Some(mode)) = (battle, mode) else {
+        return;
+    };
+    if *mode.get() != BoardMode::Planning {
+        *waited = waited.min(BREACH_DELAY - TURN_DELAY);
+        return;
+    }
+    *waited += time.delta_secs();
+    if *waited < BREACH_DELAY {
+        return;
+    }
+    let seal = (battle.enemies.iter_mut()).find(|enemy| enemy.id == EnemyId::Seal);
+    if let (Some(seal), false) = (seal, *fired) {
+        (seal.hull, seal.shield) = (1, 0);
+        *fired = true;
+        actions.write(PlayerAction::RunStation {
+            station: Station::Weapons,
+            target: Target::Enemy(seal.uid),
+        });
+        return;
+    }
+    let left = turns.get_or_insert_with(|| {
+        let turns = std::env::var("VOIDFLEET_DEV_TURNS").ok();
+        turns.and_then(|turns| turns.parse().ok()).unwrap_or(0)
+    });
+    if *left > 0 && battle.result.is_none() {
+        *left -= 1;
+        *waited = BREACH_DELAY - TURN_DELAY;
+        actions.write(PlayerAction::EndTurn);
+    }
 }
 
 fn own(column: usize) -> SlotRef {
@@ -193,6 +256,16 @@ fn stage(
             commands.insert_resource(run);
             commands.insert_resource(battle);
         }
+        DevScene::Breach => {
+            let mut editor = MapEditor::open(crate::asset_root().join("data/maps"));
+            editor.apply(Edit::Sector(SECTORS));
+            editor.apply(Edit::Select(editor.map.rows.len() - 1, 0));
+            editor.apply(Edit::Admiral(AdmiralId::Vance));
+            let run = editor.test_run(super::DEV_SEED).expect("Boss von Sektor 3");
+            let battle = Battle(run.start_battle());
+            commands.insert_resource(ActiveRun(run));
+            commands.insert_resource(battle);
+        }
         DevScene::Hit(_) => {
             put(BASTION, own(1), (52, 70, 6));
             // Im Notfall: ein Modell des Paars brennt ausgebrannt.
@@ -256,7 +329,7 @@ fn run(
             .map(|(entity, ship, _)| (entity, ship.kind))
     };
     match *scene {
-        DevScene::Board | DevScene::Report | DevScene::Show(_) => {}
+        DevScene::Board | DevScene::Report | DevScene::Breach | DevScene::Show(_) => {}
         DevScene::Hit(variant) => {
             let (from, to, color) = if step.is_multiple_of(2) {
                 (own(1), enemy(Row::Front, 1), palette::PLAYER)

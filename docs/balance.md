@@ -25,26 +25,28 @@ just sim trace --admiral kerr ein Run Zug für Zug, um dem Bot zuzusehen
 | Wo Runs enden | etwa 8 % in Sektor 1, 15 % in Sektor 2, 22 % in Sektor 3 |
 | Gefecht | 3 bis 6 Runden; Verlust 3 bis 5 % in Sektor 1, 5 bis 7 % in Sektor 2, 7 bis 9 % in Sektor 3, kein Knoten über 16 % |
 | Elite | 6 bis 9 Runden, 11 bis 18 % |
-| Boss | 8 bis 11 Runden; 18, 23 und 32 % in Sektor 1, 2 und 3 |
+| Boss | 8 bis 11 Runden; 18, 23 und 32 % in Sektor 1, 2 und 3. Der Boss von Sektor 3 hat zwei Hälften ([Der Durchbruch](gegner.md#der-durchbruch)): die Gegenflotte etwa 5 Runden und 13 %, das Fremde den Rest |
 | Karte | eine Karte mehr im Startdeck ändert die Siege je Run um −0,6 bis +0,6; keine Karte ist für jedes Deck richtig, keine ist toter Ballast |
 | Modul | +0,5 bis +1,5 Siege je Run |
 
 Die erste Reihe von Sektor 1 kostet mit Absicht nichts: Sie ist der Auftakt. Innerhalb eines Sektors steigen die Kosten von Reihe zu Reihe, und jeder Sektor hat ein, zwei leichte Knoten als Atempause.
 
-## Stand der Messung (13.11.2026, 1000 Runs je Admiral)
+## Stand der Messung (14.11.2026, 1000 Runs je Admiral)
 
 | Admiral | Siegquote | endet in Sektor 1 / 2 / 3 | Hülle vor dem Boss 1 / 2 / 3 |
 | --- | --- | --- | --- |
-| Osei | 53 % | 12 / 12 / 23 % | 73 / 68 / 67 % |
-| Vance | 58 % | 10 / 17 / 15 % | 71 / 67 / 70 % |
-| Kerr | 52 % | 6 / 16 / 26 % | 75 / 70 / 69 % |
-| Reyes | 56 % | 5 / 16 / 24 % | 72 / 66 / 67 % |
+| Osei | 53 % | 10 / 13 / 24 % | 73 / 68 / 66 % |
+| Vance | 59 % | 9 / 16 / 16 % | 71 / 67 / 70 % |
+| Kerr | 56 % | 6 / 15 / 23 % | 75 / 70 / 70 % |
+| Reyes | 59 % | 4 / 16 / 21 % | 71 / 66 / 67 % |
 
 | Sektor | Gefecht | Elite | Boss |
 | --- | --- | --- | --- |
-| 1 | 3,9 % in 3,6 Runden | 14,2 % in 6,7 Runden | 18,7 % in 9,4 Runden, 6 % enden dort |
-| 2 | 5,7 % in 4,4 Runden | 11,6 % in 6,3 Runden | 23,3 % in 10,8 Runden, 10 % enden dort |
-| 3 | 7,9 % in 5,7 Runden | 16,3 % in 8,6 Runden | 32,5 % in 8,4 Runden, 15 % enden dort |
+| 1 | 3,9 % in 3,5 Runden | 14,0 % in 6,5 Runden | 18,6 % in 9,1 Runden, 6 % enden dort |
+| 2 | 5,8 % in 4,3 Runden | 11,8 % in 6,2 Runden | 22,9 % in 9,8 Runden, 9 % enden dort |
+| 3 | 8,0 % in 5,5 Runden | 16,5 % in 8,3 Runden | 31,1 % in 11,1 Runden, 13 % enden dort |
+
+Gemessen mit dem Durchbruch im Boss von Sektor 3 (seit dem 14.11.2026) und einem Bot, der auch dann schießt, wenn ihm nichts droht (`IDLE`, `crates/sim/AGENTS.md`); die Zahlen der Sektoren 1 und 2 haben sich dadurch um höchstens einen halben Punkt verschoben. Die Gegenflotte allein, ohne das Fremde, kostet 13 % in 5 Runden. Die Tabellen zu Karten und Modulen stammen noch vom 13.11.2026.
 
 **Karten** (Δ Siege je Run mit einer Karte mehr im Startdeck, 300 Runs je Admiral):
 
@@ -63,9 +65,15 @@ Eine tote Karte kostet etwa −1,0: Die Hand hat fünf Karten und drei Befehlspu
 
 - **Verteidigung schlägt Angriff.** Schild-Station und Notschilde schlucken einen Verband mit drei Schützen fast ganz, ein vierter Schütze kostet sprunghaft mehr. Deshalb sind die Gegner zerbrechlich und schlagen hart zu, und deshalb stellt die Zahl der Schützen einen Knoten ein, nicht die Hülle.
 - **Zeit kostet wenig.** Die Gefechtsuhr beginnt in Runde 8 und erhöht nur die ATK. Drei Regeln schließen, was sich damit ausnutzen ließ: die Reparaturgrenze ([Gefecht](gefecht.md#stationen-des-flaggschiffs)), der Stillstand lädt eine Runde nach ([Admirale](admirale.md)), der Kurzsprung läuft einmal je Gefecht und statt einer Station ([Karten](karten.md)). Vorher gewann der Bot jeden Run, indem er den schwächsten Gegner stehen ließ und sich reparierte; Kerr gewann mit zwei Kurzsprüngen 69 % der Runs und ohne sie 6 %.
+- **Ein einzelner Gegner droht wenig.** Ein Deck mit Schildkarten schluckt jeden Einzeltreffer bis etwa 20 mit Station und zwei Karten; was einen Verband gefährlich macht, sind mehrere Schützen in derselben Runde. Der Unbekannte Kontakt steht allein und braucht deshalb eine ATK, die doppelt so hoch ist wie die jedes Verbands (26), einen Schlag, dem kein Manöver ausweicht (52 über alle Spalten), und Brut, die in der Runde rammt, in der er auflädt. Mit ATK 20 kostete er den Bot 8 % Hülle in sechs Runden, die Gegenflotte davor, deren Schiffe einzeln halb so hart treffen, 13 % in fünf.
+- **Die Lebende Hülle bestraft das Mauern, nicht die kleine Kanone.** Als fester Zuwachs je Runde (5) kostete sie Osei 6 Punkte Siegquote und Reyes keinen: Wer langsam tötet, zahlt jede Runde, und der Plasmawerfer zündet sie sofort weg. Seit sie nur in Runden ohne Treffer wächst, liegen die Admirale wieder 6,5 Punkte auseinander, und ihre Zahl ist fast gleichgültig (6 oder 10 ändern die Siegquote um weniger als einen Punkt): Der Bot trifft in jeder Runde. Ein Mensch, der eine Runde nur Schilde hebt, zahlt sie.
+- **Lange Gefechte treffen Osei.** Jede Variante des Fremden mit mehr Hülle senkt seine Siegquote stärker als die der anderen (100 statt 90 Hülle: 4 Punkte): Mit ATK 8 sieht er mehr Schläge, und sein Abwehrfeuer trifft einen einzelnen Schützen nur einmal je Runde. Die Gegenflotte davor trifft dagegen Kerr am härtesten. Deshalb teilen sich beide Hälften den Preis, statt dass eine ihn allein trägt.
 - **Befehlspunkte sind knapper als Karten.** Eine Beutekarte hilft nur, wenn sie je Punkt mehr leistet als Torpedo und Notschilde. Die Angriffskarten machen deshalb rund die Hälfte mehr Schaden als im ersten Entwurf oder kosten einen Punkt weniger.
 
 ## Offen
+
+- Osei gewinnt 6 Punkte seltener als Vance und Reyes und verliert ein Viertel seiner Runs in Sektor 3. Das Ziel (8 Punkte) hält, aber knapp; mehr Hülle oder ATK am Fremden reißt es.
+- Der Schlag des Fremden (52 über alle Spalten) ist der größte Einzeltreffer des Spiels. Der Bot beantwortet ihn mit Kurzsprung, Gegenmaßnahmen oder Schilden und Hülle; ob ein Mensch ohne diese Karten ihn als fair empfindet, zeigt das Spielen.
 
 - Reservereaktor, Löschanlage und Panzerplatten sind doppelt so stark wie die übrigen Module und lassen sich mit ihrer Zahl nicht schwächen (ein Befehlspunkt, ein Punkt Panzerung, Brand an oder aus). Sie bräuchten einen Preis oder eine andere Wirkung.
 - „Logbücher sichern“ im Wrack der Resolute gibt ein Modul ohne Preis und ist immer die beste Wahl.

@@ -43,7 +43,7 @@
       { "kind": "shipyard", "next": [0] }
     ],
     [
-      { "kind": "boss", "next": [], "encounter": { "front": [{ "id": "plasma_cruiser", "hull": 18, "attack": 10, "armor": 0, "pattern": ["fire"] }, { "id": "guard_cruiser", "hull": 24, "attack": 11, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [{ "id": "spotter", "hull": 16, "attack": 2, "armor": 0, "pattern": ["target_lock"] }, { "id": "seal", "hull": 70, "attack": 11, "armor": 0, "pattern": ["fire", "bolt"] }, null], "replacements": [{ "id": "guard_cruiser", "hull": 24, "attack": 11, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, { "id": "raiders", "hull": 11, "attack": 8, "armor": 0, "pattern": ["fire"] }] } }
+      { "kind": "boss", "next": [], "encounter": { "front": [{ "id": "plasma_cruiser", "hull": 18, "attack": 10, "armor": 0, "pattern": ["fire"] }, { "id": "guard_cruiser", "hull": 24, "attack": 11, "armor": 0, "pattern": ["fire", "fire", { "shields": 6 }] }, null], "back": [{ "id": "spotter", "hull": 16, "attack": 2, "armor": 0, "pattern": ["target_lock"] }, { "id": "seal", "hull": 40, "attack": 11, "armor": 0, "pattern": ["fire", "bolt"] }, null], "replacements": [{ "id": "raiders", "hull": 11, "attack": 8, "armor": 0, "pattern": ["fire"] }], "breach": { "id": "unknown_contact", "hull": 90, "attack": 26, "armor": 0, "pattern": ["fire", { "call": { "id": "brood", "hull": 7, "attack": 0, "armor": 0, "pattern": ["evade", "ram"] } }, "fire", "charge", { "column_fire": 3 }] } } }
     ]
   ]
 }

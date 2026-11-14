@@ -43,6 +43,7 @@
   "editor_empty": "Empty",
   "editor_reinforcements": "Reinforcement +",
   "editor_replacements": "Replacement +",
+  "editor_breach": "Breach",
   "editor_map": "Map",
   "editor_admiral": "Admiral",
   "editor_target": "1 · Pick a slot or a list",
@@ -359,6 +360,14 @@
     "enemy_breaking": [
       "Break off! Break off! Everyone run!",
       "We can't hold them! Pull back!"
+    ],
+    "seal_broken": [
+      "The Seal is gone. It's open. God help us, it's open!",
+      "You fools! We were holding it shut!"
+    ],
+    "unknown_contact": [
+      "Contact in the rift! That is no ship, Admiral. It's alive.",
+      "Unknown contact, dead ahead! Nothing in our records matches it."
     ]
   },
   "result_title": {
@@ -510,7 +519,9 @@
     "carrier": "Carrier",
     "scrap_king": "Scrap King",
     "warden": "Warden",
-    "seal": "Seal"
+    "seal": "Seal",
+    "unknown_contact": "Unknown Contact",
+    "brood": "Brood"
   },
   "enemy_class": {
     "fighter": "Fighter squadron",
@@ -555,6 +566,7 @@
     "covered": "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
   },
   "armor_hint": "Armor: every hit deals {amount} less damage.",
+  "regeneration_hint": "Living hull: regrows {amount} in the resolution unless it is hit this round. Burning stops it.",
   "burn_hint": {
     "ticking": "Loses {amount} hull in each resolution.",
     "suppressed": "Fire suppression: the fire does not tick."
@@ -629,7 +641,8 @@
     "shot": "{target} destroyed",
     "burned_out": "{target} burned out",
     "rammed": "{target} rammed to pieces",
-    "retaliation": "{target} destroyed by return fire"
+    "retaliation": "{target} destroyed by return fire",
+    "breach": "{target} is torn apart"
   },
   "log_fireship_spent": "{unit} is spent",
   "log_rammed": "The flagship rams {target}",
@@ -648,6 +661,8 @@
   "log_self_damage": "Overcharge strains the flagship: {amount}",
   "log_burn": "{target} burns: {amount}",
   "log_cannibalized": "{unit} cannibalizes the wreck: +{amount} hull",
+  "log_regenerated": "{unit} regrows: +{amount} hull",
+  "log_breach": "The seal is broken. The wormhole tears open.",
   "log_emergency_generator": "The emergency generator holds the flagship at 1 hull",
   "log_shuffled": "Discard pile shuffled into the deck",
   "log_drawn": {
@@ -780,7 +795,7 @@
   "market_sold_out": "Sold",
   "market_leave": "Leave",
   "run_won_title": "The Wormhole Home",
-  "run_won_text": "Commander Vey has fallen, the wormhole stands open. On the other side: your own fleet.",
+  "run_won_text": "Commander Vey was not guarding the wormhole, she was holding it shut. What lay behind it has fallen, and the way stands open. On the other side: your own fleet.",
   "run_lost_text": "The flagship fell in sector {sector}, row {row}.",
   "run_abandon": "Abandon run",
   "run_abandon_title": "Abandon the run?",
@@ -793,5 +808,8 @@
   "mark_covered": "covered: {amount} → {by}",
   "mark_shielded": "shield absorbs {amount}",
   "report_missed": "into the void",
-  "report_burned_out": "{unit} burned out"
+  "report_burned_out": "{unit} burned out",
+  "report_breach": "The seal breaks",
+  "report_breach_hint": "The wormhole tears open",
+  "report_contact_hint": "No ship built by human hands"
 }

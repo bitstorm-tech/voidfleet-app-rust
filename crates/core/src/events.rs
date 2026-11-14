@@ -73,6 +73,8 @@ pub enum DestroyCause {
     Rammed,
     /// Gegenfeuer oder Standhalten.
     Retaliation,
+    /// Der Durchbruch zerreißt, was vom Verband noch steht.
+    Breach,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +188,15 @@ pub enum BattleEvent {
         amount: i32,
         after: UnitStats,
     },
+    /// Lebende Hülle: Der Unbekannte Kontakt wächst in der Auflösung nach, weil ihn in der Runde nichts getroffen hat.
+    Regenerated {
+        unit: UnitRef,
+        amount: i32,
+        after: UnitStats,
+    },
+    /// Der Durchbruch: Das Gefecht wäre gewonnen, stattdessen reißt das Wurmloch auf. Es folgen `Destroyed` für
+    /// jede Einheit, die noch steht, und `Arrived` für die Einheit, die durchbricht.
+    Breach,
     /// Das Notaggregat hält das Flaggschiff bei 1 Hülle.
     EmergencyGenerator {
         after: UnitStats,

@@ -117,6 +117,12 @@ impl DestructionProfile {
                 EnemyId::Warden => profile(CYAN, Energy, 2.6, 2100.0, 9, 3.0, 0.6, 3200.0),
                 // Siegel: das gegnerische Flaggschiff.
                 EnemyId::Seal => profile(palette::ENEMY, Energy, 2.3, 1700.0, 8, 3.5, 0.5, 2900.0),
+                // Das Fremde: der längste Todeskampf und die größte Detonation des Spiels, in seinem Leuchten.
+                EnemyId::UnknownContact => {
+                    profile(palette::ALIEN, Energy, 3.0, 2600.0, 12, 3.0, 0.7, 3600.0)
+                }
+                // Brut: platzt wie ein Jäger, in seinem Leuchten.
+                EnemyId::Brood => profile(palette::ALIEN, Energy, 0.9, 300.0, 1, 5.0, 0.1, 1300.0),
             },
             ShipKind::Flagship(flagship_id) => match flagship_id {
                 FlagshipId::Bastion => flagship(AdmiralId::Osei, Fire),

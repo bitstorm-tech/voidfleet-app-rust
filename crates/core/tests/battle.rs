@@ -791,6 +791,138 @@ fn seal_bolt_and_replacements() {
     assert_eq!(b.enemies.len(), 1);
 }
 
+/// Der Durchbruch: Mit dem Siegel ist das Gefecht nicht gewonnen. Was noch steht, zerreißt es ohne Abschuss,
+/// Nachrücker bleiben aus, der Unbekannte Kontakt trifft in der Mitte der Front ein und handelt erst in der nächsten
+/// Runde; die Gefechtsuhr zählt von vorn. Erst sein Fall gewinnt, auch wenn seine Brut noch steht.
+#[test]
+fn breach_after_the_seal() {
+    let mut b = battle(
+        AdmiralId::Vance,
+        &[
+            (EnemyId::GuardCruiser, Row::Front, 1),
+            (EnemyId::Seal, Row::Back, 1),
+        ],
+    );
+    b.replacements = vec![EnemyId::Raiders.into()];
+    b.breach = Some(EnemyId::UnknownContact.into());
+    b.round = 9;
+    assert_eq!(b.clock(), 2);
+    let seal = uid(&b, EnemyId::Seal);
+    unit(&mut b, EnemyId::Seal).hull = 1;
+    give(&mut b, &[CardId::OrbitalStrike]);
+    let events = play(&mut b, CardId::OrbitalStrike, Target::Enemy(seal));
+    assert_eq!((b.result, b.kills), (None, 1));
+    assert!(b.replacements.is_empty() && b.breach.is_none());
+    let breach = events.iter().position(|e| *e == BattleEvent::Breach);
+    let breach = breach.expect("Durchbruch");
+    assert!(matches!(
+        events[breach + 1],
+        BattleEvent::Destroyed {
+            target: UnitRef::Enemy {
+                id: EnemyId::GuardCruiser,
+                ..
+            },
+            cause: DestroyCause::Breach,
+        }
+    ));
+    assert!(matches!(
+        events[breach + 2],
+        BattleEvent::Arrived {
+            unit: UnitRef::Enemy {
+                id: EnemyId::UnknownContact,
+                ..
+            }
+        }
+    ));
+    assert_eq!(b.enemies.len(), 1);
+    let contact = &b.enemies[0];
+    assert_eq!(
+        (contact.id, contact.slot, contact.hull),
+        (EnemyId::UnknownContact, EnemySlot::new(Row::Front, 1), 80)
+    );
+    assert_eq!(b.clock(), 0);
+
+    let hull = b.flagship.hull;
+    let events = b.end_turn();
+    let acted = |e: &BattleEvent| matches!(e, BattleEvent::EnemyAction { .. });
+    assert!(!events.iter().any(acted));
+    assert_eq!(b.enemies[0].intents[0], Action::Fire);
+    b.end_turn();
+    assert_eq!(b.flagship.hull, hull - 10);
+
+    // Mit ihm fällt seine Brut: Sie hält den Sieg nicht auf.
+    b.end_turn();
+    assert!(b.enemies.iter().any(|e| e.id == EnemyId::Brood));
+    let contact = uid(&b, EnemyId::UnknownContact);
+    unit(&mut b, EnemyId::UnknownContact).hull = 1;
+    b.run_station(Station::Weapons, Target::Enemy(contact))
+        .unwrap();
+    assert_eq!((b.result, b.kills), (Some(BattleResult::Won), 2));
+}
+
+/// Lebende Hülle: Der Unbekannte Kontakt wächst in der Auflösung nach, höchstens bis zur vollen Hülle, und nur, wenn
+/// ihn in der Runde kein Schuss und keine Angriffskarte getroffen hat und er nicht brennt.
+#[test]
+fn unknown_contact_regenerates_when_left_alone() {
+    let mut b = battle(AdmiralId::Osei, &[(EnemyId::UnknownContact, Row::Front, 1)]);
+    let contact = uid(&b, EnemyId::UnknownContact);
+    unit(&mut b, EnemyId::UnknownContact).hull = 70;
+    let events = b.end_turn();
+    let regenerated = |events: &[BattleEvent]| {
+        events.iter().find_map(|e| match e {
+            BattleEvent::Regenerated { amount, .. } => Some(*amount),
+            _ => None,
+        })
+    };
+    assert_eq!(regenerated(&events), Some(4));
+    unit(&mut b, EnemyId::UnknownContact).hull = 78;
+    assert_eq!(regenerated(&b.end_turn()), Some(2));
+    assert_eq!(b.enemy(contact).unwrap().hull, 80);
+    // Ein Treffer hält das Wachstum für diese Runde an: 80 − 7 (Waffen der Bastion), kein Zuwachs.
+    assert_eq!(b.enemy(contact).unwrap().regeneration(), 4);
+    b.run_station(Station::Weapons, Target::Enemy(contact))
+        .unwrap();
+    assert_eq!(b.enemy(contact).unwrap().regeneration(), 0);
+    assert_eq!(regenerated(&b.end_turn()), None);
+    assert_eq!(b.enemy(contact).unwrap().hull, 73);
+    unit(&mut b, EnemyId::UnknownContact).hull = 60;
+    unit(&mut b, EnemyId::UnknownContact).burning = true;
+    assert_eq!(regenerated(&b.end_turn()), None);
+    assert_eq!(b.enemy(contact).unwrap().hull, 58);
+}
+
+/// Der Unbekannte Kontakt stößt Brut aus: Sie weicht eine Runde aus, rammt in der nächsten und ist weg. Ihn selbst
+/// verschiebt kein Traktorstrahl; sein aufgeladener Schlag trifft alle drei Spalten.
+#[test]
+fn unknown_contact_calls_brood() {
+    let mut b = battle(AdmiralId::Osei, &[(EnemyId::UnknownContact, Row::Front, 1)]);
+    let contact = uid(&b, EnemyId::UnknownContact);
+    give(&mut b, &[CardId::TractorBeam]);
+    assert_eq!(
+        b.play_card(0, Target::Enemy(contact)),
+        Err(RuleError::TargetInvalid)
+    );
+    b.end_turn();
+    b.end_turn();
+    let brood = unit(&mut b, EnemyId::Brood).clone();
+    assert_eq!(brood.slot, EnemySlot::new(Row::Front, 0));
+    assert_eq!(brood.intents, [Action::Evade, Action::Ram]);
+    b.end_turn();
+    let all = [true; 3];
+    assert_eq!(
+        b.announced(contact)[0].action,
+        Action::ColumnFire { columns: all }
+    );
+    let events = b.end_turn();
+    let spent = |e: &BattleEvent| matches!(e, BattleEvent::FireshipSpent { .. });
+    assert!(events.iter().any(spent));
+    let damage: Vec<i32> = (hits_on(&events, UnitRef::Flagship).iter())
+        .map(|hit| hit.hull)
+        .collect();
+    assert_eq!(damage, [10, 20]);
+    assert_eq!(b.enemies.len(), 1);
+}
+
 #[test]
 fn deck_cycles_through_discard_and_doctrines_leave() {
     let mut b = battle(AdmiralId::Osei, &[(EnemyId::Spotter, Row::Back, 0)]);

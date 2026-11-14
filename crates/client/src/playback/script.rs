@@ -37,7 +37,7 @@ use crate::{
         formation::{Hull, formation, visible_hulls},
         labels::ShipCaption,
         motion::{Arrive, Charge, HitFlash, MoveShip, Withdraw},
-        ship::{AimedHull, Ship, ShipModel, Turret, Wreck, spawn_ship},
+        ship::{AimedHull, BOARD_SCALE, Ship, ShipModel, Turret, Wreck, spawn_ship},
         status::{ShieldStrike, ShipBounds, ShipStatus},
     },
     ui::{AppendLog, ShowBanner, ShowRoundBanner},
@@ -171,9 +171,11 @@ pub(super) enum Fx {
         at: Spot,
         color: Color,
     },
-    /// Hyperraum: Portal und Blitz am Ort.
+    /// Hyperraum: Portal und Blitz am Ort; `size` 1 passt zu einem Schiff.
     Warp {
         at: Spot,
+        size: f32,
+        color: Color,
     },
 }
 
@@ -231,6 +233,11 @@ pub(super) enum Cue {
     Unit(UnitRef, Job),
     /// Die Einheit fällt aus dem Hyperraum in ihren Slot (Verstärkung, Nachrücker, Rückkehr aus dem Kurzsprung).
     Arrive(UnitRef),
+    /// Die Einheit löst sich von `from` und fliegt in ihren Slot (die Brut des Unbekannten Kontakts).
+    Launch {
+        unit: UnitRef,
+        from: UnitRef,
+    },
     /// Gibt den Traktorstrahl dieses Skripts frei und wartet, bis er verblasst ist.
     Release,
 }
@@ -536,6 +543,7 @@ impl Stage<'_, '_> {
                 }
             }
             Cue::Arrive(unit) => self.arrive(entity, unit),
+            Cue::Launch { unit, from } => self.launch(entity, unit, from),
             Cue::Release => {
                 if let Some(tether) = script.tether.take() {
                     self.commands.trigger(ReleaseTether { entity: tether });
@@ -671,19 +679,50 @@ impl Stage<'_, '_> {
                 let position = self.point(at);
                 self.await_job(script, TargetRing { position, color });
             }
-            Fx::Warp { at } => {
+            Fx::Warp { at, size, color } => {
                 let position = self.point(at);
                 self.commands.spawn(Warp {
                     position,
                     forward: Vec3::X,
-                    size: 1.0,
+                    size,
+                    color,
                 });
             }
         }
     }
 
-    /// Ein Schiff fällt in seinen Slot; ein altes derselben Einheit (das Flaggschiff vor dem Kurzsprung) geht.
+    /// Ein Schiff fällt in seinen Slot.
     fn arrive(&mut self, script: Entity, unit: UnitRef) {
+        if let Some((ship, _)) = self.stage(unit) {
+            self.await_job(script, Arrive { ship });
+        }
+    }
+
+    /// Ein Schiff löst sich von `from` und fliegt von dort in seinen Slot.
+    fn launch(&mut self, script: Entity, unit: UnitRef, from: UnitRef) {
+        let origin = self.point(Spot::Unit(from)) - SHIP_CENTER;
+        let Some((ship, slot)) = self.stage(unit) else {
+            return;
+        };
+        if let Ok(anchor) = self.globals.get(self.board.anchor(slot)) {
+            let at = anchor.affine().inverse().transform_point3(origin);
+            let start = Transform::from_translation(at).with_scale(Vec3::splat(BOARD_SCALE));
+            self.commands.entity(ship).insert(start);
+        }
+        let towed = false;
+        self.await_job(
+            script,
+            MoveShip {
+                ship,
+                to: slot,
+                towed,
+            },
+        );
+    }
+
+    /// Stellt das Schiff einer Einheit in ihren Slot; ein altes derselben Einheit (das Flaggschiff vor dem Kurzsprung)
+    /// geht.
+    fn stage(&mut self, unit: UnitRef) -> Option<(Entity, SlotRef)> {
         if let Some((old, _)) = self.ship(unit) {
             self.commands.entity(old).despawn();
         }
@@ -699,8 +738,7 @@ impl Stage<'_, '_> {
                 (ShipKind::Enemy(id), uid, stats, max_hull)
             }
             UnitRef::Flagship => {
-                let Some(battle) = battle else { return };
-                let flagship = &battle.flagship;
+                let flagship = &battle?.flagship;
                 let kind = ShipKind::Flagship(flagship.admiral.flagship());
                 (kind, 0, flagship.stats(), flagship.max_hull)
             }
@@ -714,7 +752,7 @@ impl Stage<'_, '_> {
             ShipCaption::default(),
             ShipAura::default(),
         ));
-        self.await_job(script, Arrive { ship });
+        Some((ship, slot))
     }
 
     fn act(&mut self, script_entity: Entity, script: &mut Script, ship: Entity, job: Job) {
@@ -809,6 +847,7 @@ fn past(from: Vec3, aim: Vec3) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scene::effects::WARP_COLOR;
 
     /// Beim Überspringen fällt nur Bild und Ton weg; was den Zustand der Szene ändert, läuft weiter.
     #[test]
@@ -818,6 +857,7 @@ mod tests {
         for cue in [
             Cue::Unit(unit, Job::Destroy),
             Cue::Arrive(unit),
+            Cue::Launch { unit, from: unit },
             Cue::Release,
             Cue::Log(Vec::new()),
             Cue::Scope(AnimationScope::Attack),
@@ -832,7 +872,11 @@ mod tests {
             Cue::Shake(0.2),
             Cue::Lean(None),
             Cue::float(at, "3", FloatTone::Damage),
-            Cue::Fx(Fx::Warp { at }),
+            Cue::Fx(Fx::Warp {
+                at,
+                size: 1.0,
+                color: WARP_COLOR,
+            }),
             Cue::RoundBanner(2),
         ] {
             assert!(cue.is_presentation(), "{cue:?}");

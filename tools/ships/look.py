@@ -118,7 +118,8 @@ GLOW_MIX = (0.9, 0.55)
 # Dichte für alle (ein Bake mit 128 dauert das Vierfache und braucht bei der Bastion bis zu 8 GB).
 WEATHER_DENSITY = 64
 WEATHER_DENSE = {
-    **dict.fromkeys(("bastion", "vanguard", "pendulum", "pyre", "seal", "iron_dreadnought", "titan_carrier", "scrap_king", "warden"), 128),
+    **dict.fromkeys(("bastion", "vanguard", "pendulum", "pyre", "seal", "iron_dreadnought", "titan_carrier", "scrap_king", "warden",
+                    "unknown_contact"), 128),
     **dict.fromkeys(("horizon_cruiser", "plasma_frigate", "signal_booster"), 96),
 }
 WEATHER = {"scrap_raider": 2.2, "scrap_king": 2.2, "mirage": 0.5, "decoy": 0.0}  # Grad je Schiff, sonst 1
@@ -140,6 +141,13 @@ WEATHER_MATERIALS = {
     "brass": (0.6, 1.0, 0.0, 0.0),
     "brass_round": (0.6, 1.0, 0.0, 0.0),
     "rust": (1.0, 1.0, 0.0, 0.0),
+    # Unbekannter Kontakt (gewachsen, nicht gebaut): nur Schmutz in den Ritzen; kein Ruß, kein Abrieb, keine Platten
+    "bone": (0.8, 0.0, 0.0, 0.0),
+    "flesh": (1.0, 0.0, 0.0, 0.0),
+    "sinew": (1.0, 0.0, 0.0, 0.0),
+    "membrane": (0.5, 0.0, 0.0, 0.0),
+    "web": (0.5, 0.0, 0.0, 0.0),
+    "scale": (0.6, 0.0, 0.0, 0.0),
 }
 # Formen in der Maske (Einheiten bzw. Frequenzen je Einheit)
 CREVICE = (0.14, 0.5)  # 1 − Umgebungsverdeckung: ab hier Ritze, hier volle Ritze

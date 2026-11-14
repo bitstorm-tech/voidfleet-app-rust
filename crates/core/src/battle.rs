@@ -8,7 +8,7 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::{AdmiralId, AdmiralStation, Station};
-use crate::board::{COLUMNS, EnemySlot, MAX_ENEMIES};
+use crate::board::{COLUMNS, EnemySlot, MAX_ENEMIES, Row};
 use crate::cards::{CardId, CardTarget, CardType, DeckCard};
 use crate::data::{Step, rules};
 use crate::enemies::{Action, EnemyClass, EnemyId, Unit, action, step_index};
@@ -43,6 +43,9 @@ pub struct Encounter {
     /// Gegenflotte: Fällt eine Eskorte, rückt die nächste in ihren Slot nach.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub replacements: Vec<Unit>,
+    /// Der Durchbruch: Wäre das Gefecht gewonnen, trifft stattdessen diese Einheit ein, und erst ihr Fall gewinnt es.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub breach: Option<Unit>,
 }
 
 impl Encounter {
@@ -167,7 +170,7 @@ pub struct Enemy {
     pub charged: bool,
     pub intents: [Action; 2],
     pub step: u32,
-    /// In dieser Runde vom Spieler getroffen (Plünderer weichen dann aus).
+    /// In dieser Runde vom Spieler getroffen (Plünderer weichen dann aus, der Unbekannte Kontakt wächst nicht nach).
     pub hit: bool,
     pub stasis: bool,
     pub silenced: bool,
@@ -184,6 +187,16 @@ impl Enemy {
     /// mehr aus.
     pub fn is_evading(&self) -> bool {
         self.intents[0] == Action::Evade && !self.emergency()
+    }
+
+    /// Lebende Hülle: was die Einheit in der nächsten Auflösung nachwächst. Nur der Unbekannte Kontakt, und nur, wenn
+    /// ihn in dieser Runde kein Schuss und keine Angriffskarte getroffen hat und er nicht brennt.
+    pub fn regeneration(&self) -> i32 {
+        if self.id == EnemyId::UnknownContact && !self.burning && !self.hit {
+            rules().enemies.regeneration
+        } else {
+            0
+        }
     }
 
     pub fn unit(&self) -> UnitRef {
@@ -236,6 +249,10 @@ pub struct Battle {
     pub emergency_generator_used: bool,
     pub reinforcements: Vec<Reinforcement>,
     pub replacements: Vec<Unit>,
+    /// Die Einheit des Durchbruchs, solange sie noch aussteht.
+    pub breach: Option<Unit>,
+    /// Die Runde des Durchbruchs: Die Gefechtsuhr zählt erst die Runden danach.
+    pub clock_offset: u32,
     pub result: Option<BattleResult>,
     next_uid: u32,
     rng: StdRng,
@@ -286,6 +303,8 @@ impl Battle {
             emergency_generator_used: false,
             reinforcements: setup.encounter.reinforcements.clone(),
             replacements: setup.encounter.replacements.clone(),
+            breach: setup.encounter.breach.clone(),
+            clock_offset: 0,
             result: None,
             next_uid: 1,
             rng: StdRng::seed_from_u64(seed),
@@ -318,9 +337,10 @@ impl Battle {
         self.enemy(uid).is_some_and(|e| self.front_of(e).is_some())
     }
 
-    /// Gefechtsuhr: ATK-Zuschlag der Gegner in dieser Runde.
+    /// Gefechtsuhr: ATK-Zuschlag der Gegner in dieser Runde. Nach einem Durchbruch zählt sie von vorn.
     pub fn clock(&self) -> i32 {
-        self.round.saturating_sub(rules().battle.clock_start - 1) as i32
+        let rounds = self.round - self.clock_offset;
+        rounds.saturating_sub(rules().battle.clock_start - 1) as i32
     }
 
     /// Panzerung des Flaggschiffs: Ablativpanzerung und Panzerplatten.
@@ -632,7 +652,9 @@ impl Battle {
         if card.id == CardId::TractorBeam
             && let Target::Enemy(uid) = target
             && let Some(enemy) = self.enemy(uid)
-            && (enemy.id.class() == EnemyClass::Flagship || self.tractor_slot(enemy).is_none())
+            && (enemy.id.class() == EnemyClass::Flagship
+                || enemy.id == EnemyId::UnknownContact
+                || self.tractor_slot(enemy).is_none())
         {
             return Err(RuleError::TargetInvalid);
         }
@@ -1014,7 +1036,8 @@ impl Battle {
             cause,
         });
         self.kills += 1;
-        if enemy.id == EnemyId::Seal {
+        // Mit dem Siegel fällt die Gegenflotte, mit dem Unbekannten Kontakt seine Brut.
+        if matches!(enemy.id, EnemyId::Seal | EnemyId::UnknownContact) {
             return self.end(BattleResult::Won, events);
         }
         for king in self
@@ -1131,8 +1154,31 @@ impl Battle {
     }
 
     fn end(&mut self, result: BattleResult, events: &mut Vec<BattleEvent>) {
+        if result == BattleResult::Won
+            && let Some(unit) = self.breach.take()
+        {
+            return self.break_through(&unit, events);
+        }
         self.result = Some(result);
         events.push(BattleEvent::BattleEnded { result });
+    }
+
+    /// Der Durchbruch statt des Sieges: Was vom Verband noch steht, zerreißt es (kein Abschuss), Verstärkung und
+    /// Nachrücker bleiben aus, und `unit` trifft in der Mitte der Front ein. Die Gefechtsuhr zählt von vorn.
+    fn break_through(&mut self, unit: &Unit, events: &mut Vec<BattleEvent>) {
+        events.push(BattleEvent::Breach);
+        for uid in self.uids() {
+            let i = self.index(uid).expect("steht");
+            let target = self.enemies.remove(i).unit();
+            events.push(BattleEvent::Destroyed {
+                target,
+                cause: DestroyCause::Breach,
+            });
+        }
+        self.reinforcements.clear();
+        self.replacements.clear();
+        self.clock_offset = self.round;
+        self.spawn(unit, EnemySlot::new(Row::Front, COLUMNS / 2), true, events);
     }
 
     // --- Gegnerzug ---
@@ -1308,6 +1354,26 @@ impl Battle {
             );
             if self.result.is_some() {
                 return;
+            }
+        }
+        // Lebende Hülle: Der Unbekannte Kontakt wächst nach, wenn ihn in dieser Runde nichts getroffen hat.
+        for enemy in &mut self.enemies {
+            let amount = enemy.regeneration().min(enemy.max_hull - enemy.hull);
+            if amount <= 0 {
+                continue;
+            }
+            let was = enemy.emergency();
+            enemy.hull += amount;
+            events.push(BattleEvent::Regenerated {
+                unit: enemy.unit(),
+                amount,
+                after: enemy.stats(),
+            });
+            if enemy.emergency() != was {
+                events.push(BattleEvent::Emergency {
+                    target: enemy.unit(),
+                    active: !was,
+                });
             }
         }
 

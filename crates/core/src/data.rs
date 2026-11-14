@@ -148,6 +148,9 @@ pub struct EnemyRules {
     pub cannibalize_heal: i32,
     /// Treffer des Plasmakreuzers zünden den Brand schon bei so viel Prozent Hülle.
     pub plasma_burn_percent: i32,
+    /// Lebende Hülle: so viel wächst der Unbekannte Kontakt in einer Auflösung nach, wenn ihn in der Runde nichts
+    /// getroffen hat und er nicht brennt.
+    pub regeneration: i32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

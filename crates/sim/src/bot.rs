@@ -20,7 +20,7 @@ use voidfleet_core::battle::{Battle, BattleResult, RuleError, Target};
 use voidfleet_core::board::COLUMNS;
 use voidfleet_core::cards::{CardId, CardTarget, CardType, DeckCard};
 use voidfleet_core::data::{Step, rules};
-use voidfleet_core::enemies::{Action, EnemyId, action};
+use voidfleet_core::enemies::{Action, EnemyId, Unit, action};
 use voidfleet_core::events::{BattleEvent, UnitRef};
 use voidfleet_core::modules::ModuleId;
 use voidfleet_core::run::{EventId, NodeKind, Run, SECTORS, SectorMap, Stage};
@@ -46,6 +46,10 @@ const NODES: usize = 20_000;
 /// am häufigsten (0,2 bis 2,5 probiert); darunter mauert er, bis die Gefechtsuhr ihn holt, darüber greift er an, wo
 /// Schilde mehr gebracht hätten. Nach großen Änderungen an den Regeln neu eichen.
 const THREAT: f64 = 0.5;
+/// Gewicht der gegnerischen Hülle, die noch steht: Sie entscheidet nur zwischen Zügen, die sonst gleich viel wert
+/// sind. Ohne sie schießt der Bot nicht, solange er jeden Treffer des Gegners schlucken kann (ein einzelner Boss), und
+/// zieht das Gefecht bis zur Gefechtsuhr.
+const IDLE: f64 = 0.01;
 /// So viele Schritte hat ein Zug höchstens (Plündern für 0 Punkte zöge sonst das Deck im Kreis).
 const STEPS: usize = 12;
 /// So viele Gegnerzüge weit rechnet die Schätzung die Muster der Gegner aus.
@@ -113,7 +117,8 @@ fn key(battle: &Battle) -> u64 {
     hand.sort_by_key(|card| (card.id as u8, card.upgraded));
     hand.hash(&mut hasher);
     let piles = (battle.draw_pile.len(), battle.replacements.len());
-    (battle.points, battle.kills, battle.result.is_some(), piles).hash(&mut hasher);
+    let ends = (battle.result.is_some(), battle.breach.is_some());
+    (battle.points, battle.kills, ends, piles).hash(&mut hasher);
     battle.emergency_generator_used.hash(&mut hasher);
     hasher.finish()
 }
@@ -167,8 +172,16 @@ fn eval(battle: &Battle) -> f64 {
     match battle.result {
         Some(BattleResult::Lost) => -1000.0,
         Some(BattleResult::Won) => hull + 1.0,
-        None => hull - THREAT * threat(battle),
+        None => hull - THREAT * threat(battle) - IDLE * standing(battle),
     }
+}
+
+/// Die Hülle, die auf der Gegenseite noch steht.
+fn standing(battle: &Battle) -> f64 {
+    let hull = |unit: &Unit| unit.hull;
+    let pending = (battle.replacements.iter().chain(&battle.breach)).map(hull);
+    let enemies = battle.enemies.iter().map(|enemy| enemy.hull + enemy.shield);
+    enemies.chain(pending).sum::<i32>() as f64
 }
 
 /// Eine gegnerische Einheit in der Schätzung: was sie aushält, was ihr Brand je Runde nimmt und was sie in den
@@ -178,7 +191,27 @@ struct Foe {
     armor: i32,
     burn: f64,
     hits: [f64; HORIZON],
-    seal: bool,
+    /// Mit dieser Einheit fällt der Rest: das Siegel und der Unbekannte Kontakt.
+    last: bool,
+}
+
+/// Ob mit dieser Einheit fällt, was noch steht.
+fn last(id: EnemyId) -> bool {
+    matches!(id, EnemyId::Seal | EnemyId::UnknownContact)
+}
+
+impl Foe {
+    /// Eine Einheit, die erst eintrifft (Verstärkung, Nachrücker, Durchbruch), mit ihrem Muster von vorn.
+    fn pending(battle: &Battle, unit: &Unit) -> Self {
+        let actions = pattern_actions(&unit.pattern, &[], 0, battle.flagship.column);
+        Foe {
+            hull: unit.hull as f64,
+            armor: unit.armor,
+            burn: 0.0,
+            hits: hits(battle, unit.id, unit.attack, false, actions),
+            last: last(unit.id),
+        }
+    }
 }
 
 /// Was ein Gegner mit dieser ATK in den nächsten Gegnerzügen anrichtet. Spaltenfeuer kostet höchstens eine Station
@@ -276,28 +309,24 @@ fn threat(battle: &Battle) -> f64 {
                         actions,
                     )
                 },
-                seal: enemy.id == EnemyId::Seal,
+                last: last(enemy.id),
             }
         })
         .collect();
     let pending = (battle.reinforcements.iter().map(|r| &r.unit)).chain(&battle.replacements);
-    foes.extend(pending.map(|unit| {
-        let actions = pattern_actions(&unit.pattern, &[], 0, flagship.column);
-        Foe {
-            hull: unit.hull as f64,
-            armor: unit.armor,
-            burn: 0.0,
-            hits: hits(battle, unit.id, unit.attack, false, actions),
-            seal: false,
-        }
-    }));
+    foes.extend(pending.map(|unit| Foe::pending(battle, unit)));
+    let breach = battle
+        .breach
+        .as_ref()
+        .map(|unit| Foe::pending(battle, unit));
+    let breach = breach.as_ref();
     let rate = |foe: &Foe| foe.hits[..3].iter().sum::<f64>() / foe.hull.max(1.0);
     foes.sort_by(|a, b| rate(b).total_cmp(&rate(a)));
-    let mut best = schedule(&foes, ours, attack, block);
-    // Mit dem Siegel fällt die Gegenflotte: auch der direkte Weg zählt.
-    if let Some(seal) = foes.iter().position(|foe| foe.seal) {
-        foes.swap(0, seal);
-        let direct = schedule(&foes, ours, attack, block);
+    let mut best = schedule(&foes, breach, ours, attack, block);
+    // Mit dem Siegel fällt die Gegenflotte, mit dem Unbekannten Kontakt seine Brut: auch der direkte Weg zählt.
+    if let Some(last) = foes.iter().position(|foe| foe.last) {
+        foes.swap(0, last);
+        let direct = schedule(&foes, breach, ours, attack, block);
         if direct.0 < best.0 {
             best = direct;
         }
@@ -309,25 +338,36 @@ fn threat(battle: &Battle) -> f64 {
     damage
 }
 
-/// Schaden und Dauer, wenn die Gegner in dieser Reihenfolge fallen; mit dem Siegel endet das Gefecht. Von dem, was
-/// je Gegnerzug ankommt, schlucken die Schildkarten `block`.
-fn schedule(foes: &[Foe], ours: f64, attack: i32, block: f64) -> (f64, f64) {
+/// Schaden und Dauer, wenn die Gegner in dieser Reihenfolge fallen; mit dem Siegel endet das Gefecht (ebenso mit dem
+/// Unbekannten Kontakt), oder es folgt der Durchbruch: `breach` trifft dann ein und handelt eine Runde später. Von dem, was je Gegnerzug ankommt,
+/// schlucken die Schildkarten `block`.
+fn schedule(foes: &[Foe], breach: Option<&Foe>, ours: f64, attack: i32, block: f64) -> (f64, f64) {
     let mut time = 0.0;
     let mut incoming = [0.0; HORIZON];
     let mut late = 0.0;
     let mut over = false;
-    for foe in foes {
+    // Der Gegnerzug, ab dem die Einheit handelt.
+    let mut from = 0.0;
+    let present = foes.iter().map(|foe| (foe, false));
+    for (foe, arrives) in present.chain(breach.map(|foe| (foe, true))) {
+        if arrives {
+            from = f64::ceil(time) + 1.0;
+            over = false;
+        }
         if !over {
             let shot = attack.max(foe.armor + 1) as f64;
             let through = ours * (shot - foe.armor as f64) / shot;
             let hull = (foe.hull - foe.burn * time).max(0.0);
             time += hull / (through + foe.burn);
-            over = foe.seal;
+            over = foe.last;
         }
         for (turn, hit) in foe.hits.iter().enumerate() {
-            incoming[turn] += hit * (time - turn as f64 - 0.5).clamp(0.0, 1.0);
+            let at = from + turn as f64;
+            if at < HORIZON as f64 {
+                incoming[at as usize] += hit * (time - at - 0.5).clamp(0.0, 1.0);
+            }
         }
-        let rounds = time - HORIZON as f64 - 0.5;
+        let rounds = time - from.max(HORIZON as f64) - 0.5;
         if rounds > 0.0 {
             late += rounds * (foe.hits.iter().sum::<f64>() / HORIZON as f64 - block).max(0.0);
         }

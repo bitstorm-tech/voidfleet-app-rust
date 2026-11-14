@@ -73,7 +73,7 @@ Regeln im Detail:
 
 ## Die Runde
 
-Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Das Flaggschiff beginnt jedes Gefecht in der mittleren Spalte. Gewonnen ist das Gefecht, wenn keine gegnerische Einheit mehr Schaden machen kann und keine Verstärkung mehr aussteht: Ein Spotter allein hält es nicht auf.
+Mensch und Spiel ziehen im Wechsel. Eine Runde besteht aus dem Spielerzug, in dem nur der Spieler handelt, dem Gegnerzug, in dem nur die Gegner handeln, und der Auflösung, die das Spiel von selbst ausführt. Das Flaggschiff beginnt jedes Gefecht in der mittleren Spalte. Gewonnen ist das Gefecht, wenn keine gegnerische Einheit mehr Schaden machen kann und keine Verstärkung mehr aussteht: Ein Spotter allein hält es nicht auf. Einzige Ausnahme ist der [Durchbruch](gegner.md#der-durchbruch) im letzten Gefecht des Runs: Dort trifft statt des Sieges ein weiterer Gegner ein, und erst sein Fall gewinnt.
 
 | Abschnitt | Wer handelt | Was geschieht |
 | --- | --- | --- |
@@ -112,13 +112,13 @@ Was ein Gegner in seinem Zug tun kann, und was der Spieler dagegen hat:
 | Aktion | Wer | Was geschieht | Antwort des Spielers |
 | --- | --- | --- | --- |
 | **Zielfeuer** | jeder Schütze | feuert mit seiner ATK auf das Flaggschiff und folgt ihm in jede Spalte | Schilde, Schildkarten, den Schützen vorher fällen |
-| **Spaltenfeuer** | Torpedo-Staffel, Belagerer, Wächter | trifft, was im Gegnerzug in der angesagten Spalte steht | Manöver, Kurzsprung, die Aufladung brechen |
-| **Rammkurs** | Brander | fester Schaden, der Brander ist danach weg | vorher fällen, Kurzsprung |
+| **Spaltenfeuer** | Torpedo-Staffel, Belagerer, Wächter, Unbekannter Kontakt | trifft, was im Gegnerzug in der angesagten Spalte steht | Manöver, Kurzsprung, die Aufladung brechen |
+| **Rammkurs** | Brander, Brut | fester Schaden, wer rammt, ist danach weg | vorher fällen, Kurzsprung |
 | **Schilde** | Wachkreuzer, Wächter | schluckt Schaden bis zum Ende des nächsten Spielerzugs | abwarten, EMP-Stoß, ein anderes Ziel |
 | **Ausweichen** | Jäger | gilt ab der Ansage: halbiert die Schüsse des Spielers in diesem Spielerzug, feuert nicht | Torpedo, Railgun, Fokusfeuer, Sperrfeuer, Wärmesucher |
-| **Aufladen** | Belagerer, Wächter | feuert nicht, nächste Runde doppelte ATK | EMP-Stoß, Funkstille, Stillstand, vorher fällen |
+| **Aufladen** | Belagerer, Wächter, Unbekannter Kontakt | feuert nicht, nächste Runde doppelte ATK | EMP-Stoß, Funkstille, Stillstand, vorher fällen |
 | **Zielerfassung** | Spotter | alle gegnerischen Schüsse +1 ATK, solange er steht | den Spotter fällen, Traktorstrahl, Funkstille |
-| **Verstärkung rufen** | Trägerschiff, Schrottkönig | eine neue Einheit trifft sofort ein und steht in der nächsten Runde auf dem Brett | den Rufer fällen, Funkstille |
+| **Verstärkung rufen** | Trägerschiff, Schrottkönig, Unbekannter Kontakt (Brut) | eine neue Einheit trifft sofort ein und steht in der nächsten Runde auf dem Brett | den Rufer fällen, Funkstille |
 
 Gegner manövrieren nicht, reparieren nicht und spielen keine Karten. Ausweichen ist die eine Absicht, die schon mit der Ansage gilt und mit ihr endet; alle anderen wirken erst im Gegnerzug. Ausweichen und Schilde eines Gegners sind als Zustand an ihm zu sehen, solange sie gelten.
 
@@ -130,4 +130,4 @@ Verstärkung kommt auf zwei Wegen: Manche Gefechte sagen sie an („Zwei Wachkre
 
 ### Gefechtsuhr
 
-Ab Runde 8 erhält jede gegnerische Einheit +1 ATK je Runde, dauerhaft für dieses Gefecht: +1 in Runde 8, +2 in Runde 9. Die Uhr tickt in der Auflösung, bevor die Gegner ansagen; der Zuschlag steht also schon in der Ansage. Sie verhindert, dass der Spieler ein gewonnenes Gefecht in die Länge zieht, um sich mit Schadenskontrolle auf volle Hülle zu reparieren, und sie beendet jedes Gefecht.
+Ab Runde 8 erhält jede gegnerische Einheit +1 ATK je Runde, dauerhaft für dieses Gefecht: +1 in Runde 8, +2 in Runde 9. Die Uhr tickt in der Auflösung, bevor die Gegner ansagen; der Zuschlag steht also schon in der Ansage. Sie verhindert, dass der Spieler ein gewonnenes Gefecht in die Länge zieht, um sich mit Schadenskontrolle auf volle Hülle zu reparieren, und sie beendet jedes Gefecht. Nach einem [Durchbruch](gegner.md#der-durchbruch) zählt sie von vorn: Die Runde, in der er geschieht, ist ihre Runde 0.

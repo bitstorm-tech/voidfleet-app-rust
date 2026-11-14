@@ -28,6 +28,8 @@ Nach dem MDA-Framework, von hinten nach vorn:
 
 Während einer gewaltigen Schlacht reißt ein versehentlich geöffnetes Wurmloch das Flaggschiff des Spielers aus der Formation und wirft es an einen fremden Ort im Universum. Die Flotte ist weg, die Karten sind nutzlos, der Funk schweigt. Der Weg nach Hause führt durch drei Sektoren, und jeder, der dort fliegt, will das fremde Schiff: Plünderer, die es ausschlachten wollen, Wachflotten, die es für einen Angreifer halten, und am Ende eine Kommandantin, die das Wurmloch nach Hause bewacht.
 
+Was der Spieler bis zum letzten Gefecht nicht weiß: Kommandantin Vey bewacht das Wurmloch nicht, sie hält es zu. Ihr Flaggschiff heißt Siegel, weil es eines ist, ihr Sektor „Die Schwelle“, weil dahinter etwas wartet. Fällt das Siegel, reißt das Wurmloch auf, und der **Unbekannte Kontakt** kommt durch: das Fremde, das einzige Schiff des Spiels, das keine Menschen gebaut haben ([Der Durchbruch](gegner.md#der-durchbruch)). Bis zu diesem Moment ist jedes Schiff ein Schiff der Menschen, und nichts kündigt die Wendung an: nicht das Hauptmenü, nicht die Spielregeln, nicht die Sternenkarte. Erst wenn das Fremde gefallen ist, steht der Weg nach Hause offen.
+
 ## Modi
 
 Alle drei Modi nutzen dieselben Gefechtsregeln ([Gefecht](gefecht.md)). Sie unterscheiden sich darin, wie viele Menschen am Brett sitzen und wer der Gegner ist: Run und Koop sind PvE, das Duell ist PvP.

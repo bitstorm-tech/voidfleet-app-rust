@@ -13,7 +13,8 @@ use super::{
     aura::ShipAura,
     coords::{BOARD_CENTER, Side, facing},
     effects::{
-        Beam, Bolt, Burn, ChargedBeam, Laser, Missile, Pulse, ShieldFlare, TargetRing, Warp,
+        Beam, Bolt, Burn, ChargedBeam, Laser, Missile, Pulse, ShieldFlare, TargetRing, WARP_COLOR,
+        Warp,
     },
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
     ship::{BreakApart, ToonState, spawn_ghost, spawn_ship},
@@ -146,6 +147,7 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
         position: at(2.0),
         forward: Vec3::X,
         size: 1.0,
+        color: WARP_COLOR,
     });
     if let Some(&piece) = wrecks.first() {
         commands.spawn(Burn {

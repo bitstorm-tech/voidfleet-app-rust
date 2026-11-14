@@ -9,6 +9,8 @@
 //! - **Treffer:** Einschlag, Blitz der Hülle, Balken, die Zahl (Schaden an der Hülle) und darunter ihre Rechnung; der
 //!   Treffer am Vordermann ist ein eigener Einschlag ohne eigenes Geschoss. Am Flaggschiff wackelt die Kamera.
 //! - **Auflösung:** Brände flackern gemeinsam, Rundenbanner, Gefechtsuhr, neue Absichten zusammen.
+//! - **Durchbruch:** Fällt das Siegel, reißt das Wurmloch auf ([`Planner::breach`]): Der Riss zerreißt den Rest des
+//!   Verbands, dann fällt das Fremde herein.
 //!
 //! Der Planer rechnet keine Positionen; die Takte nennen Einheiten und Orte ([`Spot`]), aufgelöst beim Spielen.
 
@@ -26,12 +28,13 @@ use super::{
     steps::chains,
 };
 use crate::{
-    audio::SoundId,
+    audio::{RadioCue, SoundId},
     data::{ship_models::ShipKind, sounds::shot_sound},
     i18n::{Condition, Messages},
     palette::{self, admiral_color},
     scene::{
-        animation::AnimationScope, effects::FIRE_FLASH, effects::HitVariant,
+        animation::AnimationScope,
+        effects::{FIRE_FLASH, HitVariant, WARP_COLOR},
         floating_text::FloatTone,
     },
     ui::{ShowBanner, round_log::describe_event},
@@ -47,6 +50,11 @@ const SALVO_STAGGER: f32 = 0.18;
 const ROUND_LEAD: f32 = 0.8;
 /// Traktorstrahl: Er hält kurz, bevor er zieht.
 const TRACTOR_GRIP: f32 = 0.35;
+/// Der Durchbruch: so lange steht der Riss, bevor er zuschlägt und bevor das Fremde hereinfällt; Abstand zwischen den
+/// Strahlen, die den Verband zerreißen; Größe des Risses gegen das Portal eines Schiffs.
+const BREACH_LEAD: f32 = 1.4;
+const BREACH_STAGGER: f32 = 0.3;
+const RIFT_SIZE: f32 = 2.6;
 /// Kamerawackeln bei Treffern am Flaggschiff: Grundwert und je Punkt Hüllenschaden, höchstens.
 const SHAKE_BASE: f32 = 0.05;
 const SHAKE_PER_POINT: f32 = 0.012;
@@ -83,10 +91,14 @@ impl Weapon {
     }
 }
 
-/// Die Farbe der Schüsse einer Seite.
+/// Die Farbe der Schüsse einer Seite; das Fremde und seine Brut feuern in ihrem eigenen Leuchten.
 fn shot_color(source: UnitRef, admiral: AdmiralId) -> bevy::prelude::Color {
     match source {
         UnitRef::Flagship => admiral_color(admiral),
+        UnitRef::Enemy {
+            id: EnemyId::UnknownContact | EnemyId::Brood,
+            ..
+        } => palette::ALIEN,
         UnitRef::Enemy { .. } => palette::ENEMY,
     }
 }
@@ -123,6 +135,8 @@ struct Context {
     covering: Option<u32>,
     /// Das Flaggschiff rammt und kehrt nach dem Aufprall zurück.
     ramming: bool,
+    /// Wer eintrifft, löst sich von dieser Einheit, statt aus dem Hyperraum zu fallen (die Brut des Fremden).
+    launcher: Option<UnitRef>,
 }
 
 impl Planner<'_> {
@@ -236,8 +250,96 @@ impl Planner<'_> {
             BattleEvent::RoundStarted { round } => Script::default()
                 .then([Cue::RoundBanner(round), Cue::Pause(ROUND_LEAD)])
                 .and(self.intents_together(rest)),
+            BattleEvent::Breach => self.breach(rest),
             _ => self.sequence(chain, self.plain()),
         }
+    }
+
+    /// Der Durchbruch: Banner und Beben, der Riss dort, wo das Fremde eintreffen wird; Strahlen aus dem Riss zerreißen
+    /// kurz nacheinander, was vom Verband noch steht; dann fällt das Fremde unter eigenem Banner herein und sagt an.
+    fn breach(&self, rest: &[BattleEvent]) -> Script {
+        let locale = self.locale;
+        let rift_banner = self.banner(
+            locale.report_breach().to_owned(),
+            Some(locale.report_breach_hint().to_owned()),
+            false,
+        );
+        let arrived = rest.iter().find_map(|event| match *event {
+            BattleEvent::Arrived { unit } => Some(unit),
+            _ => None,
+        });
+        let Some(contact) = arrived else {
+            return Script::default()
+                .then([rift_banner, Cue::Shake(SHAKE_MAX)])
+                .and(self.sequence(rest, self.plain()));
+        };
+        let rift = Spot::Unit(contact);
+        let tear = |size, duration| {
+            Cue::Fx(Fx::Pulse {
+                at: rift,
+                color: palette::ALIEN,
+                size,
+                duration,
+            })
+        };
+        let slot = |unit: UnitRef| match unit {
+            UnitRef::Enemy { slot, .. } => Some(slot),
+            UnitRef::Flagship => None,
+        };
+        let torn = rest.iter().filter_map(|event| match *event {
+            BattleEvent::Destroyed { target, .. } => Some(target),
+            _ => None,
+        });
+        let torn = torn.enumerate().map(|(i, unit)| {
+            // Wer im Riss selbst steht, vergeht ohne Strahl.
+            let beam = (slot(unit) != slot(contact)).then_some(Cue::Fx(Fx::Beam {
+                from: rift,
+                to: Spot::Unit(unit),
+                color: palette::ALIEN,
+                width: 1.2,
+                miss: false,
+            }));
+            Script::default()
+                .then([Cue::Pause(i as f32 * BREACH_STAGGER)])
+                .then(beam)
+                .then([Cue::Unit(unit, Job::Destroy)])
+        });
+        let after: Vec<BattleEvent> = (rest.iter())
+            .filter(|event| {
+                !matches!(
+                    event,
+                    BattleEvent::Destroyed { .. } | BattleEvent::Arrived { .. }
+                )
+            })
+            .cloned()
+            .collect();
+        let contact_banner = self.banner(
+            self.name(contact),
+            Some(locale.report_contact_hint().to_owned()),
+            false,
+        );
+        Script::default()
+            .then([
+                Cue::Lean(None),
+                rift_banner,
+                Cue::Sound(SoundId::ReactorBreach, rift),
+                Cue::Shake(SHAKE_MAX),
+                Cue::Fx(Fx::Warp {
+                    at: rift,
+                    size: RIFT_SIZE,
+                    color: palette::ALIEN,
+                }),
+                tear(3.0, BREACH_LEAD),
+            ])
+            .then([Cue::Sound(SoundId::Emp, rift), Cue::Fork(torn.collect())])
+            .then([Cue::Shake(SHAKE_MAX), tear(5.0, BREACH_LEAD)])
+            .then([
+                contact_banner,
+                Cue::Say(RadioCue::UnknownContact),
+                Cue::Lean(Some(rift)),
+                Cue::Arrive(contact),
+            ])
+            .and(self.sequence(&after, self.plain()))
     }
 
     /// Nach dem Rundenbanner: Gefechtsuhr, dann alle neuen Absichten zugleich.
@@ -258,6 +360,7 @@ impl Planner<'_> {
             weapon: Weapon::Laser(None),
             covering: None,
             ramming: false,
+            launcher: None,
         }
     }
 
@@ -559,7 +662,19 @@ impl Planner<'_> {
         };
         let script = script.then(beat);
         if !matches!(action, Action::Shields(_) | Action::Bolt) {
-            return script.and(self.sequence(rest, self.plain()));
+            // Das Fremde ruft keine Verstärkung aus dem Hyperraum: Seine Brut löst sich von ihm.
+            let alien = matches!(
+                unit,
+                UnitRef::Enemy {
+                    id: EnemyId::UnknownContact,
+                    ..
+                }
+            );
+            let context = Context {
+                launcher: alien.then_some(unit),
+                ..self.plain()
+            };
+            return script.and(self.sequence(rest, context));
         }
         // Schilde und Riegel: die Blasen aller zugleich.
         script.then([Cue::Fork(
@@ -822,7 +937,14 @@ impl Planner<'_> {
                 unit,
                 amount,
                 after,
+            }
+            | BattleEvent::Regenerated {
+                unit,
+                amount,
+                after,
             } => beat.extend(gain(unit, amount, after, palette::HEAL, FloatTone::Heal)),
+            // Der Durchbruch ist ein eigener Schritt ([`Planner::breach`]).
+            BattleEvent::Breach => {}
             BattleEvent::Ignited { target } => {
                 beat.extend([
                     Cue::Unit(target, Job::Burning(true)),
@@ -878,12 +1000,19 @@ impl Planner<'_> {
             }
             BattleEvent::FireshipSpent { unit } => beat.push(Cue::Unit(unit, Job::Destroy)),
             BattleEvent::Jumped => beat.extend([
-                Cue::Fx(Fx::Warp { at: flagship }),
+                Cue::Fx(Fx::Warp {
+                    at: flagship,
+                    size: 1.0,
+                    color: WARP_COLOR,
+                }),
                 Cue::Sound(SoundId::PowerUp, flagship),
                 Cue::Unit(UnitRef::Flagship, Job::Hide),
             ]),
             BattleEvent::Returned => beat.push(Cue::Arrive(UnitRef::Flagship)),
-            BattleEvent::Arrived { unit } => beat.push(Cue::Arrive(unit)),
+            BattleEvent::Arrived { unit } => beat.push(match context.launcher {
+                Some(from) => Cue::Launch { unit, from },
+                None => Cue::Arrive(unit),
+            }),
             BattleEvent::Maneuvered { to, .. } => beat.push(Cue::Unit(
                 UnitRef::Flagship,
                 Job::Move {
@@ -1048,6 +1177,7 @@ fn units(event: &BattleEvent) -> Vec<UnitRef> {
         | BattleEvent::EnemyAction { unit, .. }
         | BattleEvent::Idle { unit, .. }
         | BattleEvent::Cannibalized { unit, .. }
+        | BattleEvent::Regenerated { unit, .. }
         | BattleEvent::Intents { unit, .. } => vec![unit],
         _ => Vec::new(),
     }
@@ -1168,6 +1298,12 @@ mod tests {
                 amount: 8,
                 after: STATS,
             },
+            BattleEvent::Regenerated {
+                unit: GUARD,
+                amount: 4,
+                after: STATS,
+            },
+            BattleEvent::Breach,
             BattleEvent::EmergencyGenerator { after: STATS },
             BattleEvent::Shuffled,
             BattleEvent::Drawn { cards: Vec::new() },

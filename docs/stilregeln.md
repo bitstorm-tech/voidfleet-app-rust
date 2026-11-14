@@ -12,6 +12,9 @@ Broadside (im PvE-Run unbenutzt) stehen noch in der groben Fassung da.
 Die Schiffe baut `tools/ships/` in Blender (`just ships`, `just ship-preview`); Dateinamen ohne Verzeichnis auf dieser
 Seite (`build.py`, `fleet/<id>.py`, `renders/<id>/`) liegen dort.
 
+Zwei Modelle sind von den Stilregeln ausgenommen, nicht von der Technik: der Unbekannte Kontakt und seine Brut (unten,
+„Das Fremde“).
+
 Die Vorschau (`preview.py`) rendert noch Clean Toon mit Linien: Sie taugt für Form, Maße und Umriss, den Look zeigt nur
 das Spiel (unten, „Prüfung“). Vor einem Umbau die Kontaktbögen ansehen (`preview.py -- --views board,hero,behind
 --sheet`).
@@ -342,6 +345,35 @@ Kennzeichen bleiben und werden eher größer:
   selbst, gespiegelte Teile auch; Gefahr droht bei eigenen offenen Lofts (`cap_start`/`cap_end`), umgedrehten Flächen
   und negativer Skalierung.
 - Budget und Größe stehen in der Ausgabe (Dreiecke, KB, Maße).
+
+## Das Fremde
+
+Der Unbekannte Kontakt (`fleet/unknown_contact.py`) und seine Brut (`fleet/brood.py`) sind keine Schiffe, sondern
+Wesen: gewachsen statt gebaut ([Grafikstil](grafikstil.md#das-fremde)). Alles auf dieser Seite, was den Stil der Flotte
+ausmacht, gilt für sie bewusst nicht: keine Fasen, keine Plattenlagen, keine Fenster, Geländer, Türme, Düsen oder
+Beschriftung, keine Detailzonen mit technischem Zweck. Was gilt, ist die Technik:
+
+- **Geometrie.** Geschlossene, nach außen orientierte, sich überlappende Körper, kein schwebendes Teil, `build.py`
+  ohne Warnungen, auch am Wrack. Der tiefste Punkt des Unbekannten Kontakts liegt bei −1,05 statt −1,4: Das Spiel
+  vergrößert ihn um 1,3 (`CONTACT_SCALE` in `scene/ship.rs`), das Modul prüft es selbst.
+- **Formen aus Kurven.** Statt Blöcken und Keilen Schläuche mit ovalem Querschnitt entlang einer Kurve (`limb` über
+  `spline`): Zangen, Rippen, Sehnenstränge, Adern, Tentakel. Der Leib ist ein Loft aus Superellipsen mit Längswülsten;
+  was auf ihm sitzt, misst seine Haut mit einem Strahl (`skin`, `top_z`) und folgt ihr. Flächige Teile (Flughaut,
+  Kopfplatte) sind dünne geschlossene Lofts in Lagen.
+- **Materialien.** Alle Flächen sind runde toon-Materialien (geglättete Normalen): `bone`, `flesh`, `sinew`,
+  `membrane`, `web`, `scale`; dazu die Lichter `organ` (Leuchtsäcke) und `lumen` (Leuchtfeld der Flügel), beide
+  glühend. Die Farben stehen als Konstanten im Modul des Unbekannten Kontakts, die Brut übernimmt sie von dort.
+- **Verwitterung.** Die Maske bleibt, aber ohne Platten, Kantenabrieb und Ruß (`look.WEATHER_MATERIALS`): Schmutz in
+  den Ritzen und die Verdeckung geben dem Leib Tiefe. Die Feinstruktur des Shaders liegt wie bei allen Rümpfen darüber.
+- **Budget.** Der Unbekannte Kontakt steht in seiner Hälfte des Gefechts allein auf dem Brett und darf mehr als jedes
+  andere Schiff: 55k Dreiecke, Maske mit 128 Texeln je Einheit. Die Brut steht als Staffel fünffach da: gut 3k Dreiecke.
+- **Punkte für das Spiel.** `MAW`, die Mitte des Schlunds, ist die Mündung seines Strahls
+  (`ship_models::muzzles`); wer das Maul umbaut, zieht sie nach.
+
+| Modell | Länge × Breite × Höhe | Dreiecke | Gruppe auf dem Brett |
+| --- | --- | --- | --- |
+| Unbekannter Kontakt | 12,0 × 6,0 × 2,7 | 55k | einzeln, Maßstab 1,3 |
+| Brut | 5,1 × 1,5 × 1,5 | 3k | Staffel (fünf Modelle zu 0,42) |
 
 ## Prüfung
 

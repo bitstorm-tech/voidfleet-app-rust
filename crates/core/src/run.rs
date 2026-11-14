@@ -14,6 +14,7 @@ use crate::battle::{Battle, BattleResult, BattleSetup, Encounter};
 use crate::board::MAX_ENEMIES;
 use crate::cards::{CardId, DeckCard, LOOT_POOL, starter_deck};
 use crate::data::{rules, span};
+use crate::enemies::Unit;
 use crate::modules::ModuleId;
 
 pub const SECTORS: u32 = 3;
@@ -73,8 +74,8 @@ pub enum MapError {
     Edges(usize, usize),
     /// Keine Kante führt zu diesem Knoten.
     Unreachable(usize, usize),
-    /// Gefecht ohne Verband, Verband ohne Gefecht, Verband leer oder größer als das Brett erlaubt, oder eine
-    /// Back-Einheit ohne Vordermann.
+    /// Gefecht ohne Verband, Verband ohne Gefecht, Verband leer oder größer als das Brett erlaubt, eine
+    /// Back-Einheit ohne Vordermann, oder eine Einheit (auch die des Durchbruchs) mit ungültigen Werten.
     Encounter(usize, usize),
 }
 
@@ -120,6 +121,7 @@ impl SectorMap {
                             && covered
                             && (1..=MAX_ENEMIES).contains(&count)
                             && encounter.units().all(|(unit, _)| unit.valid())
+                            && encounter.breach.as_ref().is_none_or(Unit::valid)
                     }
                 };
                 if !valid {

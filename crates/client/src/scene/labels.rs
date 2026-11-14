@@ -1,5 +1,5 @@
 //! Unter jedem Schiff, als Knoten der Oberfläche direkt unter seinen Balken: eine Reihe Icons — erst was hilft
-//! (Panzerung, Deckung), dann was schadet (Brand, Notfall, Stillstand, Funkstille), dann die Absicht mit Zahl (bei Kerr
+//! (Panzerung, Lebende Hülle, Deckung), dann was schadet (Brand, Notfall, Stillstand, Funkstille), dann die Absicht mit Zahl (bei Kerr
 //! kleiner die zweite) —, darunter die Rechnung der Vorschau als Text. Ein Tooltip über den
 //! Icons erklärt jedes von ihnen, Zeile für Zeile neben demselben Icon. Was dort steht, setzt [`crate::scene::sync`] in [`ShipCaption`], während der
 //! Wiedergabe die Absichten auch [`crate::playback`].
@@ -42,6 +42,8 @@ pub struct ShipCaption {
     pub burning: Option<i32>,
     /// Panzerung: Abzug je Treffer, 0 zeigt nichts.
     pub armor: i32,
+    /// Lebende Hülle: was je Auflösung nachwächst, 0 zeigt nichts.
+    pub regeneration: i32,
     pub conditions: Vec<Condition>,
     /// Die Rechnung der Vorschau am Ziel unter dem Zeiger.
     pub preview: String,
@@ -118,8 +120,8 @@ fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
     }
 }
 
-/// Die Icons in einer Reihe, je mit Größe und Zeile im Tooltip: was hilft (Panzerung, Deckung), was schadet (Brand,
-/// dann die übrigen Zustände), die Absicht, die nächste.
+/// Die Icons in einer Reihe, je mit Größe und Zeile im Tooltip: was hilft (Panzerung, Lebende Hülle, Deckung), was
+/// schadet (Brand, dann die übrigen Zustände), die Absicht, die nächste.
 fn glyphs(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> Vec<(Glyph, String, f32)> {
     let armor = (caption.armor > 0).then(|| {
         (
@@ -130,6 +132,18 @@ fn glyphs(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> Vec<(Gly
                 columns: None,
             },
             locale.armor_hint(caption.armor),
+            ICON_SIZE,
+        )
+    });
+    let regeneration = (caption.regeneration > 0).then(|| {
+        (
+            Glyph {
+                icon: icons.repair.clone(),
+                color: palette::HEAL,
+                value: Some(caption.regeneration),
+                columns: None,
+            },
+            locale.regeneration_hint(caption.regeneration),
             ICON_SIZE,
         )
     });
@@ -165,6 +179,7 @@ fn glyphs(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> Vec<(Gly
     });
     armor
         .into_iter()
+        .chain(regeneration)
         .chain(buffs.into_iter().map(condition))
         .chain(burning)
         .chain(debuffs.into_iter().map(condition))

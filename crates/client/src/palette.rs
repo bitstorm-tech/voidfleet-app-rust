@@ -20,6 +20,9 @@ pub const BACKGROUND: Color = Color::srgb(0.016, 0.02, 0.04);
 /// Eigene Seite: Schüsse, Banner, Akzente im UI.
 pub const PLAYER: Color = Color::srgb(0.47, 0.76, 1.0);
 pub const ENEMY: Color = Color::srgb(1.0, 0.5, 0.42);
+/// Das Fremde: das Leuchten des Unbekannten Kontakts und seiner Brut, ihre Schüsse, der Riss des Wurmlochs und ihr
+/// Untergang (`GLOW` in `tools/ships/fleet/unknown_contact.py`).
+pub const ALIEN: Color = hex(0x45E0C8);
 /// Auswahl und gültige Ziele: Kartenrahmen, leuchtende Pads.
 pub const SELECT: Color = Color::srgb(0.45, 0.92, 1.0);
 /// Wirkung eines Ereignisses: Fließtexte, Pulse, Balken.

@@ -160,6 +160,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> V
                     next: clockwork.then_some(second),
                     burning: enemy.burning.then(|| battle.burn_damage(enemy.unit())),
                     armor: enemy.armor,
+                    regeneration: enemy.regeneration(),
                     conditions: enemy_conditions(battle, enemy),
                     preview: preview_text(enemy.uid),
                 },

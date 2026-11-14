@@ -43,6 +43,7 @@
   "editor_empty": "Leer",
   "editor_reinforcements": "Verstärkung +",
   "editor_replacements": "Nachrücker +",
+  "editor_breach": "Durchbruch",
   "editor_map": "Karte",
   "editor_admiral": "Admiral",
   "editor_target": "1 · Feld oder Liste wählen",
@@ -359,6 +360,14 @@
     "enemy_breaking": [
       "Abdrehen! Abdrehen! Alle weg hier!",
       "Wir können sie nicht halten! Rückzug!"
+    ],
+    "seal_broken": [
+      "Das Siegel ist gefallen. Es ist offen. Gott steh uns bei, es ist offen!",
+      "Ihr Narren! Wir haben es zugehalten!"
+    ],
+    "unknown_contact": [
+      "Kontakt im Riss! Das ist kein Schiff, Admiral. Es lebt.",
+      "Unbekannter Kontakt, direkt voraus! Nichts in unseren Daten passt dazu."
     ]
   },
   "result_title": {
@@ -510,7 +519,9 @@
     "carrier": "Trägerschiff",
     "scrap_king": "Schrottkönig",
     "warden": "Wächter",
-    "seal": "Siegel"
+    "seal": "Siegel",
+    "unknown_contact": "Unbekannter Kontakt",
+    "brood": "Brut"
   },
   "enemy_class": {
     "fighter": "Jäger-Staffel",
@@ -555,6 +566,7 @@
     "covered": "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
   },
   "armor_hint": "Panzerung: Jeder Treffer macht {amount} weniger Schaden.",
+  "regeneration_hint": "Lebende Hülle: wächst in der Auflösung um {amount} nach, wenn sie in dieser Runde kein Treffer erreicht. Brand hält sie an.",
   "burn_hint": {
     "ticking": "Verliert {amount} Hülle in jeder Auflösung.",
     "suppressed": "Brandschutz: Der Brand tickt nicht."
@@ -629,7 +641,8 @@
     "shot": "{target} zerstört",
     "burned_out": "{target} ausgebrannt",
     "rammed": "{target} zerschellt am Rammstoß",
-    "retaliation": "{target} am Gegenfeuer zerschellt"
+    "retaliation": "{target} am Gegenfeuer zerschellt",
+    "breach": "{target} wird zerrissen"
   },
   "log_fireship_spent": "{unit} ist verbraucht",
   "log_rammed": "Das Flaggschiff rammt {target}",
@@ -648,6 +661,8 @@
   "log_self_damage": "Überladung belastet das Flaggschiff: {amount}",
   "log_burn": "{target} brennt: {amount}",
   "log_cannibalized": "{unit} schlachtet das Wrack aus: +{amount} Hülle",
+  "log_regenerated": "{unit} wächst nach: +{amount} Hülle",
+  "log_breach": "Das Siegel ist gebrochen. Das Wurmloch reißt auf.",
   "log_emergency_generator": "Das Notaggregat hält das Flaggschiff bei 1 Hülle",
   "log_shuffled": "Ablagestapel ins Deck gemischt",
   "log_drawn": {
@@ -780,7 +795,7 @@
   "market_sold_out": "Verkauft",
   "market_leave": "Verlassen",
   "run_won_title": "Das Wurmloch nach Hause",
-  "run_won_text": "Kommandantin Vey ist gefallen, das Wurmloch steht offen. Auf der anderen Seite: die eigene Flotte.",
+  "run_won_text": "Kommandantin Vey hat das Wurmloch nicht bewacht, sie hat es zugehalten. Was dahinter lag, ist gefallen, und der Weg steht offen. Auf der anderen Seite: die eigene Flotte.",
   "run_lost_text": "Das Flaggschiff fiel in Sektor {sector}, Reihe {row}.",
   "run_abandon": "Run abbrechen",
   "run_abandon_title": "Run abbrechen?",
@@ -793,5 +808,8 @@
   "mark_covered": "gedeckt: {amount} → {by}",
   "mark_shielded": "Schild schluckt {amount}",
   "report_missed": "ins Leere",
-  "report_burned_out": "{unit} ausgebrannt"
+  "report_burned_out": "{unit} ausgebrannt",
+  "report_breach": "Das Siegel bricht",
+  "report_breach_hint": "Das Wurmloch reißt auf",
+  "report_contact_hint": "Kein Schiff, das Menschen gebaut haben"
 }

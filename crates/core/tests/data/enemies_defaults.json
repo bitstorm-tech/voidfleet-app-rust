@@ -9,5 +9,7 @@
   "carrier": { "class": "battleship", "hull": 26, "attack": 5, "armor": 1, "pattern": ["fire", { "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }] },
   "scrap_king": { "class": "battleship", "hull": 60, "attack": 7, "armor": 0, "pattern": ["fire", "fire", { "call": { "id": "raiders", "hull": 8, "attack": 2, "armor": 0, "pattern": ["fire"] } }] },
   "warden": { "class": "battleship", "hull": 90, "attack": 15, "armor": 1, "pattern": ["charge", "charge", { "column_fire": 2 }, { "shields": 15 }] },
-  "seal": { "class": "flagship", "hull": 50, "attack": 8, "armor": 0, "pattern": ["fire", "bolt"] }
+  "seal": { "class": "flagship", "hull": 50, "attack": 8, "armor": 0, "pattern": ["fire", "bolt"] },
+  "unknown_contact": { "class": "battleship", "hull": 80, "attack": 10, "armor": 0, "pattern": ["fire", { "call": { "id": "brood", "hull": 6, "attack": 0, "armor": 0, "pattern": ["evade", "ram"] } }, "charge", { "column_fire": 3 }] },
+  "brood": { "class": "fighter", "hull": 6, "attack": 0, "armor": 0, "pattern": ["evade", "ram"] }
 }

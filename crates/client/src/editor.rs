@@ -17,8 +17,9 @@ use voidfleet_core::{
     run::{MapNode, NodeKind, Run, SECTORS, SectorMap},
 };
 
-/// Wohin die nächste Einheit aus der Palette geht. Ein Feld und ein Eintrag einer Liste tragen eine Einheit, deren
-/// Werte und Muster der Editor dann zeigt ([`MapEditor::unit`]); eine Liste selbst nimmt neue Einträge an.
+/// Wohin die nächste Einheit aus der Palette geht. Ein Feld, ein Eintrag einer Liste und der Durchbruch tragen eine
+/// Einheit, deren Werte und Muster der Editor dann zeigt ([`MapEditor::unit`]); eine Liste selbst nimmt neue Einträge
+/// an.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target {
     Slot(Row, usize),
@@ -26,6 +27,8 @@ pub enum Target {
     Replacement,
     ReinforcementEntry(usize),
     ReplacementEntry(usize),
+    /// Die eine Einheit, die statt des Sieges eintrifft (`breach`); „Leer“ räumt sie.
+    Breach,
 }
 
 /// Ein Wert einer Einheit.
@@ -288,6 +291,7 @@ impl MapEditor {
                             .push(Reinforcement { round: 3, unit });
                     }
                     (Target::Replacement, Some(unit)) => encounter.replacements.push(unit),
+                    (Target::Breach, unit) => encounter.breach = unit,
                     (Target::ReinforcementEntry(_) | Target::ReplacementEntry(_), Some(unit)) => {
                         if let Some(entry) = root_mut(encounter, target) {
                             *entry = unit;
@@ -459,6 +463,7 @@ fn root(encounter: &Encounter, target: Target) -> Option<&Unit> {
         Target::Slot(Row::Back, column) => encounter.back[column].as_ref(),
         Target::ReinforcementEntry(index) => Some(&encounter.reinforcements.get(index)?.unit),
         Target::ReplacementEntry(index) => encounter.replacements.get(index),
+        Target::Breach => encounter.breach.as_ref(),
         Target::Reinforcement | Target::Replacement => None,
     }
 }
@@ -471,6 +476,7 @@ fn root_mut(encounter: &mut Encounter, target: Target) -> Option<&mut Unit> {
             Some(&mut encounter.reinforcements.get_mut(index)?.unit)
         }
         Target::ReplacementEntry(index) => encounter.replacements.get_mut(index),
+        Target::Breach => encounter.breach.as_mut(),
         Target::Reinforcement | Target::Replacement => None,
     }
 }
@@ -620,7 +626,8 @@ mod tests {
         editor.apply(Edit::AddStep(Step::Evade));
         editor.apply(Edit::AddStep(Step::Shields(6)));
         editor.apply(Edit::StepValue(2, -10));
-        editor.apply(Edit::AddStep(Step::Call(EnemyId::Seal.into())));
+        // Die letzte Einheit der Liste, einen Platz weiter: wieder die erste.
+        editor.apply(Edit::AddStep(Step::Call(EnemyId::Brood.into())));
         editor.apply(Edit::StepValue(3, 1));
         editor.apply(Edit::DropStep(0));
         let unit = editor.unit().unwrap();
@@ -678,6 +685,20 @@ mod tests {
         );
         editor.apply(Edit::DropReplacement(0));
         assert_eq!(editor.target, Target::Replacement);
+
+        // Der Durchbruch: Die Palette setzt die eine Einheit, ihre Werte stehen zur Wahl, „Leer“ räumt sie.
+        editor.apply(Edit::Target(Target::Breach));
+        assert_eq!(editor.unit(), None);
+        editor.apply(Edit::Place(Some(EnemyId::UnknownContact)));
+        editor.apply(Edit::Stat(Stat::Hull, 5));
+        let contact = Unit::from(EnemyId::UnknownContact);
+        assert_eq!(editor.unit().unwrap().hull, contact.hull + 5);
+        assert!(map_json(&editor.map).contains(r#""breach": { "id": "unknown_contact""#));
+        editor.apply(Edit::Place(None));
+        assert_eq!(
+            editor.node().unwrap().encounter.as_ref().unwrap().breach,
+            None
+        );
 
         editor.apply(Edit::DropReinforcement(0));
         editor.apply(Edit::DropReplacement(0));

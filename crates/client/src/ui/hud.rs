@@ -509,6 +509,7 @@ fn show_round_banner(
     locale: Res<Locale>,
     banner: Single<(Entity, &mut Banner, &mut Visibility), With<RoundBanner>>,
     settings: Res<Settings>,
+    battle: Option<Res<Battle>>,
     mut sounds: MessageWriter<PlayUiSound>,
 ) {
     let Some(&ShowRoundBanner(round)) = messages.read().last() else {
@@ -520,7 +521,8 @@ fn show_round_banner(
         TimerMode::Once,
     ));
     *visibility = Visibility::Inherited;
-    let bonus = round.saturating_sub(voidfleet_core::data::rules().battle.clock_start - 1) as i32;
+    // Das Gefecht steht schon in der neuen Runde; nach einem Durchbruch zählt seine Uhr von vorn.
+    let bonus = battle.map_or(0, |battle| battle.clock());
     let rising = (bonus > 0).then(|| {
         (
             theme::text(

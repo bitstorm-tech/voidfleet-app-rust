@@ -93,7 +93,8 @@ const WARP_PORTAL: f32 = 2.6;
 const WARP_PORTAL_DURATION: f32 = 0.75;
 
 pub const FIRE_FLASH: Color = Color::srgb(1.0, 0.8, 0.5);
-const WARP_COLOR: Color = Color::srgb(0.45, 0.75, 1.0);
+/// Das Blau der Sprünge; das Fremde reißt sein Portal im eigenen Türkis auf ([`Warp::color`]).
+pub const WARP_COLOR: Color = Color::srgb(0.45, 0.75, 1.0);
 
 /// Die Einschlag-Varianten; je Treffer wird zufällig eine gespielt, nie zweimal dieselbe hintereinander.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -529,12 +530,13 @@ pub struct SecondaryExplosion {
 }
 
 /// Ein Schiff mit dem Radius `size` fällt bei `position` aus dem Hyperraum und fliegt in Richtung `forward` weiter; der
-/// Portalring steht quer dazu.
+/// Portalring steht quer dazu. `color` ist [`WARP_COLOR`], außer beim Fremden.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Warp {
     pub position: Vec3,
     pub forward: Vec3,
     pub size: f32,
+    pub color: Color,
 }
 
 /// Detonation eines Schiffs: Kern und Blitz, eine flache und eine aufrechte Druckwelle, die Schwärme des Stils und das
@@ -1459,6 +1461,8 @@ fn start_secondary(add: On<Add<SecondaryExplosion>>, pops: Query<&SecondaryExplo
 
 fn start_warp(add: On<Add<Warp>>, warps: Query<&Warp>, mut fx: Fx) {
     let warp = *warps.get(add.entity).expect("Hyperraum-Austritt");
+    // Der Sprung der Menschen hat seine eigenen Verläufe, jede andere Farbe den eines Schusses.
+    let tinted = warp.color != WARP_COLOR;
     let streaks = Burst {
         count: 36,
         cone: 6f32.to_radians(),
@@ -1467,12 +1471,16 @@ fn start_warp(add: On<Add<Warp>>, warps: Query<&Warp>, mut fx: Fx) {
         life: (0.12, 0.3),
         size: (0.05, 0.1),
         stretch: 9.0,
-        colors: |_| {
-            vec![
-                (0.0, Srgba::WHITE),
-                (0.4, Srgba::new(0.55, 0.8, 1.0, 0.9)),
-                (1.0, Srgba::new(0.3, 0.5, 1.0, 0.0)),
-            ]
+        colors: if tinted {
+            shot
+        } else {
+            |_| {
+                vec![
+                    (0.0, Srgba::WHITE),
+                    (0.4, Srgba::new(0.55, 0.8, 1.0, 0.9)),
+                    (1.0, Srgba::new(0.3, 0.5, 1.0, 0.0)),
+                ]
+            }
         },
         ..Burst::DEFAULT
     };
@@ -1483,11 +1491,15 @@ fn start_warp(add: On<Add<Warp>>, warps: Query<&Warp>, mut fx: Fx) {
         life: (0.4, 0.8),
         size: (0.06, 0.12),
         stretch: 1.5,
-        colors: |_| {
-            vec![
-                (0.0, Srgba::new(0.85, 0.95, 1.0, 1.0)),
-                (1.0, Srgba::new(0.4, 0.6, 1.0, 0.0)),
-            ]
+        colors: if tinted {
+            shot
+        } else {
+            |_| {
+                vec![
+                    (0.0, Srgba::new(0.85, 0.95, 1.0, 1.0)),
+                    (1.0, Srgba::new(0.4, 0.6, 1.0, 0.0)),
+                ]
+            }
         },
         ..Burst::DEFAULT
     };
@@ -1495,13 +1507,13 @@ fn start_warp(add: On<Add<Warp>>, warps: Query<&Warp>, mut fx: Fx) {
         warp.position - warp.forward * warp.size,
         warp.forward,
         streaks,
-        WARP_COLOR,
+        warp.color,
         warp.size,
     );
-    fx.burst(warp.position, warp.forward, sparks, WARP_COLOR, warp.size);
+    fx.burst(warp.position, warp.forward, sparks, warp.color, warp.size);
     fx.sprite(
         warp.position,
-        light(lighten(WARP_COLOR, 0.6)),
+        light(lighten(warp.color, 0.6)),
         WARP_FLASH * warp.size,
         WARP_FLASH_DURATION,
         SpriteKind::Flash,
@@ -1513,7 +1525,7 @@ fn start_warp(add: On<Add<Warp>>, warps: Query<&Warp>, mut fx: Fx) {
     );
     // Der Portalring steht im Raum (vom Rumpf verdeckt), quer zur Flugrichtung.
     let material =
-        fx.material(FxMaterial::light(light(WARP_COLOR)).with_texture(fx.assets.ring.clone()));
+        fx.material(FxMaterial::light(light(warp.color)).with_texture(fx.assets.ring.clone()));
     let mesh = Mesh3d(fx.assets.quad.clone());
     fx.commands.entity(add.entity).insert((
         Name::new("Portal"),

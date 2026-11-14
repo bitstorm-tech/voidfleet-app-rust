@@ -41,7 +41,7 @@ test *args:
 
 # --- Werkzeuge ---
 
-# Vorschau-Szene: board, hit, destroy, arrive, move, effects, show (ein Modell, VOIDFLEET_DEV_SHIP=<dateiname>)
+# Vorschau-Szene: board, hit, destroy, arrive, move, effects, breach, show (ein Modell, VOIDFLEET_DEV_SHIP=<dateiname>)
 scene name="board":
     VOIDFLEET_DEV_SCENE={{ name }} cargo run -p voidfleet-client --features dynamic_linking
 

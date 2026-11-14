@@ -30,6 +30,11 @@ pub enum EnemyId {
     Warden,
     /// Siegel, Flaggschiff von Kommandantin Vey, Boss von Sektor 3.
     Seal,
+    /// Das Fremde hinter dem Wurmloch, das einzige Schiff, das keine Menschen gebaut haben: Es bricht durch, wenn
+    /// das Siegel fällt.
+    UnknownContact,
+    /// Brut des Unbekannten Kontakts: Schwärme, die er ausstößt und die das Flaggschiff rammen.
+    Brood,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -60,7 +65,7 @@ pub enum Action {
 }
 
 impl EnemyId {
-    pub const ALL: [EnemyId; 11] = {
+    pub const ALL: [EnemyId; 13] = {
         use EnemyId::*;
         [
             Raiders,
@@ -74,6 +79,8 @@ impl EnemyId {
             ScrapKing,
             Warden,
             Seal,
+            UnknownContact,
+            Brood,
         ]
     };
 

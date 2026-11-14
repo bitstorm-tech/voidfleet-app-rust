@@ -21,7 +21,8 @@
     "ram_damage": 12,
     "bolt_shield": 4,
     "cannibalize_heal": 8,
-    "plasma_burn_percent": 60
+    "plasma_burn_percent": 60,
+    "regeneration": 6
   },
   "modules": {
     "fire_control_computer_attack": 2,

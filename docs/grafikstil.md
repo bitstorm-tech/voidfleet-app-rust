@@ -25,6 +25,29 @@ Fünf Grundsätze gelten überall, in der Szene, in der Oberfläche und in den B
 5. **Kantig.** Formen sind eckig und technisch: Facetten, Platten, Klammern, kleine Eckradien. Nichts ist rund und
    weich, außer es ist ein Rohr, ein Turm oder eine Düse.
 
+### Das Fremde
+
+Ein Schiff bricht alle fünf Grundsätze, und zwar mit Absicht: der Unbekannte Kontakt, der im letzten Gefecht durch das
+Wurmloch kommt, und seine Brut ([Der Durchbruch](gegner.md#der-durchbruch)). Bis dahin hat der Spieler drei Sektoren
+lang nur Schiffe der Menschen gesehen, und die Wendung wirkt nur, wenn das Fremde auf den ersten Blick nicht dazugehört.
+
+- **Gewachsen statt gebaut.** Keine Platten, Fasen, Fenster, Türme, Düsen oder Beschriftung. Ein Leib aus Fleisch mit
+  Muskelsträngen, ein Rückgrat aus Wirbelplatten, Rippen, Knochenzangen als Maul, Sichelflügel mit Flughaut, Tentakel
+  als Heck. Alles ist rund und weich, wo die Flotte kantig ist.
+- **Warm und bunt statt kühl und grau.** Knochen in Elfenbein bis Sandbraun, Fleisch in Weinrot mit Schatten ins
+  Dunkelviolette, Schuppen und Eier in Grautürkis. Das Blaugrau der Rümpfe kommt an ihm nicht vor.
+- **Leuchten als Fläche.** Wo ein Menschenschiff ein Positionslicht hat, hat das Fremde Organe: Leuchtsäcke unter den
+  Rippen und ein Leuchtfeld an den Flügelwurzeln, beide im Türkis `ALIEN`. Es ist das einzige Schiff, an dem eine große
+  Fläche leuchtet.
+- **Sein Türkis trägt alles, was von ihm ausgeht:** Schüsse, der Riss des Wurmlochs, das Portal, aus dem es fällt, und
+  die Energie seines Untergangs. Die Lackierung der Gegnerseite (Koralle) trägt es nicht.
+- **Die Technik bleibt.** Es ist nach demselben Material-Vertrag gebaut und wird vom selben Shader gezeichnet
+  (matter Verlauf über drei Töne, Verdeckung und Schmutz in den Ritzen aus der Maske), nur ohne Platten und
+  Kantenabrieb ([Stilregeln](stilregeln.md#das-fremde)).
+
+Kein zweites Schiff bekommt diesen Look. Wer ein weiteres Wesen dieser Art baut, übernimmt Farben und Formen aus
+`tools/ships/fleet/unknown_contact.py`.
+
 ## Farbpalette
 
 Farben stehen an genau zwei Stellen im Code und nirgends sonst als Zahl: `crates/client/src/palette.rs` (alles mit
@@ -59,9 +82,11 @@ Flächentöne der Oberfläche stehen in `crates/client/src/ui/theme.rs`. Alle We
 | <span style="color:#B0BDCF">■</span> Grau           | `#B0BDCF` | `DRAW`             | neutraler Ausgang                                    |
 | <span style="color:#4CDB61">■</span> <span style="color:#F2BD33">■</span> <span style="color:#ED382E">■</span> Hülle | `#4CDB61` `#F2BD33` `#ED382E` | `HP_FULL`, `HP_HALF`, `HP_EMPTY` | Hüllenbalken von voll bis leer |
 | <span style="color:#F4D68C">■</span> Zier           | `#F4D68C` | `FLAGSHIP_TRIM`    | Zierton aller Flaggschiffe: Zierlinie, Kartenrahmen, Sterne |
+| <span style="color:#45E0C8">■</span> Türkis         | `#45E0C8` | `ALIEN`            | das Fremde: sein Leuchten, seine Schüsse, der Riss, sein Untergang ([Das Fremde](#das-fremde)) |
 
 Schaden ist rot und warm, Schild und alles Eigene blau, Auswahl cyan. Rot und Koralle liegen nah beieinander und
-bleiben getrennt: Koralle heißt „gehört dem Gegner“, Rot heißt „Schaden“.
+bleiben getrennt: Koralle heißt „gehört dem Gegner“, Rot heißt „Schaden“. Das Türkis des Fremden liegt zwischen Cyan
+(Auswahl) und Grün (Reparatur) und gehört nur ihm; in der Oberfläche kommt es nicht vor.
 
 ### Admirale
 

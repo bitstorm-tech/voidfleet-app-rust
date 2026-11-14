@@ -339,9 +339,9 @@ plain! {
 
     // --- Karteneditor ---
     settings_editor editor_title editor_hint editor_save editor_discard editor_play editor_add_row
-    editor_add_node editor_delete_node editor_empty editor_reinforcements editor_replacements editor_map editor_admiral
-    editor_target editor_unit editor_valid editor_no_node editor_values editor_armor editor_reset
-    editor_back editor_open_call
+    editor_add_node editor_delete_node editor_empty editor_reinforcements editor_replacements editor_breach
+    editor_map editor_admiral editor_target editor_unit editor_valid editor_no_node editor_values editor_armor
+    editor_reset editor_back editor_open_call
     editor_add_step
 
     // --- Befehlskarten-Editor ---
@@ -379,9 +379,11 @@ plain! {
     stats_hull stats_atk
     /// Vor der zweiten Absicht im Tooltip (Uhrwerk).
     caption_next
-    log_jumped log_returned log_emergency_generator log_shuffled
+    log_jumped log_returned log_emergency_generator log_shuffled log_breach
     /// Ein Schuss geht ins Leere (Kurzsprung, Manöver).
     report_missed
+    /// Der Durchbruch: Banner beim Fall des Siegels, dann unter dem Namen dessen, was durchbricht.
+    report_breach report_breach_hint report_contact_hint
 }
 
 keyed! {
@@ -447,6 +449,8 @@ filled! {
     // --- Gefecht ---
     /// Tooltip am Icon der Panzerung.
     armor_hint(amount: i32)
+    /// Tooltip am Icon der Lebenden Hülle.
+    regeneration_hint(amount: i32)
 
     // --- Log, je Ereignis eine Zeile; Einheiten kommen schon benannt ---
     log_round_header(round: u32)
@@ -468,6 +472,7 @@ filled! {
     log_self_damage(amount: i32)
     log_burn(target: &str, amount: i32)
     log_cannibalized(unit: &str, amount: i32)
+    log_regenerated(unit: &str, amount: i32)
     log_intents(unit: &str, intents: &str)
     log_clock(bonus: i32)
 
@@ -1309,6 +1314,7 @@ mod tests {
                 DestroyCause::BurnedOut,
                 DestroyCause::Rammed,
                 DestroyCause::Retaliation,
+                DestroyCause::Breach,
             ]
             .into_iter()
             .for_each(|cause| plain(&locale.log_destroyed("A", cause)));

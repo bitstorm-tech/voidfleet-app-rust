@@ -61,6 +61,7 @@ radio_cues! {
     ReinforcementsSighted => "reinforcements_sighted", 2, 2;
     EmergencyGenerator => "emergency_generator", 2, 3;
     Repairs => "repairs", 2, 2;
+    UnknownContact => "unknown_contact", 2, 3;
     // Geschützleitung
     TargetLocked => "target_locked", 2, 1;
     DirectHit => "direct_hit", 2, 1;
@@ -75,6 +76,7 @@ radio_cues! {
     EnemyCharging => "enemy_charging", 2, 2;
     EnemyCallsReinforcements => "enemy_calls_reinforcements", 2, 2;
     EnemyBreaking => "enemy_breaking", 2, 2;
+    SealBroken => "seal_broken", 2, 3;
 }
 
 impl RadioCue {
@@ -86,6 +88,7 @@ impl RadioCue {
                 | Self::EnemyCharging
                 | Self::EnemyCallsReinforcements
                 | Self::EnemyBreaking
+                | Self::SealBroken
         )
     }
 

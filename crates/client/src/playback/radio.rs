@@ -3,13 +3,16 @@
 //! Bordfunks ([`crate::audio::radio`]) ordnet nach Priorität und sperrt Wiederholungen.
 //!
 //! Die Brücke meldet Gefahr, Brände, Notfall und eigene Manöver, die Geschützleitung Waffen und Treffer, der abgehörte
-//! Gegnerfunk Notfall, Aufladen, Verstärkung und den Moment, in dem ein Verband bricht.
+//! Gegnerfunk Notfall, Aufladen, Verstärkung und den Moment, in dem ein Verband bricht. Zum Durchbruch gehören zwei
+//! Sprüche: die Gegenflotte, als das Siegel fällt (hier), und die Brücke, als das Fremde eintrifft (den zweiten sagt die
+//! Wiedergabe selbst an, [`super::plan`]). Das Fremde und seine Brut funken nicht: Abgehörter Gegnerfunk schweigt bei
+//! ihnen.
 
 use voidfleet_core::{
     admirals::{AdmiralId, Station},
     battle::BattleResult,
     cards::CardId,
-    enemies::Action,
+    enemies::{Action, EnemyId},
     events::{BattleEvent, UnitRef},
 };
 
@@ -25,10 +28,7 @@ pub fn radio_cue(step: &[BattleEvent], admiral: AdmiralId) -> Option<RadioCue> {
         .filter(|event| {
             matches!(
                 event,
-                BattleEvent::Destroyed {
-                    target: UnitRef::Enemy { .. },
-                    ..
-                }
+                BattleEvent::Destroyed { target, .. } if human(*target)
             )
         })
         .count();
@@ -43,6 +43,14 @@ pub fn radio_cue(step: &[BattleEvent], admiral: AdmiralId) -> Option<RadioCue> {
                 best
             }
         })
+}
+
+/// Eine gegnerische Einheit, deren Funk sich abhören lässt: alle außer dem Fremden und seiner Brut.
+fn human(unit: UnitRef) -> bool {
+    match unit {
+        UnitRef::Enemy { id, .. } => !matches!(id, EnemyId::UnknownContact | EnemyId::Brood),
+        UnitRef::Flagship => false,
+    }
 }
 
 fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
@@ -62,9 +70,10 @@ fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
             active: true,
         } => RadioCue::HullCritical,
         E::Emergency {
-            target: Enemy { .. },
+            target,
             active: true,
-        } => RadioCue::EnemyPanic,
+        } if human(target) => RadioCue::EnemyPanic,
+        E::Breach => RadioCue::SealBroken,
         E::Ignited { target: Flagship } => RadioCue::FireOnboard,
         E::Ignited {
             target: Enemy { .. },
@@ -74,7 +83,14 @@ fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
         E::Jumped => RadioCue::MicroJump,
         E::Returned => RadioCue::JumpReturn,
         E::Maneuvered { .. } => RadioCue::Maneuver,
-        E::Arrived { unit: Enemy { .. } } => RadioCue::ReinforcementsSighted,
+        E::Arrived {
+            unit:
+                Enemy {
+                    id: EnemyId::UnknownContact,
+                    ..
+                },
+        } => RadioCue::UnknownContact,
+        E::Arrived { unit } if human(unit) => RadioCue::ReinforcementsSighted,
         E::Counterfire { .. } => RadioCue::Counterfire,
         E::StationTriggered { station } => match station {
             Station::Shields => RadioCue::ShieldsUp,
@@ -99,20 +115,21 @@ fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
             breakdown,
             ..
         } if breakdown.hull >= DIRECT_HIT => RadioCue::DirectHit,
-        E::EnemyAction { action, .. } => match action {
+        E::EnemyAction { unit, action } => match action {
             Action::Fire | Action::ColumnFire { .. } => RadioCue::IncomingFire,
-            Action::Charge => RadioCue::EnemyCharging,
-            Action::Call(_) => RadioCue::EnemyCallsReinforcements,
+            Action::Charge if human(unit) => RadioCue::EnemyCharging,
+            Action::Call(_) if human(unit) => RadioCue::EnemyCallsReinforcements,
             _ => return None,
         },
         // Angesagt für den nächsten Gegnerzug: Schaden am Flaggschiff heißt, es steht in der Schusslinie.
-        E::Intents { intents, .. } => {
+        E::Intents { unit, intents } => {
             intents
                 .iter()
                 .filter(|intent| intent.damage > 0)
                 .find_map(|intent| match intent.action {
                     Action::ColumnFire { .. } => Some(RadioCue::ColumnFireIncoming),
-                    Action::Ram => Some(RadioCue::RamIncoming),
+                    // Der Spruch nennt den Brander; die Brut rammt ohne Meldung.
+                    Action::Ram if human(unit) => Some(RadioCue::RamIncoming),
                     _ => None,
                 })?
         }
@@ -136,6 +153,11 @@ mod tests {
         uid: 1,
         id: EnemyId::Raiders,
         slot: EnemySlot::new(Row::Front, 0),
+    };
+    const CONTACT: UnitRef = UnitRef::Enemy {
+        uid: 9,
+        id: EnemyId::UnknownContact,
+        slot: EnemySlot::new(Row::Front, 1),
     };
     const STATS: UnitStats = UnitStats { hull: 1, shield: 0 };
 
@@ -338,6 +360,12 @@ mod tests {
                 AdmiralId::Osei,
                 RadioCue::RamIncoming,
             ),
+            (vec![E::Breach], AdmiralId::Osei, RadioCue::SealBroken),
+            (
+                vec![E::Arrived { unit: CONTACT }],
+                AdmiralId::Osei,
+                RadioCue::UnknownContact,
+            ),
         ];
         for (step, admiral, cue) in &triggers {
             assert_eq!(radio_cue(step, *admiral), Some(*cue), "{step:?}");
@@ -350,6 +378,41 @@ mod tests {
         }
         // Spaltenfeuer auf eine andere Spalte schweigt.
         assert_eq!(radio_cue(&[intents(column, 0)], AdmiralId::Osei), None);
+    }
+
+    /// Das Fremde funkt nicht: Lädt es auf, ruft es Brut oder gerät es in den Notfall, bleibt der Gegnerfunk still;
+    /// sein Feuer meldet die Brücke wie jedes andere. Im Schritt des Durchbruchs spricht die Gegenflotte.
+    #[test]
+    fn the_unknown_contact_is_silent() {
+        use BattleEvent as E;
+        let act = |action| E::EnemyAction {
+            unit: CONTACT,
+            action,
+        };
+        let panic = E::Emergency {
+            target: CONTACT,
+            active: true,
+        };
+        for event in [
+            act(Action::Charge),
+            act(Action::Call(EnemyId::Brood)),
+            panic,
+        ] {
+            assert_eq!(
+                radio_cue(std::slice::from_ref(&event), AdmiralId::Osei),
+                None,
+                "{event:?}"
+            );
+        }
+        assert_eq!(
+            radio_cue(&[act(Action::Fire)], AdmiralId::Osei),
+            Some(RadioCue::IncomingFire)
+        );
+        let breach = [E::Breach, kill(1), kill(2), E::Arrived { unit: CONTACT }];
+        assert_eq!(
+            radio_cue(&breach, AdmiralId::Osei),
+            Some(RadioCue::SealBroken)
+        );
     }
 
     /// Je Schritt der wichtigste: Der Sieg geht dem Abschuss vor.

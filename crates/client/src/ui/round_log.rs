@@ -78,6 +78,12 @@ pub fn describe_event(locale: &Messages, event: &BattleEvent, admiral: AdmiralId
         BattleEvent::Cannibalized {
             unit: king, amount, ..
         } => locale.log_cannibalized(&unit(*king), *amount),
+        BattleEvent::Regenerated {
+            unit: grown,
+            amount,
+            ..
+        } => locale.log_regenerated(&unit(*grown), *amount),
+        BattleEvent::Breach => locale.log_breach().to_owned(),
         BattleEvent::EmergencyGenerator { .. } => locale.log_emergency_generator().to_owned(),
         BattleEvent::Shuffled => locale.log_shuffled().to_owned(),
         BattleEvent::Drawn { cards } => locale.log_drawn(cards.len()),
@@ -214,6 +220,12 @@ mod tests {
                 amount: 8,
                 after: stats,
             },
+            BattleEvent::Regenerated {
+                unit: enemy,
+                amount: 4,
+                after: stats,
+            },
+            BattleEvent::Breach,
             BattleEvent::EmergencyGenerator { after: stats },
             BattleEvent::Shuffled,
             BattleEvent::Drawn {

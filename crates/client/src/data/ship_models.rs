@@ -44,7 +44,7 @@ impl ShipKind {
     }
 }
 
-pub const ENEMIES: [EnemyId; 11] = {
+pub const ENEMIES: [EnemyId; 13] = {
     use EnemyId::*;
     [
         Raiders,
@@ -58,6 +58,8 @@ pub const ENEMIES: [EnemyId; 11] = {
         ScrapKing,
         Warden,
         Seal,
+        UnknownContact,
+        Brood,
     ]
 };
 
@@ -95,6 +97,8 @@ pub fn model_key(kind: ShipKind) -> &'static str {
             EnemyId::ScrapKing => "scrap_king",
             EnemyId::Warden => "warden",
             EnemyId::Seal => "seal",
+            EnemyId::UnknownContact => "unknown_contact",
+            EnemyId::Brood => "brood",
         },
         ShipKind::Flagship(flagship) => match flagship {
             FlagshipId::Bastion => "bastion",
@@ -140,12 +144,14 @@ pub fn muzzles(kind: ShipKind) -> &'static [Vec3] {
         "warden" => const { &[gun(0.0, -6.8, 0.5)] },
         // Spitze der Lanze (der Rumpf ist danach auf 0,92 skaliert)
         "lance_bomber" => const { &[gun(0.0, -3.3 * 0.92, -0.78 * 0.92)] },
+        // Der Schlund zwischen den oberen und unteren Zangen (`MAW`)
+        "unknown_contact" => const { &[gun(0.0, -5.25, -0.5)] },
         _ => &[],
     }
 }
 
 /// Ob ein Schiff die Lackierung der Gegner trägt ([`crate::scene::toon::material::livery`]): die Gegner mit den alten
-/// Rümpfen, nicht die Bosse mit eigenen und nicht die Flaggschiffe.
+/// Rümpfen, nicht die Bosse mit eigenen, nicht das Fremde und seine Brut und nicht die Flaggschiffe.
 pub fn livery(kind: ShipKind) -> bool {
     use EnemyId::*;
     matches!(
@@ -219,12 +225,13 @@ impl FromWorld for ShipModels {
 mod tests {
     use super::*;
 
-    /// Die acht alten Rümpfe tragen die Lackierung, Bosse und Flaggschiffe nicht.
+    /// Die acht alten Rümpfe tragen die Lackierung, Bosse, das Fremde und Flaggschiffe nicht.
     #[test]
     fn livery_only_for_old_hulls() {
         let painted: Vec<ShipKind> = ships().filter(|kind| livery(*kind)).collect();
         assert_eq!(painted.len(), 8);
-        for boss in [EnemyId::ScrapKing, EnemyId::Warden, EnemyId::Seal] {
+        use EnemyId::*;
+        for boss in [ScrapKing, Warden, Seal, UnknownContact, Brood] {
             assert!(!livery(ShipKind::Enemy(boss)));
         }
         assert!(
