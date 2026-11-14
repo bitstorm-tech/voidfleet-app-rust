@@ -1,10 +1,10 @@
 // Fragment-Shader der Schiffe und Wracks im dreckigen Look (`ToonMaterial` in
 // `crates/client/src/scene/toon/material.rs`). Alles Licht ist gerechnet, nicht beleuchtet; gerechnet wird linear, Bevy
 // schreibt sRGB. Was heller als 1 wird (Lichter mit Glühen, heiße Glut), glüht im Bloom der Kamera. Reihenfolge auf
-// toon-Flächen: Relief (Fasen der Plattenkanten, Feinstruktur), drei Töne als matter Verlauf (mit Lackierung),
-// Verwitterung (Helligkeit aus Plattenton und Verdeckung, Fugen, Schmutz, Ruß, Kantenabrieb), Kantenlicht und Glanz,
-// Blitzlicht, Glut, Überlagerung. Konturen gibt es nicht; nur das Ziel unter dem Fadenkreuz bekommt eine
-// (`toon_outline.wesl`).
+// toon-Flächen: Relief (Fasen der Plattenkanten, Feinstruktur bzw. die Höhe der Haut), drei Töne als matter Verlauf
+// (mit Lackierung), Verwitterung (Helligkeit aus Plattenton und Verdeckung, Fugen, Schmutz, Ruß, Kantenabrieb),
+// Zeichnung der Haut, Kantenlicht und Glanz, Leuchten der Haut, Blitzlicht, Glut, Überlagerung. Konturen gibt es nicht;
+// nur das Ziel unter dem Fadenkreuz bekommt eine (`toon_outline.wesl`).
 
 import bevy_pbr::render::forward_io::VertexOutput;
 import bevy_pbr::render::mesh_functions::get_local_from_world;
@@ -24,6 +24,8 @@ struct ToonMaterial {
     overlay: vec4<f32>,
     // x: Maske der Verwitterung an (1) oder aus (0)
     weather: vec4<f32>,
+    // rgb: Leuchten der Haut (erlischt mit den Lichtern), a: Haut an (1) oder aus (0)
+    skin: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> material: ToonMaterial;
@@ -35,6 +37,8 @@ struct ToonMaterial {
 @group(constants::MATERIAL_BIND_GROUP) @binding(6) var detail_sampler: sampler;
 // xyz: Lage des Blitzlichts, w: Stärke; ein Puffer für alle Materialien
 @group(constants::MATERIAL_BIND_GROUP) @binding(7) var<storage, read> flash: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(8) var skin_texture: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(9) var skin_sampler: sampler;
 
 // Verlauf über Halb-Lambert (N·L · 0,5 + 0,5): Schatten → Halbschatten, Halbschatten → Licht; danach alles so viel
 // dunkler.
@@ -80,6 +84,20 @@ const DETAIL: vec2<f32> = vec2<f32>(1.0, 0.27);
 const RELIEF: vec2<f32> = vec2<f32>(0.35, 0.22);
 const MOTTLE: vec2<f32> = vec2<f32>(0.16, 0.1);
 const GRAIN: vec2<f32> = vec2<f32>(0.2, 0.14);
+// Haut der Wesen `<id>_skin` (`tools/ships/skin.py`), statt der Feinstruktur: R Zeichnung, die Helligkeit als Faktor
+// 2^(SKIN_SPAN · (2R − 1)), wobei dunkle Stellen um bis zu SKIN_DEEP zum Farbton des Schattentons ziehen (Adern in
+// Fleisch werden violett); G Leuchten, mal SKIN_GLOW in der Farbe aus `skin`; B Nässe, der Anteil am Glanz des
+// Materials, der auf der Haut schärfer und heller ist als auf Metall (SKIN_WET wie GLOSS); A Höhe, ±SKIN_DEPTH
+// Einheiten um 0,5, deren Steigung mal SKIN_RELIEF die Normale neigt. SKIN_SPAN und SKIN_DEPTH stehen ebenso in
+// skin.py.
+const SKIN_SPAN: f32 = 1.25;
+const SKIN_DEPTH: f32 = 0.02;
+const SKIN_DEEP: f32 = 0.8;
+const SKIN_GLOW: f32 = 1.6;
+const SKIN_RELIEF: f32 = 1.0;
+const SKIN_WET: vec2<f32> = vec2<f32>(56.0, 0.9);
+// Ohne Haut: neutrale Zeichnung, kein Leuchten, voller Glanz, flach.
+const NO_SKIN: vec4<f32> = vec4<f32>(0.5, 0.0, 1.0, 0.5);
 // Harte Rille, Fase und Abrieb nach dem Maßstab (log2 der Bezugstexel je Pixel bei 64 Texeln je Einheit): von voll bis
 // weg.
 const FINE_LOD: vec2<f32> = vec2<f32>(0.4, 1.2);
@@ -122,8 +140,21 @@ fn detail(position: vec3<f32>, normal: vec3<f32>) -> Detail {
     );
 }
 
-// Richtung in der Fläche, in der Kanal A der Maske wächst (von der Fuge weg), in der Welt und normiert. Die Steigung
+// Steigung eines Kanals der Abwicklung in der Fläche, je Längeneinheit des Raums von `position` und `normal`: `across`
+// sind seine Differenzen über die Nachbartexel in u und v (zwei Texel Abstand), `texels` die Bildgröße. Die Steigung
 // kommt aus Nachbartexeln statt aus der Bildableitung: Die wäre in der Vergrößerung je Texel konstant, also stufig.
+fn uphill(across: vec2<f32>, texels: vec2<f32>, uv: vec2<f32>, normal: vec3<f32>, position: vec3<f32>) -> vec3<f32> {
+    // Steigung je Pixel, dann in die Fläche gelegt (Mikkelsen, „Bump Mapping Unparametrized Surfaces on the GPU“)
+    let rise = 0.5 * vec2<f32>(dot(across, dpdx(uv) * texels), dot(across, dpdy(uv) * texels));
+    let along_x = dpdx(position);
+    let along_y = dpdy(position);
+    let r1 = cross(along_y, normal);
+    let r2 = cross(normal, along_x);
+    let det = dot(along_x, r1);
+    return (rise.x * r1 + rise.y * r2) * sign(det) / max(abs(det), 1e-20);
+}
+
+// Richtung in der Fläche, in der Kanal A der Maske wächst (von der Fuge weg), in der Welt und normiert.
 fn away_from_seam(uv: vec2<f32>, normal: vec3<f32>, position: vec3<f32>) -> vec3<f32> {
     let texels = vec2<f32>(textureDimensions(weather_texture));
     let step = 1.0 / texels;
@@ -133,14 +164,30 @@ fn away_from_seam(uv: vec2<f32>, normal: vec3<f32>, position: vec3<f32>) -> vec3
         textureSample(weather_texture, weather_sampler, uv + vec2<f32>(0.0, step.y)).a
             - textureSample(weather_texture, weather_sampler, uv - vec2<f32>(0.0, step.y)).a,
     );
-    // Steigung je Pixel, dann in die Fläche gelegt (Mikkelsen, „Bump Mapping Unparametrized Surfaces on the GPU“)
-    let rise = vec2<f32>(dot(across, dpdx(uv) * texels), dot(across, dpdy(uv) * texels));
-    let along_x = dpdx(position);
-    let along_y = dpdy(position);
-    let r1 = cross(along_y, normal);
-    let r2 = cross(normal, along_x);
-    let gradient = sign(dot(along_x, r1)) * (rise.x * r1 + rise.y * r2);
+    let gradient = uphill(across, texels, uv, normal, position);
     return gradient * inverseSqrt(max(dot(gradient, gradient), 1e-20));
+}
+
+// Neigung durch die Höhe der Haut (Kanal A) in Schiffskoordinaten, wie die Neigung der Feinstruktur; höchstens 45°.
+fn skin_slope(uv: vec2<f32>, normal: vec3<f32>, position: vec3<f32>) -> vec3<f32> {
+    let texels = vec2<f32>(textureDimensions(skin_texture));
+    let step = 1.0 / texels;
+    let across = vec2<f32>(
+        textureSample(skin_texture, skin_sampler, uv + vec2<f32>(step.x, 0.0)).a
+            - textureSample(skin_texture, skin_sampler, uv - vec2<f32>(step.x, 0.0)).a,
+        textureSample(skin_texture, skin_sampler, uv + vec2<f32>(0.0, step.y)).a
+            - textureSample(skin_texture, skin_sampler, uv - vec2<f32>(0.0, step.y)).a,
+    );
+    let slope = 2.0 * SKIN_DEPTH * SKIN_RELIEF * uphill(across, texels, uv, normal, position);
+    return slope * min(1.0, inverseSqrt(max(dot(slope, slope), 1e-20)));
+}
+
+// Zeichnung der Haut: heller oder dunkler, und je dunkler, desto mehr im Farbton des Schattentons.
+fn markings(color: vec3<f32>, skin: vec4<f32>) -> vec3<f32> {
+    let shade = exp2(SKIN_SPAN * (2.0 * skin.r - 1.0));
+    let deep = material.tone_dark.rgb / max(material.tone_lit.rgb, vec3<f32>(1e-4));
+    let hue = deep / max(dot(deep, LUMA), 1e-4);
+    return color * shade * mix(vec3<f32>(1.0), hue, SKIN_DEEP * saturate(1.0 - shade));
 }
 
 // Verwitterung über dem Verlauf: Helligkeit, Fugen, Schmutz, Ruß, Kantenabrieb (nicht im Schatten). `fine` blendet die
@@ -163,15 +210,23 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     if !is_front {
         normal = -normal;
     }
-    var color = material.tone_lit.rgb * material.surface.z;
+    var skin = NO_SKIN;
+    @if(VERTEX_UVS_A) {
+        if material.skin.a > 0.5 {
+            skin = textureSample(skin_texture, skin_sampler, in.uv);
+        }
+    }
+    // Lichter in genau ihrer Farbe, die eines Wesens nach der Zeichnung seiner Haut heller und dunkler
+    var color = material.tone_lit.rgb * material.surface.z * exp2(SKIN_SPAN * (2.0 * skin.r - 1.0));
     if material.surface.x > 0.5 {
         let to_camera = normalize(view.world_position - in.world_position.xyz);
         let key = material.key.xyz;
         // `facing` fällt durch Rundung knapp unter 0: pow gäbe NaN, also ein schwarzes Pixel. Das Kantenlicht folgt
         // der Form, nicht dem Relief.
         let facing = max(1.0 - abs(dot(normal, to_camera)), 0.0);
-        // Glanz: der des Materials, dazu blankes Metall an abgeschabten Kanten; Schmutz nimmt ihn weg
-        var gloss = material.surface.y;
+        // Glanz: der des Materials (auf der Haut nur, wo sie nass ist), dazu blankes Metall an abgeschabten Kanten;
+        // Schmutz nimmt ihn weg
+        var gloss = material.surface.y * skin.b;
         var mask = vec4<f32>(0.0);
         var structure = Detail(vec3<f32>(0.0), 0.0, 0.0);
         var fine = 0.0;
@@ -185,7 +240,12 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
                 let footprint = 64.0 * max(length(dpdx(position)), length(dpdy(position)));
                 fine = 1.0 - smoothstep(FINE_LOD.x, FINE_LOD.y, log2(footprint));
                 mask = textureSample(weather_texture, weather_sampler, in.uv);
-                structure = detail(position, normalize(turn * normal));
+                let inside = normalize(turn * normal);
+                if material.skin.a > 0.5 {
+                    structure.slope = skin_slope(in.uv, inside, position);
+                } else {
+                    structure = detail(position, inside);
+                }
                 let chamfer = fine * BEVEL.y * band(SEAM_STEP, mask.a) * (1.0 - smoothstep(SEAM_STEP, BEVEL.x, mask.a));
                 // Zeilenvektor mal Matrix: zurück in die Welt (`turn` ist Drehung durch Maßstab, daher der Faktor
                 // unten)
@@ -202,10 +262,13 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
             color = weathered(color, mask, light, fine, structure);
             gloss = max(gloss, fine * band(WEAR_STEP, mask.g)) * (1.0 - smoothstep(DIRT.x, DIRT.y, mask.r));
         }
+        color = markings(color, skin);
 
         let half_way = max(dot(normal, normalize(to_camera + key)), 0.0);
         color = mix(color * EXPOSURE, RIM_COLOR, RIM.y * pow(facing, RIM.x));
-        color += GLINT_COLOR * pow(half_way, GLOSS.x) * GLOSS.y * gloss;
+        let shine = select(GLOSS, SKIN_WET, material.skin.a > 0.5);
+        color += GLINT_COLOR * pow(half_way, shine.x) * shine.y * gloss;
+        color += material.skin.rgb * SKIN_GLOW * skin.g;
 
         let to_flash = flash.xyz - in.world_position.xyz;
         let distance2 = dot(to_flash, to_flash);

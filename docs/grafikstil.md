@@ -38,12 +38,18 @@ lang nur Schiffe der Menschen gesehen, und die Wendung wirkt nur, wenn das Fremd
   Dunkelviolette, Schuppen und Eier in Grautürkis. Das Blaugrau der Rümpfe kommt an ihm nicht vor.
 - **Leuchten als Fläche.** Wo ein Menschenschiff ein Positionslicht hat, hat das Fremde Organe: Leuchtsäcke unter den
   Rippen und ein Leuchtfeld an den Flügelwurzeln, beide im Türkis `ALIEN`. Es ist das einzige Schiff, an dem eine große
-  Fläche leuchtet.
+  Fläche leuchtet, und sie leuchtet ungleichmäßig: hellere Kerne, dunkle Gefäße, Zellen mit dunklen Rändern.
 - **Sein Türkis trägt alles, was von ihm ausgeht:** Schüsse, der Riss des Wurmlochs, das Portal, aus dem es fällt, und
   die Energie seines Untergangs. Die Lackierung der Gegnerseite (Koralle) trägt es nicht.
+- **Haut statt Lack.** Was ein Menschenschiff an Platten, Fugen und Kratzern trägt, trägt das Fremde als Haut: Adern
+  im Fleisch, die nahe den Leuchtorganen glimmen, Querfalten, Flecken und verstreute Leuchtpunkte wie bei
+  Tiefseetieren; Zellen mit erhabenen Rändern in der Flughaut wie im Flügel eines Insekts; Schuppen auf Eiern,
+  Bauchschilden und der Schale der Brut; Poren und Haarrisse im Knochen. Dunkle Stellen der Zeichnung ziehen zum
+  Farbton des Schattentons, Adern im Fleisch werden also violett. Fleisch, Sehnen und Flughaut glänzen nass, schärfer
+  und heller als Metall.
 - **Die Technik bleibt.** Es ist nach demselben Material-Vertrag gebaut und wird vom selben Shader gezeichnet
   (matter Verlauf über drei Töne, Verdeckung und Schmutz in den Ritzen aus der Maske), nur ohne Platten und
-  Kantenabrieb ([Stilregeln](stilregeln.md#das-fremde)).
+  Kantenabrieb und mit seiner Haut statt der Feinstruktur der Rümpfe ([Stilregeln](stilregeln.md#das-fremde)).
 
 Kein zweites Schiff bekommt diesen Look. Wer ein weiteres Wesen dieser Art baut, übernimmt Farben und Formen aus
 `tools/ships/fleet/unknown_contact.py`.
@@ -176,7 +182,8 @@ Lichtquellen und keine Schlagschatten. Dass ein Teil auf seiner Fläche sitzt, z
 - **Relief der Nahaufnahme.** Die Platten fallen an ihren Kanten als Fase zur Fuge ab (`BEVEL`): Eine Kante fängt
   Licht, die andere liegt im Schatten. Darüber liegt eine Feinstruktur aus Kratzern, Poren und Flecken (`detail.ktx2`,
   `DETAIL`, `RELIEF`, `MOTTLE`, `GRAIN`), feiner als die Maske. Beides blendet mit dem Abstand aus; auf dem Brett
-  bleiben die Flächen ruhig.
+  bleiben die Flächen ruhig. Das Fremde trägt statt der Feinstruktur seine Haut (`SKIN_*`), deren Relief, Zeichnung und
+  Leuchtpunkte schon auf dem Brett zu sehen sind.
 - **Keine Tonkurve.** Die Kamera rechnet in HDR und gibt die Farben so aus, wie sie gerechnet sind
   (`Tonemapping::Linear`): Eine Farbe aus der Palette erscheint auf dem Schirm als diese Farbe.
 - **Glühen.** Was heller als 1 ist, glüht im Bloom der Kamera (Schwelle 1,0, Stärke 0,35), sonst nichts. Lichter der
@@ -265,11 +272,13 @@ bzw. des Admirals). Das Motiv steht groß und allein im Bild, ohne Schrift und o
 | Bloom, Tonkurve                                  | `crates/client/src/scene/camera.rs`                                  |
 | Effekte, Partikel, Zerstörung                    | `scene/fx.rs`, `effects.rs`, `particles.rs`, `destruction.rs`, `assets/shaders/fx.wesl` |
 | Bau, Verwitterung, Feinstruktur, Vorschau        | `tools/ships/` (`look.py`, `weather.py`, `detail.py`, `preview.py`)  |
+| Haut des Fremden                                 | `tools/ships/skin.py`, im Shader `SKIN_*` in `toon.wesl`             |
 | Aufträge der Hintergründe                        | `assets/images/backgrounds/prompts.json`                             |
 
 Werte, die an zwei Stellen stehen und zusammenpassen müssen: Admiralsfarben und Zierton (`palette.rs` und
 `palette.py`), das Hauptlicht (`look.rs` und `look.py`), die Schwellen der Verwitterung, `FINE_LOD` und der
-Plattenton (`toon.wesl` mit `SHADE` und `look.py` mit `PLATE_TONE`).
+Plattenton (`toon.wesl` mit `SHADE` und `look.py` mit `PLATE_TONE`), Spanne der Zeichnung und Tiefe der Haut
+(`SKIN_SPAN`, `SKIN_DEPTH` in `toon.wesl`, `SPAN`, `DEPTH` in `skin.py`).
 
 ## Stil ändern
 

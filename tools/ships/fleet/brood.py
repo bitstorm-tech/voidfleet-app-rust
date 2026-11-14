@@ -7,12 +7,12 @@ Aufbau (Nase −Y, Länge gut 4,5, Breite 1,4): ein eiförmiger Leib in Schuppen
 an beiden Flanken leuchtet durch einen Riss das Innere. Vorn zwei Paar Knochenzangen wie die des Muttertiers (sie sind,
 was rammt), auf dem Rücken ein Knochenschild mit Dorn, hinten drei kurze Tentakel mit Schuppenringen. Keine Düsen.
 
-Materialien wie beim Unbekannten Kontakt (Schlüssel für look.WEATHER_MATERIALS): `bone`, `flesh`, `scale`, Licht
-`organ`.
+Materialien wie beim Unbekannten Kontakt (Schlüssel für look.WEATHER_MATERIALS und skin.PATTERNS, Glanz aus `WET`):
+`bone`, `flesh`, `scale`, Licht `organ`.
 """
 
 import vf
-from fleet.unknown_contact import BONE, FLESH, ORGAN, SCALE, limb, spline, tentacle
+from fleet.unknown_contact import BONE, FLESH, ORGAN, SCALE, WET, limb, spline, tentacle
 from vf import Ship, revolve, sphere
 
 # Leib: Rotationskörper um die Längsachse (Radius, y), vorn stumpf, hinten spitzer; in der Höhe um FLAT gestaucht
@@ -23,9 +23,9 @@ FLAT = 0.82
 def build():
     s = Ship("brood")
     m = {
-        "bone": vf.toon(f"{s.name}_bone", BONE, round=True),
-        "flesh": vf.toon(f"{s.name}_flesh", FLESH, round=True),
-        "scale": vf.toon(f"{s.name}_scale", SCALE, round=True, glint=vf.GLINT),
+        "bone": vf.toon(f"{s.name}_bone", BONE, round=True, glint=WET["bone"]),
+        "flesh": vf.toon(f"{s.name}_flesh", FLESH, round=True, glint=WET["flesh"]),
+        "scale": vf.toon(f"{s.name}_scale", SCALE, round=True, glint=WET["scale"]),
         "organ": vf.light(f"{s.name}_organ", ORGAN),
     }
     s.add(revolve(EGG, 20), m["scale"], scale=(1.0, 1.0, FLAT))

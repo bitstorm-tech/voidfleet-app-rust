@@ -362,11 +362,22 @@ Beschriftung, keine Detailzonen mit technischem Zweck. Was gilt, ist die Technik
   Kopfplatte) sind dünne geschlossene Lofts in Lagen.
 - **Materialien.** Alle Flächen sind runde toon-Materialien (geglättete Normalen): `bone`, `flesh`, `sinew`,
   `membrane`, `web`, `scale`; dazu die Lichter `organ` (Leuchtsäcke) und `lumen` (Leuchtfeld der Flügel), beide
-  glühend. Die Farben stehen als Konstanten im Modul des Unbekannten Kontakts, die Brut übernimmt sie von dort.
+  glühend. Die Farben und der Glanz nasser Haut (`WET`) stehen als Konstanten im Modul des Unbekannten Kontakts, die
+  Brut übernimmt sie von dort.
 - **Verwitterung.** Die Maske bleibt, aber ohne Platten, Kantenabrieb und Ruß (`look.WEATHER_MATERIALS`): Schmutz in
-  den Ritzen und die Verdeckung geben dem Leib Tiefe. Die Feinstruktur des Shaders liegt wie bei allen Rümpfen darüber.
+  den Ritzen und die Verdeckung geben dem Leib Tiefe.
+- **Haut.** Statt der Feinstruktur der Rümpfe (Kratzer und Beulen in Metall) trägt das Fremde eine Haut, die
+  `skin.py` in derselben Abwicklung und Größe wie die Maske backt (`<id>_skin.ktx2`): Zeichnung, Leuchten, Nässe und
+  Höhe, je Material ein Muster aus Rauschen in Objektkoordinaten (`PATTERNS`, Schlüssel wie oben). Fleisch: Adern, die
+  nahe den Lichtern glimmen, Querfalten, Flecken, hellerer Bauch, verstreute Leuchtpunkte. Sehnen: Fasern, nass.
+  Knochen: Flecken, Wachstumsringe, Poren, Haarrisse. Flughaut in allen drei Lagen dieselben Zellen mit erhabenen
+  Rändern, nahe dem Leuchtfeld glimmend. Schuppen: gewölbt, je Schuppe ein Ton, vereinzelt glimmend. Auch die Lichter
+  tragen sie (hellere Kerne, dunkle Gefäße, die Zellen der Flughaut im Leuchtfeld). Die Brut bekommt die Zeichnung
+  1,6-mal größer (`FEATURE`), damit sie in der Staffel lesbar bleibt. Ein neues Material des Fremden braucht ein Muster
+  in `PATTERNS`, sonst trägt es die Feinstruktur aus Metall.
 - **Budget.** Der Unbekannte Kontakt steht in seiner Hälfte des Gefechts allein auf dem Brett und darf mehr als jedes
-  andere Schiff: 55k Dreiecke, Maske mit 128 Texeln je Einheit. Die Brut steht als Staffel fünffach da: gut 3k Dreiecke.
+  andere Schiff: 55k Dreiecke, Maske und Haut mit je 128 Texeln je Einheit. Die Brut steht als Staffel fünffach da: gut
+  3k Dreiecke.
 - **Punkte für das Spiel.** `MAW`, die Mitte des Schlunds, ist die Mündung seines Strahls
   (`ship_models::muzzles`); wer das Maul umbaut, zieht sie nach.
 

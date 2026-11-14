@@ -27,10 +27,13 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
       (weather.py, alle Schiffe außer dem Trugbild) dazu `"mask": "<id>"`: Die Maske liegt als `<id>_weather.ktx2`
       neben dem GLB (BC7 mit Mip-Kette, als Daten zu lesen, nicht als sRGB; R Schmutz, G Kantenabrieb, B Helligkeit
       aus Plattenton und Verdeckung, A Fugen), ein Bild, das alle toon-Materialien des Schiffs und seines Wracks
-      teilen. Das GLB bettet es nicht ein.
+      teilen. Das GLB bettet es nicht ein. Die Flächen der Wesen (Unbekannter Kontakt, Brut) tragen dazu
+      `"skin": "<id>"`: ihre Haut (skin.py) als `<id>_skin.ktx2`, ebenso BC7 und als Daten zu lesen (R Zeichnung,
+      G Leuchten, B Nässe, A Höhe), geteilt von Schiff und Wrack.
   {"kind": "light", "color": Farbe, "glow": bool}
       Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Positionslichter (`glow`: true = glüht im Spiel) und
-      die Kennzeichen der Flaggschiffe `<id>_signal` in der UI-Farbe des Admirals (`glow`: false).
+      die Kennzeichen der Flaggschiffe `<id>_signal` in der UI-Farbe des Admirals (`glow`: false). Die Lichter der
+      Wesen tragen wie ihre Flächen `"skin"`; die Zeichnung der Haut macht ihr Leuchten ungleichmäßig.
       glTF: baseColorFactor schwarz, emissiveFactor = Farbe (Stärke 1).
   {"kind": "hologram", "color": Farbe, "alpha": float, "glow": bool}
       Durchscheinend und emissiv (das Trugbild), ohne Konturen. glTF: alphaMode BLEND, doubleSided (als einzige Art),
@@ -43,8 +46,9 @@ sRGB-Hex "#rrggbb" (wie `crates/client/src/palette.rs`), die glTF-Faktoren daneb
 Aufbau: `<id>.glb` ist ein Knoten mit einem Mesh, je Material ein Primitive (POSITION, NORMAL, Indizes), darunter je
 drehbarem Turm ein Kindknoten `<id>_turret_<k>` (Ursprung in der Mitte der Barbette, Rohre lokal nach glTF +Z,
 `split_turrets`); `<id>_wreck.glb` hat je Bruchstück einen Knoten (Ursprung im Schwerpunkt). TEXCOORD_0 (eine
-UV-Ebene) tragen genau die Primitive, deren Material eine Textur nutzt: toon mit Maske (UVs der Abwicklung, auch auf den alten Flächen der Bruchstücke) und die
-Bruchflächen (Box-UVs des Glutmusters); Lichter und Hologramme nicht (`_tidy_gltf`). Materialien heißen
+UV-Ebene) tragen genau die Primitive, deren Material eine Textur nutzt: toon mit Maske und alles mit Haut (UVs der
+Abwicklung, auch auf den alten Flächen der Bruchstücke) und die Bruchflächen (Box-UVs des Glutmusters); die übrigen
+Lichter und Hologramme nicht (`_tidy_gltf`). Materialien heißen
 `<id>_<schlüssel>` (siehe `materials`), keine glTF-Erweiterungen. Nur Hologramme sind
 doubleSided, alle anderen einseitig: Jede Hülle ist geschlossen und nach außen orientiert, auch gespiegelte Teile und die
 Bruchflächen der Wracks (`bad_shells`, build.py meldet Verstöße).
@@ -853,7 +857,8 @@ def _uses_texture(value):
 
 def _tidy_gltf(path):
     """Räumt nach dem Exporter auf; Reihenfolge und Inhalt von allem anderen bleiben: TEXCOORD_n bleibt nur an
-    Primitiven, deren Material eine Textur nutzt (das Glutmuster oder die Maske, `mask` im Vertrag). Der Exporter
+    Primitiven, deren Material eine Textur nutzt (das Glutmuster, die Maske oder die Haut, `mask` und `skin` im
+    Vertrag). Der Exporter
     schreibt die UV-Ebene in jedes Primitive des Meshes, auch in Lichter und Hologramme. Danach wird der Binärteil neu
     gepackt."""
     with open(path, "rb") as f:
@@ -862,7 +867,8 @@ def _tidy_gltf(path):
     gltf = json.loads(data[20:20 + json_length])
     start = 20 + json_length
     binary = data[start + 8:start + 8 + struct.unpack_from("<I", data, start)[0]]
-    textured = {i for i, mat in enumerate(gltf.get("materials", [])) if _uses_texture(mat) or "mask" in mat.get("extras", {}).get("vf", {})}
+    textured = {i for i, mat in enumerate(gltf.get("materials", []))
+                if _uses_texture(mat) or {"mask", "skin"} & mat.get("extras", {}).get("vf", {}).keys()}
     primitives = [p for mesh in gltf.get("meshes", []) for p in mesh["primitives"]]
     stale = [(p, name) for p in primitives if p.get("material") not in textured for name in p["attributes"] if name.startswith("TEXCOORD_")]
     if not stale or "animations" in gltf or "skins" in gltf:

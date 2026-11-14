@@ -55,9 +55,18 @@ pub enum ToonSpec {
         /// an Schiff und Wrackstücken dasselbe; ohne Verwitterung fehlt es.
         #[serde(default)]
         mask: Option<String>,
+        /// Das Wesen (`<id>`), dessen Haut die Fläche trägt (`<id>_skin.ktx2` neben dem GLB); nur am Fremden.
+        #[serde(default)]
+        skin: Option<String>,
     },
-    /// Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Kennzeichen; mit `glow` im Glühen.
-    Light { color: Hex, glow: bool },
+    /// Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Kennzeichen; mit `glow` im Glühen. Am Fremden mit
+    /// Haut, deren Zeichnung das Leuchten ungleichmäßig macht.
+    Light {
+        color: Hex,
+        glow: bool,
+        #[serde(default)]
+        skin: Option<String>,
+    },
     /// Durchscheinend und als einzige Art beidseitig.
     Hologram { color: Hex, alpha: f32, glow: bool },
     /// Bruchflächen der Wracks: eckige Toon-Fläche plus Glutmuster (`emissiveTexture`) × `heat`.
@@ -80,6 +89,14 @@ impl ToonSpec {
 
     pub fn is_hologram(&self) -> bool {
         matches!(self, Self::Hologram { .. })
+    }
+
+    /// Das Wesen, dessen Haut die Fläche trägt.
+    pub fn skin(&self) -> Option<&str> {
+        match self {
+            Self::Toon { skin, .. } | Self::Light { skin, .. } => skin.as_deref(),
+            _ => None,
+        }
     }
 }
 
@@ -120,14 +137,19 @@ pub struct ToonMaterial {
     #[texture(5)]
     #[sampler(6)]
     pub detail_texture: Option<Handle<Image>>,
+    /// Haut der Wesen (`skin` im Vertrag): R Zeichnung, G Leuchten, B Nässe, A Höhe; linear, mit Mip-Kette.
+    #[texture(8)]
+    #[sampler(9)]
+    pub skin_texture: Option<Handle<Image>>,
 }
 
 impl ToonMaterial {
-    /// `weather`: Maske der Verwitterung und Feinstruktur.
+    /// `weather`: Maske der Verwitterung und Feinstruktur; `skin_texture`: Haut der Wesen.
     pub fn new(
         spec: ToonSpec,
         heat_texture: Option<Handle<Image>>,
         weather: Option<(Handle<Image>, Handle<Image>)>,
+        skin_texture: Option<Handle<Image>>,
     ) -> Self {
         let (weather_texture, detail_texture) = weather.unzip();
         Self {
@@ -143,6 +165,7 @@ impl ToonMaterial {
             heat_texture,
             weather_texture,
             detail_texture,
+            skin_texture,
         }
     }
 }
@@ -163,6 +186,8 @@ pub struct ToonUniform {
     overlay: Vec4,
     /// x Verwitterung an (1) oder aus (0).
     weather: Vec4,
+    /// rgb Leuchten der Haut (linear, erlischt mit den Lichtern), a Haut an (1) oder aus (0).
+    skin: Vec4,
 }
 
 /// Linear und auf ≥ 0 begrenzt: Spreizung und Lackierung der Lichter behalten das Chroma und können aus dem sRGB-Raum fallen.
@@ -207,7 +232,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 1.0,
                 1.0,
             ),
-            ToonSpec::Light { color, glow } => {
+            ToonSpec::Light { color, glow, .. } => {
                 let color = match (material.ghost, material.livery) {
                     (true, _) => GHOST_LIGHT,
                     (false, true) => livery(color.0),
@@ -246,6 +271,8 @@ impl From<&ToonMaterial> for ToonUniform {
         let weathered = matches!(material.spec, ToonSpec::Toon { .. })
             && material.weather_texture.is_some()
             && !material.ghost;
+        let grown = material.skin_texture.is_some() && !material.ghost;
+        let skin_glow = linear(palette::ALIEN).truncate() * material.lights;
         Self {
             tone_lit: tones[0],
             tone_mid: tones[1],
@@ -260,6 +287,7 @@ impl From<&ToonMaterial> for ToonUniform {
             ),
             overlay: material.overlay,
             weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0),
+            skin: skin_glow.extend(if grown { 1.0 } else { 0.0 }),
         }
     }
 }
@@ -329,6 +357,23 @@ mod tests {
         assert!(ToonSpec::from_extras(r#"{"other": 1}"#).is_none());
     }
 
+    /// Die Haut der Wesen: Der Vertrag nennt sie an Flächen und Lichtern; ihr Leuchten erlischt mit den Lichtern,
+    /// Geister tragen sie nicht.
+    #[test]
+    fn skin_glows_with_the_lights() {
+        let organ = ToonSpec::from_extras(
+            r##"{"vf": {"kind": "light", "color": "#45e0c8", "glow": true, "skin": "brood"}}"##,
+        )
+        .unwrap();
+        assert_eq!(organ.skin(), Some("brood"));
+        let mut material = ToonMaterial::new(organ, None, None, Some(Handle::default()));
+        assert_eq!(ToonUniform::from(&material).skin.w, 1.0);
+        material.lights = 0.0;
+        assert_eq!(ToonUniform::from(&material).skin.truncate(), Vec3::ZERO);
+        material.ghost = true;
+        assert_eq!(ToonUniform::from(&material).skin.w, 0.0);
+    }
+
     /// Die Lackierung färbt Lichter in der Gegnerfarbe.
     #[test]
     fn livery_tints_lights() {
@@ -355,8 +400,9 @@ mod tests {
         let spec = ToonSpec::Light {
             color: Hex(Color::WHITE),
             glow: false,
+            skin: None,
         };
-        let mut material = ToonMaterial::new(spec, None, None);
+        let mut material = ToonMaterial::new(spec, None, None, None);
         material.facing = -1.0;
         let uniform = ToonUniform::from(&material);
         assert_eq!(uniform.key.x, -KEY.x);
@@ -372,19 +418,20 @@ mod tests {
             round: false,
             glint: 0.0,
             mask: None,
+            skin: None,
         };
         let wreck = ToonSpec::Wreck {
             tones: [Hex(Color::WHITE); 3],
             heat: Hex(Color::WHITE),
         };
         let mask = Some((Handle::<Image>::default(), Handle::default()));
-        let mut hull = ToonMaterial::new(toon, None, mask);
+        let mut hull = ToonMaterial::new(toon, None, mask, None);
         hull.heat = Some(LinearRgba::RED);
         let uniform = ToonUniform::from(&hull);
         assert_eq!((uniform.heat, uniform.weather.x), (Vec4::ZERO, 1.0));
         hull.ghost = true;
         assert_eq!(ToonUniform::from(&hull).weather.x, 0.0);
-        let mut fracture = ToonMaterial::new(wreck, Some(Handle::default()), None);
+        let mut fracture = ToonMaterial::new(wreck, Some(Handle::default()), None, None);
         assert_eq!(ToonUniform::from(&fracture).heat, Vec4::ONE);
         fracture.heat = Some(LinearRgba::RED);
         let uniform = ToonUniform::from(&fracture);

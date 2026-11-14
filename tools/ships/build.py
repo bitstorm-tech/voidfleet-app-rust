@@ -1,9 +1,9 @@
 """Baut die Schiffe und exportiert sie nach assets/models/ships/<id>.glb, dazu ihre Wrackteile (wreck.py) nach
 <id>_wreck.glb (nicht für die Geschosse, fleet.PROJECTILES). Vor dem Export bekommt jedes Schiff seine UVs und die Maske
-der Verwitterung (weather.py, gebacken oder aus dem Cache), die als <id>_weather.ktx2 daneben liegt; die Stücke des
-Wracks erben UVs und Maske. Die drehbaren Türme (`vf.Ship.turret`) hängen im GLB als eigene Knoten
-`<id>_turret_<k>` unter dem Schiff (`vf.split_turrets`), das Wrack zerlegt sie mit dem Rumpf. Dazu entsteht die
-Feinstruktur aller Rümpfe, detail.ktx2 (detail.py).
+der Verwitterung (weather.py, gebacken oder aus dem Cache), die als <id>_weather.ktx2 daneben liegt, die Wesen dazu ihre
+Haut (skin.py) als <id>_skin.ktx2; die Stücke des Wracks erben UVs, Maske und Haut. Die drehbaren Türme
+(`vf.Ship.turret`) hängen im GLB als eigene Knoten `<id>_turret_<k>` unter dem Schiff (`vf.split_turrets`), das Wrack
+zerlegt sie mit dem Rumpf. Dazu entsteht die Feinstruktur aller Rümpfe, detail.ktx2 (detail.py).
 
 Headless:   <blender> -b --factory-startup -P tools/ships/build.py -- [ids...]
             <blender> ist auf dem Mac /Applications/Blender.app/Contents/MacOS/Blender, auf dem Linux-Server ohne GPU
@@ -28,6 +28,7 @@ if ROOT not in sys.path:
 
 import detail  # noqa: E402
 import fleet  # noqa: E402
+import skin  # noqa: E402
 import vf  # noqa: E402
 import weather  # noqa: E402
 import wreck  # noqa: E402
@@ -37,7 +38,7 @@ OUT_DIR = os.path.normpath(os.path.join(ROOT, "..", "..", "assets", "models", "s
 
 def reload_modules():
     """Lädt die Schiffsmodule in Abhängigkeitsreihenfolge neu (für eine laufende Blender-Instanz)."""
-    names = ["palette", "vf", "parts", "look", "weather", "wreck", "detail"] + sorted(n for n in sys.modules if n.startswith("fleet.")) + ["fleet"]
+    names = ["palette", "vf", "parts", "look", "weather", "skin", "wreck", "detail"] + sorted(n for n in sys.modules if n.startswith("fleet.")) + ["fleet"]
     for name in names:
         if name in sys.modules:
             importlib.reload(sys.modules[name])
@@ -56,6 +57,9 @@ def build_all(ids=None):
         path = os.path.join(OUT_DIR, f"{ship_id}.glb")
         if mask:
             weather.compress(bpy.path.abspath(mask.filepath), os.path.join(OUT_DIR, f"{ship_id}_weather.ktx2"))
+            grown = skin.apply(obj, mask.size[0])
+            if grown:
+                weather.compress(grown, os.path.join(OUT_DIR, f"{ship_id}_skin.ktx2"))
         pieces = [] if ship_id in fleet.PROJECTILES else wreck.build(obj)
         wreck_path = os.path.join(OUT_DIR, f"{ship_id}_wreck.glb")
         if pieces:

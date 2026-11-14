@@ -21,8 +21,10 @@ Aufbau von vorn nach achtern (Nase −Y, Länge 12, Spannweite knapp 6, kein Tei
   Flügel am Schulterstrang und laufen als Adern, die sich gabeln, zur Vorderkante weiter; dahinter zwei Dornen.
 - Heck: fünf Tentakel in zwei Höhen, spitz auslaufend, mit Schuppenringen auf dem Rücken. Keine Düsen.
 
-Materialien (alle rund, also mit geglätteten Normalen; Schlüssel für look.WEATHER_MATERIALS): `bone`, `flesh`, `sinew`,
-`membrane`, `web`, `scale`; Lichter `organ` (Leuchtsäcke) und `lumen` (Leuchtfeld der Flügel), beide glühend.
+Materialien (alle rund, also mit geglätteten Normalen; Schlüssel für look.WEATHER_MATERIALS und skin.PATTERNS): `bone`,
+`flesh`, `sinew`, `membrane`, `web`, `scale`; Lichter `organ` (Leuchtsäcke) und `lumen` (Leuchtfeld der Flügel), beide
+glühend. Adern, Zellen, Schuppen, Leuchtpunkte und Relief malt die Haut (skin.py); der Glanz (`WET`) ist der nasser
+Haut, die Haut sagt, wo sie nass ist.
 """
 
 import math
@@ -44,6 +46,7 @@ WEB = ("#23565f", "#19404c", "#122a38")  # äußere Flughaut: dunkles Blaugrün
 SCALE = ("#86aaa4", "#5d807f", "#364e55")  # Schuppen und Eier: Grautürkis
 ORGAN = "#45e0c8"  # Leuchtsäcke
 LUMEN = "#45e0c8"  # Leuchtfeld der Flügelwurzel
+WET = {"bone": 0.3, "flesh": 0.55, "sinew": 0.6, "membrane": 0.5, "web": 0.4, "scale": vf.GLINT}  # Glanz je Material
 
 # ---------------------------------------------------------------- Maße
 
@@ -408,12 +411,12 @@ def tail(s, m):
 def build():
     s = Ship("unknown_contact")
     m = {
-        "bone": vf.toon(f"{s.name}_bone", BONE, round=True),
-        "flesh": vf.toon(f"{s.name}_flesh", FLESH, round=True),
-        "sinew": vf.toon(f"{s.name}_sinew", SINEW, round=True),
-        "membrane": vf.toon(f"{s.name}_membrane", MEMBRANE, round=True),
-        "web": vf.toon(f"{s.name}_web", WEB, round=True),
-        "scale": vf.toon(f"{s.name}_scale", SCALE, round=True, glint=vf.GLINT),
+        "bone": vf.toon(f"{s.name}_bone", BONE, round=True, glint=WET["bone"]),
+        "flesh": vf.toon(f"{s.name}_flesh", FLESH, round=True, glint=WET["flesh"]),
+        "sinew": vf.toon(f"{s.name}_sinew", SINEW, round=True, glint=WET["sinew"]),
+        "membrane": vf.toon(f"{s.name}_membrane", MEMBRANE, round=True, glint=WET["membrane"]),
+        "web": vf.toon(f"{s.name}_web", WEB, round=True, glint=WET["web"]),
+        "scale": vf.toon(f"{s.name}_scale", SCALE, round=True, glint=WET["scale"]),
         "organ": vf.light(f"{s.name}_organ", ORGAN),
         "lumen": vf.light(f"{s.name}_lumen", LUMEN),
     }

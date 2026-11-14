@@ -7,8 +7,8 @@
 //!
 //! Die Maske der Verwitterung liegt neben dem GLB (`<id>_weather.ktx2`, `mask` im Vertrag der toon-Materialien von
 //! Schiff und Wrack): BC7 mit Mip-Kette, ein Viertel des Grafikspeichers roher Texel, einmal je Schiff. Dazu teilen
-//! alle Rümpfe die Feinstruktur `detail.ktx2`. Beide sind Daten, kein sRGB, und leben nur auf der Grafikkarte
-//! ([`data_texture`]).
+//! alle Rümpfe die Feinstruktur `detail.ktx2`, und die Wesen tragen ihre Haut (`<id>_skin.ktx2`, `skin` im Vertrag
+//! von Flächen und Lichtern). Alle sind Daten, kein sRGB, und leben nur auf der Grafikkarte ([`data_texture`]).
 
 use bevy::{
     asset::{LoadContext, RenderAssetUsages},
@@ -114,6 +114,13 @@ impl GltfExtensionHandler for ToonGltf {
             )),
             _ => None,
         };
+        let skin = spec.skin().map(|ship| {
+            data_texture(
+                load_context,
+                format!("models/ships/{ship}_skin.ktx2"),
+                ImageAddressMode::ClampToEdge,
+            )
+        });
         if !spec.is_hologram() {
             load_context.add_labeled_asset(
                 format!("{material_label}/outline"),
@@ -122,7 +129,7 @@ impl GltfExtensionHandler for ToonGltf {
         }
         load_context.add_labeled_asset(
             format!("{material_label}/toon"),
-            ToonMaterial::new(spec, heat_texture, weather),
+            ToonMaterial::new(spec, heat_texture, weather, skin),
         );
     }
 
@@ -191,14 +198,14 @@ mod tests {
     use super::*;
 
     /// Der Material-Vertrag (`tools/ships/vf.py`) an den gebauten Modellen: Alle toon-Materialien eines Schiffs und
-    /// seines Wracks nennen dieselbe Maske, die neben dem GLB liegt, oder keins hat eine; ein Bild bettet nur das
-    /// Glutmuster der Bruchflächen ein. UVs tragen genau die Primitive mit Maske oder Glutmuster, Lichter und
-    /// Hologramme nicht.
+    /// seines Wracks nennen dieselbe Maske, die neben dem GLB liegt, oder keins hat eine; eine Haut nennt nur das
+    /// Schiff selbst, und sie liegt daneben; ein Bild bettet nur das Glutmuster der Bruchflächen ein. UVs tragen genau
+    /// die Primitive mit Maske, Haut oder Glutmuster, die übrigen Lichter und Hologramme nicht.
     #[test]
     fn models_follow_the_contract() {
         let dir = std::path::Path::new(crate::REPO_ASSETS).join("models/ships");
         assert!(dir.join("detail.ktx2").exists());
-        let mut weathered = 0;
+        let (mut weathered, mut grown) = (0, 0);
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();
             if path.extension().is_none_or(|extension| extension != "glb") {
@@ -216,7 +223,13 @@ mod tests {
                         .is_none(),
                     "{name}"
                 );
-                match spec(&material).unwrap() {
+                let spec = spec(&material).unwrap();
+                if let Some(skin) = spec.skin() {
+                    assert_eq!(skin, ship, "{name}");
+                    assert!(dir.join(format!("{ship}_skin.ktx2")).exists(), "{name}");
+                    grown += 1;
+                }
+                match spec {
                     ToonSpec::Toon { mask, .. } => masks.push(mask),
                     ToonSpec::Wreck { .. } => {
                         assert!(material.emissive_texture().is_some(), "{name}")
@@ -239,11 +252,15 @@ mod tests {
             {
                 let material = primitive.material();
                 let textured = material.emissive_texture().is_some()
-                    || matches!(spec(&material), Some(ToonSpec::Toon { mask: Some(_), .. }));
+                    || spec(&material).is_some_and(|spec| {
+                        spec.skin().is_some()
+                            || matches!(spec, ToonSpec::Toon { mask: Some(_), .. })
+                    });
                 let uvs = primitive.get(&gltf::Semantic::TexCoords(0)).is_some();
                 assert_eq!(uvs, textured, "{name}: {:?}", material.name());
             }
         }
         assert!(weathered > 0, "kein Modell mit Verwitterung");
+        assert!(grown > 0, "kein Modell mit Haut");
     }
 }
