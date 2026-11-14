@@ -31,7 +31,7 @@ Vom Schaden eines Schusses auf einen Gegner wird in dieser Reihenfolge abgezogen
 1. **Ausweichen** des Ziels: halber Schaden. Nur Gegner weichen aus; was zielsuchend ist, übergeht es ([Schlüsselwörter](karten.md#schlüsselwörter)).
 2. **Deckung**: Der Vordermann fängt die Hälfte ab, das Ziel bekommt den Rest ([Brett und Formation](#brett-und-formation)); was durchschlagend ist, übergeht sie.
 3. **Schilde** des Ziels schlucken, was übrig ist, bis sie aufgebraucht sind.
-4. **Panzerung** des Ziels: ein fester Abzug von dem, was durch die Schilde kommt, nie unter 0. Wer Panzerung trägt, zeigt sie als Icon mit Zahl über dem Schiff.
+4. **Panzerung** des Ziels: ein fester Abzug von dem, was durch die Schilde kommt, nie unter 0. Wer Panzerung trägt, zeigt sie als Icon mit Zahl unter seinen Balken.
 
 Beim Flaggschiff gibt es weder Ausweichen noch Deckung: Gegenmaßnahmen halbieren zuerst, dann schlucken die Schilde, dann zieht die Panzerung ab.
 

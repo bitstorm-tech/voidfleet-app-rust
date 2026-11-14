@@ -1,5 +1,6 @@
-//! Über jedem Schiff, als Knoten der Oberfläche über seinen Balken: die Rechnung der Vorschau als Text, darunter die
-//! Absicht als Icon mit Zahl (bei Kerr darunter kleiner die zweite) und die Zustände als Icons. Ein Tooltip über den
+//! Unter jedem Schiff, als Knoten der Oberfläche direkt unter seinen Balken: eine Reihe Icons — erst was hilft
+//! (Panzerung, Deckung), dann was schadet (Brand, Notfall, Stillstand, Funkstille), dann die Absicht mit Zahl (bei Kerr
+//! kleiner die zweite) —, darunter die Rechnung der Vorschau als Text. Ein Tooltip über den
 //! Icons erklärt jedes von ihnen, Zeile für Zeile neben demselben Icon. Was dort steht, setzt [`crate::scene::sync`] in [`ShipCaption`], während der
 //! Wiedergabe die Absichten auch [`crate::playback`].
 
@@ -25,11 +26,11 @@ use crate::{
     },
 };
 
-/// Abstand über der Mitte der Balken (Welteinheiten).
-const LIFT: f32 = 0.8;
-
-/// Farbe der Zustände.
-const CONDITION: Color = palette::BUFF;
+/// Abstand unter der Unterkante der Balken (logische Pixel).
+const GAP: f32 = 2.0;
+/// Größe der Icons: Absicht, alle übrigen.
+const INTENT_SIZE: f32 = 22.0;
+const ICON_SIZE: f32 = 16.0;
 
 /// Was über einem Schiff steht; Leeres fällt weg.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -49,12 +50,6 @@ pub struct ShipCaption {
 /// Der Knoten der Beschriftung eines Schiffs.
 #[derive(Component, Clone, Copy, Debug)]
 struct CaptionOf(Entity);
-
-/// Eine Zeile Icons in ihrer Größe, je Icon seine Zeile im Tooltip.
-struct GlyphRow {
-    size: f32,
-    glyphs: Vec<(Glyph, String)>,
-}
 
 fn action_icon(action: Action, icons: &UiIcons) -> Handle<Image> {
     match action {
@@ -101,6 +96,7 @@ fn intent_glyph(
     )
 }
 
+/// Deckung hilft, alle übrigen Zustände schaden.
 fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
     let icon = match condition {
         Condition::Burning => icons.flame.clone(),
@@ -109,25 +105,32 @@ fn condition_glyph(condition: Condition, icons: &UiIcons) -> Glyph {
         Condition::Silenced => icons.silenced.clone(),
         Condition::Covered => icons.cover.clone(),
     };
+    let color = if condition == Condition::Covered {
+        palette::BUFF
+    } else {
+        palette::DEBUFF
+    };
     Glyph {
         icon,
-        color: CONDITION,
+        color,
         value: None,
         columns: None,
     }
 }
 
-/// Die Zeilen der Icons: Absicht, die nächste, Zustände (Panzerung und Brand zuerst).
-fn glyph_rows(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> [GlyphRow; 3] {
+/// Die Icons in einer Reihe, je mit Größe und Zeile im Tooltip: was hilft (Panzerung, Deckung), was schadet (Brand,
+/// dann die übrigen Zustände), die Absicht, die nächste.
+fn glyphs(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> Vec<(Glyph, String, f32)> {
     let armor = (caption.armor > 0).then(|| {
         (
             Glyph {
                 icon: icons.armor.clone(),
-                color: CONDITION,
+                color: palette::BUFF,
                 value: Some(caption.armor),
                 columns: None,
             },
             locale.armor_hint(caption.armor),
+            ICON_SIZE,
         )
     });
     let burning = caption.burning.map(|amount| {
@@ -137,38 +140,37 @@ fn glyph_rows(caption: &ShipCaption, locale: &Messages, icons: &UiIcons) -> [Gly
                 ..condition_glyph(Condition::Burning, icons)
             },
             locale.burn_hint(amount),
+            ICON_SIZE,
         )
     });
-    let conditions = caption.conditions.iter().map(|&condition| {
+    let condition = |&condition: &Condition| {
         (
             condition_glyph(condition, icons),
             locale.condition_hint(condition).to_owned(),
+            ICON_SIZE,
         )
+    };
+    let (buffs, debuffs): (Vec<_>, Vec<_>) = caption
+        .conditions
+        .iter()
+        .partition(|&&condition| condition == Condition::Covered);
+    let intent = caption.intent.map(|intent| {
+        let (glyph, hint) = intent_glyph(intent, palette::ENEMY, locale, icons, false);
+        (glyph, hint, INTENT_SIZE)
     });
-    [
-        GlyphRow {
-            size: 22.0,
-            glyphs: caption
-                .intent
-                .map(|intent| intent_glyph(intent, palette::ENEMY, locale, icons, false))
-                .into_iter()
-                .collect(),
-        },
-        GlyphRow {
-            size: 16.0,
-            glyphs: caption
-                .next
-                .map(|intent| {
-                    intent_glyph(intent, palette::ENEMY.with_alpha(0.65), locale, icons, true)
-                })
-                .into_iter()
-                .collect(),
-        },
-        GlyphRow {
-            size: 16.0,
-            glyphs: armor.into_iter().chain(burning).chain(conditions).collect(),
-        },
-    ]
+    let next = caption.next.map(|intent| {
+        let (glyph, hint) =
+            intent_glyph(intent, palette::ENEMY.with_alpha(0.65), locale, icons, true);
+        (glyph, hint, ICON_SIZE)
+    });
+    armor
+        .into_iter()
+        .chain(buffs.into_iter().map(condition))
+        .chain(burning)
+        .chain(debuffs.into_iter().map(condition))
+        .chain(intent)
+        .chain(next)
+        .collect()
 }
 
 pub(super) struct LabelsPlugin;
@@ -198,7 +200,7 @@ fn spawn_caption(add: On<Add<ShipCaption>>, mut commands: Commands) {
             ..default()
         },
         UiTransform {
-            translation: Val2::percent(-50.0, -100.0),
+            translation: Val2::percent(-50.0, 0.0),
             ..default()
         },
         GlobalZIndex(-5),
@@ -223,11 +225,37 @@ fn rebuild_captions(
         if !caption.is_changed() && !locale.is_changed() {
             continue;
         }
-        let rows = glyph_rows(&caption, &locale, &icons);
-        let tooltip = TooltipGlyphs(rows.iter().flat_map(|row| row.glyphs.clone()).collect());
+        let glyphs = glyphs(&caption, &locale, &icons);
         let mut entity = commands.entity(node);
         entity.despawn_related::<Children>();
         entity.with_children(|parent| {
+            if !glyphs.is_empty() {
+                let tooltip = TooltipGlyphs(
+                    glyphs
+                        .iter()
+                        .map(|(glyph, hint, _)| (glyph.clone(), hint.clone()))
+                        .collect(),
+                );
+                // Nur die Icons tragen den Tooltip; Klicks und das Zielen gehen durch sie hindurch aufs Schiff.
+                parent
+                    .spawn((
+                        Node {
+                            column_gap: px(8),
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        tooltip,
+                        Pickable {
+                            should_block_lower: false,
+                            is_hoverable: true,
+                        },
+                    ))
+                    .with_children(|line| {
+                        for (glyph, _, size) in &glyphs {
+                            spawn_glyph(line, glyph, *size, &fonts);
+                        }
+                    });
+            }
             if !caption.preview.is_empty() {
                 parent.spawn((
                     Text::new(caption.preview.clone()),
@@ -238,47 +266,11 @@ fn rebuild_captions(
                     Pickable::IGNORE,
                 ));
             }
-            if tooltip.0.is_empty() {
-                return;
-            }
-            // Nur die Icons tragen den Tooltip; Klicks und das Zielen gehen durch sie hindurch aufs Schiff.
-            parent
-                .spawn((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        row_gap: px(2),
-                        ..default()
-                    },
-                    tooltip,
-                    Pickable {
-                        should_block_lower: false,
-                        is_hoverable: true,
-                    },
-                ))
-                .with_children(|block| {
-                    for row in rows.iter().filter(|row| !row.glyphs.is_empty()) {
-                        block
-                            .spawn((
-                                Node {
-                                    column_gap: px(8),
-                                    align_items: AlignItems::Center,
-                                    ..default()
-                                },
-                                Pickable::IGNORE,
-                            ))
-                            .with_children(|line| {
-                                for (glyph, _) in &row.glyphs {
-                                    spawn_glyph(line, glyph, row.size, &fonts);
-                                }
-                            });
-                    }
-                });
         });
     }
 }
 
-/// Stellt jede Beschriftung über die Balken ihres Schiffs; ist das Schiff fort, geht sie mit.
+/// Stellt jede Beschriftung unter die Balken ihres Schiffs; ist das Schiff fort, geht sie mit.
 fn follow_ships(
     mut commands: Commands,
     camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
@@ -295,7 +287,7 @@ fn follow_ships(
         let position = overlays
             .get(parts.overlay)
             .ok()
-            .map(|overlay| overlay.translation() + Vec3::Y * LIFT)
+            .map(|overlay| overlay.transform_point(Vec3::NEG_Y * status.bars_bottom()))
             .and_then(|world| camera.world_to_viewport(camera_transform, world).ok());
         let empty = *caption == ShipCaption::default();
         let shown = position.is_some() && !status.hidden && !empty;
@@ -306,7 +298,7 @@ fn follow_ships(
         });
         if let Some(position) = position {
             node.left = Val::Px(position.x);
-            node.top = Val::Px(position.y);
+            node.top = Val::Px(position.y + GAP);
         }
     }
 }

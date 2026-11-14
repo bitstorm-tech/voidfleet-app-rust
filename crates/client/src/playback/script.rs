@@ -194,7 +194,7 @@ pub(super) enum Job {
     Hide,
     Burning(bool),
     Charged(bool),
-    /// Die Absichten über dem Schiff.
+    /// Die Absichten unter dem Schiff.
     Caption {
         intent: Option<Intent>,
         next: Option<Intent>,

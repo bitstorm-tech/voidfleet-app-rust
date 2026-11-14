@@ -1,5 +1,5 @@
-//! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild über dem
-//! Modell, als Billboard zur Kamera gedreht, eine durchsichtige Schildhülle um das Modell, solange es Schild hat, drei
+//! Was ein Schiff außer seinem Modell trägt (Port aus `scene/ship.ts`): Statusbalken für Hülle und Schild unter dem
+//! Modell, wie die Kamera es sieht, als Billboard zur Kamera gedreht, eine durchsichtige Schildhülle um das Modell, solange es Schild hat, drei
 //! Sterne des gegnerischen Flaggschiffs (Siegel) rechts daneben, Totenkopf der Vorschau links daneben, und der Boden
 //! unter dem Schiff für die Marken ([`crate::scene::markers`]). Die Werte stehen
 //! in [`ShipStatus`]; wer sie ändert, ändert die Balken.
@@ -31,9 +31,8 @@ use super::{
 };
 use crate::{data::ship_models::ShipKind, palette, ui::Fonts};
 
-/// Die Balken schweben mindestens so hoch, bei hohen Aufbauten knapp über dem Modell (Raum des Schiffs).
-const BAR_MIN_HEIGHT: f32 = 1.15;
-const BAR_MARGIN: f32 = 0.3;
+/// Abstand zwischen der Unterkante des Modells auf dem Schirm und dem Hüllenbalken (Raum des Schiffs).
+const BAR_GAP: f32 = 0.12;
 const TRACK_WIDTH: f32 = 2.72;
 const BAR_WIDTH: f32 = 2.56;
 const TRACK_COLOR: Color = Color::srgb(0.13, 0.15, 0.22);
@@ -69,7 +68,7 @@ const SHIELD_RISE: f32 = 0.8;
 /// Dauer des Aufglühens nach einem Schildtreffer, in Sekunden.
 const SHIELD_STRIKE: f32 = 0.5;
 
-/// Werte über dem Schiff.
+/// Werte unter dem Schiff.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ShipStatus {
     pub hull: i32,
@@ -93,6 +92,15 @@ impl ShipStatus {
             shield,
             max_shield: shield,
             ..default()
+        }
+    }
+
+    /// Unterkante der Balken unter der Mitte des Hüllenbalkens (Raum des Schiffs); darunter stehen die Icons.
+    pub fn bars_bottom(&self) -> f32 {
+        if self.shield > 0 {
+            SHIELD_ROW_OFFSET + SHIELD_TRACK_HEIGHT / 2.0
+        } else {
+            HP_TRACK_HEIGHT / 2.0
         }
     }
 
@@ -169,7 +177,7 @@ impl ShipBounds {
 /// Die Teile über und unter einem Schiff.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ShipParts {
-    /// Billboard über dem Modell: Balken, Sterne, Totenkopf.
+    /// Billboard unter dem Modell: Balken, Sterne, Totenkopf.
     pub overlay: Entity,
     pub bars: Entity,
     hp_fill: Entity,
@@ -228,9 +236,12 @@ impl Plugin for StatusPlugin {
             .add_systems(
                 PostUpdate,
                 // Nach den Lagen dieses Bilds und vor dem UI-Layout: Die Zahl steht im selben Bild im Balken.
-                follow_bars
-                    .after(TransformSystems::Propagate)
-                    .before(UiSystems::Layout),
+                (
+                    hang_bars.before(TransformSystems::Propagate),
+                    follow_bars
+                        .after(TransformSystems::Propagate)
+                        .before(UiSystems::Layout),
+                ),
             );
     }
 }
@@ -335,7 +346,7 @@ fn dress_ship(
         .spawn((
             Name::new("Status"),
             Billboard,
-            Transform::from_xyz(0.0, BAR_MIN_HEIGHT, 0.0),
+            Transform::default(),
             Visibility::default(),
             ChildOf(add.entity),
         ))
@@ -528,7 +539,7 @@ fn dress_ship(
     },));
 }
 
-/// Misst die Modelle einer Gruppe, sobald alle Teile Lage und Grenzen haben, und hebt die Balken knapp darüber.
+/// Misst die Modelle einer Gruppe, sobald alle Teile Lage und Grenzen haben.
 fn measure(
     mut commands: Commands,
     groups: Query<(Entity, &ChildOf, &Children), (With<ShipModel>, Without<Wreck>)>,
@@ -578,9 +589,6 @@ fn measure(
         commands
             .entity(child_of.parent())
             .insert(ShipBounds { min, max });
-        if let Ok(mut overlay) = transforms.get_mut(ship_parts.overlay) {
-            overlay.translation.y = BAR_MIN_HEIGHT.max(max.y + BAR_MARGIN);
-        }
         if let (Ok(mut transform), Ok(mut hull)) = (
             transforms.get_mut(ship_parts.shield_hull),
             shield_hulls.get_mut(ship_parts.shield_hull),
@@ -589,6 +597,24 @@ fn measure(
             hull.scale = ShipBounds { min, max }.shield_half() * 2.0;
             *transform = Transform::from_translation((min + max) / 2.0).with_scale(hull.scale);
         }
+    }
+}
+
+/// Hängt die Balken unter das Modell, wie die Kamera es sieht: von seiner Mitte in Richtung Bildunterkante, so weit das
+/// Modell auf dem Schirm nach unten reicht.
+fn hang_bars(
+    camera: Single<&Transform, With<MainCamera>>,
+    ships: Query<(&GlobalTransform, &ShipBounds, &ShipParts)>,
+    mut overlays: Query<&mut Transform, Without<MainCamera>>,
+) {
+    for (ship, bounds, parts) in &ships {
+        let Ok(mut overlay) = overlays.get_mut(parts.overlay) else {
+            continue;
+        };
+        let up = ship.rotation().inverse() * camera.rotation * Vec3::Y;
+        let reach = up.abs().dot((bounds.max - bounds.min) / 2.0);
+        overlay.translation =
+            (bounds.min + bounds.max) / 2.0 - up * (reach + BAR_GAP + HP_TRACK_HEIGHT / 2.0);
     }
 }
 

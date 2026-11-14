@@ -61,8 +61,8 @@ pub const SIDE_VIEW: ViewSpec = ViewSpec {
     pitch: 42.0 * PI / 180.0,
     fov: 33.5 * PI / 180.0,
     frame: (0.25, 0.65),
-    lane_x: [-6.2, 3.0, 6.4],
-    slot_step: 2.9,
+    lane_x: [-6.2, 3.0, 6.7],
+    slot_step: 3.3,
 };
 
 /// Von hinten oben: eigene Seite unten, Spalte 0 links.
@@ -71,8 +71,8 @@ pub const TOP_VIEW: ViewSpec = ViewSpec {
     pitch: 50.0 * PI / 180.0,
     fov: 30.0 * PI / 180.0,
     frame: (0.17, 0.66),
-    lane_x: [-6.0, 2.7, 6.1],
-    slot_step: 3.2,
+    lane_x: [-6.0, 2.7, 6.5],
+    slot_step: 3.6,
 };
 
 /// Dauer der Kamerafahrt zwischen den Ansichten in Sekunden, gestreckt wie die übrigen Animationen.
