@@ -18,6 +18,14 @@ play-release *args:
 play-no-pull *args:
     cargo run -p voidfleet-client --features dynamic_linking -- {{ args }}
 
+# Production-Build nach <dir>: Release-Binary mit den Assets daneben, startet ohne Repository
+dist dir="target/dist/voidfleet":
+    cargo build -p voidfleet-client --release
+    rm -rf "{{ dir }}"
+    mkdir -p "{{ dir }}"
+    cp "$(cargo metadata --format-version 1 --no-deps | sed 's/.*"target_directory":"\([^"]*\)".*/\1/')/release/voidfleet" "{{ dir }}/"
+    cp -R assets "{{ dir }}/"
+
 # --- Prüfen ---
 
 # Alles prüfen, was vor einem Commit durchgehen muss: Format, Clippy, Tests
