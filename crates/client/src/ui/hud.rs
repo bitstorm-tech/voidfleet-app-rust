@@ -1,5 +1,5 @@
-//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8, der Hülle des Flaggschiffs und dem
-//! Stand des Runs ([`super::run_bar`]), darunter die aktiven Doktrinen als kleine Karten, das
+//! Das HUD (Port von `ui/hud.ts`): Kopfzeile mit Runde, Gefechtsuhr ab Runde 8, der Hülle des Flaggschiffs samt
+//! verbrauchter Reparaturgrenze und dem Stand des Runs ([`super::run_bar`]), darunter die aktiven Doktrinen als kleine Karten, das
 //! Log hinter dem Icon-Knopf oben rechts, das Banner für kurze Ansagen (etwa abgelehnte Aktionen) und die Ankündigung
 //! einer neuen Runde.
 
@@ -40,6 +40,10 @@ struct ClockLabel;
 
 #[derive(Component)]
 struct HullLabel;
+
+/// Die verbrauchte Reparaturgrenze hinter der Hülle, `(x/6)`; der Tooltip sitzt am [`HullLabel`].
+#[derive(Component)]
+struct RepairLabel;
 
 /// Die Leiste der aktiven Doktrinen unter der Kopfzeile.
 #[derive(Component)]
@@ -99,7 +103,13 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
             (
                 HullLabel,
                 theme::caps(fonts.display_bold(22.0), "", theme::TRACKING, palette::TEXT),
-                Pickable::IGNORE,
+                Tooltip::default(),
+                children![(
+                    RepairLabel,
+                    TextSpan::default(),
+                    fonts.display_bold(22.0),
+                    TextColor(palette::TEXT_DIM),
+                )],
             ),
             (
                 ClockLabel,
@@ -283,12 +293,16 @@ fn append_log(
     }
 }
 
-/// Runde, Gefechtsuhr und Hülle; ohne Gefecht bleibt die Kopfzeile leer.
+/// Runde, Gefechtsuhr, Hülle und Reparaturgrenze; ohne Gefecht bleibt die Kopfzeile leer.
 fn update_top_bar(
     battle: Option<Res<Battle>>,
     locale: Res<Locale>,
     mut round: Single<&mut Text, (With<RoundLabel>, Without<HullLabel>)>,
-    mut hull: Single<&mut Text, (With<HullLabel>, Without<RoundLabel>)>,
+    hull: Single<
+        (&mut Text, &mut Tooltip),
+        (With<HullLabel>, Without<RoundLabel>, Without<ClockLabel>),
+    >,
+    mut repair: Single<&mut TextSpan, With<RepairLabel>>,
     clock: Single<(&mut Node, &mut Tooltip, &Children), With<ClockLabel>>,
     mut texts: Query<&mut Text, (Without<RoundLabel>, Without<HullLabel>)>,
 ) {
@@ -297,9 +311,12 @@ fn update_top_bar(
         return;
     }
     let (mut node, mut tooltip, children) = clock.into_inner();
+    let (mut hull, mut hull_tooltip) = hull.into_inner();
     let Some(battle) = battle else {
         round.0.clear();
         hull.0.clear();
+        repair.0.clear();
+        hull_tooltip.0.clear();
         node.display = Display::None;
         return;
     };
@@ -307,6 +324,8 @@ fn update_top_bar(
     hull.0 = locale
         .hud_hull(battle.flagship.hull, battle.flagship.max_hull)
         .to_uppercase();
+    repair.0 = format!(" {}", locale.hud_repair(battle.flagship.repaired));
+    hull_tooltip.0 = locale.hud_repair_hint(battle.flagship.repaired);
     let bonus = battle.clock();
     node.display = if bonus == 0 {
         Display::None

@@ -144,6 +144,8 @@
   "hud_clock": "Gefechtsuhr +{bonus} ATK",
   "hud_clock_hint": "Ab Runde {rules.battle.clock_start} feuert jeder Gegner je Runde mit +1 ATK mehr; jetzt +{bonus}.",
   "hud_hull": "Hülle {hull}/{max_hull}",
+  "hud_repair": "({repaired}/{rules.battle.repair_limit})",
+  "hud_repair_hint": "Reparaturgrenze: Schadenskontrolle und Reparaturtrupp geben je Gefecht zusammen höchstens {rules.battle.repair_limit} Hülle zurück; bisher {repaired}. Gelöscht wird immer.",
   "hud_points": "Befehlspunkte",
   "hud_draw_pile": "Nachziehstapel",
   "hud_discard_pile": "Ablagestapel",

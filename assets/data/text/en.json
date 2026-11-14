@@ -144,6 +144,8 @@
   "hud_clock": "Battle clock +{bonus} ATK",
   "hud_clock_hint": "From round {rules.battle.clock_start} every enemy fires with +1 ATK more each round; now +{bonus}.",
   "hud_hull": "Hull {hull}/{max_hull}",
+  "hud_repair": "({repaired}/{rules.battle.repair_limit})",
+  "hud_repair_hint": "Repair limit: Damage Control and Repair Crew restore at most {rules.battle.repair_limit} hull per battle combined; so far {repaired}. Fires are always put out.",
   "hud_points": "Command points",
   "hud_draw_pile": "Draw pile",
   "hud_discard_pile": "Discard pile",

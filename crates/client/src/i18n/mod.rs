@@ -412,6 +412,9 @@ filled! {
     hud_clock(bonus: i32)
     hud_clock_hint(bonus: i32)
     hud_hull(hull: i32, max_hull: i32)
+    /// Reparaturgrenze: Marke hinter der Hülle und ihr Tooltip.
+    hud_repair(repaired: i32)
+    hud_repair_hint(repaired: i32)
     checklist_station(station: &str)
     loading_assets(percent: u32)
 
