@@ -652,6 +652,7 @@ impl Planner<'_> {
                 to,
                 color,
                 miss,
+                charged: false,
             },
             Weapon::Plasma => Fx::Bolt {
                 from,
@@ -683,7 +684,7 @@ impl Planner<'_> {
             },
             Weapon::Column(columns) => {
                 return std::iter::once(sound)
-                    .chain(column_beams(from, columns, color, miss))
+                    .chain(column_beams(source, columns, color, miss))
                     .collect();
             }
             Weapon::Contact(_) => return Vec::new(),
@@ -996,18 +997,18 @@ impl Planner<'_> {
 
 /// Die Strahlen eines Spaltenfeuers, je Spalte einer.
 fn column_beams(
-    from: Spot,
+    from: UnitRef,
     columns: [bool; 3],
     color: bevy::prelude::Color,
     miss: bool,
 ) -> impl Iterator<Item = Cue> {
     (0..3).filter(move |&c| columns[c]).map(move |column| {
-        Cue::Fx(Fx::Beam {
+        Cue::Fx(Fx::Laser {
             from,
             to: Spot::Column(column),
             color,
-            width: 1.6,
             miss,
+            charged: true,
         })
     })
 }

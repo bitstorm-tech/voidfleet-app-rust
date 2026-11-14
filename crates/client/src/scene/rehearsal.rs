@@ -12,7 +12,9 @@ use voidfleet_core::{enemies::EnemyClass, events::UnitStats};
 use super::{
     aura::ShipAura,
     coords::{BOARD_CENTER, Side, facing},
-    effects::{Beam, Bolt, Burn, Laser, Missile, Pulse, ShieldFlare, TargetRing, Warp},
+    effects::{
+        Beam, Bolt, Burn, ChargedBeam, Laser, Missile, Pulse, ShieldFlare, TargetRing, Warp,
+    },
     markers::{MarkerKind, MarkerSpec, ShipMarkers},
     ship::{BreakApart, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
@@ -115,6 +117,11 @@ pub(super) fn stage(mut commands: Commands, models: Res<ShipModels>) {
         width: 1.0,
     });
     commands.spawn(Laser {
+        from: at(-4.0),
+        to: at(4.0),
+        color: palette::ENEMY,
+    });
+    commands.spawn(ChargedBeam {
         from: at(-4.0),
         to: at(4.0),
         color: palette::ENEMY,

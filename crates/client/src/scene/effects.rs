@@ -1,5 +1,5 @@
-//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen, die Zielmarke eines
-//! umgelenkten Schusses, der Strahl der Railgun, der stehende Laserstrahl, die Rakete des Wärmesuchers mit Leuchtspur,
+//! Kurzlebige Effekte auf dem Brett (Port von `scene/effects.ts`): Bolzen, die Zielmarke eines umgelenkten Schusses,
+//! der Strahl der Railgun, der stehende Laserstrahl, der aufgeladene Schuss, die Rakete des Wärmesuchers mit Leuchtspur,
 //! der Traktorstrahl, Impulse, Einschläge in fünf Varianten, Sekundärexplosionen, Detonationen, brennende Trümmer und
 //! der Austritt eines Schiffs aus dem Hyperraum, dazu das eine Blitzlicht der Szene ([`ToonFlash`], immer der stärkste laufende
 //! Blitz). Alle räumen sich nach dem Abspielen selbst weg.
@@ -11,12 +11,12 @@
 //!
 //! Glühen: Was im Original im GlowLayer lag, leuchtet hier heller als 1 und glüht im Bloom ([`GLOW`]).
 
-use std::f32::consts::PI;
+use std::f32::consts::TAU;
 
 use bevy::{ecs::system::SystemParam, prelude::*, world_serialization::WorldAssetRoot};
 
 use super::{
-    animation::{Animation, AnimationScope, AnimationSystems},
+    animation::{Animation, AnimationFinished, AnimationScope, AnimationSystems},
     fx::{Billboard, FxAssets, FxMaterial, GLOW, mix},
     particles::{Burst, Emitter, Particles, SPHERE, ember, shot, smoke, soot},
     toon::ToonFlash,
@@ -52,6 +52,20 @@ const LASER_WIDTH: f32 = 0.25;
 const LASER_SHIMMER: f32 = 16.0;
 const LASER_SPARKS: f32 = 70.0;
 const LASER_FADE: f32 = 0.15;
+/// Aufgeladener Schuss (Spaltenfeuer): Dauer bis zum Einschlag und die Anteile daran, an denen der dünne Zielstrahl
+/// das Ziel erreicht, die Energiekugel an der Mündung zu wachsen beginnt und losfliegt.
+const CHARGED_DURATION: f32 = 1.6;
+const CHARGED_AIM: f32 = 0.12;
+const CHARGED_SWELL: f32 = 0.3;
+const CHARGED_LAUNCH: f32 = 0.65;
+/// Breite des Zielstrahls (wie `width` eines [`Beam`]), Durchmesser von Kern und Halo der Kugel, wie weit sich der Halo
+/// im Flug nach hinten zieht (Vielfache seines Durchmessers), Größe des Mündungsglühens und der Ringwelle am Ziel.
+const CHARGED_LINE: f32 = 0.16;
+const CHARGED_CORE: f32 = 0.3;
+const CHARGED_HALO: f32 = 0.95;
+const CHARGED_TAIL: f32 = 0.7;
+const CHARGED_GLOW: f32 = 1.1;
+const CHARGED_RING: f32 = 2.6;
 /// Rakete: Welteinheiten pro Sekunde entlang der Bahn, Höhe und seitlicher Schwung der Kurve.
 const MISSILE_SPEED: f32 = 8.0;
 /// Maßstab des Torpedo-Modells (5,75 lang, also 0,4 auf dem Brett).
@@ -434,6 +448,16 @@ pub struct Laser {
     pub color: Color,
 }
 
+/// Aufgeladener Schuss: Aus der Mündung `from` schießt ein dünner Zielstrahl nach `to`, an der Mündung wächst eine
+/// Energiekugel und fliegt am Strahl entlang ins Ziel. Der Auftrag endet, wenn sie ankommt; dann steht quer zum Strahl
+/// eine Ringwelle, der Strahl erlischt mit ihr. Den Einschlag spielt, wer auf den Auftrag wartet.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ChargedBeam {
+    pub from: Vec3,
+    pub to: Vec3,
+    pub color: Color,
+}
+
 /// Torpedo: Das Modell des Torpedos fliegt geradlinig von `from` auf `to`, mit Leuchtspur am Heck.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Missile {
@@ -560,7 +584,8 @@ struct FxSprite {
 enum SpriteKind {
     Flash,
     Shockwave,
-    FlatShockwave,
+    /// Eine Druckwelle, die quer zu dieser Richtung im Raum steht.
+    Ring(Vec3),
 }
 
 /// Die beiden Zylinder eines Strahls.
@@ -568,6 +593,15 @@ enum SpriteKind {
 struct BeamParts {
     core: Entity,
     sheath: Entity,
+}
+
+/// Zielstrahl, Mündungsglühen, Kugel und ihr Halo eines aufgeladenen Schusses.
+#[derive(Component, Clone, Copy)]
+struct ChargeParts {
+    line: BeamParts,
+    glow: Entity,
+    ball: Entity,
+    halo: Entity,
 }
 
 /// Ein- und Ausblenden eines Traktorstrahls.
@@ -664,6 +698,7 @@ impl Plugin for EffectsPlugin {
             .add_observer(start_target_ring)
             .add_observer(start_beam)
             .add_observer(start_laser)
+            .add_observer(start_charged_beam)
             .add_observer(start_missile)
             .add_observer(start_tether)
             .add_observer(release_tether)
@@ -683,6 +718,7 @@ impl Plugin for EffectsPlugin {
                     fade,
                     fade_beams,
                     hold_lasers,
+                    charge_beams,
                     fly_missiles,
                     hold_tethers,
                     open_portals,
@@ -943,6 +979,140 @@ fn hold_lasers(
     }
 }
 
+fn start_charged_beam(add: On<Add<ChargedBeam>>, beams: Query<&ChargedBeam>, mut fx: Fx) {
+    let ChargedBeam { from, to, color } = *beams.get(add.entity).expect("Aufgeladener Schuss");
+    let line = spawn_beam(&mut fx, from, from, color, CHARGED_LINE);
+    let glow_material = fx.material(
+        FxMaterial::light(light(lighten(color, 0.4)))
+            .with_texture(fx.assets.dot.clone())
+            .on_top(),
+    );
+    let core_material = fx.material(FxMaterial::light(light(lighten(color, 0.85))));
+    let halo_material = fx.material(FxMaterial {
+        rim: -BOLT_HALO_FALLOFF,
+        ..FxMaterial::light(light(color))
+    });
+    let (quad, sphere) = (fx.assets.quad.clone(), fx.assets.sphere.clone());
+    let hidden = Transform::from_translation(from).with_scale(Vec3::ZERO);
+    let glow = fx
+        .commands
+        .spawn((
+            Name::new("Mündungsglühen"),
+            Mesh3d(quad),
+            glow_material,
+            Billboard,
+            hidden,
+        ))
+        .id();
+    let core = fx
+        .commands
+        .spawn((
+            Name::new("Kugel-Kern"),
+            Mesh3d(sphere.clone()),
+            core_material,
+            Transform::from_scale(Vec3::splat(CHARGED_CORE)),
+        ))
+        .id();
+    let halo = fx
+        .commands
+        .spawn((
+            Name::new("Kugel-Halo"),
+            Mesh3d(sphere),
+            halo_material,
+            Transform::from_scale(Vec3::splat(CHARGED_HALO)),
+        ))
+        .id();
+    let ball = fx
+        .commands
+        .spawn((
+            Name::new("Energiekugel"),
+            hidden.looking_to(to - from, Vec3::Y),
+            Visibility::default(),
+        ))
+        .add_children(&[core, halo])
+        .id();
+    let parts = ChargeParts {
+        line,
+        glow,
+        ball,
+        halo,
+    };
+    fx.commands
+        .entity(add.entity)
+        .insert((
+            Name::new("Aufgeladener Schuss"),
+            Transform::default(),
+            Visibility::default(),
+            Animation::new(CHARGED_DURATION),
+            parts,
+        ))
+        .add_children(&[line.core, line.sheath, glow, ball])
+        .observe(finish_charged_beam);
+}
+
+/// Die Kugel ist angekommen: Quer zum Strahl läuft eine Ringwelle.
+fn finish_charged_beam(finished: On<AnimationFinished>, beams: Query<&ChargedBeam>, mut fx: Fx) {
+    let Ok(&ChargedBeam { from, to, color }) = beams.get(finished.entity) else {
+        return;
+    };
+    fx.sprite(
+        to,
+        light(lighten(color, 0.3)),
+        CHARGED_RING,
+        0.5,
+        SpriteKind::Ring(to - from),
+    );
+}
+
+/// Der Zielstrahl schießt hinaus und flimmert, die Kugel schwillt an der Mündung an (das Glühen mit ihr) und fliegt
+/// beschleunigend ins Ziel, ihr Halo zieht sich dabei zum Schweif.
+fn charge_beams(
+    beams: Query<(&ChargedBeam, &ChargeParts, &Animation)>,
+    mut parts: Query<(&mut Transform, Option<&MeshMaterial3d<FxMaterial>>)>,
+    mut materials: ResMut<Assets<FxMaterial>>,
+    time: Res<Time>,
+) {
+    let shimmer = 0.85 + 0.15 * (time.elapsed_secs() * LASER_SHIMMER * TAU).sin();
+    for (beam, charge, animation) in &beams {
+        let t = animation.progress();
+        let phase = |start: f32, end: f32| ((t - start) / (end - start)).clamp(0.0, 1.0);
+        let reach = beam.from.lerp(
+            beam.to,
+            EaseFunction::CubicOut.sample_clamped(phase(0.0, CHARGED_AIM)),
+        );
+        for (part, diameter, alpha) in [
+            (charge.line.core, BEAM_CORE * CHARGED_LINE, 1.0),
+            (charge.line.sheath, BEAM_SHEATH * CHARGED_LINE, 0.4),
+        ] {
+            if let Ok((mut transform, material)) = parts.get_mut(part) {
+                *transform = beam_transform(beam.from, reach, diameter);
+                if let Some(mut material) =
+                    material.and_then(|material| materials.get_mut(&material.0))
+                {
+                    material.set_alpha(alpha * shimmer);
+                }
+            }
+        }
+        let swell = EaseFunction::BackOut.sample_clamped(phase(CHARGED_SWELL, CHARGED_LAUNCH));
+        let flight = phase(CHARGED_LAUNCH, 1.0);
+        let travel = EaseFunction::CubicIn.sample_clamped(flight) * 0.5 + flight * 0.5;
+        // Beim Zielen glimmt die Mündung schwach, mit der Kugel schwillt sie an und erlischt, sobald sie losfliegt.
+        let glow = (0.35 * phase(0.0, CHARGED_AIM)).max(swell) * (1.0 - phase(CHARGED_LAUNCH, 0.8));
+        if let Ok((mut transform, _)) = parts.get_mut(charge.glow) {
+            transform.scale = Vec3::splat(CHARGED_GLOW * glow * shimmer);
+        }
+        if let Ok((mut transform, _)) = parts.get_mut(charge.ball) {
+            transform.translation = beam.from.lerp(beam.to, travel);
+            transform.scale = Vec3::splat(swell);
+        }
+        if let Ok((mut transform, _)) = parts.get_mut(charge.halo) {
+            let tail = CHARGED_TAIL * CHARGED_HALO * (flight * 4.0).min(1.0);
+            transform.translation.z = tail / 2.0;
+            transform.scale.z = CHARGED_HALO + tail;
+        }
+    }
+}
+
 fn start_missile(add: On<Add<Missile>>, missiles: Query<&Missile>, mut fx: Fx) {
     let missile = *missiles.get(add.entity).expect("Rakete");
     // Das Modell liegt vor dem Ursprung, damit die Leuchtspur am Heck austritt und es nicht verdeckt.
@@ -1111,7 +1281,7 @@ fn start_shield_flare(add: On<Add<ShieldFlare>>, flares: Query<&ShieldFlare>, mu
         light(color),
         3.4 * size,
         0.6,
-        SpriteKind::FlatShockwave,
+        SpriteKind::Ring(Vec3::Y),
     );
     fx.sprite(
         position,
@@ -1178,7 +1348,7 @@ fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {
     let sprite = *sprites.get(add.entity).expect("Blitz");
     let texture = match sprite.kind {
         SpriteKind::Flash => fx.assets.dot.clone(),
-        SpriteKind::Shockwave | SpriteKind::FlatShockwave => fx.assets.ring.clone(),
+        SpriteKind::Shockwave | SpriteKind::Ring(_) => fx.assets.ring.clone(),
     };
     let material = fx.material(
         FxMaterial::light(sprite.color)
@@ -1192,7 +1362,7 @@ fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {
             scale: |t| 0.6 + 0.4 * EaseFunction::CubicOut.sample_clamped(t),
             alpha: |t| (1.0 - t).powi(2),
         },
-        SpriteKind::Shockwave | SpriteKind::FlatShockwave => Fade {
+        SpriteKind::Shockwave | SpriteKind::Ring(_) => Fade {
             size: sprite.size,
             scale: |t| EaseFunction::CubicOut.sample_clamped(t),
             alpha: |t| (1.0 - t).powf(1.5),
@@ -1206,10 +1376,10 @@ fn start_sprite(add: On<Add<FxSprite>>, sprites: Query<&FxSprite>, mut fx: Fx) {
         fade,
         Animation::new(sprite.duration),
     ));
-    if sprite.kind == SpriteKind::FlatShockwave {
+    if let SpriteKind::Ring(normal) = sprite.kind {
         entity.insert(
             Transform::from_translation(sprite.position)
-                .with_rotation(Quat::from_rotation_x(-PI / 2.0)),
+                .with_rotation(Quat::from_rotation_arc(Vec3::Z, normal.normalize())),
         );
     } else {
         entity.insert((Transform::from_translation(sprite.position), Billboard));
@@ -1405,7 +1575,7 @@ fn start_detonation(add: On<Add<Detonation>>, detonations: Query<&Detonation>, m
         light(energy),
         5.0 * size,
         0.7,
-        SpriteKind::FlatShockwave,
+        SpriteKind::Ring(Vec3::Y),
     );
     fx.sprite(
         position,

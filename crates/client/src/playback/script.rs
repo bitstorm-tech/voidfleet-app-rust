@@ -30,8 +30,8 @@ use crate::{
         coords::{BOARD_CENTER, SlotRef},
         destruction::{DestroyHull, DestroyShip},
         effects::{
-            Beam, Bolt, HitVariant, Impact, Laser, Missile, Pulse, ReleaseTether, ShieldImpact,
-            TargetRing, Tether, Warp, bolt_duration,
+            Beam, Bolt, ChargedBeam, HitVariant, Impact, Laser, Missile, Pulse, ReleaseTether,
+            ShieldImpact, TargetRing, Tether, Warp, bolt_duration,
         },
         floating_text::{FloatTone, FloatingText},
         formation::{Hull, formation, visible_hulls},
@@ -137,12 +137,13 @@ pub(super) enum Fx {
         width: f32,
         miss: bool,
     },
-    /// Ein Laserstrahl aus einer Mündung der Einheit `from`.
+    /// Ein Laserstrahl aus einer Mündung der Einheit `from`; `charged`: der aufgeladene Schuss (Spaltenfeuer).
     Laser {
         from: UnitRef,
         to: Spot,
         color: Color,
         miss: bool,
+        charged: bool,
     },
     Missile {
         from: Spot,
@@ -471,7 +472,7 @@ impl Stage<'_, '_> {
                 .is_some_and(|status| status.shield > 0 && !status.hidden)
         })
         .and_then(|unit| self.shield_point(unit, from))
-        .unwrap_or_else(|| self.hull_point(from, to))
+        .unwrap_or_else(|| self.hull_point(from, unit.map_or(to, Spot::Unit)))
     }
 
     fn await_job(&mut self, script: Entity, job: impl Bundle) {
@@ -594,6 +595,7 @@ impl Stage<'_, '_> {
                 to,
                 color,
                 miss,
+                charged,
             } => {
                 let aim = self.point(to);
                 let from = self.muzzle(from, aim);
@@ -602,7 +604,11 @@ impl Stage<'_, '_> {
                 } else {
                     self.shot_point(from, to)
                 };
-                self.await_job(script, Laser { from, to, color });
+                if charged {
+                    self.await_job(script, ChargedBeam { from, to, color });
+                } else {
+                    self.await_job(script, Laser { from, to, color });
+                }
             }
             Fx::Missile { from, to, color } => {
                 let from = self.point(from);

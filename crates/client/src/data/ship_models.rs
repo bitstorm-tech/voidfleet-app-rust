@@ -114,7 +114,7 @@ const fn gun(x: f32, y: f32, z: f32) -> Vec3 {
 
 /// Die Mündungen der Geschütze eines Schiffs im Raum seines Modells: Dort beginnt ein Laserstrahl. Die Werte stammen
 /// aus den Bauskripten und ändern sich mit dem Modell; eingetragen sind die Schiffe, die Laser feuern (Flaggschiffe
-/// über Karten und Waffenstation, Gegner über Zielfeuer), die übrigen feuern aus ihrer Mitte.
+/// über Karten und Waffenstation, Gegner über Ziel- und Spaltenfeuer), die übrigen feuern aus ihrer Mitte.
 pub fn muzzles(kind: ShipKind) -> &'static [Vec3] {
     match model_key(kind) {
         // Mittlere Linse der Emitterbänke an den Tortürmen
@@ -134,6 +134,12 @@ pub fn muzzles(kind: ShipKind) -> &'static [Vec3] {
         "titan_carrier" => const { &[gun(1.63, -3.16, 0.85), gun(-1.63, -3.16, 0.85)] },
         // Beutekanone unter dem Bug
         "scrap_king" => const { &[gun(0.0, -5.22, -1.0)] },
+        // Mündungen der beiden Belagerungskanonen am Bug
+        "iron_dreadnought" => const { &[gun(0.52, -4.94, 0.36), gun(-0.52, -4.94, 0.36)] },
+        // Kalter Kern in der Mündungsbremse des Hauptgeschützes
+        "warden" => const { &[gun(0.0, -6.8, 0.5)] },
+        // Spitze der Lanze (der Rumpf ist danach auf 0,92 skaliert)
+        "lance_bomber" => const { &[gun(0.0, -3.3 * 0.92, -0.78 * 0.92)] },
         _ => &[],
     }
 }
