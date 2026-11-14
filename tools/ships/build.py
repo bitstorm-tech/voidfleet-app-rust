@@ -6,8 +6,10 @@ Haut (skin.py) als <id>_skin.ktx2; die Stücke des Wracks erben UVs, Maske und H
 zerlegt sie mit dem Rumpf. Dazu entsteht die Feinstruktur aller Rümpfe, detail.ktx2 (detail.py).
 
 Headless:   <blender> -b --factory-startup -P tools/ships/build.py -- [ids...]
-            <blender> ist auf dem Mac /Applications/Blender.app/Contents/MacOS/Blender, auf dem Linux-Server ohne GPU
-            ~/.local/opt/blender-5.2.3-linux-x64/run.sh (portables Blender mit Mesa llvmpipe).
+            <blender> ist Blender 5.2 LTS, auf dem Mac /Applications/Blender.app/Contents/MacOS/Blender, auf dem
+            Linux-Server ohne GPU das portable ~/.local/opt/blender-5.2.4-linux-x64/blender (die Vorschau braucht dort
+            libEGL, Paket libegl1). 5.2.3 und 5.2.4 liefern dieselben Bytes; 5.3 packt die UV-Inseln anders
+            (weather.unwrap), ein Neubau damit änderte Masken und Haut.
 Interaktiv: in Blender `import build; build.build_all()` (lädt die Module vorher neu).
 Ohne Ids werden alle Schiffe aus fleet.SHIPS gebaut. Die Texturen schreibt der Encoder `ctt` (im Pfad oder als CTT,
 siehe weather.py). Meldet je Schiff Dreiecke, Maße, Maske und GLB-Größe samt Wrack und warnt
