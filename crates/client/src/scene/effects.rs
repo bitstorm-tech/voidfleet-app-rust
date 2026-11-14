@@ -31,6 +31,12 @@ const BOLT_CORE: f32 = 0.05;
 const BOLT_HALO: f32 = 0.34;
 const BOLT_HALO_FALLOFF: f32 = 1.5;
 const BOLT_HALO_OVERHANG: f32 = 1.2;
+const BOLT_HALO_GLOW: f32 = 0.35;
+/// Plasmahülle zwischen Kern und Halo: Durchmesser, Helligkeit über der Schussfarbe und wie schnell ihre Fäden um den
+/// Bolzen und von der Spitze nach hinten fließen (UV je Sekunde).
+const BOLT_PLASMA: f32 = 0.26;
+const BOLT_PLASMA_GLOW: f32 = 0.7;
+const BOLT_PLASMA_FLOW: Vec2 = Vec2::new(0.35, 2.2);
 /// Zielmarke: Der Ring zieht sich von der ersten auf die zweite Größe zusammen.
 const TARGET_RING_SIZE: (f32, f32) = (3.4, 1.9);
 const TARGET_RING_DURATION: f32 = 0.42;
@@ -688,13 +694,23 @@ impl Plugin for EffectsPlugin {
     }
 }
 
-/// Hängt Kern und Halo eines Bolzens an `entity` und stellt ihn an den Anfang seiner Bahn.
+/// Hängt Kern, Plasmahülle und Halo eines Bolzens an `entity` und stellt ihn an den Anfang seiner Bahn.
 fn spawn_bolt(fx: &mut Fx, entity: Entity, name: &'static str, from: Vec3, to: Vec3, color: Color) {
-    let (beam, sphere) = (fx.assets.beam.clone(), fx.assets.sphere.clone());
+    let (beam, sphere, spindle) = (
+        fx.assets.beam.clone(),
+        fx.assets.sphere.clone(),
+        fx.assets.spindle.clone(),
+    );
     let core = fx.material(FxMaterial::light(light(lighten(color, 0.7))));
+    let plasma = fx.material(FxMaterial {
+        rim: -1.0,
+        flow: BOLT_PLASMA_FLOW,
+        ..FxMaterial::light(light(lighten(color, 0.2)) * BOLT_PLASMA_GLOW)
+            .with_texture(fx.assets.plasma.clone())
+    });
     let halo = fx.material(FxMaterial {
         rim: -BOLT_HALO_FALLOFF,
-        ..FxMaterial::light(light(color))
+        ..FxMaterial::light(light(color) * BOLT_HALO_GLOW)
     });
     fx.commands
         .entity(entity)
@@ -710,6 +726,12 @@ fn spawn_bolt(fx: &mut Fx, entity: Entity, name: &'static str, from: Vec3, to: V
                 Mesh3d(beam),
                 core,
                 Transform::from_scale(Vec3::new(BOLT_CORE, BOLT_CORE, BOLT_LENGTH)),
+            ));
+            parent.spawn((
+                Name::new("Bolzen-Plasma"),
+                Mesh3d(spindle),
+                plasma,
+                Transform::from_scale(Vec3::new(BOLT_PLASMA, BOLT_PLASMA, BOLT_LENGTH * 1.1)),
             ));
             parent.spawn((
                 Name::new("Bolzen-Halo"),

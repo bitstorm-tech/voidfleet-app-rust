@@ -3,12 +3,13 @@
 // Was heller als 1 leuchtet, glüht im Bloom der Kamera.
 
 import bevy_pbr::render::forward_io::VertexOutput;
-import bevy_pbr::render::mesh_view_bindings::view;
+import bevy_pbr::render::mesh_view_bindings::{globals, view};
 
 struct FxMaterial {
     // rgb linear (darf über 1 gehen), a Deckkraft
     color: vec4<f32>,
-    // x: Kantenleuchten (Exponent, 0 aus; negativ leuchtet die Mitte), y: additiv (1) oder Alpha-Mischung (0)
+    // x: Kantenleuchten (Exponent, 0 aus; negativ leuchtet die Mitte), y: additiv (1) oder Alpha-Mischung (0),
+    // zw: Fließen der Textur (UV je Sekunde, 0 steht)
     params: vec4<f32>,
 }
 
@@ -20,7 +21,13 @@ struct FxMaterial {
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = material.color;
     @if(VERTEX_UVS_A) {
-        color *= textureSample(fx_texture, fx_sampler, in.uv);
+        let flow = material.params.zw * globals.time;
+        var texel = textureSample(fx_texture, fx_sampler, in.uv + flow);
+        if any(material.params.zw != vec2<f32>(0.0)) {
+            // Eine zweite Lage, gespiegelt, gestaucht und langsamer: Wo sich die Fäden kreuzen, brodelt es.
+            texel *= 2.0 * textureSample(fx_texture, fx_sampler, in.uv * vec2(-1.0, 1.7) + flow * vec2(1.0, 0.6));
+        }
+        color *= texel;
     }
     @if(VERTEX_COLORS) {
         color *= in.color;

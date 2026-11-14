@@ -11,6 +11,7 @@
 use bevy::{
     asset::RenderAssetUsages,
     gltf::GltfAssetLabel,
+    image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
     mesh::{Indices, MeshVertexBufferLayoutRef, PrimitiveTopology},
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
@@ -58,6 +59,8 @@ pub struct FxMaterial {
     /// Kantenleuchten (Exponent; 0 aus): Die Mitte bleibt dunkel, der Rand leuchtet (Schildhülle). Negativ umgekehrt:
     /// Die Mitte leuchtet und verläuft zum Rand (Halo eines Bolzens).
     pub rim: f32,
+    /// Lässt die Textur fließen (UV je Sekunde); eine zweite, gespiegelte Lage läuft langsamer darüber (Plasma).
+    pub flow: Vec2,
 }
 
 impl FxMaterial {
@@ -70,6 +73,7 @@ impl FxMaterial {
             on_top: false,
             double_sided: false,
             rim: 0.0,
+            flow: Vec2::ZERO,
         }
     }
 
@@ -146,8 +150,8 @@ impl From<&FxMaterial> for FxUniform {
                 } else {
                     0.0
                 },
-                0.0,
-                0.0,
+                material.flow.x,
+                material.flow.y,
             ),
         }
     }
@@ -224,6 +228,10 @@ pub struct FxAssets {
     pub dot: Handle<Image>,
     /// Ring mit weichen Kanten: Druckwellen, Zielmarken, Portal.
     pub ring: Handle<Image>,
+    /// Kachelbare Plasmafäden (Helligkeit im Alpha): die brodelnde Hülle eines Bolzens.
+    pub plasma: Handle<Image>,
+    /// Kugel mit Durchmesser 1, die Pole auf der z-Achse (u läuft rundum, v von Pol zu Pol).
+    pub spindle: Handle<Mesh>,
     /// Modell des Torpedos (`tools/ships/fleet/torpedo.py`), Spitze nach −Z, Mitte im Ursprung.
     pub torpedo: Handle<WorldAsset>,
 }
@@ -253,6 +261,7 @@ impl FromWorld for FxAssets {
         let ring = images.add(sprite(|distance| {
             (1.0 - (distance - 0.72).abs() / 0.22).max(0.0).powf(1.5)
         }));
+        let plasma = images.add(plasma());
         let torpedo = world
             .resource::<AssetServer>()
             .load(GltfAssetLabel::Scene(0).from_asset("models/ships/torpedo.glb"));
@@ -262,6 +271,12 @@ impl FromWorld for FxAssets {
             quad: meshes.add(Rectangle::new(1.0, 1.0)),
             floor_quad: meshes.add(floor_quad()),
             sphere: meshes.add(Sphere::new(0.5).mesh().uv(16, 12)),
+            spindle: meshes.add(
+                Sphere::new(0.5)
+                    .mesh()
+                    .uv(16, 12)
+                    .rotated_by(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            ),
             cube: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             beam: meshes.add(
                 Cylinder::new(0.5, 1.0)
@@ -272,9 +287,64 @@ impl FromWorld for FxAssets {
             ),
             dot,
             ring,
+            plasma,
             torpedo,
         }
     }
+}
+
+/// Kantenlänge der Plasmatextur.
+const PLASMA_SIZE: u32 = 128;
+
+/// Plasmafäden: verwirbeltes, gefaltetes Rauschen, dessen Grate als helle Fäden stehen; kachelt in beiden Richtungen.
+fn plasma() -> Image {
+    let mut canvas = Canvas::new(PLASMA_SIZE);
+    canvas.fill_with(|point| {
+        let p = (point + 1.0) / 2.0;
+        let warp = Vec2::new(fbm(p + 0.37, 4), fbm(p + 0.71, 4)) - 0.5;
+        let p = p + warp * 0.35;
+        let ridges = (0..4)
+            .map(|octave| {
+                let ridge = 1.0 - (2.0 * value_noise(p, 2 << octave) - 1.0).abs();
+                ridge.powi(6) * 0.5f32.powi(octave)
+            })
+            .sum::<f32>()
+            / 1.875;
+        Some(Srgba::WHITE.with_alpha((ridges * 1.8).min(1.0)))
+    });
+    let mut image = canvas.into_image();
+    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
+        ..ImageSamplerDescriptor::linear()
+    });
+    image
+}
+
+/// Fraktales Rauschen aus `octaves` Lagen, Mittel 0,5, kachelt auf dem Einheitsquadrat.
+fn fbm(p: Vec2, octaves: i32) -> f32 {
+    (0..octaves)
+        .map(|octave| value_noise(p, 4 << octave) * 0.5f32.powi(octave))
+        .sum::<f32>()
+        / (2.0 - 0.5f32.powi(octaves - 1))
+}
+
+/// Wertrauschen in [0, 1] auf einem Gitter aus `cells` Zellen je Einheit, glatt interpoliert; kachelt auf dem
+/// Einheitsquadrat.
+fn value_noise(p: Vec2, cells: i32) -> f32 {
+    let hash = |x: i32, y: i32| {
+        let (x, y) = (x.rem_euclid(cells) as u32, y.rem_euclid(cells) as u32);
+        let h = (x.wrapping_mul(374_761_393) ^ y.wrapping_mul(668_265_263) ^ cells as u32)
+            .wrapping_mul(1_274_126_177);
+        (h ^ (h >> 16)) as f32 / u32::MAX as f32
+    };
+    let p = p * cells as f32;
+    let (cell, f) = (p.floor(), p - p.floor());
+    let s = f * f * (3.0 - 2.0 * f);
+    let (x, y) = (cell.x as i32, cell.y as i32);
+    let bottom = hash(x, y) + (hash(x + 1, y) - hash(x, y)) * s.x;
+    let top = hash(x, y + 1) + (hash(x + 1, y + 1) - hash(x, y + 1)) * s.x;
+    bottom + (top - bottom) * s.y
 }
 
 /// Quadrat in der xz-Ebene mit nach oben zeigender Vorderseite.
