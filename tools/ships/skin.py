@@ -39,7 +39,7 @@ import weather
 
 SPAN = 1.25  # Zeichnung: R = 0 dunkelt auf 2^−SPAN ab, R = 1 hellt auf 2^SPAN auf (toon.wesl: SKIN_SPAN)
 DEPTH = 0.02  # Höhe: A = 0 und A = 1 liegen so viele Einheiten unter bzw. über der Fläche (toon.wesl: SKIN_DEPTH)
-FEATURE = {"brood": 1.6}  # Zeichnung je Wesen so viel größer (die Brut steht als Staffel zu 0,42 auf dem Brett)
+FEATURE = {"brood": 1.6, "brood_v2": 1.35}  # Zeichnung je Wesen so viel größer (Brut steht als Staffel zu 0,42)
 GLOW_REACH = 0.7  # so weit glimmen Adern und Haut um ein Licht
 CHUNK = 1 << 20  # Texel je Portion (das Zellrauschen braucht je Texel etwa 1 KB)
 
@@ -85,8 +85,9 @@ def pixels(obj, size):
     scale = FEATURE.get(obj.name, 1.0)
     out = np.empty((size * size, 4), dtype=np.uint8)
     out[:] = _encode(*(np.zeros(1) for _ in range(4)))
+    table = PATTERNS_V2 if obj.name.endswith("_v2") else PATTERNS
     for index, mat in enumerate(obj.data.materials):
-        pattern = PATTERNS.get(_key(mat, obj.name))
+        pattern = table.get(_key(mat, obj.name))
         texels = np.flatnonzero(covered & (material == index))
         if pattern is None or len(texels) == 0:
             continue
@@ -315,5 +316,167 @@ PATTERNS = {
     "web": _web,
     "scale": _scale,
     "organ": _organ,
+    "lumen": _lumen,
+}
+
+
+# ---------------------------------------------------------------- Verfeinerte Muster für v2-Wesen
+
+
+def _wing_st_v2(p):
+    """Parametrische Flügelkoordinaten (s: 0 Bugdorn .. 1 Sichelspitze, t: 0 Innenkante .. 1 Vorderkante) für Punkte
+    auf der nahtlosen Flughaut von unknown_contact_v2 (symmetrisch in |x|)."""
+    from fleet.unknown_contact_v2 import INNER, LEAD, curve
+
+    samples = 65
+    s_grid = np.linspace(0.0, 1.0, samples)
+    inner_xy = np.array([(curve(INNER, float(sv)).x, curve(INNER, float(sv)).y) for sv in s_grid], dtype=np.float64)
+    lead_xy = np.array([(curve(LEAD, float(sv)).x, curve(LEAD, float(sv)).y) for sv in s_grid], dtype=np.float64)
+    ab = lead_xy - inner_xy
+    ab2 = np.maximum((ab * ab).sum(axis=1), 1e-8)
+
+    q_xy = np.column_stack([np.abs(p[:, 0]), p[:, 1]])
+    s_out = np.empty(len(p), dtype=np.float64)
+    t_out = np.empty(len(p), dtype=np.float64)
+    step = 32768
+    for start in range(0, len(p), step):
+        end = min(start + step, len(p))
+        chunk = q_xy[start:end]
+        ap = chunk[:, None, :] - inner_xy[None, :, :]
+        t_cand = np.clip((ap * ab[None, :, :]).sum(axis=2) / ab2[None, :], 0.0, 1.0)
+        proj = inner_xy[None, :, :] + t_cand[:, :, None] * ab[None, :, :]
+        dist2 = ((chunk[:, None, :] - proj) ** 2).sum(axis=2)
+        best = np.argmin(dist2, axis=1)
+        idx = np.arange(end - start)
+        # Feine sub-grid Glättung über die Nachbar-Abstände
+        prev_i = np.maximum(best - 1, 0)
+        next_i = np.minimum(best + 1, samples - 1)
+        d0, d1, d2 = dist2[idx, prev_i], dist2[idx, best], dist2[idx, next_i]
+        denom = np.maximum(d0 - 2.0 * d1 + d2, 1e-9)
+        frac = np.where((best > 0) & (best < samples - 1), np.clip(0.5 * (d0 - d2) / denom, -0.5, 0.5), 0.0)
+        s_out[start:end] = np.clip((best + frac) / (samples - 1), 0.0, 1.0)
+        t_out[start:end] = t_cand[idx, best]
+    return s_out, t_out
+
+
+def _membrane_v2(p, n, near):
+    """Durchgehende, nahtlose Flughaut (unknown_contact_v2): weicher zellgetragener Verlauf von tief türkisem,
+    gezeichnetem Wurzelfeld über durchscheinende Zellfenster in der Mitte bis zum dunklen Sichelrand — ohne jede harte
+    Materialstufe. Die Höhe senkt dünne Zellfenster leicht ab (steuert im Shader die Durchschein-Wirkung)."""
+    s, t = _wing_st_v2(p)
+    rim, value, veins, f1 = _wing_cells(p)
+    # Feine sekundäre Gefäß-Äderchen zwischen den Hauptzellen
+    micro = _lines(_warp(p, 0.09, 1.8, 46) * 5.2, 47, 0.065) * 0.45
+    web_struct = np.maximum(rim, np.maximum(veins, micro))
+    pane = 1.0 - _ss(0.05, 0.48, f1)
+
+    # Organisch ausgefranste Leuchtzone an der Flügelwurzel: Zellen bestimmen den Übergang, keine geometrische Kante
+    warp_edge = 0.14 * (value - 0.5) + 0.13 * (_fbm(p * 1.15, 48) - 0.5)
+    s_lobe = _ss(0.08, 0.27, s) * (1.0 - _ss(0.50, 0.78, s))
+    arch = np.sin(np.clip((s - 0.08) / 0.72, 0.0, 1.0) * np.pi) ** 0.68
+    t_reach = 0.18 + 0.44 * arch
+    lumen = s_lobe * (1.0 - _ss(0.08 * t_reach, t_reach, t + warp_edge))
+    # Weiter reichender Übergangssaum, in dem Zellränder und Adern noch aus dem Leuchtfeld herausglimmen
+    mid_bleed = s_lobe * (1.0 - _ss(0.25 * t_reach, np.minimum(t_reach * 1.65, 0.96), t + 0.7 * warp_edge))
+
+    # Sanftes Abdunkeln zum äußeren Sichelrand und zur Sichelspitze (markings zieht ins dunkle Blaugrün)
+    outer = _ss(0.36, 0.92, t + 0.15 * (_fbm(p * 0.85, 49) - 0.5) + 0.42 * _ss(0.58, 0.95, s))
+
+    tone = (
+        0.38 * (value - 0.5)
+        + 0.30 * pane * (0.45 + 0.55 * lumen)
+        + 0.26 * lumen
+        - 0.76 * outer
+        - 0.74 * rim
+        - 0.68 * veins
+        - 0.28 * micro
+    )
+    # Tiefes, gezeichnetes Türkis-Leuchten: helle Zellkerne im Wurzelfeld (klar lesbar auch im Brettwinkel auf beiden
+    # Flügeln, dabei nie ins grelle Cyan überstrahlend), dunkle Ränder/Adern klar ausgespart; im Übergang glimmen die
+    # Zellränder sanft nach außen weiter
+    core_glow = lumen * (0.34 + 0.46 * pane + 0.14 * (value - 0.5)) * (1.0 - 0.78 * np.maximum(rim, veins))
+    vein_bleed = mid_bleed * (1.0 - 0.60 * lumen) * (0.38 * rim + 0.32 * veins) + 0.22 * _falloff(near, 0.48) * rim
+    glow = np.clip(np.maximum(core_glow, vein_bleed), 0.0, 0.82)
+    wet = 0.48 + 0.32 * web_struct + 0.16 * lumen
+    # Erhabene Zellränder und Adern (+), dünne durchscheinende Zellfenster (−): der Shader liest < 0,5 als dünn
+    height = 0.0085 * rim + 0.010 * veins + 0.0035 * micro - 0.0065 * pane * (1.0 - web_struct)
+    return tone, glow, wet, height
+
+
+def _flesh_v2(p, n, near):
+    """Fleisch (v2): organisch gewundene Adern und Kapillaren, sanftere natürliche Querfalten ohne Raster-Wirkung,
+    hellerer Bauch; Leuchtpunkte gezielt an Flanken und Unterseite des Leibs (nicht als Zufallspunkte auf der dünnen
+    Flügelvorderkante)."""
+    w = _warp(p, 0.38, 0.8, 11)
+    veins = _lines(w * 1.45, 12, 0.125)
+    capillaries = _lines(w * 3.3, 13, 0.095) * _ss(0.4, 0.65, _fbm(p * 1.1, 14))
+    folds = _lines(_warp(p, 0.15, 1.6, 15) * (1.8, 7.5, 1.8), 16, 0.14)
+    f1, _, spot = _cells(w * 2.2, 17)
+    blotch = (1 - _ss(0.2, 0.45, f1)) * (spot < 0.50) * _ss(-0.2, 0.5, n[:, 2])
+    mottle = 2 * _fbm(p * 0.75, 18) - 1
+    belly = _ss(-0.25, -0.75, n[:, 2])
+    # Tiefsee-Leuchtpunkte auf dem Rumpf (|x| < 1,35), nicht vereinzelt auf der Flügel-Vorderkante
+    on_body = 1.0 - _ss(1.18, 1.42, np.abs(p[:, 0]))
+    lamps = _freckles(p, n, cell=0.23, radius=0.048, share=0.34) * on_body
+    near_light = _falloff(near, GLOW_REACH)
+    tone = 0.42 * mottle - 0.45 * blotch + 0.42 * belly - 0.95 * veins - 0.36 * capillaries - 0.13 * folds + 0.35 * lamps
+    glow = np.clip(np.maximum(0.82 * lamps, near_light * (0.68 * veins + 0.24 * capillaries) + 0.16 * _falloff(near, 0.22)), 0.0, 0.85)
+    wet = 0.46 + 0.65 * (_fbm(p * 2.3, 19) - 0.5) + 0.28 * folds
+    height = 0.01 * veins + 0.003 * capillaries - 0.006 * folds + 0.004 * mottle + 0.003 * lamps
+    return tone, glow, wet, height
+
+
+def _bone_v2(p, n, near):
+    """Knochen (v2): sauberes, organisches Elfenbein bis Sandbraun mit feinen Wachstumsringen, Poren und Haarrissen;
+    ohne schmutzige Flecken, stattdessen warme, feine Materialzeichnung."""
+    mottle = 2 * _fbm(p * 1.15, 31) - 1
+    warmth = _ss(0.48, 0.85, _fbm(p * 0.75, 32))
+    rings = _lines(_warp(p, 0.07, 1.4, 33) * (2.8, 6.8, 2.8), 34, 0.11)
+    cracks = _lines(_warp(p, 0.22, 1.0, 35) * 2.5, 36, 0.032) * _ss(0.60, 0.72, _fbm(p * 0.8, 37))
+    f1, _, pit = _cells(p * 13.5, 38)
+    pores = (1 - _ss(0.11, 0.28, f1)) * (pit < 0.42)
+    tone = 0.22 * mottle - 0.14 * warmth - 0.20 * rings - 0.62 * cracks - 0.36 * pores
+    wet = 0.22 + 0.42 * _ss(0.42, 0.72, _fbm(p * 1.7, 39))
+    height = 0.003 * mottle - 0.0035 * rings - 0.006 * cracks - 0.006 * pores
+    return tone, np.zeros(len(p)), wet, height
+
+
+def _scale_v2(p, n, near):
+    """Schuppen, Eier, Bauchschilde und Schale der Brut (v2): klar profilierte gewölbte Schuppen; nahe den Rissen und
+    Organen glimmen die Schuppenfugen organisch mit."""
+    f1, f2, value = _cells(p * 10.0, 61)
+    groove = 1 - _ss(0.025, 0.13, f2 - f1)
+    dome = _ss(0.0, 0.36, f2 - f1)
+    g1, _, speck = _cells(p * 26.0, 62)
+    specks = (1 - _ss(0.1, 0.25, g1)) * (speck < 0.35)
+    tone = 0.48 * (value - 0.5) - 0.64 * groove - 0.32 * specks + 0.18 * dome
+    crack_bleed = 0.76 * _falloff(near, 0.46) * (0.85 * groove + 0.15)
+    glow = np.clip(np.maximum(0.35 * (value > 0.96) * dome, crack_bleed), 0.0, 0.82)
+    wet = 0.58 + 0.40 * dome
+    height = 0.0085 * dome - 0.0045 * groove
+    return tone, glow, wet, height
+
+
+def _organ_v2(p, n, near):
+    """Leuchtsäcke, Schlund und Risse der Brut (v2): kontrastreiche leuchtende Kerne, tiefe dunkle Gefäße und feine
+    Kapillaren — kalibriert auf tiefes, gezeichnetes Türkis unter ORGAN_GLOW_BOOST."""
+    f1, _, value = _cells(_warp(p, 0.22, 1.05, 71) * 2.8, 72)
+    cores = 1 - _ss(0.08, 0.46, f1)
+    vessels = _lines(_warp(p, 0.30, 0.95, 73) * 2.3, 74, 0.085)
+    capillaries = _lines(_warp(p, 0.12, 2.0, 77) * 5.8, 75, 0.10)
+    mottle = 2 * _fbm(p * 1.5, 76) - 1
+    tone = 0.44 * cores + 0.18 * (value - 0.5) - 0.95 * vessels - 0.36 * capillaries + 0.26 * mottle - 0.18
+    zero = np.zeros(len(p))
+    return tone, zero, zero, zero
+
+
+PATTERNS_V2 = {
+    "flesh": _flesh_v2,
+    "sinew": _sinew,
+    "bone": _bone_v2,
+    "membrane": _membrane_v2,
+    "web": _web,
+    "scale": _scale_v2,
+    "organ": _organ_v2,
     "lumen": _lumen,
 }

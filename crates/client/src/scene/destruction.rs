@@ -144,7 +144,11 @@ impl DestructionProfile {
                 FlagshipId::Pendulum => flagship(AdmiralId::Kerr, Energy),
                 FlagshipId::Pyre => flagship(AdmiralId::Reyes, Fire),
             },
-            // Entwürfe zählen als Schlachtschiff: wie der Belagerer.
+            // Entwürfe: fremde Vergleichsmodelle platzen wie ihre Vorbilder, übrige zählen als Schlachtschiff.
+            ShipKind::Draft("unknown_contact_v2") => {
+                Self::of(ShipKind::Enemy(EnemyId::UnknownContact))
+            }
+            ShipKind::Draft("brood_v2") => Self::of(ShipKind::Enemy(EnemyId::Brood)),
             ShipKind::Draft(_) => Self::of(ShipKind::Enemy(EnemyId::Besieger)),
         }
     }

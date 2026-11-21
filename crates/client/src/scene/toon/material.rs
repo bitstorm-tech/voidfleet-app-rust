@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer};
 
 use super::look::{
     GHOST_ALPHA, GHOST_HOLOGRAM_ALPHA, GHOST_LIGHT, GHOST_TONES, GLOW_BOOST, KEY, LIVERY_ACCENT,
-    TONE_SPREAD,
+    ORGAN_GLOW_BOOST, TONE_SPREAD,
 };
 use crate::palette;
 
@@ -41,6 +41,10 @@ impl<'de> Deserialize<'de> for Hex {
     }
 }
 
+fn default_dirt() -> f32 {
+    1.0
+}
+
 /// Der Material-Vertrag (`extras.vf` jedes glTF-Materials aus `tools/ships/`).
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -58,6 +62,16 @@ pub enum ToonSpec {
         /// Das Wesen (`<id>`), dessen Haut die Fläche trägt (`<id>_skin.ktx2` neben dem GLB); nur am Fremden.
         #[serde(default)]
         skin: Option<String>,
+        /// Faktor auf Schmutz und Schlieren der Verwitterungsmaske (1 Vorgabe, 0 für sauberen Knochen; die Verdeckung
+        /// bleibt unabhängig davon voll erhalten).
+        #[serde(default = "default_dirt")]
+        dirt: f32,
+        /// Subtile Durchschein-Wirkung dünner Flughäute (0 deckend, bis 1 durchscheinend).
+        #[serde(default)]
+        translucency: f32,
+        /// Ruhiger Biopuls für das Leuchten der Haut im lebenden Zustand (0 aus, sonst Takt-Faktor).
+        #[serde(default)]
+        pulse: f32,
     },
     /// Unbeleuchtet in genau dieser Farbe: Düsen, Fenster, Emitter, Kennzeichen; mit `glow` im Glühen. Am Fremden mit
     /// Haut, deren Zeichnung das Leuchten ungleichmäßig macht.
@@ -66,6 +80,12 @@ pub enum ToonSpec {
         glow: bool,
         #[serde(default)]
         skin: Option<String>,
+        /// Gedämpftes, räumlich gezeichnetes Organleuchten (`ORGAN_GLOW_BOOST`) statt grellem `GLOW_BOOST`.
+        #[serde(default)]
+        soft_glow: bool,
+        /// Ruhiger Biopuls im lebenden Zustand (0 aus, sonst Takt-Faktor).
+        #[serde(default)]
+        pulse: f32,
     },
     /// Durchscheinend und als einzige Art beidseitig.
     Hologram { color: Hex, alpha: f32, glow: bool },
@@ -184,7 +204,8 @@ pub struct ToonUniform {
     surface: Vec4,
     /// rgb Farbe der Überlagerung, a ihr Anteil.
     overlay: Vec4,
-    /// x Verwitterung an (1) oder aus (0).
+    /// x Verwitterung an (1) oder aus (0), y Schmutz-Anteil (`dirt`), z Transluzenz (bei `toon`) bzw. weiches
+    /// Organvolumen (1 bei `light` mit `soft_glow`), w Biopuls-Tempo (0 aus).
     weather: Vec4,
     /// rgb Leuchten der Haut (linear, erlischt mit den Lichtern), a Haut an (1) oder aus (0).
     skin: Vec4,
@@ -232,13 +253,24 @@ impl From<&ToonMaterial> for ToonUniform {
                 1.0,
                 1.0,
             ),
-            ToonSpec::Light { color, glow, .. } => {
+            ToonSpec::Light {
+                color,
+                glow,
+                soft_glow,
+                ..
+            } => {
                 let color = match (material.ghost, material.livery) {
                     (true, _) => GHOST_LIGHT,
                     (false, true) => livery(color.0),
                     (false, false) => color.0,
                 };
-                let glow = if *glow { GLOW_BOOST } else { 1.0 };
+                let glow = if !*glow {
+                    1.0
+                } else if *soft_glow {
+                    ORGAN_GLOW_BOOST
+                } else {
+                    GLOW_BOOST
+                };
                 ([linear(color); 3], false, 0.0, glow * material.lights, 1.0)
             }
             ToonSpec::Hologram { color, alpha, glow } => {
@@ -272,6 +304,26 @@ impl From<&ToonMaterial> for ToonUniform {
             && material.weather_texture.is_some()
             && !material.ghost;
         let grown = material.skin_texture.is_some() && !material.ghost;
+        let (dirt, bio_mode, pulse) = match &material.spec {
+            ToonSpec::Toon {
+                dirt,
+                translucency,
+                pulse,
+                ..
+            } => (*dirt, *translucency, if grown { *pulse } else { 0.0 }),
+            ToonSpec::Light {
+                soft_glow, pulse, ..
+            } => (
+                1.0,
+                if *soft_glow && !material.ghost {
+                    1.0
+                } else {
+                    0.0
+                },
+                if grown { *pulse } else { 0.0 },
+            ),
+            _ => (1.0, 0.0, 0.0),
+        };
         let skin_glow = linear(palette::ALIEN).truncate() * material.lights;
         Self {
             tone_lit: tones[0],
@@ -286,7 +338,7 @@ impl From<&ToonMaterial> for ToonUniform {
                 opacity * material.opacity,
             ),
             overlay: material.overlay,
-            weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0),
+            weather: Vec4::new(if weathered { 1.0 } else { 0.0 }, dirt, bio_mode, pulse),
             skin: skin_glow.extend(if grown { 1.0 } else { 0.0 }),
         }
     }
@@ -401,12 +453,60 @@ mod tests {
             color: Hex(Color::WHITE),
             glow: false,
             skin: None,
+            soft_glow: false,
+            pulse: 0.0,
         };
         let mut material = ToonMaterial::new(spec, None, None, None);
         material.facing = -1.0;
         let uniform = ToonUniform::from(&material);
         assert_eq!(uniform.key.x, -KEY.x);
         assert_eq!(uniform.surface.z, 1.0);
+    }
+
+    /// Organleuchten (`soft_glow`), sauberer Knochen (`dirt`), Transluzenz und Biopuls werden aus dem Vertrag
+    /// übernommen; ältere Modelle ohne diese Felder behalten exakt ihre bisherigen Vorgaben.
+    #[test]
+    fn bio_contract_defaults_and_overrides() {
+        let legacy = ToonSpec::from_extras(
+            r##"{"vf": {"kind": "light", "color": "#45e0c8", "glow": true, "skin": "unknown_contact"}}"##,
+        )
+        .unwrap();
+        let legacy_u = ToonUniform::from(&ToonMaterial::new(
+            legacy,
+            None,
+            None,
+            Some(Handle::default()),
+        ));
+        assert_eq!(legacy_u.surface.z, GLOW_BOOST);
+        assert_eq!((legacy_u.weather.z, legacy_u.weather.w), (0.0, 0.0));
+
+        let organ = ToonSpec::from_extras(
+            r##"{"vf": {"kind": "light", "color": "#2ec8b4", "glow": true, "soft_glow": true, "pulse": 1.0, "skin": "unknown_contact_v2"}}"##,
+        )
+        .unwrap();
+        let organ_u = ToonUniform::from(&ToonMaterial::new(
+            organ,
+            None,
+            None,
+            Some(Handle::default()),
+        ));
+        assert_eq!(organ_u.surface.z, ORGAN_GLOW_BOOST);
+        assert_eq!((organ_u.weather.z, organ_u.weather.w), (1.0, 1.0));
+
+        let wing = ToonSpec::from_extras(
+            r##"{"vf": {"kind": "toon", "tones": ["#2c968b", "#1c6769", "#0e2835"], "round": true, "glint": 0.5, "dirt": 0.05, "translucency": 0.85, "pulse": 1.0, "skin": "unknown_contact_v2"}}"##,
+        )
+        .unwrap();
+        let wing_u = ToonUniform::from(&ToonMaterial::new(
+            wing,
+            None,
+            None,
+            Some(Handle::default()),
+        ));
+        assert_eq!(
+            (wing_u.weather.y, wing_u.weather.z, wing_u.weather.w),
+            (0.05, 0.85, 1.0)
+        );
     }
 
     /// Toon-Flächen und Bruchflächen tragen beide UVs: Die Art entscheidet, wer Glut und wer Verwitterung bekommt,
@@ -419,6 +519,9 @@ mod tests {
             glint: 0.0,
             mask: None,
             skin: None,
+            dirt: 1.0,
+            translucency: 0.0,
+            pulse: 0.0,
         };
         let wreck = ToonSpec::Wreck {
             tones: [Hex(Color::WHITE); 3],

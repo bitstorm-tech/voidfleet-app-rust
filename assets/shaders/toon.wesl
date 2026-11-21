@@ -8,7 +8,7 @@
 
 import bevy_pbr::render::forward_io::VertexOutput;
 import bevy_pbr::render::mesh_functions::get_local_from_world;
-import bevy_pbr::render::mesh_view_bindings::view;
+import bevy_pbr::render::mesh_view_bindings::{globals, view};
 
 struct ToonMaterial {
     tone_lit: vec4<f32>,
@@ -22,7 +22,8 @@ struct ToonMaterial {
     surface: vec4<f32>,
     // rgb: Farbe der Überlagerung (Treffer-Blitz, Warp, Verdunkeln), a: ihr Anteil
     overlay: vec4<f32>,
-    // x: Maske der Verwitterung an (1) oder aus (0)
+    // x: Maske der Verwitterung an (1) oder aus (0), y: Schmutz-Anteil (`dirt`), z: Transluzenz der Flughaut
+    // (bei `toon`) bzw. weiches Organvolumen (bei `light` mit `soft_glow`), w: Biopuls-Tempo (0 aus)
     weather: vec4<f32>,
     // rgb: Leuchten der Haut (erlischt mit den Lichtern), a: Haut an (1) oder aus (0)
     skin: vec4<f32>,
@@ -190,13 +191,23 @@ fn markings(color: vec3<f32>, skin: vec4<f32>) -> vec3<f32> {
     return color * shade * mix(vec3<f32>(1.0), hue, SKIN_DEEP * saturate(1.0 - shade));
 }
 
+// Ruhiger, organischer Biopuls im lebenden Zustand (0..1): langsame Atemwelle längs des Leibs und eine zweite,
+// versetzte Welle quer über die Flügel, damit Organe, Adern und Leuchtpunkte natürlich atmen statt zu blinken.
+fn bio_pulse(position: vec3<f32>, rate: f32) -> f32 {
+    let t = globals.time * rate;
+    let along = sin(t * 1.35 - position.z * 0.42);
+    let across = sin(t * 2.15 + abs(position.x) * 0.55 + 1.1);
+    return 0.5 + 0.5 * (0.68 * along + 0.32 * across);
+}
+
 // Verwitterung über dem Verlauf: Helligkeit, Fugen, Schmutz, Ruß, Kantenabrieb (nicht im Schatten). `fine` blendet die
-// harte Rille und den Abrieb aus, wenn sie zu fein für den Bildschirm würden.
-fn weathered(color: vec3<f32>, mask: vec4<f32>, light: f32, fine: f32, structure: Detail) -> vec3<f32> {
+// harte Rille und den Abrieb aus, wenn sie zu fein für den Bildschirm würden; `dirt_scale` regelt Schmutz/Ruß getrennt
+// von der Verdeckung (`mask.b`).
+fn weathered(color: vec3<f32>, mask: vec4<f32>, light: f32, fine: f32, structure: Detail, dirt_scale: f32) -> vec3<f32> {
     var c = color * mask.b * SHADE * (1.0 + structure.tone);
     c *= mix(SEAM_SHOULDER.y, 1.0, smoothstep(0.0, SEAM_SHOULDER.x, mask.a));
     c *= 1.0 - (1.0 - SEAM_DARK) * fine * (1.0 - band(SEAM_STEP, mask.a));
-    let dirt = mask.r + structure.grain;
+    let dirt = (mask.r + structure.grain) * dirt_scale;
     let grime = mix(c, vec3<f32>(dot(c, LUMA)), DIRT_DESAT) * DIRT_TINT;
     c = mix(c, grime, smoothstep(DIRT.x, DIRT.y, dirt));
     c = mix(c, grime * SOOT_TINT, smoothstep(SOOT.x, SOOT.y, dirt));
@@ -210,16 +221,30 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
     if !is_front {
         normal = -normal;
     }
+    let to_camera = normalize(view.world_position - in.world_position.xyz);
     var skin = NO_SKIN;
     @if(VERTEX_UVS_A) {
         if material.skin.a > 0.5 {
             skin = textureSample(skin_texture, skin_sampler, in.uv);
         }
     }
+    let ship_from_world = get_local_from_world(in.instance_index);
+    let local_pos = (ship_from_world * in.world_position).xyz;
     // Lichter in genau ihrer Farbe, die eines Wesens nach der Zeichnung seiner Haut heller und dunkler
     var color = material.tone_lit.rgb * material.surface.z * exp2(SKIN_SPAN * (2.0 * skin.r - 1.0));
-    if material.surface.x > 0.5 {
-        let to_camera = normalize(view.world_position - in.world_position.xyz);
+    if material.surface.x <= 0.5 {
+        if material.weather.z > 0.5 {
+            // Weiches, räumlich gezeichnetes Organleuchten: am gekrümmten Rand tieferes Meerestürkis,
+            // Gefäße ziehen ins dunkle Jadegrün statt nur grau abzudunkeln — kein flaches Ausbrennen.
+            let center = abs(dot(normal, to_camera));
+            let volume = mix(0.56, 1.06, pow(center, 0.55));
+            let deep_tint = mix(vec3<f32>(0.24, 0.76, 0.70), vec3<f32>(1.0), smoothstep(0.18, 0.65, skin.r));
+            color *= volume * deep_tint;
+        }
+        if material.weather.w > 0.0 {
+            color *= mix(0.76, 1.24, bio_pulse(local_pos, material.weather.w));
+        }
+    } else {
         let key = material.key.xyz;
         // `facing` fällt durch Rundung knapp unter 0: pow gäbe NaN, also ein schwarzes Pixel. Das Kantenlicht folgt
         // der Form, nicht dem Relief.
@@ -234,17 +259,15 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
             if material.weather.x > 0.5 {
                 // Schiffskoordinaten (Blender-Einheiten): Der Maßstab der Nahaufnahme und die Feinstruktur hängen an
                 // ihnen, nicht an der Abwicklung
-                let ship_from_world = get_local_from_world(in.instance_index);
                 let turn = mat3x3<f32>(ship_from_world[0].xyz, ship_from_world[1].xyz, ship_from_world[2].xyz);
-                let position = (ship_from_world * in.world_position).xyz;
-                let footprint = 64.0 * max(length(dpdx(position)), length(dpdy(position)));
+                let footprint = 64.0 * max(length(dpdx(local_pos)), length(dpdy(local_pos)));
                 fine = 1.0 - smoothstep(FINE_LOD.x, FINE_LOD.y, log2(footprint));
                 mask = textureSample(weather_texture, weather_sampler, in.uv);
                 let inside = normalize(turn * normal);
                 if material.skin.a > 0.5 {
-                    structure.slope = skin_slope(in.uv, inside, position);
+                    structure.slope = skin_slope(in.uv, inside, local_pos);
                 } else {
-                    structure = detail(position, inside);
+                    structure = detail(local_pos, inside);
                 }
                 let chamfer = fine * BEVEL.y * band(SEAM_STEP, mask.a) * (1.0 - smoothstep(SEAM_STEP, BEVEL.x, mask.a));
                 // Zeilenvektor mal Matrix: zurück in die Welt (`turn` ist Drehung durch Maßstab, daher der Faktor
@@ -259,16 +282,39 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @locatio
         color = mix(material.tone_dark.rgb, material.tone_mid.rgb, smoothstep(SHADE_MID.x, SHADE_MID.y, wrap));
         color = mix(color, material.tone_lit.rgb, smoothstep(SHADE_LIT.x, SHADE_LIT.y, wrap));
         if material.weather.x > 0.5 {
-            color = weathered(color, mask, light, fine, structure);
-            gloss = max(gloss, fine * band(WEAR_STEP, mask.g)) * (1.0 - smoothstep(DIRT.x, DIRT.y, mask.r));
+            color = weathered(color, mask, light, fine, structure, material.weather.y);
+            gloss = max(gloss, fine * band(WEAR_STEP, mask.g))
+                * (1.0 - smoothstep(DIRT.x, DIRT.y, mask.r * material.weather.y));
         }
         color = markings(color, skin);
 
+        let trans = material.weather.z;
+        if trans > 0.0 {
+            // Subtile Durchschein-Wirkung dünner Flughäute: Gegenlicht und Streulicht durchdringen dünne Zellfenster
+            // (niedrige Höhe in `skin.a`), während erhabene Zellränder und Adern als dunkle Struktur stehen bleiben;
+            // senkrechter Blick wirkt dünner und durchscheinender, streifender Blick tiefer und dichter.
+            let thin = saturate(1.0 - 1.5 * max(skin.a - 0.48, 0.0));
+            let back_lit = saturate(dot(-normal, key)) * 0.72 + pow(saturate(dot(-to_camera, key)), 2.4) * 0.55;
+            let wrap_sss = smoothstep(-0.55, 0.35, dot(normal, key)) * (1.0 - smoothstep(0.1, 0.8, light));
+            let straight = pow(abs(dot(normal, to_camera)), 0.7);
+            let sss_tint = mix(material.tone_mid.rgb, material.tone_lit.rgb * vec3<f32>(0.72, 1.28, 1.15), 0.65);
+            color += sss_tint * trans * thin * (0.62 * back_lit + 0.36 * wrap_sss) * (0.55 + 0.45 * straight);
+            color *= mix(1.0, mix(0.78, 1.16, straight), trans * 0.52 * thin);
+        }
+
         let half_way = max(dot(normal, normalize(to_camera + key)), 0.0);
-        color = mix(color * EXPOSURE, RIM_COLOR, RIM.y * pow(facing, RIM.x));
+        let rim_color = mix(RIM_COLOR, vec3<f32>(0.12, 0.56, 0.52), trans);
+        color = mix(color * EXPOSURE, rim_color, RIM.y * pow(facing, RIM.x));
         let shine = select(GLOSS, SKIN_WET, material.skin.a > 0.5);
         color += GLINT_COLOR * pow(half_way, shine.x) * shine.y * gloss;
-        color += material.skin.rgb * SKIN_GLOW * skin.g;
+
+        var skin_pulse = 1.0;
+        if material.weather.w > 0.0 {
+            let breath = bio_pulse(local_pos, material.weather.w);
+            let shimmer = 0.5 + 0.5 * sin(globals.time * material.weather.w * 1.9 + dot(local_pos, vec3<f32>(2.9, 2.3, 3.1)));
+            skin_pulse = mix(0.60, 1.26, mix(breath, shimmer, 0.28));
+        }
+        color += material.skin.rgb * SKIN_GLOW * skin.g * skin_pulse;
 
         let to_flash = flash.xyz - in.world_position.xyz;
         let distance2 = dot(to_flash, to_flash);

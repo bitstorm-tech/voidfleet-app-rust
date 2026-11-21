@@ -48,7 +48,9 @@ CELLS = {
     "seal": 14,
     # Die Wesen platzen in Fetzen: der große Leib in viele.
     "unknown_contact": 26,
+    "unknown_contact_v2": 26,
     "brood": 10,
+    "brood_v2": 10,
 }
 # Splitter mit weniger Flächen verschwinden; sie wären auf dem Brett ohnehin nur Pixel.
 MIN_FACES = 16

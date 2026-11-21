@@ -16,7 +16,7 @@ use bevy::{
 
 use crate::{
     assets::AppState,
-    data::ship_models::{ShipModels, ships},
+    data::ship_models::{ShipKind, ShipModels, model_key, ships},
     i18n::Locale,
     palette,
     run::{RunView, Screen},
@@ -121,6 +121,56 @@ fn spawn_viewer_ship(commands: &mut Commands, models: &ShipModels, ship: &Ship, 
     ));
 }
 
+/// Reihenfolge im Raster: Die Vergleichsmodelle `unknown_contact_v2` und `brood_v2` stehen in derselben Spalte
+/// unmittelbar vor `UnknownContact` bzw. `Brood`, damit beide Paare nebeneinander verglichen werden können.
+fn ordered_kinds() -> Vec<ShipKind> {
+    use voidfleet_core::admirals::FlagshipId;
+    let mut kinds: Vec<ShipKind> = ships().collect();
+    let tail = [
+        ShipKind::Draft("broadside"),
+        ShipKind::Draft("unknown_contact_v2"),
+        ShipKind::Draft("brood_v2"),
+        ShipKind::Flagship(FlagshipId::Pyre),
+        ShipKind::Flagship(FlagshipId::Pendulum),
+    ];
+    kinds.retain(|kind| !tail.contains(kind));
+    kinds.extend(tail);
+    kinds
+}
+
+/// Optionaler Start-Kamerastand für automatisierte Detail-Screenshots (`VOIDFLEET_DEV_ORBIT=<ship>,<yaw°>,<pitch°>,<dist>[,<dx>,<dy>,<dz>]`).
+fn env_orbit(positions: &[(ShipKind, Vec3)]) -> Option<Orbit> {
+    let spec = std::env::var("VOIDFLEET_DEV_ORBIT").ok()?;
+    let parts: Vec<&str> = spec.split(',').collect();
+    if parts.len() < 4 {
+        return None;
+    }
+    let anchor = positions
+        .iter()
+        .find(|(kind, _)| model_key(*kind) == parts[0].trim())
+        .map(|(_, pos)| *pos)?;
+    let yaw = parts[1].trim().parse::<f32>().ok()?.to_radians();
+    let pitch = parts[2].trim().parse::<f32>().ok()?.to_radians();
+    let distance = parts[3].trim().parse::<f32>().ok()?.clamp(1.0, 60.0);
+    let offset = if parts.len() >= 7 {
+        Vec3::new(
+            parts[4].trim().parse::<f32>().ok()?,
+            parts[5].trim().parse::<f32>().ok()?,
+            parts[6].trim().parse::<f32>().ok()?,
+        )
+    } else {
+        Vec3::ZERO
+    };
+    Some(Orbit {
+        focus: anchor + offset,
+        yaw,
+        pitch,
+        distance,
+        travel: 0.0,
+        grab: None,
+    })
+}
+
 /// Baut die Schau beim Öffnen auf und beim Verlassen wieder ab.
 fn follow_screen(
     mut commands: Commands,
@@ -141,21 +191,24 @@ fn follow_screen(
         }
         return;
     }
-    *orbit = Orbit::default();
-    let kinds: Vec<_> = ships().collect();
+    let kinds = ordered_kinds();
     let count = kinds.len();
     let rows = count.div_ceil(COLUMNS);
+    let mut positions = Vec::with_capacity(count);
     for (index, kind) in kinds.into_iter().enumerate() {
         let row = index / COLUMNS;
         // Eine angebrochene letzte Reihe steht mittig.
         let in_row = (count - row * COLUMNS).min(COLUMNS);
         let cell = Vec2::new((index % COLUMNS) as f32, row as f32)
             - Vec2::new(in_row as f32 - 1.0, rows as f32 - 1.0) / 2.0;
-        let home = Transform::from_translation(ORIGIN + Vec3::new(cell.x, 0.0, cell.y) * SPACING)
+        let position = ORIGIN + Vec3::new(cell.x, 0.0, cell.y) * SPACING;
+        let home = Transform::from_translation(position)
             .looking_to(Vec3::X, Vec3::Y)
             .with_scale(Vec3::splat(BOARD_SCALE));
+        positions.push((kind, position));
         spawn_viewer_ship(&mut commands, &models, &Ship { kind, uid: 0 }, home);
     }
+    *orbit = env_orbit(&positions).unwrap_or_default();
     commands.spawn((
         Name::new("Modellschau"),
         ViewerUi,

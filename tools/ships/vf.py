@@ -109,15 +109,29 @@ def surface(name, spec, base, emission=None, alpha=1.0):
     return mat
 
 
-def toon(name, tones, round=False, glint=0.0):
-    """Gestufte Fläche; `tones` ist der Licht-Ton (die anderen leitet palette.tones ab) oder ein Tripel."""
+def toon(name, tones, round=False, glint=0.0, dirt=None, translucency=None, pulse=None):
+    """Gestufte Fläche; `tones` ist der Licht-Ton (die anderen leitet palette.tones ab) oder ein Tripel. Optionale
+    Werte werden nur geschrieben, wenn sie gesetzt sind, damit der Hash unveränderter Schiffe gleich bleibt."""
     t = palette.tones(tones)
-    return surface(name, {"kind": "toon", "tones": list(t), "round": round, "glint": glint}, t[0])
+    spec = {"kind": "toon", "tones": list(t), "round": round, "glint": glint}
+    if dirt is not None:
+        spec["dirt"] = dirt
+    if translucency is not None:
+        spec["translucency"] = translucency
+    if pulse is not None:
+        spec["pulse"] = pulse
+    return surface(name, spec, t[0])
 
 
-def light(name, color, glow=True):
-    """Unbeleuchtete Fläche in genau `color`; `glow` sagt dem Spiel, dass sie glühen soll."""
-    return surface(name, {"kind": "light", "color": color, "glow": glow}, "#000000", emission=color)
+def light(name, color, glow=True, soft_glow=False, pulse=None):
+    """Unbeleuchtete Fläche in genau `color`; `glow` sagt dem Spiel, dass sie glühen soll (`soft_glow` dämpft große
+    biolumineszente Organflächen, damit Türkis nicht ausbrennt)."""
+    spec = {"kind": "light", "color": color, "glow": glow}
+    if soft_glow:
+        spec["soft_glow"] = True
+    if pulse is not None:
+        spec["pulse"] = pulse
+    return surface(name, spec, "#000000", emission=color)
 
 
 def hologram(name, color, alpha, glow=False):

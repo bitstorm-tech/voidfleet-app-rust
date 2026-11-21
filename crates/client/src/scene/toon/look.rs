@@ -20,6 +20,9 @@ pub const CONTOUR_MAX: f32 = 1.8;
 
 /// Lichter mit `glow` leuchten so viel heller als 1 und glühen dadurch im Bloom der Kamera.
 pub const GLOW_BOOST: f32 = 1.8;
+/// Große biolumineszente Organflächen (`soft_glow`): knapp über der Bloom-Schwelle, damit die hellsten Kerne weich
+/// glühen, die Fläche aber tief türkis und gezeichnet bleibt statt ins grelle Cyan auszubrennen.
+pub const ORGAN_GLOW_BOOST: f32 = 1.18;
 
 /// Geister eingeplanter Schiffe: bläuliches Hologramm in drei Tönen.
 pub const GHOST_TONES: [Color; 3] = [

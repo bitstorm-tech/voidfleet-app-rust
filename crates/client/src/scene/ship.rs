@@ -179,7 +179,9 @@ const TURRET_TRACKING: f32 = 5.0;
 fn model_scale(kind: ShipKind) -> f32 {
     MODEL_SCALE
         * match kind {
-            ShipKind::Enemy(EnemyId::UnknownContact) => CONTACT_SCALE,
+            ShipKind::Enemy(EnemyId::UnknownContact) | ShipKind::Draft("unknown_contact_v2") => {
+                CONTACT_SCALE
+            }
             _ if kind.is_flagship() => FLAGSHIP_SCALE,
             _ => 1.0,
         }

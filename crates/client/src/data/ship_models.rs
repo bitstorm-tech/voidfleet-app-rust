@@ -32,8 +32,7 @@ impl ShipKind {
         match self {
             ShipKind::Enemy(enemy) => enemy.class(),
             ShipKind::Flagship(_) => EnemyClass::Flagship,
-            // shortcut: Entwürfe zählen als Schlachtschiff (ein Modell, keine Staffel); ein Jäger oder Kreuzer als
-            // Entwurf bräuchte seine Klasse in `DRAFTS`.
+            ShipKind::Draft("brood_v2") => EnemyClass::Fighter,
             ShipKind::Draft(_) => EnemyClass::Battleship,
         }
     }
@@ -70,8 +69,8 @@ pub const FLAGSHIPS: [FlagshipId; 4] = [
     FlagshipId::Pyre,
 ];
 
-/// Entwürfe: fertige Modelle, die noch keinem Gegner gehören.
-pub const DRAFTS: [&str; 1] = ["broadside"];
+/// Entwürfe: fertige Modelle, die noch keinem Gegner gehören (stehen in der Modellschau zum Vergleich).
+pub const DRAFTS: [&str; 3] = ["broadside", "unknown_contact_v2", "brood_v2"];
 
 /// Alles mit Modell: Gegner, Flaggschiffe und Entwürfe.
 pub fn ships() -> impl Iterator<Item = ShipKind> {
@@ -145,7 +144,7 @@ pub fn muzzles(kind: ShipKind) -> &'static [Vec3] {
         // Spitze der Lanze (der Rumpf ist danach auf 0,92 skaliert)
         "lance_bomber" => const { &[gun(0.0, -3.3 * 0.92, -0.78 * 0.92)] },
         // Der Schlund zwischen den oberen und unteren Zangen (`MAW`)
-        "unknown_contact" => const { &[gun(0.0, -5.25, -0.5)] },
+        "unknown_contact" | "unknown_contact_v2" => const { &[gun(0.0, -5.25, -0.5)] },
         _ => &[],
     }
 }

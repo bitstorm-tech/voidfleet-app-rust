@@ -46,6 +46,11 @@ def reload_modules():
             importlib.reload(sys.modules[name])
 
 
+# Zusätzliche Einzelschiffe mit 128 Texeln je Einheit außerhalb von look.WEATHER_DENSE (ohne look.py zu ändern,
+# dessen Inhalt in weather.fingerprint steckt und sonst den Cache aller übrigen Schiffe ungültig machte).
+EXTRA_DENSE = {"unknown_contact_v2": "128"}
+
+
 def build_all(ids=None):
     reload_modules()
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -54,7 +59,14 @@ def build_all(ids=None):
     for ship_id in ids or fleet.SHIPS:
         obj = fleet.build(ship_id)
         started = time.time()
-        mask = weather.apply(obj)
+        override = EXTRA_DENSE.get(ship_id) if "VF_DENSITY" not in os.environ else None
+        if override:
+            os.environ["VF_DENSITY"] = override
+        try:
+            mask = weather.apply(obj)
+        finally:
+            if override:
+                os.environ.pop("VF_DENSITY", None)
         weathered = time.time() - started
         path = os.path.join(OUT_DIR, f"{ship_id}.glb")
         if mask:

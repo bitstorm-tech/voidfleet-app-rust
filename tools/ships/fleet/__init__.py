@@ -13,7 +13,8 @@ import importlib
 
 IDS = ("void_interceptor", "scrap_raider", "horizon_cruiser", "plasma_frigate", "iron_dreadnought", "titan_carrier", "drone",
        "repair_drone", "signal_booster", "bastion", "vanguard", "hive", "mirage", "pendulum", "decoy",
-       "lance_bomber", "pyre", "warden", "scrap_king", "seal", "broadside", "unknown_contact", "brood", "torpedo")
+       "lance_bomber", "pyre", "warden", "scrap_king", "seal", "broadside", "unknown_contact", "unknown_contact_v2",
+       "brood", "brood_v2", "torpedo")
 # Geschosse: gebaut wie die Schiffe, aber ohne Wrack
 PROJECTILES = ("torpedo",)
 
