@@ -1,6 +1,7 @@
 {
   "type": "doctrine",
   "target": "none",
+  "admiral": "reyes",
   "cost": 2,
   "value": 3,
   "extra": 5,

@@ -1,6 +1,7 @@
 {
   "type": "buff",
   "target": "none",
+  "admiral": "vance",
   "cost": 0,
   "value": 6,
   "extra": 2,

@@ -237,7 +237,9 @@ etwas tun kann.
   Vier Varianten, die nur Farben setzen: gewöhnlich (Hellblau), Hauptaktion (Cyan), Gefahr (Warnrot), getönt in einer
   Akzentfarbe (etwa der des Admirals).
 - **Karten.** Eine Befehlskarte ist ein Datapad: Illustration als Screen im Farbton des Typs, Kosten oben links,
-  Tastenleiste unten (`ui/card.rs`). Gewählt heißt Rahmen in der Auswahlfarbe, nicht bezahlbar heißt gedimmt.
+  Tastenleiste unten (`ui/card.rs`). Admiralskarten tragen einen gedämpften Rahmen und eine akzentuierte Haupttaste in
+  der Farbe ihres Admirals sowie eine kantige Stern-Plakette oben rechts. Gewählt heißt Rahmen in der Auswahlfarbe,
+  nicht bezahlbar heißt gedimmt.
 - **Schrift.** Fließtext in Exo 2; Titel, Knöpfe und Zahlen in Rajdhani (600, fett 700), groß geschrieben und um
   0,08 em gesperrt wie in einem HUD (`theme::caps`). Sonderzeichen aus Noto Sans Symbols. Weitere Schriften gibt es nicht.
 - **Ecken.** Radien bleiben klein: 3 bis 4 px an Feldern und Knöpfen, 6 px am Pult, höchstens 8 px. Rund sind nur

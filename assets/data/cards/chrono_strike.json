@@ -1,6 +1,7 @@
 {
   "type": "attack",
   "target": "enemy",
+  "admiral": "kerr",
   "cost": 2,
   "value": 7,
   "upgraded": { "value": 10 },

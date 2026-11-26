@@ -14,7 +14,10 @@ use bevy::{
     ui_widgets::{Activate, ScrollArea, TextInput, observe},
     window::PrimaryWindow,
 };
-use voidfleet_core::cards::{CardId, CardTarget, CardType, DeckCard};
+use voidfleet_core::{
+    admirals::ADMIRAL_IDS,
+    cards::{CardId, CardTarget, CardType, DeckCard},
+};
 
 use super::{
     map_editor::{bar, caption, frame, gap, grid, label, root},
@@ -22,7 +25,7 @@ use super::{
 };
 use crate::{
     assets::AppState,
-    card_editor::{CardEdit, CardEditor, Field, TextField},
+    card_editor::{CardEdit, CardEditor, CardError, Field, TextField},
     data::card_art::CardArt,
     editor::Note,
     i18n::{LANGUAGES, Locale},
@@ -30,7 +33,7 @@ use crate::{
     run::{RunView, Screen},
     settings::Language,
     ui::{
-        Fonts,
+        Fonts, UiIcons,
         button::{self, Key, Lit},
         card::card_face,
         theme,
@@ -98,6 +101,7 @@ fn show(
     screen: Res<Screen>,
     editor: Option<Res<CardEditor>>,
     fonts: Res<Fonts>,
+    icons: Res<UiIcons>,
     art: Res<CardArt>,
     locale: Res<Locale>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -120,7 +124,7 @@ fn show(
         commands.insert_resource(CardEditor::open(crate::asset_root().join("data")));
         return;
     };
-    let (fonts, art, locale, editor) = (&*fonts, &*art, &*locale, &*editor);
+    let (fonts, icons, art, locale, editor) = (&*fonts, &*icons, &*art, &*locale, &*editor);
     let width = px((overlay.1.x - 32.0).min(1500.0));
     commands
         .spawn((Name::new("Befehlskarten-Editor"), overlay, root()))
@@ -190,7 +194,7 @@ fn show(
                     }),
                     Live::Preview,
                 ))
-                .with_children(|preview| previews(preview, fonts, art, editor));
+                .with_children(|preview| previews(preview, fonts, icons, art, editor));
                 main.spawn(frame(Node {
                     width: px(PANEL),
                     flex_direction: FlexDirection::Column,
@@ -228,15 +232,19 @@ fn status(bar: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, editor
         CardEdit::Discard,
     );
     let (text, color) = match (check, &editor.note) {
-        (Err((card, Some(language))), _) => {
+        (Err(CardError::Text(card, language)), _) => {
             let card = editor.text(language, card, TextField::Name);
             let language = Locale::new(language).language_name();
             let text = locale.card_editor_error_text(card, language);
             (text, palette::LOST)
         }
-        (Err((card, None)), _) => {
+        (Err(CardError::Numbers(card)), _) => {
             let card = editor.text(locale.language, card, TextField::Name);
             (locale.card_editor_error_numbers(card), palette::LOST)
+        }
+        (Err(CardError::EmptyPool(admiral)), _) => {
+            let name = locale.admiral(admiral).name;
+            (locale.card_editor_error_pool(name), palette::LOST)
         }
         (Ok(()), Some(Note::Failed(error))) => (locale.editor_failed(error), palette::LOST),
         (Ok(()), Some(Note::Saved(files))) if !dirty => (locale.editor_saved(files), palette::HEAL),
@@ -259,7 +267,13 @@ fn card_list(list: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, ed
 }
 
 /// Je Sprache die gewählte Karte, links die Grundfassung, rechts aufgewertet.
-fn previews(preview: &mut ChildSpawnerCommands, fonts: &Fonts, art: &CardArt, editor: &CardEditor) {
+fn previews(
+    preview: &mut ChildSpawnerCommands,
+    fonts: &Fonts,
+    icons: &UiIcons,
+    art: &CardArt,
+    editor: &CardEditor,
+) {
     for language in LANGUAGES {
         let locale = Locale::new(language);
         preview.spawn(caption(fonts, locale.language_name()));
@@ -279,13 +293,15 @@ fn previews(preview: &mut ChildSpawnerCommands, fonts: &Fonts, art: &CardArt, ed
                         upgraded,
                     };
                     let face = editor.face(language, upgraded);
-                    cards.spawn(card_face(fonts, art, &locale, card, face, 0, PREVIEW));
+                    cards.spawn(card_face(
+                        fonts, icons, art, &locale, card, face, 0, PREVIEW,
+                    ));
                 }
             });
     }
 }
 
-/// Art, Ziel, Zahlen und Texte der gewählten Karte.
+/// Art, Ziel, Admiral, Zahlen und Texte der gewählten Karte.
 fn card_panel(
     panel: &mut ChildSpawnerCommands,
     fonts: &Fonts,
@@ -315,6 +331,32 @@ fn card_panel(
                 lit,
                 true,
                 CardEdit::Target(target),
+            );
+        }
+    });
+    panel.spawn(caption(fonts, locale.card_editor_admiral()));
+    panel.spawn(bar(percent(100))).with_children(|bar| {
+        key(
+            bar,
+            fonts,
+            locale.card_editor_neutral(),
+            Key::NORMAL,
+            card.admiral.is_none(),
+            true,
+            CardEdit::Admiral(None),
+        );
+        for admiral in ADMIRAL_IDS {
+            let look = Key::tinted(palette::admiral_color(admiral));
+            let name = locale.admiral(admiral).name;
+            let lit = card.admiral == Some(admiral);
+            key(
+                bar,
+                fonts,
+                name,
+                look,
+                lit,
+                true,
+                CardEdit::Admiral(Some(admiral)),
             );
         }
     });
@@ -496,6 +538,7 @@ fn refresh(
     mut commands: Commands,
     editor: Option<Res<CardEditor>>,
     fonts: Res<Fonts>,
+    icons: Res<UiIcons>,
     art: Res<CardArt>,
     locale: Res<Locale>,
     live: Query<(Entity, &Live)>,
@@ -509,7 +552,7 @@ fn refresh(
             .despawn_children()
             .with_children(|parent| match part {
                 Live::Status => status(parent, &fonts, &locale, &editor),
-                Live::Preview => previews(parent, &fonts, &art, &editor),
+                Live::Preview => previews(parent, &fonts, &icons, &art, &editor),
             });
     }
 }

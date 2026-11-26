@@ -73,6 +73,8 @@
   "card_editor_title": "Card editor",
   "card_editor_type": "Type",
   "card_editor_target": "Target",
+  "card_editor_admiral": "Admiral",
+  "card_editor_neutral": "Neutral",
   "card_editor_numbers": "Numbers",
   "card_editor_cost": "Cost",
   "card_editor_value": "Value",
@@ -84,6 +86,7 @@
   "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {double} double value plus bonus, {draw} draw extra commands, {bonus} the value as “ +2” or nothing.",
   "card_editor_error_text": "{card} ({language}): the name is empty or a placeholder in the effect does not resolve.",
   "card_editor_error_numbers": "{card}: a number is below 0 or the second value is missing.",
+  "card_editor_error_pool": "{admiral}: at least one card must belong to this admiral.",
   "settings_admiral_editor": "Admiral editor",
   "admiral_editor_title": "Admiral editor",
   "admiral_editor_numbers": "Flagship",
@@ -154,6 +157,7 @@
   "badge_retain": "Retain",
   "badge_retained": "Retained",
   "badge_exhaust": "Exhaust",
+  "badge_admiral_hint": "Admiral card ({admiral}): Only in {admiral}'s card pool.",
   "effect_draw": {
     "one": ", draw 1 command",
     "other": ", draw {count} commands"
@@ -260,7 +264,7 @@
       "heading": "Cards",
       "paragraphs": [
         "Every round you draw {rules.battle.hand_size} commands. Attack cards hit with fixed damage and the usual deductions; buffs strengthen your flagship, debuffs weaken an enemy, tactics change the board. Doctrines stay in play until the battle ends.",
-        "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) are stronger or cost less; the card shows what changes.",
+        "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Admiral cards carry their admiral's colored frame and star badge and appear only in that admiral's card pool. Upgraded cards (+) are stronger or cost less; the card shows what changes.",
         "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses {rules.battle.burn_damage} hull in each resolution. Exhaust – removed from play for the rest of the battle. Retain – stays in hand at resolution. Marked – takes +50 % damage (rounded up) this round. Armor Break – lowers armor permanently."
       ]
     },

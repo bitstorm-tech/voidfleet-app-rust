@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::admirals::AdmiralId;
 use crate::battle::{Battle, BattleResult, BattleSetup, Encounter};
 use crate::board::MAX_ENEMIES;
-use crate::cards::{CardId, DeckCard, NEUTRAL_POOL, admiral_pool, starter_deck};
+use crate::cards::{CardId, DeckCard, admiral_pool, neutral_pool, starter_deck};
 use crate::data::{rules, span};
 use crate::enemies::Unit;
 use crate::modules::ModuleId;
@@ -614,11 +614,11 @@ impl Run {
             return Vec::new();
         }
         let pool = admiral_pool(self.admiral);
-        let guaranteed = *pool.choose(rng).expect("Admiral-Pool hat 5 Karten");
+        let guaranteed = *pool.choose(rng).expect("Admiral-Pool ist nicht leer");
         let rest: Vec<CardId> = pool
             .into_iter()
             .filter(|&card| card != guaranteed)
-            .chain(NEUTRAL_POOL)
+            .chain(neutral_pool())
             .collect();
         let extra = (size - 1).min(rest.len());
         let mut offer = Vec::with_capacity(1 + extra);

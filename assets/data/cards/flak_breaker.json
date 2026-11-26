@@ -1,6 +1,7 @@
 {
   "type": "attack",
   "target": "enemy",
+  "admiral": "osei",
   "cost": 2,
   "value": 3,
   "extra": 1,

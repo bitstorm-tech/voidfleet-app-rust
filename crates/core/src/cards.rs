@@ -182,6 +182,11 @@ impl CardId {
         self.data().target
     }
 
+    /// Der Admiral, zu dessen Kartenpool die Karte gehört; `None` bei neutralen Karten.
+    pub fn admiral(self) -> Option<AdmiralId> {
+        self.data().admiral
+    }
+
     /// Schlüsselwort **Einmalig**: Nach dem Spielen bis zum Gefechtsende aus dem Spiel.
     pub const fn exhaust(self) -> bool {
         matches!(self, CardId::MicroJump | CardId::EmergencyPower)
@@ -269,66 +274,18 @@ pub const EXTRA_CARDS: [CardId; 15] = [
     CardId::ChainCommand,
 ];
 
-/// Die 28 neutralen Karten des gemeinsamen Sockels (für alle Admirale verfügbar).
-pub const NEUTRAL_POOL: [CardId; 28] = {
-    use CardId::*;
-    [
-        Torpedo,
-        OrbitalStrike,
-        VolleyFire,
-        Barrage,
-        HeatSeeker,
-        CoupDeGrace,
-        Bombardment,
-        CollisionCourse,
-        EmergencyShields,
-        AblativeArmor,
-        PowerSurge,
-        RepairCrew,
-        EmpBlast,
-        TargetingJammer,
-        RadioSilence,
-        TractorBeam,
-        EvasiveAction,
-        Countermeasures,
-        Scavenge,
-        RedAlert,
-        FireControlDoctrine,
-        BattleStations,
-        EmergencyPower,
-        AutocannonSalvo,
-        TargetPainter,
-        StandbyFire,
-        ChainCommand,
-        BridgeCoordination,
-    ]
-};
+/// Die neutralen Karten des gemeinsamen Sockels (ohne `admiral` in den Kartendaten, für alle Admirale verfügbar).
+pub fn neutral_pool() -> Vec<CardId> {
+    CardId::ALL
+        .into_iter()
+        .filter(|card| card.admiral().is_none())
+        .collect()
+}
 
-/// Die 5 Karten des Admiral-eigenen Pools (Kennkarte + 4 Admiral-Karten).
-pub const fn admiral_pool(admiral: AdmiralId) -> [CardId; 5] {
-    use CardId::*;
-    match admiral {
-        AdmiralId::Osei => [
-            HoldTheLine,
-            ShieldBash,
-            Bulwark,
-            FlakBreaker,
-            BastionDoctrine,
-        ],
-        AdmiralId::Vance => [
-            Overcharge,
-            Onslaught,
-            BreakthroughVolley,
-            ArmorPiercer,
-            AssaultDoctrine,
-        ],
-        AdmiralId::Kerr => [
-            MicroJump,
-            TimeWindow,
-            PrecisionLock,
-            ChronoStrike,
-            ClockworkDoctrine,
-        ],
-        AdmiralId::Reyes => [Firebomb, Wildfire, Accelerant, MeltdownSalvo, EmberDoctrine],
-    }
+/// Die Karten des Admiral-eigenen Pools (`admiral` in `cards/<id>.json`).
+pub fn admiral_pool(admiral: AdmiralId) -> Vec<CardId> {
+    CardId::ALL
+        .into_iter()
+        .filter(|card| card.admiral() == Some(admiral))
+        .collect()
 }

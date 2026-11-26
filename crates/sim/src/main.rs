@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::Value;
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 use voidfleet_core::battle::Encounter;
-use voidfleet_core::cards::{CardId, NEUTRAL_POOL, admiral_pool};
+use voidfleet_core::cards::{CardId, admiral_pool, neutral_pool};
 use voidfleet_core::data::{Data, REPO_DATA, install, read};
 use voidfleet_core::run::{MODULES, NodeKind, SECTORS, SectorMap};
 
@@ -37,7 +37,7 @@ fn name(id: impl serde::Serialize) -> String {
 
 fn cards_with_pool() -> Vec<(CardId, &'static str)> {
     let mut out = Vec::with_capacity(CardId::ALL.len());
-    out.extend(NEUTRAL_POOL.into_iter().map(|card| (card, "neutral")));
+    out.extend(neutral_pool().into_iter().map(|card| (card, "neutral")));
     for admiral in ADMIRAL_IDS {
         let tag = match admiral {
             AdmiralId::Osei => "osei",

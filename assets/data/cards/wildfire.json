@@ -1,6 +1,7 @@
 {
   "type": "attack",
   "target": "none",
+  "admiral": "reyes",
   "cost": 2,
   "value": 2,
   "upgraded": { "value": 4 },

@@ -9,7 +9,7 @@ use voidfleet_core::battle::{
 };
 use voidfleet_core::board::{COLUMNS, EnemySlot, Row};
 use voidfleet_core::cards::{
-    CardId, CardTarget, CardType, DeckCard, EXTRA_CARDS, NEUTRAL_POOL, admiral_pool, starter_deck,
+    CardId, CardTarget, CardType, DeckCard, EXTRA_CARDS, admiral_pool, neutral_pool, starter_deck,
 };
 use voidfleet_core::data::{Data, REPO_DATA, Step, data, read, rules};
 use voidfleet_core::enemies::{Action, EnemyId, Unit};
@@ -766,14 +766,15 @@ fn t1_f2_card_id_all_has_48_unique_cards() {
 
 #[test]
 fn t1_f2_neutral_pool_has_28_unique_non_signature_cards() {
-    assert_eq!(NEUTRAL_POOL.len(), 28);
-    let neutral_set: HashSet<CardId> = NEUTRAL_POOL.iter().copied().collect();
+    let neutral = neutral_pool();
+    assert_eq!(neutral.len(), 28);
+    let neutral_set: HashSet<CardId> = neutral.iter().copied().collect();
     assert_eq!(neutral_set.len(), 28);
     for admiral in ADMIRAL_IDS {
         for &c in &admiral_pool(admiral) {
             assert!(
                 !neutral_set.contains(&c),
-                "admiral card {c:?} must not be in NEUTRAL_POOL"
+                "admiral card {c:?} must not be in neutral_pool"
             );
         }
     }
@@ -781,7 +782,7 @@ fn t1_f2_neutral_pool_has_28_unique_non_signature_cards() {
 
 #[test]
 fn t1_f2_admiral_pools_5_each_disjoint() {
-    let mut union: HashSet<CardId> = NEUTRAL_POOL.iter().copied().collect();
+    let mut union: HashSet<CardId> = neutral_pool().into_iter().collect();
     let mut seen_admiral_cards = HashSet::new();
     for admiral in ADMIRAL_IDS {
         let pool = admiral_pool(admiral);
@@ -1128,7 +1129,7 @@ fn t1_f3_loot_offer_3_distinct_cards_in_admiral_plus_neutral() {
     for admiral in ADMIRAL_IDS {
         let allowed: HashSet<CardId> = admiral_pool(admiral)
             .into_iter()
-            .chain(NEUTRAL_POOL)
+            .chain(neutral_pool())
             .collect();
         for seed in 100..125 {
             let mut run = Run::new(admiral, seed, maps.clone());
@@ -1150,7 +1151,7 @@ fn t1_f3_loot_offer_4_distinct_cards_with_combat_simulator() {
         let pool: HashSet<CardId> = admiral_pool(admiral).into_iter().collect();
         let allowed: HashSet<CardId> = admiral_pool(admiral)
             .into_iter()
-            .chain(NEUTRAL_POOL)
+            .chain(neutral_pool())
             .collect();
         for seed in 200..215 {
             let mut run = Run::new(admiral, seed, maps.clone());
@@ -1175,7 +1176,7 @@ fn t1_f3_market_offer_contains_at_least_one_admiral_card_all_admirals() {
         let pool: HashSet<CardId> = admiral_pool(admiral).into_iter().collect();
         let allowed: HashSet<CardId> = admiral_pool(admiral)
             .into_iter()
-            .chain(NEUTRAL_POOL)
+            .chain(neutral_pool())
             .collect();
         for seed in 300..320 {
             let mut run = Run::new(admiral, seed, maps.clone());
@@ -7273,7 +7274,7 @@ fn t4_multi_seed_loot_and_market_invariants_all_admirals() {
         let pool: HashSet<CardId> = admiral_pool(admiral).into_iter().collect();
         let allowed: HashSet<CardId> = admiral_pool(admiral)
             .into_iter()
-            .chain(NEUTRAL_POOL)
+            .chain(neutral_pool())
             .collect();
         let seen = seen_per_admiral.entry(admiral).or_default();
 
