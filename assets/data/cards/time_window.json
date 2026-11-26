@@ -1,6 +1,7 @@
 {
   "type": "tactic",
   "target": "none",
+  "admiral": "kerr",
   "cost": 3,
   "value": 0,
   "upgraded": { "cost": 2 },

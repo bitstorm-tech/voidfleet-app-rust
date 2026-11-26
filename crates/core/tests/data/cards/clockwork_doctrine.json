@@ -1,6 +1,7 @@
 {
   "type": "doctrine",
   "target": "none",
+  "admiral": "kerr",
   "cost": 2,
   "value": 1,
   "extra": 1,

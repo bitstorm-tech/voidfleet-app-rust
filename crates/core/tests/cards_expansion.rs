@@ -8,7 +8,7 @@ use rand::rngs::StdRng;
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId, Station};
 use voidfleet_core::battle::{Battle, BattleResult, BattleSetup, Encounter, RuleError, Target};
 use voidfleet_core::board::{COLUMNS, Row};
-use voidfleet_core::cards::{CardId, DeckCard, NEUTRAL_POOL, admiral_pool, starter_deck};
+use voidfleet_core::cards::{CardId, DeckCard, admiral_pool, neutral_pool, starter_deck};
 use voidfleet_core::data::{CardData, Data, REPO_DATA, Step, install};
 use voidfleet_core::enemies::{Action, EnemyId, Unit};
 use voidfleet_core::events::{BattleEvent, Breakdown, UnitRef};
@@ -138,27 +138,33 @@ fn data_and_schema_validation_for_all_48_cards() {
 #[test]
 fn pools_partition_all_48_cards_and_starter_decks_unchanged() {
     fixture();
+    let neutral = neutral_pool();
     let mut all_from_pools = HashSet::new();
-    for card in NEUTRAL_POOL {
+    for card in &neutral {
         assert!(
-            all_from_pools.insert(card),
+            all_from_pools.insert(*card),
             "Duplikat im neutralen Pool: {card:?}"
         );
     }
-    assert_eq!(NEUTRAL_POOL.len(), 28);
+    assert_eq!(neutral.len(), 28);
 
     for admiral in ADMIRAL_IDS {
         let pool = admiral_pool(admiral);
         assert_eq!(pool.len(), 5);
         assert!(pool.contains(&admiral.signature_card()));
-        assert!(!NEUTRAL_POOL.contains(&admiral.signature_card()));
+        assert!(!neutral.contains(&admiral.signature_card()));
         for card in pool {
+            assert_eq!(card.admiral(), Some(admiral));
             assert!(
                 all_from_pools.insert(card),
                 "Überlappung zwischen Pools bei {card:?}"
             );
         }
         assert_eq!(starter_deck(admiral).len(), 10);
+    }
+
+    for card in &neutral {
+        assert_eq!(card.admiral(), None);
     }
 
     let expected_all: HashSet<CardId> = CardId::ALL.into_iter().collect();
@@ -171,7 +177,7 @@ fn offer_cards_loot_and_market_guarantee_admiral_slot() {
     let maps = maps();
     for admiral in ADMIRAL_IDS {
         let pool: HashSet<CardId> = admiral_pool(admiral).into_iter().collect();
-        let legal: HashSet<CardId> = pool.iter().copied().chain(NEUTRAL_POOL).collect();
+        let legal: HashSet<CardId> = pool.iter().copied().chain(neutral_pool()).collect();
         let run = Run::new(admiral, 42, maps.clone());
         let mut rng = StdRng::seed_from_u64(123);
 
@@ -200,7 +206,7 @@ fn offer_cards_loot_and_market_guarantee_admiral_slot() {
     // Verify Battle loot, CombatSimulator loot, Market, and Pilot FlyYourself.
     for (idx, admiral) in ADMIRAL_IDS.into_iter().enumerate() {
         let pool: HashSet<CardId> = admiral_pool(admiral).into_iter().collect();
-        let legal: HashSet<CardId> = pool.iter().copied().chain(NEUTRAL_POOL).collect();
+        let legal: HashSet<CardId> = pool.iter().copied().chain(neutral_pool()).collect();
 
         // Battle loot (with CombatSimulator -> 4 cards)
         let mut run = Run::new(admiral, 100 + idx as u64, maps.clone());

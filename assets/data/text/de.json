@@ -73,6 +73,8 @@
   "card_editor_title": "Befehlskarten-Editor",
   "card_editor_type": "Art",
   "card_editor_target": "Ziel",
+  "card_editor_admiral": "Admiral",
+  "card_editor_neutral": "Neutral",
   "card_editor_numbers": "Zahlen",
   "card_editor_cost": "Kosten",
   "card_editor_value": "Wert",
@@ -84,6 +86,7 @@
   "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {double} doppelter Wert plus Bonus, {draw} Zusatzbefehle ziehen, {bonus} der Wert als „ +2“ oder nichts.",
   "card_editor_error_text": "{card} ({language}): Der Name ist leer oder ein Platzhalter im Effekt geht nicht auf.",
   "card_editor_error_numbers": "{card}: Eine Zahl ist kleiner als 0 oder der Zweitwert fehlt.",
+  "card_editor_error_pool": "{admiral}: Mindestens eine Karte muss zu diesem Admiral gehören.",
   "settings_admiral_editor": "Admirals-Editor",
   "admiral_editor_title": "Admirals-Editor",
   "admiral_editor_numbers": "Flaggschiff",
@@ -154,6 +157,7 @@
   "badge_retain": "Behalten",
   "badge_retained": "Behalten",
   "badge_exhaust": "Einmalig",
+  "badge_admiral_hint": "Admiralskarte ({admiral}): Nur im Kartenpool von {admiral}.",
   "effect_draw": {
     "one": ", 1 Befehl ziehen",
     "other": ", {count} Befehle ziehen"
@@ -260,7 +264,7 @@
       "heading": "Karten",
       "paragraphs": [
         "Jede Runde ziehst du {rules.battle.hand_size} Befehle. Angriffskarten treffen mit festem Schaden und den üblichen Abzügen; Verstärkungen stärken dein Flaggschiff, Schwächungen einen Gegner, Taktiken verändern das Brett. Doktrinen bleiben bis zum Gefechtsende liegen.",
-        "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) sind stärker oder kosten weniger; die Karte zeigt, was sich ändert.",
+        "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Admiralskarten tragen den farbigen Rahmen und das Stern-Abzeichen ihres Admirals und erscheinen nur in seinem Kartenpool. Aufgewertete Karten (+) sind stärker oder kosten weniger; die Karte zeigt, was sich ändert.",
         "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle. Einmalig – nach dem Spielen bis zum Gefechtsende aus dem Spiel. Behalten – bleibt in der Auflösung auf der Hand. Markiert – nimmt diese Runde +50 % Schaden (aufgerundet). Panzerbruch – senkt Panzerung dauerhaft."
       ]
     },

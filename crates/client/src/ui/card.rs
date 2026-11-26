@@ -16,10 +16,13 @@ use bevy::{
     text::LineHeight,
     time::Stopwatch,
 };
-use voidfleet_core::cards::{CardTarget, CardType, DeckCard};
+use voidfleet_core::{
+    admirals::AdmiralId,
+    cards::{CardTarget, CardType, DeckCard},
+};
 
 use super::{
-    Fonts, theme,
+    Fonts, UiIcons, theme,
     tooltip::{Tooltip, TooltipInstant},
 };
 use crate::{
@@ -37,10 +40,11 @@ pub const HAND_ZOOM: f32 = 1.3;
 /// Seitenverhältnis der Illustrationen und Porträts (736 × 1024).
 pub const ART_ASPECT: f32 = 736.0 / 1024.0;
 
-/// Was eine Karte braucht: Schriften, Bilder und Texte.
+/// Was eine Karte braucht: Schriften, Icons, Bilder und Texte.
 #[derive(SystemParam)]
 pub struct CardAssets<'w> {
     pub fonts: Res<'w, Fonts>,
+    pub icons: Res<'w, UiIcons>,
     pub art: Res<'w, CardArt>,
     pub locale: Res<'w, Locale>,
 }
@@ -90,6 +94,10 @@ impl CardDraw {
 /// Rahmen der Auswahl, sichtbar mit [`Marked`].
 #[derive(Component)]
 struct SelectionFrame;
+
+/// Stern-Abzeichen oben rechts auf Admiralskarten.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct AdmiralBadge;
 
 /// Schein um die Karte: beim Einfliegen und beim Anheben.
 #[derive(Component)]
@@ -271,10 +279,12 @@ pub fn command_card_in_hand(
         cost,
         card_type: card.id.card_type(),
         target: card.id.target(),
+        admiral: card.id.admiral(),
         retained,
     };
     card_face(
         &assets.fonts,
+        &assets.icons,
         &assets.art,
         &assets.locale,
         card,
@@ -291,6 +301,7 @@ pub struct Face {
     pub cost: u32,
     pub card_type: CardType,
     pub target: CardTarget,
+    pub admiral: Option<AdmiralId>,
     pub retained: bool,
 }
 
@@ -452,6 +463,7 @@ pub fn effect_word_spans<'a>(
 /// Eine Befehlskarte mit dieser Aufschrift in der Sprache von `locale`; `bonus` wie bei [`command_card_with_bonus`].
 pub fn card_face(
     fonts: &Fonts,
+    icons: &UiIcons,
     art: &CardArt,
     locale: &Locale,
     card: DeckCard,
@@ -603,15 +615,66 @@ pub fn card_face(
             Children::spawn(SpawnIter(badge_nodes.into_iter())),
         )
     });
-    let key = move |width: f32| {
+    let admiral_color = text.admiral.map(palette::admiral_color);
+    let frame_border_width = if admiral_color.is_some() {
+        s(1.5)
+    } else {
+        px(1)
+    };
+    let frame_border_color = admiral_color
+        .map(|color| color.with_alpha(0.65))
+        .unwrap_or(Color::WHITE.with_alpha(0.08));
+    let admiral_badge = text.admiral.map(|admiral| {
+        let color = palette::admiral_color(admiral);
+        let hint = locale.badge_admiral_hint(locale.admiral(admiral).name);
+        (
+            AdmiralBadge,
+            Node {
+                position_type: PositionType::Absolute,
+                top: s(-8.0),
+                right: s(-6.0),
+                height: s(20.0),
+                padding: UiRect::axes(s(4.0), s(0.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                border: UiRect::all(s(1.5)),
+                border_radius: BorderRadius::all(s(4.0)),
+                ..default()
+            },
+            BackgroundColor(theme::SHADE),
+            BorderColor::all(color),
+            Tooltip(hint),
+            TooltipInstant,
+            children![(
+                ImageNode::new(icons.stars.clone()).with_color(color),
+                Node {
+                    width: s(18.0),
+                    height: s(18.0),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            )],
+        )
+    });
+    let key = move |width: f32, accent: Option<Color>| {
+        let (background, border, border_color) = match accent {
+            Some(color) => (
+                palette::darkened(color, 0.45),
+                UiRect::all(px(1)),
+                color.with_alpha(0.8),
+            ),
+            None => (theme::rgb(14, 16, 20), UiRect::ZERO, Color::NONE),
+        };
         (
             Node {
                 width: px(width * scale),
                 height: px(7.0 * scale),
+                border,
                 border_radius: BorderRadius::all(px(scale)),
                 ..default()
             },
-            BackgroundColor(theme::rgb(14, 16, 20)),
+            BackgroundColor(background),
+            BorderColor::all(border_color),
             Pickable::IGNORE,
         )
     };
@@ -623,12 +686,12 @@ pub fn card_face(
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             padding: UiRect::new(s(6.0), s(6.0), s(8.0), s(6.0)),
-            border: UiRect::all(px(1)),
+            border: UiRect::all(frame_border_width),
             border_radius: BorderRadius::all(s(4.0)),
             ..default()
         },
         BackgroundColor(theme::rgb(26, 28, 34)),
-        BorderColor::all(Color::WHITE.with_alpha(0.08)),
+        BorderColor::all(frame_border_color),
         BoxShadow::default(),
         Children::spawn((
             Spawn(halo(4.0 * scale)),
@@ -693,7 +756,12 @@ pub fn card_face(
                     ..default()
                 },
                 Pickable::IGNORE,
-                children![key(14.0), key(14.0), key(24.0), key(14.0)],
+                children![
+                    key(14.0, None),
+                    key(14.0, None),
+                    key(24.0, admiral_color),
+                    key(14.0, None),
+                ],
             )),
             // Die Kosten als Zahl oben links.
             Spawn((
@@ -721,6 +789,8 @@ pub fn card_face(
                     Pickable::IGNORE,
                 )],
             )),
+            // Bei Admiralskarten das Stern-Abzeichen oben rechts.
+            SpawnIter(admiral_badge.into_iter()),
             Spawn(selection_frame(scale, 4.0)),
         )),
     )
@@ -1155,6 +1225,127 @@ mod tests {
                 word(vec![("−5", true), (".", false)], true),
                 word(vec![("(", false), ("−5", true), (")", false)], true),
             ]
+        );
+    }
+
+    #[test]
+    fn admiral_cards_spawn_badge_frame_and_tooltip_while_neutral_do_not() {
+        use bevy::prelude::*;
+        use voidfleet_core::admirals::AdmiralId;
+
+        use super::{AdmiralBadge, Face, card_face};
+        use crate::{
+            data::card_art::CardArt,
+            palette,
+            ui::{Fonts, UiIcons, tooltip::Tooltip},
+        };
+
+        let fonts = Fonts {
+            display: Handle::default(),
+            display_bold: Handle::default(),
+            body: Handle::default(),
+            symbols: Handle::default(),
+        };
+        let icons = UiIcons {
+            log: Handle::default(),
+            view_toggle: Handle::default(),
+            crosshair: Handle::default(),
+            check: Handle::default(),
+            arrow_right: Handle::default(),
+            stars: Handle::default(),
+            settings: Handle::default(),
+            rules: Handle::default(),
+            column_fire: Handle::default(),
+            ram: Handle::default(),
+            shield: Handle::default(),
+            evade: Handle::default(),
+            charge: Handle::default(),
+            target_lock: Handle::default(),
+            call: Handle::default(),
+            flame: Handle::default(),
+            emergency: Handle::default(),
+            stasis: Handle::default(),
+            silenced: Handle::default(),
+            marked: Handle::default(),
+            cover: Handle::default(),
+            armor: Handle::default(),
+            repair: Handle::default(),
+            maneuver: Handle::default(),
+        };
+        let art = CardArt::placeholder();
+        let locale = Locale::new(Language::De);
+
+        let mut world = World::new();
+        let neutral_card = DeckCard::new(CardId::Torpedo);
+        let neutral_text = locale.card(neutral_card);
+        let neutral_root = world
+            .spawn(card_face(
+                &fonts,
+                &icons,
+                &art,
+                &locale,
+                neutral_card,
+                Face {
+                    name: neutral_text.name,
+                    effect: neutral_text.effect,
+                    cost: neutral_card.cost(),
+                    card_type: neutral_card.id.card_type(),
+                    target: neutral_card.id.target(),
+                    admiral: neutral_card.id.admiral(),
+                    retained: false,
+                },
+                0,
+                1.0,
+            ))
+            .id();
+        assert_eq!(
+            world
+                .query_filtered::<Entity, With<AdmiralBadge>>()
+                .iter(&world)
+                .count(),
+            0
+        );
+        assert_eq!(
+            *world.get::<BorderColor>(neutral_root).unwrap(),
+            BorderColor::all(Color::WHITE.with_alpha(0.08))
+        );
+
+        let admiral_card = DeckCard::new(CardId::ShieldBash);
+        let admiral_text = locale.card(admiral_card);
+        let admiral_root = world
+            .spawn(card_face(
+                &fonts,
+                &icons,
+                &art,
+                &locale,
+                admiral_card,
+                Face {
+                    name: admiral_text.name,
+                    effect: admiral_text.effect,
+                    cost: admiral_card.cost(),
+                    card_type: admiral_card.id.card_type(),
+                    target: admiral_card.id.target(),
+                    admiral: admiral_card.id.admiral(),
+                    retained: false,
+                },
+                0,
+                1.0,
+            ))
+            .id();
+        let osei_color = palette::admiral_color(AdmiralId::Osei);
+        assert_eq!(
+            *world.get::<BorderColor>(admiral_root).unwrap(),
+            BorderColor::all(osei_color.with_alpha(0.65))
+        );
+        let badges: Vec<_> = world
+            .query_filtered::<(&BorderColor, &Tooltip), With<AdmiralBadge>>()
+            .iter(&world)
+            .collect();
+        assert_eq!(badges.len(), 1);
+        assert_eq!(*badges[0].0, BorderColor::all(osei_color));
+        assert_eq!(
+            badges[0].1.0,
+            locale.badge_admiral_hint(locale.admiral(AdmiralId::Osei).name)
         );
     }
 }

@@ -1,6 +1,7 @@
 {
   "type": "buff",
   "target": "none",
+  "admiral": "osei",
   "cost": 2,
   "value": 12,
   "upgraded": { "value": 16 },

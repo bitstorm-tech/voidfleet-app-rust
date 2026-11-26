@@ -1,6 +1,7 @@
 {
   "type": "doctrine",
   "target": "none",
+  "admiral": "osei",
   "cost": 2,
   "value": 2,
   "extra": 1,

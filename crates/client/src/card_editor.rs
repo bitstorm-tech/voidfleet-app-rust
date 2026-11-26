@@ -10,6 +10,7 @@ use std::{collections::HashMap, path::PathBuf};
 use bevy::prelude::*;
 use serde_json::Value;
 use voidfleet_core::{
+    admirals::{ADMIRAL_IDS, AdmiralId},
     cards::{CardId, CardTarget, CardType, EXTRA_CARDS},
     data::{CardData, CardText, Data, data, install, read},
 };
@@ -46,11 +47,20 @@ pub enum CardEdit {
     Select(CardId),
     Type(CardType),
     Target(CardTarget),
+    Admiral(Option<AdmiralId>),
     /// Ändert eine Zahl um so viel; keine fällt unter 0.
     Number(Field, i32),
     Text(Language, TextField, String),
     Save,
     Discard,
+}
+
+/// Was an den Karten im Editor nicht stimmt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CardError {
+    Numbers(CardId),
+    Text(CardId, Language),
+    EmptyPool(AdmiralId),
 }
 
 #[derive(Resource, Debug)]
@@ -110,6 +120,7 @@ impl CardEditor {
             CardEdit::Select(id) => self.selected = id,
             CardEdit::Type(card_type) => card.card_type = card_type,
             CardEdit::Target(target) => card.target = target,
+            CardEdit::Admiral(admiral) => card.admiral = admiral,
             CardEdit::Number(field, delta) => {
                 let at_least_0 = |value: i32| (value + delta).max(0);
                 match field {
@@ -192,20 +203,29 @@ impl CardEditor {
             cost: card.upgraded.cost.filter(|_| upgraded).unwrap_or(card.cost),
             card_type: card.card_type,
             target: card.target,
+            admiral: card.admiral,
             retained: false,
         }
     }
 
-    /// Die erste Karte (in der Reihenfolge von [`CardId::ALL`]) mit einer Zahl, die nicht stimmt (`None`), oder einem
-    /// Text, der in dieser Sprache fehlt, keinen Namen hat oder einen Platzhalter, der nicht aufgeht.
-    pub fn check(&self) -> Result<(), (CardId, Option<Language>)> {
+    /// Der erste Fehler in den Karten: eine Zahl, die nicht stimmt, ein Admiral ohne Kartenpool oder ein Text, der in
+    /// dieser Sprache fehlt, keinen Namen hat oder einen Platzhalter, der nicht aufgeht.
+    pub fn check(&self) -> Result<(), CardError> {
         if let Some(&id) = CardId::ALL
             .iter()
             .find(|id| !self.cards[id].check(EXTRA_CARDS.contains(id)))
         {
-            return Err((id, None));
+            return Err(CardError::Numbers(id));
         }
-        check_card_texts(&self.cards).map_err(|(id, language)| (id, Some(language)))
+        if let Some(admiral) = ADMIRAL_IDS.into_iter().find(|&admiral| {
+            !self
+                .cards
+                .values()
+                .any(|card| card.admiral == Some(admiral))
+        }) {
+            return Err(CardError::EmptyPool(admiral));
+        }
+        check_card_texts(&self.cards).map_err(|(id, language)| CardError::Text(id, language))
     }
 
     /// Schreibt die geänderten Karten, wenn alles stimmt, und setzt sie im Spiel ein.
@@ -348,8 +368,34 @@ mod tests {
         assert_eq!(editor.face(Language::En, false).effect, "Shields {w}.");
         assert_eq!(
             editor.check(),
-            Err((CardId::HoldTheLine, Some(Language::En)))
+            Err(CardError::Text(CardId::HoldTheLine, Language::En))
         );
+    }
+
+    #[test]
+    fn admiral_pool_edits_preview_and_rejects_empty_pool() {
+        let mut editor = open();
+        editor.apply(CardEdit::Select(CardId::Torpedo));
+        assert_eq!(editor.face(Language::De, false).admiral, None);
+        editor.apply(CardEdit::Admiral(Some(AdmiralId::Osei)));
+        assert_eq!(
+            editor.face(Language::De, false).admiral,
+            Some(AdmiralId::Osei)
+        );
+        assert!(card_json(editor.card()).contains("  \"admiral\": \"osei\",\n"));
+        editor.apply(CardEdit::Discard);
+        assert_eq!(editor.face(Language::De, false).admiral, None);
+
+        // Leert man den gesamten Pool eines Admirals, meldet die Prüfung den Fehler.
+        let osei_cards: Vec<CardId> = CardId::ALL
+            .into_iter()
+            .filter(|id| editor.cards[id].admiral == Some(AdmiralId::Osei))
+            .collect();
+        for id in osei_cards {
+            editor.apply(CardEdit::Select(id));
+            editor.apply(CardEdit::Admiral(None));
+        }
+        assert_eq!(editor.check(), Err(CardError::EmptyPool(AdmiralId::Osei)));
     }
 
     #[test]

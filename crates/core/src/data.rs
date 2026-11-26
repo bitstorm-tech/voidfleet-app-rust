@@ -47,16 +47,19 @@ pub enum Step {
     Bolt,
 }
 
-/// `cards/<id>.json`: eine Karte. `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei
-/// Karten ohne Zahl), `extra` der Zweitwert der Karten aus [`crate::cards::EXTRA_CARDS`], `upgraded` nennt, was die
-/// aufgewertete Fassung anders hat, `text` je Sprachkürzel (`en`, `de`) Name und Effekttext; welche Sprachen es gibt
-/// und was in den Texten steht, weiß der Client.
+/// `cards/<id>.json`: eine Karte. `admiral` bindet sie an den Kartenpool dieses Admirals (fehlt bei neutralen Karten),
+/// `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei Karten ohne Zahl), `extra` der
+/// Zweitwert der Karten aus [`crate::cards::EXTRA_CARDS`], `upgraded` nennt, was die aufgewertete Fassung anders hat,
+/// `text` je Sprachkürzel (`en`, `de`) Name und Effekttext; welche Sprachen es gibt und was in den Texten steht, weiß
+/// der Client.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CardData {
     #[serde(rename = "type")]
     pub card_type: CardType,
     pub target: CardTarget,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admiral: Option<AdmiralId>,
     pub cost: u32,
     pub value: i32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -334,6 +337,11 @@ impl Data {
                 return Err(format!(
                     "admirals.json: {id:?}: Hülle nicht positiv, ATK oder Schild negativ oder Kennkarte nicht im \
                      Startdeck"
+                ));
+            }
+            if !self.cards.values().any(|card| card.admiral == Some(id)) {
+                return Err(format!(
+                    "cards/: {id:?} hat keine Karte mit `admiral` in seinem Kartenpool"
                 ));
             }
         }

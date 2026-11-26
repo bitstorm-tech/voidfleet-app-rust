@@ -1,6 +1,7 @@
 {
   "type": "debuff",
   "target": "enemy",
+  "admiral": "reyes",
   "cost": 1,
   "value": 2,
   "upgraded": { "cost": 0 },

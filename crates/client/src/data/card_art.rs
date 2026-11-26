@@ -39,6 +39,11 @@ impl CardArt {
     pub fn get(&self, card: Card) -> Handle<Image> {
         self.0[&card].clone()
     }
+
+    #[cfg(test)]
+    pub(crate) fn placeholder() -> Self {
+        Self(cards().map(|card| (card, Handle::default())).collect())
+    }
 }
 
 impl FromWorld for CardArt {

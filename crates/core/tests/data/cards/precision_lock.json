@@ -1,6 +1,7 @@
 {
   "type": "debuff",
   "target": "enemy",
+  "admiral": "kerr",
   "cost": 0,
   "value": 1,
   "upgraded": { "value": 2 },

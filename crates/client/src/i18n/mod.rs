@@ -361,9 +361,9 @@ plain! {
     editor_add_step
 
     // --- Befehlskarten-Editor ---
-    settings_card_editor card_editor_title card_editor_type card_editor_target card_editor_numbers card_editor_cost
-    card_editor_value card_editor_extra card_editor_upgraded card_editor_name card_editor_effect card_editor_valid
-    card_editor_hint
+    settings_card_editor card_editor_title card_editor_type card_editor_target card_editor_admiral card_editor_neutral
+    card_editor_numbers card_editor_cost card_editor_value card_editor_extra card_editor_upgraded card_editor_name
+    card_editor_effect card_editor_valid card_editor_hint
 
     // --- Admirals-Editor ---
     settings_admiral_editor admiral_editor_title admiral_editor_numbers admiral_editor_shields admiral_editor_deck
@@ -468,7 +468,9 @@ filled! {
     editor_column_fire(width: usize)
     card_editor_error_text(card: &str, language: &str)
     card_editor_error_numbers(card: &str)
+    card_editor_error_pool(admiral: &str)
     admiral_editor_error(admiral: &str)
+    badge_admiral_hint(admiral: &str)
 
     // --- Run ---
     result_lost_subtitle(flagship: &str)

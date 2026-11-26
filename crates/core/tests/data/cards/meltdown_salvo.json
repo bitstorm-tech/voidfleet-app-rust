@@ -1,6 +1,7 @@
 {
   "type": "attack",
   "target": "enemy",
+  "admiral": "reyes",
   "cost": 2,
   "value": 5,
   "extra": 4,

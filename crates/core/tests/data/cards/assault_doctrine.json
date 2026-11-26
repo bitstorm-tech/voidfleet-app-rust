@@ -1,6 +1,7 @@
 {
   "type": "doctrine",
   "target": "none",
+  "admiral": "vance",
   "cost": 2,
   "value": 5,
   "upgraded": { "value": 8 },
