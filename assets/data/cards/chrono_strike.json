@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 2,
+  "value": 7,
+  "upgraded": { "value": 10 },
+  "text": {
+    "de": { "name": "Chrono-Schlag", "effect": "{v} Schaden auf ein gewähltes Schiff ({double}, wenn es im Stillstand ist oder auflädt). Zielsuchend, durchschlagend." },
+    "en": { "name": "Chrono Strike", "effect": "{v} damage to a chosen ship ({double} if it is in stasis or charging). Homing, piercing." }
+  }
+}

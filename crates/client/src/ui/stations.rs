@@ -262,7 +262,7 @@ pub fn checklist_lines(locale: &Locale, battle: &CoreBattle) -> Vec<(String, Che
     if free > 0 && !flagship.jumped && battle.result.is_none() {
         lines.push((locale.checklist_free_stations(free), ChecklistState::Open));
     }
-    let affordable = battle.hand.iter().any(|card| card.cost() <= battle.points);
+    let affordable = (0..battle.hand.len()).any(|i| battle.card_cost(i) <= battle.points);
     if battle.points > 0 && affordable {
         lines.push((locale.checklist_points(battle.points), ChecklistState::Hint));
     }
@@ -408,6 +408,36 @@ mod tests {
         assert_eq!(
             checklist_lines(&locale, &battle),
             [("Station: Schilde".to_owned(), ChecklistState::Done)]
+        );
+    }
+
+    #[test]
+    fn checklist_recognizes_clockwork_discounted_card() {
+        use voidfleet_core::cards::{CardId, DeckCard};
+
+        let locale = Locale::new(Language::De);
+        let mut battle = fixture_battle(AdmiralId::Kerr);
+        let doctrine = DeckCard::new(CardId::ClockworkDoctrine);
+        battle.hand = vec![doctrine];
+        battle.points = doctrine.cost() - 1;
+        assert_eq!(
+            checklist_lines(&locale, &battle),
+            [("1 Station frei".to_owned(), ChecklistState::Open)]
+        );
+        let window = DeckCard::new(CardId::TimeWindow);
+        battle.hand = vec![window];
+        battle.points = window.cost() - 1;
+        assert_eq!(
+            checklist_lines(&locale, &battle),
+            [("1 Station frei".to_owned(), ChecklistState::Open)]
+        );
+        battle.flagship.clockwork_discount = 1;
+        assert_eq!(
+            checklist_lines(&locale, &battle),
+            [
+                ("1 Station frei".to_owned(), ChecklistState::Open),
+                (locale.checklist_points(battle.points), ChecklistState::Hint),
+            ]
         );
     }
 }

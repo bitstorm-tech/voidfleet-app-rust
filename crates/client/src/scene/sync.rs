@@ -125,6 +125,7 @@ fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
         (enemy.emergency(), Condition::Emergency),
         (enemy.stasis, Condition::Stasis),
         (enemy.silenced, Condition::Silenced),
+        (enemy.marked, Condition::Marked),
     ]
     .into_iter()
     .filter_map(|(active, condition)| active.then_some(condition))
@@ -134,13 +135,36 @@ fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
 /// Was auf dem Brett stehen soll.
 fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> Vec<Wanted> {
     let preview_text = |uid: u32| {
-        focus
+        let Some((_, hits)) = focus
             .preview
             .as_ref()
             .filter(|(focused, _)| *focused == uid)
-            .and_then(|(_, hits)| hits.iter().find(|hit| unit_uid(hit.target) == uid))
+        else {
+            return String::new();
+        };
+        let mut groups: Vec<(String, usize)> = Vec::new();
+        for line in hits
+            .iter()
+            .filter(|hit| unit_uid(hit.target) == uid)
             .map(|hit| locale.breakdown(&hit.breakdown))
-            .unwrap_or_default()
+        {
+            if let Some((_last, count)) = groups.last_mut().filter(|(last, _)| *last == line) {
+                *count += 1;
+            } else {
+                groups.push((line, 1));
+            }
+        }
+        groups
+            .into_iter()
+            .map(|(line, count)| {
+                if count > 1 {
+                    format!("{count}× {line}")
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     };
     // Der Uhrmacher sieht zwei Runden voraus.
     let clockwork = battle.flagship.admiral == AdmiralId::Kerr;
@@ -468,6 +492,47 @@ mod tests {
         assert_eq!(
             preview_after(&[hit(3, 4, false), hit(7, 0, true)], 0, now),
             Some((UnitStats { hull: 0, shield: 0 }, true))
+        );
+    }
+
+    #[test]
+    fn marked_condition_and_multi_hit_preview_show_in_captions() {
+        let locale = Locale::new(Language::En);
+        let mut battle = fixture_battle(AdmiralId::Kerr);
+        battle.enemies[0].marked = true;
+        let uid = battle.enemies[0].uid;
+        let repeated = Hit {
+            target: UnitRef::Enemy {
+                uid,
+                id: battle.enemies[0].id,
+                slot: battle.enemies[0].slot,
+            },
+            breakdown: Breakdown {
+                base: 2,
+                marked: 1,
+                hull: 3,
+                ..Breakdown::default()
+            },
+        };
+        let distinct = Hit {
+            breakdown: Breakdown {
+                base: 4,
+                armor: 1,
+                hull: 3,
+                ..Breakdown::default()
+            },
+            ..repeated
+        };
+        let focus = BoardFocus {
+            preview: Some((uid, vec![repeated, repeated, distinct])),
+            ghost: None,
+        };
+        let ships = wanted_ships(&battle, &locale, &focus);
+        let target = ships.iter().find(|ship| ship.uid == uid).unwrap();
+        assert!(target.caption.conditions.contains(&Condition::Marked));
+        assert_eq!(
+            target.caption.preview,
+            "2× 2 · marked +1 → 3\n4 · armor −1 → 3"
         );
     }
 }

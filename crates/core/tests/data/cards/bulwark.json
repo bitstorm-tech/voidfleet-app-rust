@@ -1,0 +1,11 @@
+{
+  "type": "buff",
+  "target": "none",
+  "cost": 2,
+  "value": 12,
+  "upgraded": { "value": 16 },
+  "text": {
+    "de": { "name": "Bollwerk", "effect": "Schilde {v}. Behalten." },
+    "en": { "name": "Bulwark", "effect": "Shields {v}. Retain." }
+  }
+}

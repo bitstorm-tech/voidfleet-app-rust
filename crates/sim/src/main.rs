@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::Value;
 use voidfleet_core::admirals::{ADMIRAL_IDS, AdmiralId};
 use voidfleet_core::battle::Encounter;
-use voidfleet_core::cards::LOOT_POOL;
+use voidfleet_core::cards::{CardId, NEUTRAL_POOL, admiral_pool};
 use voidfleet_core::data::{Data, REPO_DATA, install, read};
 use voidfleet_core::run::{MODULES, NodeKind, SECTORS, SectorMap};
 
@@ -33,6 +33,21 @@ fn name(id: impl serde::Serialize) -> String {
         Value::String(name) => name,
         other => other.to_string(),
     }
+}
+
+fn cards_with_pool() -> Vec<(CardId, &'static str)> {
+    let mut out = Vec::with_capacity(CardId::ALL.len());
+    out.extend(NEUTRAL_POOL.into_iter().map(|card| (card, "neutral")));
+    for admiral in ADMIRAL_IDS {
+        let tag = match admiral {
+            AdmiralId::Osei => "osei",
+            AdmiralId::Vance => "vance",
+            AdmiralId::Kerr => "kerr",
+            AdmiralId::Reyes => "reyes",
+        };
+        out.extend(admiral_pool(admiral).into_iter().map(|card| (card, tag)));
+    }
+    out
 }
 
 fn load_maps(dir: &Path) -> Maps {
@@ -198,20 +213,21 @@ fn report_nodes(logs: &[RunLog], maps: &Maps) {
 fn report_cards(logs: &[RunLog]) {
     println!("\n== Karten: gespielt, wenn in der Hand ==");
     println!(
-        "{:22} {:>8} {:>9} {:>6}",
-        "Karte", "gezogen", "gespielt", "%"
+        "{:22} {:7} {:>8} {:>9} {:>6}",
+        "Karte", "Pool", "gezogen", "gespielt", "%"
     );
     let total = |pick: fn(&RunLog) -> &HashMap<_, u32>, card| -> u32 {
         logs.iter().filter_map(|log| pick(log).get(&card)).sum()
     };
-    for card in LOOT_POOL {
+    for (card, pool) in cards_with_pool() {
         let (drawn, played) = (
             total(|log| &log.drawn, card),
             total(|log| &log.played, card),
         );
         println!(
-            "{:22} {drawn:>8} {played:>9} {:>6.1}",
+            "{:22} {:7} {drawn:>8} {played:>9} {:>6.1}",
             name(card),
+            pool,
             percent(played as usize, drawn as usize)
         );
     }
@@ -226,9 +242,15 @@ fn compare(
     seed: u64,
     maps: &Maps,
 ) {
+    let width = variants
+        .iter()
+        .map(|(label, _)| label.len())
+        .max()
+        .unwrap_or(22)
+        .max(22);
     println!("\n== {title} ({runs} Runs je Admiral) ==");
     print!(
-        "{:22} {:>6} {:>6} {:>9} {:>6} ",
+        "{:width$} {:>6} {:>6} {:>9} {:>6} ",
         "", "Sieg%", "Δ", "Siege/Run", "Δ"
     );
     for &admiral in admirals {
@@ -258,7 +280,7 @@ fn compare(
     for (label, start) in variants {
         let (wins, won, per_admiral) = measure(&start);
         print!(
-            "{label:22} {wins:>6.1} {:>+6.1} {won:>9.2} {:>+6.2} ",
+            "{label:width$} {wins:>6.1} {:>+6.1} {won:>9.2} {:>+6.2} ",
             wins - base.0,
             won - base.1
         );
@@ -314,18 +336,21 @@ fn main() {
             );
         }
         Some("cards") => {
-            let variants = LOOT_POOL.map(|card| {
-                (
-                    name(card),
-                    Start {
-                        cards: vec![card],
-                        ..Start::default()
-                    },
-                )
-            });
+            let variants: Vec<(String, Start)> = cards_with_pool()
+                .into_iter()
+                .map(|(card, pool)| {
+                    (
+                        format!("{:21} {:7}", name(card), pool),
+                        Start {
+                            cards: vec![card],
+                            ..Start::default()
+                        },
+                    )
+                })
+                .collect();
             compare(
                 "Eine Karte mehr im Startdeck",
-                variants.to_vec(),
+                variants,
                 &admirals,
                 runs,
                 seed,

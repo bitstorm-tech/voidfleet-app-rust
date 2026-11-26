@@ -1,0 +1,12 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 3,
+  "extra": 1,
+  "upgraded": { "value": 5 },
+  "text": {
+    "de": { "name": "Brechergeschoss", "effect": "{v} Schaden auf ein gewähltes Schiff, durchschlagend. Markiert, −{extra} Panzerung dauerhaft." },
+    "en": { "name": "Armor Piercer", "effect": "{v} damage to a chosen ship, piercing. Marked, −{extra} armor permanently." }
+  }
+}

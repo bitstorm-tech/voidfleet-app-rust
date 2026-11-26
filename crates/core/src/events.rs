@@ -28,14 +28,16 @@ pub struct UnitStats {
 }
 
 /// Wie der Schaden eines Treffers entstand, in der Reihenfolge der Abzüge: Gegenmaßnahmen und Ausweichen halbieren,
-/// Deckung leitet einen Teil an den Vordermann (eigener Treffer mit diesem Teil als `base`), Schilde schlucken,
-/// Panzerung zieht ab, der Rest geht auf die Hülle. `lethal`: Die Hülle steht danach bei 0.
+/// Deckung leitet einen Teil an den Vordermann (eigener Treffer mit diesem Teil als `base`), Markiert erhöht um die
+/// Hälfte (aufgerundet), Schilde schlucken, Panzerung zieht ab, der Rest geht auf die Hülle. `lethal`: Die Hülle steht
+/// danach bei 0.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     pub base: i32,
     pub evaded: i32,
     pub armor: i32,
     pub covered: Option<(u32, i32)>,
+    pub marked: i32,
     pub shielded: i32,
     pub countermeasures: i32,
     pub hull: i32,
@@ -122,6 +124,16 @@ pub enum BattleEvent {
     },
     Extinguished {
         target: UnitRef,
+    },
+    Marked {
+        target: UnitRef,
+    },
+    ArmorBroken {
+        target: UnitRef,
+        amount: i32,
+    },
+    PointsGained {
+        amount: u32,
     },
     Emergency {
         target: UnitRef,

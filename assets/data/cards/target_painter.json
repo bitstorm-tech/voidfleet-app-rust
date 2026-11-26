@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "enemy",
+  "cost": 1,
+  "value": 1,
+  "upgraded": { "value": 2 },
+  "text": {
+    "de": { "name": "Zielbeleuchtung", "effect": "Ein gewähltes Schiff wird Markiert und verliert dauerhaft {v} Panzerung." },
+    "en": { "name": "Target Painter", "effect": "A chosen ship becomes Marked and permanently loses {v} armor." }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 2,
+  "extra": 3,
+  "upgraded": { "value": 3 },
+  "text": {
+    "de": { "name": "Autokanonen-Salve", "effect": "{extra}× {v} Schaden auf ein gewähltes Schiff. Zielsuchend." },
+    "en": { "name": "Autocannon Salvo", "effect": "{extra}× {v} damage to a chosen ship. Homing." }
+  }
+}

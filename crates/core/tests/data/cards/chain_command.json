@@ -1,0 +1,12 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 1,
+  "value": 2,
+  "extra": 1,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Kettenbefehl", "effect": "{v} Befehle ziehen; wurde diese Runde schon eine Station ausgelöst, +{extra} BP." },
+    "en": { "name": "Chain Command", "effect": "Draw {v} commands; if a station was already triggered this round, +{extra} command point." }
+  }
+}

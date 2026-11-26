@@ -16,9 +16,14 @@ use super::{
     card::{CardAssets, CardHover, HAND_ZOOM, command_card},
     hand::HandBar,
     theme::{self, UiOpacity},
-    tooltip::Tooltip,
+    tooltip::{Tooltip, TooltipInstant},
 };
-use voidfleet_core::cards::DeckCard;
+use voidfleet_core::{
+    admirals::{AdmiralStation, Station},
+    battle::Battle as CoreBattle,
+    cards::DeckCard,
+    data::rules,
+};
 
 use crate::{
     assets::AppState,
@@ -48,6 +53,18 @@ struct RepairLabel;
 /// Die Leiste der aktiven Doktrinen unter der Kopfzeile.
 #[derive(Component)]
 struct DoctrineBar;
+
+/// Die Leiste der aktiven Zug- und Gefechtsboni unter den Doktrinen.
+#[derive(Component)]
+struct BuffStrip;
+
+/// Ein angezeigter Bonus-Chip in der HUD-Leiste.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BuffChip {
+    pub label: String,
+    pub hint: String,
+    pub color: Color,
+}
 
 /// Eine kleine Doktrin der Leiste mit ihrer großen Ansicht, die beim Hover über ihr erscheint. Eigens gesetzt statt
 /// hochskaliert, sonst wird die klein gerasterte Schrift unscharf.
@@ -131,16 +148,40 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>) {
         ],
     ));
     commands.spawn((
-        Name::new("Doktrinen"),
-        DoctrineBar,
+        Name::new("Doktrinen und Boni"),
         Node {
             position_type: PositionType::Absolute,
             top: px(76),
             left: px(32),
-            column_gap: px(8),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexStart,
+            row_gap: px(8),
             ..default()
         },
         Pickable::IGNORE,
+        children![
+            (
+                Name::new("Doktrinen"),
+                DoctrineBar,
+                Node {
+                    column_gap: px(8),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ),
+            (
+                Name::new("Boni"),
+                BuffStrip,
+                Node {
+                    flex_wrap: FlexWrap::Wrap,
+                    max_width: px(360),
+                    column_gap: px(6),
+                    row_gap: px(6),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ),
+        ],
     ));
     commands.spawn((
         Name::new("Log"),
@@ -402,6 +443,151 @@ fn show_doctrine_previews(cards: Query<(&Hovered, &DoctrinePreview)>, mut nodes:
     }
 }
 
+/// Aktive Zug- und Gefechtsboni am Flaggschiff als Chips mit Tooltip.
+pub fn active_buffs(battle: &CoreBattle, locale: &crate::i18n::Messages) -> Vec<BuffChip> {
+    let f = &battle.flagship;
+    let mut chips = Vec::new();
+    let mut push = |label: String, hint: String, color: Color| {
+        chips.push(BuffChip { label, hint, color });
+    };
+    if f.double_next > 0 {
+        push(
+            locale.hud_buff_double_next(f.double_next),
+            locale.hud_buff_double_next_hint(f.double_next),
+            palette::SELECT,
+        );
+    }
+    if f.clockwork_discount > 0 && !f.tactic_discount_used {
+        push(
+            locale.hud_buff_clockwork_discount(f.clockwork_discount),
+            locale.hud_buff_clockwork_discount_hint(f.clockwork_discount),
+            palette::PLAYER,
+        );
+    }
+    if f.station_slots > 1 {
+        push(
+            locale.hud_buff_station_slots(f.stations_used.len(), f.station_slots),
+            locale.hud_buff_station_slots_hint(f.station_slots),
+            palette::BUFF,
+        );
+    }
+    if f.attack_bonus > 0 {
+        push(
+            locale.hud_buff_attack(f.attack_bonus),
+            locale.hud_buff_attack_hint(f.attack_bonus),
+            palette::BUFF,
+        );
+    }
+    if f.overcharge > 0 {
+        push(
+            locale.hud_buff_overcharge(f.overcharge),
+            locale.hud_buff_overcharge_hint(f.overcharge),
+            palette::DAMAGE,
+        );
+    }
+    if f.countermeasures > 0 {
+        push(
+            locale.hud_buff_countermeasures(f.countermeasures),
+            locale.hud_buff_countermeasures_hint(f.countermeasures),
+            palette::SHIELD,
+        );
+    }
+    if f.hold_the_line > 0 {
+        push(
+            locale.hud_buff_hold_the_line(f.hold_the_line),
+            locale.hud_buff_hold_the_line_hint(f.hold_the_line),
+            palette::BUFF,
+        );
+    }
+    if f.counterfire {
+        let amount = rules().stations.counterfire_damage;
+        push(
+            locale.hud_buff_counterfire(amount),
+            locale.hud_buff_counterfire_hint(amount),
+            palette::BUFF,
+        );
+    }
+    if f.jammer > 0 {
+        push(
+            locale.hud_buff_jammer(f.jammer),
+            locale.hud_buff_jammer_hint(f.jammer),
+            palette::DEBUFF,
+        );
+    }
+    if f.momentum > 0 {
+        push(
+            locale.hud_buff_momentum(f.momentum),
+            locale.hud_buff_momentum_hint(f.momentum),
+            palette::BUFF,
+        );
+    }
+    if f.admiral.station() == AdmiralStation::FollowUp
+        && f.stations_used.contains(&Station::Admiral)
+    {
+        let bonus = rules().stations.follow_up_card_bonus;
+        push(
+            locale.hud_buff_follow_up(bonus),
+            locale.hud_buff_follow_up_hint(bonus),
+            palette::BUFF,
+        );
+    }
+    if f.focus_vulnerable {
+        let amount = rules().stations.focus_fire_vulnerability;
+        push(
+            locale.hud_buff_focus_vulnerable(amount),
+            locale.hud_buff_focus_vulnerable_hint(amount),
+            palette::DAMAGE,
+        );
+    }
+    chips
+}
+
+/// Baut die Chips der aktiven Boni neu, sobald sich ein Bonus oder die Sprache ändert.
+fn update_buffs(
+    mut commands: Commands,
+    battle: Option<Res<Battle>>,
+    fonts: Res<Fonts>,
+    locale: Res<Locale>,
+    strip: Single<Entity, With<BuffStrip>>,
+    mut shown: Local<Vec<BuffChip>>,
+) {
+    let chips = battle
+        .map(|battle| active_buffs(&battle, &locale))
+        .unwrap_or_default();
+    if *shown == chips && !locale.is_changed() {
+        return;
+    }
+    commands
+        .entity(*strip)
+        .despawn_related::<Children>()
+        .with_children(|strip| {
+            for chip in &chips {
+                strip.spawn((
+                    Node {
+                        padding: UiRect::axes(px(9), px(3)),
+                        border: UiRect::all(px(1)),
+                        border_radius: BorderRadius::all(px(4)),
+                        ..default()
+                    },
+                    BackgroundColor(theme::PANEL.with_alpha(0.75)),
+                    BorderColor::all(chip.color.with_alpha(0.65)),
+                    Tooltip(chip.hint.clone()),
+                    TooltipInstant,
+                    children![(
+                        theme::caps(
+                            fonts.display_bold(14.0),
+                            &chip.label,
+                            theme::TRACKING,
+                            chip.color
+                        ),
+                        Pickable::IGNORE,
+                    )],
+                ));
+            }
+        });
+    *shown = chips;
+}
+
 /// Hand, Stationen und Log gehören zum Gefecht; auf Karte und Knoten liegen sie verborgen.
 fn show_battle_hud(
     screen: Res<Screen>,
@@ -412,6 +598,7 @@ fn show_battle_hud(
             With<LogButton>,
             With<LogPanel>,
             With<DoctrineBar>,
+            With<BuffStrip>,
         )>,
     >,
 ) {
@@ -608,6 +795,7 @@ impl Plugin for HudPlugin {
                     show_battle_hud,
                     update_top_bar,
                     update_doctrines,
+                    update_buffs,
                     show_doctrine_previews,
                     append_log,
                     show_banner,
@@ -618,5 +806,47 @@ impl Plugin for HudPlugin {
                     .chain()
                     .run_if(in_state(AppState::Match)),
             );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use voidfleet_core::admirals::AdmiralId;
+
+    use super::*;
+    use crate::{game::fixture_battle, settings::Language};
+
+    #[test]
+    fn active_buffs_reflect_turn_and_battle_modifiers() {
+        let locale = Locale::new(Language::En);
+        let mut battle = fixture_battle(AdmiralId::Kerr);
+        assert!(active_buffs(&battle, &locale).is_empty());
+
+        battle.flagship.double_next = 2;
+        battle.flagship.clockwork_discount = 1;
+        battle.flagship.station_slots = 2;
+        battle.flagship.attack_bonus = 3;
+        battle.flagship.overcharge = 4;
+        battle.flagship.countermeasures = 1;
+        battle.flagship.hold_the_line = 2;
+        battle.flagship.counterfire = true;
+        battle.flagship.jammer = 1;
+        battle.flagship.momentum = 3;
+        battle.flagship.focus_vulnerable = true;
+
+        let labels: Vec<String> = active_buffs(&battle, &locale)
+            .into_iter()
+            .map(|chip| chip.label)
+            .collect();
+        assert_eq!(labels.len(), 11);
+        assert_eq!(labels[0], "Next 2 cards ×2");
+        assert_eq!(labels[1], "Tactic/Debuff −1 CP");
+
+        battle.flagship.tactic_discount_used = true;
+        let labels_after: Vec<String> = active_buffs(&battle, &locale)
+            .into_iter()
+            .map(|chip| chip.label)
+            .collect();
+        assert_eq!(labels_after.len(), 10);
     }
 }

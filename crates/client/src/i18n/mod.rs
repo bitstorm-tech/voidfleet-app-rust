@@ -27,7 +27,7 @@ use voidfleet_core::{
     admirals::{AdmiralId, FlagshipId, Station},
     battle::{BattleResult, RuleError},
     board::{EnemySlot, Row},
-    cards::{CardId, CardTarget, CardType, DeckCard, LOOT_POOL},
+    cards::{CardId, CardTarget, CardType, DeckCard},
     data::{CardData, data},
     enemies::{Action, EnemyClass, EnemyId},
     events::{Breakdown, DestroyCause, IdleReason, Intent, MissReason},
@@ -126,12 +126,13 @@ pub fn code(language: Language) -> &'static str {
 /// Die erste Karte, deren Text in einer Sprache fehlt, keinen Namen hat oder einen Platzhalter, den [`effect_text`]
 /// nicht füllt.
 pub fn check_card_texts(cards: &HashMap<CardId, CardData>) -> Result<(), (CardId, Language)> {
-    for id in LOOT_POOL {
+    for id in CardId::ALL {
         for language in LANGUAGES {
             let text = cards[&id].text.get(code(language));
             let valid = text.is_some_and(|text| {
                 !text.name.trim().is_empty()
-                    && !effect_text(&text.effect, 0, 0).contains(['{', '}'])
+                    && !effect_text(language, &text.effect, 0, 0, 0).contains(['{', '}'])
+                    && !effect_text(language, &text.effect, 0, 0, 1).contains(['{', '}'])
             });
             if !valid {
                 return Err((id, language));
@@ -141,12 +142,24 @@ pub fn check_card_texts(cards: &HashMap<CardId, CardData>) -> Result<(), (CardId
     Ok(())
 }
 
-/// Füllt den Effekttext einer Karte mit dem Hauptwert `v` und dem Zweitwert `extra`: `{v}`, `{extra}`, dazu
-/// `{evading}` und `{emergency}`, der Wert gegen ein ausweichendes Ziel und eines im Notfall, und `{bonus}`, der
-/// Zuschlag als „ +2“ oder nichts.
-pub fn effect_text(template: &str, v: i32, extra: i32) -> String {
-    let bonus = if v > 0 {
-        format!(" +{v}")
+/// Füllt den Effekttext einer Karte mit dem Grundwert `value`, dem Zuschlag `bonus` und dem Zweitwert `extra`: `{v}`,
+/// `{extra}`, `{evading}` und `{emergency}`, `{double}` (`2 * value + bonus`), `{draw}` und `{bonus}` („ +2“ oder
+/// nichts).
+pub fn effect_text(
+    language: Language,
+    template: &str,
+    value: i32,
+    bonus: i32,
+    extra: i32,
+) -> String {
+    let v = value + bonus;
+    let bonus_text = if bonus > 0 {
+        format!(" +{bonus}")
+    } else {
+        String::new()
+    };
+    let draw = if extra > 0 {
+        Locale::new(language).effect_draw(extra as u64)
     } else {
         String::new()
     };
@@ -155,7 +168,9 @@ pub fn effect_text(template: &str, v: i32, extra: i32) -> String {
         ("extra", extra.to_string()),
         ("evading", (v + extra).to_string()),
         ("emergency", (v + extra).to_string()),
-        ("bonus", bonus),
+        ("double", (2 * value + bonus).to_string()),
+        ("bonus", bonus_text),
+        ("draw", draw),
     ]
     .iter()
     .fold(template.to_owned(), |text, (name, value)| {
@@ -270,6 +285,7 @@ pub enum Condition {
     Emergency,
     Stasis,
     Silenced,
+    Marked,
     /// Gedeckt: Ein Vordermann fängt die Hälfte ab.
     Covered,
 }
@@ -326,7 +342,7 @@ plain! {
 
     // --- HUD ---
     hud_new_round hud_end_turn hud_skip hud_show_log hud_hide_log hud_points hud_draw_pile hud_discard_pile
-    hud_stations
+    hud_spent_pile badge_retain badge_retained badge_exhaust hud_stations
 
     // --- Admiralswahl ---
     admiral_select_title admiral_select_hint admiral_select_choose label_flagship label_weapon label_passive
@@ -419,6 +435,28 @@ filled! {
     hud_repair_hint(repaired: i32)
     checklist_station(station: &str)
     loading_assets(percent: u32)
+    hud_buff_clockwork_discount(amount: u32)
+    hud_buff_clockwork_discount_hint(amount: u32)
+    hud_buff_station_slots(used: usize, slots: usize)
+    hud_buff_station_slots_hint(slots: usize)
+    hud_buff_attack(amount: i32)
+    hud_buff_attack_hint(amount: i32)
+    hud_buff_overcharge(amount: i32)
+    hud_buff_overcharge_hint(amount: i32)
+    hud_buff_countermeasures(count: u32)
+    hud_buff_countermeasures_hint(count: u32)
+    hud_buff_hold_the_line(amount: i32)
+    hud_buff_hold_the_line_hint(amount: i32)
+    hud_buff_counterfire(amount: i32)
+    hud_buff_counterfire_hint(amount: i32)
+    hud_buff_jammer(amount: i32)
+    hud_buff_jammer_hint(amount: i32)
+    hud_buff_momentum(amount: i32)
+    hud_buff_momentum_hint(amount: i32)
+    hud_buff_follow_up(bonus: i32)
+    hud_buff_follow_up_hint(bonus: i32)
+    hud_buff_focus_vulnerable(amount: i32)
+    hud_buff_focus_vulnerable_hint(amount: i32)
 
     // --- Karteneditor; Reihe und Knoten zählen ab 1 ---
     editor_sector(sector: u32)
@@ -461,6 +499,8 @@ filled! {
     log_healed(target: &str, amount: i32)
     log_ignited(target: &str)
     log_extinguished(target: &str)
+    log_marked(target: &str)
+    log_armor_broken(target: &str, amount: i32)
     log_fireship_spent(unit: &str)
     log_rammed(target: &str)
     log_maneuvered(from: &str, to: &str)
@@ -481,11 +521,21 @@ filled! {
     mark_countermeasures(amount: i32)
     mark_armor(amount: i32)
     mark_covered(amount: i32, by: &str)
+    mark_marked(amount: i32)
     mark_shielded(amount: i32)
+    report_armor_broken(amount: i32)
+    report_points_gained(amount: u32)
     report_burned_out(unit: &str)
 }
 
 impl Messages {
+    fn language(&self) -> Language {
+        match self.code {
+            "de" => Language::De,
+            _ => Language::En,
+        }
+    }
+
     fn text(&self, key: &str) -> &'static str {
         self.texts
             .get(key)
@@ -649,10 +699,36 @@ impl Messages {
         &data().cards[&card].text[self.code].name
     }
 
+    pub fn effect_draw(&self, count: u64) -> String {
+        let key = format!("effect_draw.{}", form(count));
+        self.fill(&key, &[("count", &count)])
+    }
+
+    pub fn hud_buff_double_next(&self, count: u32) -> String {
+        let key = format!("hud_buff_double_next.{}", form(count.into()));
+        self.fill(&key, &[("count", &count)])
+    }
+
+    pub fn hud_buff_double_next_hint(&self, count: u32) -> String {
+        let key = format!("hud_buff_double_next_hint.{}", form(count.into()));
+        self.fill(&key, &[("count", &count)])
+    }
+
+    pub fn log_points_gained(&self, amount: u32) -> String {
+        let key = format!("log_points_gained.{}", form(amount.into()));
+        self.fill(&key, &[("amount", &amount)])
+    }
+
     /// Effekttext mit dem Hauptwert `v` der (aufgewerteten) Karte, samt Zuschlägen im Gefecht ([`effect_text`]).
     pub fn card_effect(&self, card: DeckCard, v: i32) -> String {
         let template = &data().cards[&card.id].text[self.code].effect;
-        effect_text(template, v, card.id.extra())
+        let value = card.value();
+        let (base, bonus) = if v > value {
+            (value, v - value)
+        } else {
+            (v, 0)
+        };
+        effect_text(self.language(), template, base, bonus, card.extra())
     }
 
     /// Die Schlüsselwörter (`docs/karten.md`): Wort, wie es im Effekttext steht, und seine Erklärung.
@@ -750,8 +826,8 @@ impl Messages {
         with_data(text, &data).unwrap_or_else(|error| error)
     }
 
-    /// Die Wörter der Schadensrechnung: Ausweichen, Gegenmaßnahmen, Panzerung, gedeckt, Schild, tödlich.
-    pub fn breakdown_words(&self) -> [&'static str; 6] {
+    /// Die Wörter der Schadensrechnung: Ausweichen, Gegenmaßnahmen, Panzerung, gedeckt, Schild, tödlich, markiert.
+    pub fn breakdown_words(&self) -> [&'static str; 7] {
         [
             "evaded",
             "countermeasures",
@@ -759,6 +835,7 @@ impl Messages {
             "covered",
             "shield",
             "lethal",
+            "marked",
         ]
         .map(|word| self.text(&format!("breakdown_words.{word}")))
     }
@@ -816,13 +893,14 @@ impl Messages {
     /// Wie `card`, mit `bonus` auf den Hauptwert (Feuerleitdoktrin im Gefecht).
     pub fn card_with_bonus(&self, card: DeckCard, bonus: i32) -> CardText {
         let name = self.card_name(card.id);
+        let template = &data().cards[&card.id].text[self.code].effect;
         CardText {
             name: if card.upgraded {
                 format!("{name}+")
             } else {
                 name.to_owned()
             },
-            effect: self.card_effect(card, card.value() + bonus),
+            effect: effect_text(self.language(), template, card.value(), bonus, card.extra()),
         }
     }
 
@@ -845,17 +923,31 @@ impl Messages {
         )
     }
 
-    /// Die Rechnung eines Treffers in Kurzform: „18 · gedeckt −4 · Schild −3 · Panzerung −2 → 9“.
+    /// Die Rechnung eines Treffers in Kurzform: „18 · gedeckt −4 · markiert +7 · Schild −3 · Panzerung −2 → 16“.
     pub fn breakdown(&self, breakdown: &Breakdown) -> String {
-        let [evaded, countermeasures, armor, covered, shield, lethal] = self.breakdown_words();
+        let [
+            evaded,
+            countermeasures,
+            armor,
+            covered,
+            shield,
+            lethal,
+            marked,
+        ] = self.breakdown_words();
         let mut parts = vec![breakdown.base.to_string()];
         for (word, amount) in [
             (evaded, breakdown.evaded),
             (countermeasures, breakdown.countermeasures),
             (covered, breakdown.covered.map_or(0, |(_, amount)| amount)),
-            (shield, breakdown.shielded),
-            (armor, breakdown.armor),
         ] {
+            if amount > 0 {
+                parts.push(format!("{word} −{amount}"));
+            }
+        }
+        if breakdown.marked > 0 {
+            parts.push(format!("{marked} +{}", breakdown.marked));
+        }
+        for (word, amount) in [(shield, breakdown.shielded), (armor, breakdown.armor)] {
             if amount > 0 {
                 parts.push(format!("{word} −{amount}"));
             }
@@ -1028,6 +1120,45 @@ mod tests {
             }),
             "7"
         );
+        assert_eq!(
+            de.breakdown(&Breakdown {
+                base: 10,
+                marked: 5,
+                armor: 2,
+                hull: 13,
+                ..Breakdown::default()
+            }),
+            "10 · markiert +5 · Panzerung −2 → 13"
+        );
+        let chrono = DeckCard::new(CardId::ChronoStrike);
+        let v = chrono.value();
+        assert!(
+            en.card_with_bonus(chrono, 2)
+                .effect
+                .contains(&format!("{} damage", v + 2))
+        );
+        assert!(
+            en.card_with_bonus(chrono, 2)
+                .effect
+                .contains(&format!("({} if", 2 * v + 2))
+        );
+        let power = DeckCard::new(CardId::EmergencyPower);
+        let p = power.value();
+        assert_eq!(
+            en.card(power).effect,
+            format!("+{p} command points this round. Exhaust.")
+        );
+        let power_plus = DeckCard {
+            upgraded: true,
+            ..power
+        };
+        assert_eq!(
+            en.card(power_plus).effect,
+            format!("+{p} command points this round, draw 1 command. Exhaust.")
+        );
+        let bash = DeckCard::new(CardId::ShieldBash);
+        assert!(!en.card(bash).effect.contains('+'));
+        assert!(en.card_with_bonus(bash, 3).effect.contains("shields +3"));
     }
 
     fn placeholders(text: &str) -> Vec<&str> {
@@ -1213,6 +1344,7 @@ mod tests {
                 Condition::Stasis,
                 Condition::Silenced,
                 Condition::Covered,
+                Condition::Marked,
             ] {
                 plain(locale.condition_hint(condition));
                 plain(&locale.condition(condition));
@@ -1236,7 +1368,7 @@ mod tests {
                 plain(&locale.action(action));
                 plain(&locale.action_hint(action));
             }
-            for card in voidfleet_core::cards::LOOT_POOL {
+            for card in CardId::ALL {
                 for upgraded in [false, true] {
                     let text = locale.card(DeckCard { id: card, upgraded });
                     plain(&text.name);
@@ -1282,7 +1414,7 @@ mod tests {
                     plain(locale.event_outcome(option));
                 }
             }
-            assert_eq!(locale.keywords().len(), 8);
+            assert_eq!(locale.keywords().len(), 12);
             for (word, text) in locale.keywords() {
                 plain(word);
                 plain(text);
@@ -1298,9 +1430,40 @@ mod tests {
                 plain(&locale.checklist_free_stations(count));
                 plain(&locale.checklist_points(count as u32));
                 plain(&locale.log_drawn(count));
+                plain(&locale.effect_draw(count as u64));
+                plain(&locale.hud_buff_double_next(count as u32));
+                plain(&locale.hud_buff_double_next_hint(count as u32));
+                plain(&locale.log_points_gained(count as u32));
                 plain(&locale.result_won_subtitle(count as u32, count as u32));
                 plain(&locale.burn_hint(count as i32 - 1));
             }
+            plain(&locale.hud_buff_clockwork_discount(1));
+            plain(&locale.hud_buff_clockwork_discount_hint(1));
+            plain(&locale.hud_buff_station_slots(1, 2));
+            plain(&locale.hud_buff_station_slots_hint(2));
+            plain(&locale.hud_buff_attack(2));
+            plain(&locale.hud_buff_attack_hint(2));
+            plain(&locale.hud_buff_overcharge(3));
+            plain(&locale.hud_buff_overcharge_hint(3));
+            plain(&locale.hud_buff_countermeasures(1));
+            plain(&locale.hud_buff_countermeasures_hint(1));
+            plain(&locale.hud_buff_hold_the_line(2));
+            plain(&locale.hud_buff_hold_the_line_hint(2));
+            plain(&locale.hud_buff_counterfire(2));
+            plain(&locale.hud_buff_counterfire_hint(2));
+            plain(&locale.hud_buff_jammer(1));
+            plain(&locale.hud_buff_jammer_hint(1));
+            plain(&locale.hud_buff_momentum(3));
+            plain(&locale.hud_buff_momentum_hint(3));
+            plain(&locale.hud_buff_follow_up(2));
+            plain(&locale.hud_buff_follow_up_hint(2));
+            plain(&locale.hud_buff_focus_vulnerable(2));
+            plain(&locale.hud_buff_focus_vulnerable_hint(2));
+            plain(&locale.log_marked("A"));
+            plain(&locale.log_armor_broken("A", 1));
+            plain(&locale.mark_marked(4));
+            plain(&locale.report_armor_broken(1));
+            plain(&locale.report_points_gained(2));
             plain(&locale.card_bonus(1));
             plain(&locale.run_scrap_change(-5));
             plain(&locale.run_hull_change(5));

@@ -1,0 +1,12 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 2,
+  "value": 9,
+  "extra": 1,
+  "upgraded": { "value": 12 },
+  "text": {
+    "de": { "name": "Durchbruchsalve", "effect": "{v} Schaden auf ein gewähltes Schiff; fällt es dadurch, +{extra} BP und 1 Befehl ziehen." },
+    "en": { "name": "Breakthrough Volley", "effect": "{v} damage to a chosen ship; if it falls, +{extra} command points and draw 1 command." }
+  }
+}

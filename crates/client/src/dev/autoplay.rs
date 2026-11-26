@@ -227,8 +227,8 @@ fn fight(battle: &Battle, play: &mut AutoPlay, actions: &mut MessageWriter<Playe
             play.step = Step::Card;
         }
         Step::Card => {
-            let playable = battle.hand.iter().position(|card| {
-                card.id.target() == CardTarget::None && card.cost() <= battle.points
+            let playable = battle.hand.iter().enumerate().position(|(i, card)| {
+                card.id.target() == CardTarget::None && battle.card_cost(i) <= battle.points
             });
             if let Some(hand_index) = playable {
                 actions.write(PlayerAction::PlayCard {

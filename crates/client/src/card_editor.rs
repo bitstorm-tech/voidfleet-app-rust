@@ -10,7 +10,7 @@ use std::{collections::HashMap, path::PathBuf};
 use bevy::prelude::*;
 use serde_json::Value;
 use voidfleet_core::{
-    cards::{CardId, CardTarget, CardType, EXTRA_CARDS, LOOT_POOL},
+    cards::{CardId, CardTarget, CardType, EXTRA_CARDS},
     data::{CardData, CardText, Data, data, install, read},
 };
 
@@ -30,6 +30,7 @@ pub enum Field {
     Extra,
     UpgradedCost,
     UpgradedValue,
+    UpgradedExtra,
 }
 
 /// Ein Text der Karte.
@@ -68,7 +69,7 @@ impl CardEditor {
     /// den Fehler.
     pub fn open(dir: PathBuf) -> Self {
         let mut errors = Vec::new();
-        let cards: HashMap<_, _> = LOOT_POOL
+        let cards: HashMap<_, _> = CardId::ALL
             .iter()
             .map(|&id| {
                 let card = read(&dir, &id.file()).unwrap_or_else(|error| {
@@ -82,7 +83,7 @@ impl CardEditor {
             dir,
             saved: cards.clone(),
             cards,
-            selected: LOOT_POOL[0],
+            selected: CardId::ALL[0],
             note: (!errors.is_empty()).then(|| Note::Failed(errors.join("; "))),
         }
     }
@@ -123,10 +124,20 @@ impl CardEditor {
                         let value = card.upgraded.value.unwrap_or(card.value);
                         card.upgraded.value = Some(at_least_0(value));
                     }
+                    Field::UpgradedExtra => {
+                        if let Some(base) = card.extra {
+                            let extra = card.upgraded.extra.unwrap_or(base);
+                            card.upgraded.extra = Some(at_least_0(extra));
+                        }
+                    }
                 }
                 // Was die aufgewertete Fassung nicht ändert, steht nicht in der Datei.
                 card.upgraded.cost = card.upgraded.cost.filter(|&cost| cost != card.cost);
                 card.upgraded.value = card.upgraded.value.filter(|&value| value != card.value);
+                card.upgraded.extra = card
+                    .upgraded
+                    .extra
+                    .filter(|&extra| Some(extra) != card.extra);
             }
             CardEdit::Text(language, field, text) => {
                 let slot = card
@@ -160,7 +171,13 @@ impl CardEditor {
             .value
             .filter(|_| upgraded)
             .unwrap_or(card.value);
-        let effect = effect_text(template, value, card.extra.unwrap_or(0));
+        let extra = card
+            .upgraded
+            .extra
+            .filter(|_| upgraded)
+            .or(card.extra)
+            .unwrap_or(0);
+        let effect = effect_text(language, template, value, 0, extra);
         Face {
             name: if upgraded {
                 format!("{name}+")
@@ -175,13 +192,14 @@ impl CardEditor {
             cost: card.upgraded.cost.filter(|_| upgraded).unwrap_or(card.cost),
             card_type: card.card_type,
             target: card.target,
+            retained: false,
         }
     }
 
-    /// Die erste Karte (in der Reihenfolge von [`LOOT_POOL`]) mit einer Zahl, die nicht stimmt (`None`), oder einem
+    /// Die erste Karte (in der Reihenfolge von [`CardId::ALL`]) mit einer Zahl, die nicht stimmt (`None`), oder einem
     /// Text, der in dieser Sprache fehlt, keinen Namen hat oder einen Platzhalter, der nicht aufgeht.
     pub fn check(&self) -> Result<(), (CardId, Option<Language>)> {
-        if let Some(&id) = LOOT_POOL
+        if let Some(&id) = CardId::ALL
             .iter()
             .find(|id| !self.cards[id].check(EXTRA_CARDS.contains(id)))
         {
@@ -196,7 +214,7 @@ impl CardEditor {
             return;
         }
         let mut written = Vec::new();
-        for id in LOOT_POOL {
+        for id in CardId::ALL {
             if self.cards[&id] == self.saved[&id] {
                 continue;
             }
@@ -272,7 +290,7 @@ mod tests {
     fn files_come_out_as_they_are() {
         let editor = open();
         assert_eq!(editor.note, None);
-        for id in LOOT_POOL {
+        for id in CardId::ALL {
             let file = std::fs::read_to_string(PathBuf::from(REPO_DATA).join(id.file())).unwrap();
             assert_eq!(card_json(&editor.cards[&id]), file, "{}", id.file());
         }
@@ -338,7 +356,7 @@ mod tests {
     fn saving_writes_the_changed_card_and_installs_it() {
         let dir = std::env::temp_dir().join(format!("voidfleet-cards-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("cards")).unwrap();
-        for id in LOOT_POOL {
+        for id in CardId::ALL {
             std::fs::copy(
                 PathBuf::from(REPO_DATA).join(id.file()),
                 dir.join(id.file()),
@@ -389,5 +407,26 @@ mod tests {
         editor.apply(CardEdit::Save);
         assert_eq!(data().cards[&CardId::RedAlert].text["de"].effect, before);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn upgraded_extra_edits_and_renders_in_preview() {
+        let mut editor = open();
+        editor.apply(CardEdit::Select(CardId::EmergencyPower));
+        let value = editor.card().value;
+        assert_eq!(editor.card().extra, Some(0));
+        assert_eq!(editor.card().upgraded.extra, Some(1));
+        assert_eq!(
+            editor.face(Language::En, true).effect,
+            format!("+{value} command points this round, draw 1 command. Exhaust.")
+        );
+        editor.apply(CardEdit::Number(Field::UpgradedExtra, 1));
+        assert_eq!(editor.card().upgraded.extra, Some(2));
+        assert_eq!(
+            editor.face(Language::En, true).effect,
+            format!("+{value} command points this round, draw 2 commands. Exhaust.")
+        );
+        editor.apply(CardEdit::Number(Field::UpgradedExtra, -2));
+        assert_eq!(editor.card().upgraded.extra, None);
     }
 }

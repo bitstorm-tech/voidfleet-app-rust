@@ -1,0 +1,12 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 2,
+  "value": 3,
+  "extra": 5,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Glutdoktrin", "effect": "Doktrin: Brände bei Gegnern ticken +{v} stärker; fällt ein brennender Gegner, Schilde {extra}." },
+    "en": { "name": "Ember Doctrine", "effect": "Doctrine: enemy burns tick +{v} more; when a burning enemy falls, shields {extra}." }
+  }
+}

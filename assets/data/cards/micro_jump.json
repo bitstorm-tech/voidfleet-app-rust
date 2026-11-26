@@ -5,7 +5,7 @@
   "value": 0,
   "upgraded": { "cost": 2 },
   "text": {
-    "de": { "name": "Kurzsprung", "effect": "Einmal je Gefecht, statt einer Station: Dein Flaggschiff verlässt das Brett und ist im Gegnerzug kein Ziel; es kehrt in der Auflösung zurück." },
-    "en": { "name": "Micro Jump", "effect": "Once per battle, instead of a station: your flagship leaves the board and is no target in the enemy turn; it returns in the resolution." }
+    "de": { "name": "Kurzsprung", "effect": "Statt einer Station: Dein Flaggschiff verlässt das Brett und ist im Gegnerzug kein Ziel; es kehrt in der Auflösung zurück. Einmalig." },
+    "en": { "name": "Micro Jump", "effect": "Instead of a station: your flagship leaves the board and is no target in the enemy turn; it returns in the resolution. Exhaust." }
   }
 }

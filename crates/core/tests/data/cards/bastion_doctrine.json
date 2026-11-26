@@ -1,0 +1,12 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 2,
+  "value": 2,
+  "extra": 1,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Bastionsdoktrin", "effect": "Doktrin: Jede gespielte Schild-Karte gibt zusätzlich Schilde {v} und Abwehrfeuer {extra}." },
+    "en": { "name": "Bastion Doctrine", "effect": "Doctrine: every shield card played also grants shields {v} and retaliation {extra}." }
+  }
+}

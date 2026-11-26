@@ -94,6 +94,28 @@ impl FileKey for CardId {
             Self::RedAlert => "red_alert",
             Self::FireControlDoctrine => "fire_control_doctrine",
             Self::BattleStations => "battle_stations",
+            Self::ShieldBash => "shield_bash",
+            Self::Bulwark => "bulwark",
+            Self::FlakBreaker => "flak_breaker",
+            Self::BastionDoctrine => "bastion_doctrine",
+            Self::Onslaught => "onslaught",
+            Self::BreakthroughVolley => "breakthrough_volley",
+            Self::ArmorPiercer => "armor_piercer",
+            Self::AssaultDoctrine => "assault_doctrine",
+            Self::TimeWindow => "time_window",
+            Self::PrecisionLock => "precision_lock",
+            Self::ChronoStrike => "chrono_strike",
+            Self::ClockworkDoctrine => "clockwork_doctrine",
+            Self::Wildfire => "wildfire",
+            Self::Accelerant => "accelerant",
+            Self::MeltdownSalvo => "meltdown_salvo",
+            Self::EmberDoctrine => "ember_doctrine",
+            Self::EmergencyPower => "emergency_power",
+            Self::AutocannonSalvo => "autocannon_salvo",
+            Self::TargetPainter => "target_painter",
+            Self::StandbyFire => "standby_fire",
+            Self::ChainCommand => "chain_command",
+            Self::BridgeCoordination => "bridge_coordination",
         }
     }
 }
@@ -129,7 +151,7 @@ mod tests {
         voidfleet_core::admirals::ADMIRAL_IDS
             .into_iter()
             .for_each(same_as_serde);
-        voidfleet_core::cards::LOOT_POOL
+        voidfleet_core::cards::CardId::ALL
             .into_iter()
             .for_each(same_as_serde);
         ship_models::ENEMIES.into_iter().for_each(same_as_serde);
