@@ -28,7 +28,7 @@ use voidfleet_core::run::{EventId, NodeKind, Run, SECTORS, SectorMap, Stage};
 /// Ein Schritt des Spielerzugs.
 #[derive(Debug, Clone, Copy)]
 pub enum Move {
-    Card(DeckCard, Target),
+    Card(usize, DeckCard, Target),
     Station(Station, Target),
 }
 
@@ -50,8 +50,10 @@ const THREAT: f64 = 0.5;
 /// sind. Ohne sie schießt der Bot nicht, solange er jeden Treffer des Gegners schlucken kann (ein einzelner Boss), und
 /// zieht das Gefecht bis zur Gefechtsuhr.
 const IDLE: f64 = 0.01;
+/// Kleiner Bonus für behaltene Karten am Zugende, damit sie nicht sinnlos verworfen werden.
+const RETAIN: f64 = 0.001;
 /// So viele Schritte hat ein Zug höchstens (Plündern für 0 Punkte zöge sonst das Deck im Kreis).
-const STEPS: usize = 12;
+const STEPS: usize = 18;
 /// So viele Gegnerzüge weit rechnet die Schätzung die Muster der Gegner aus.
 const HORIZON: usize = 6;
 /// Ein Gefecht, das so lange dauert, gilt als verloren (die Gefechtsuhr beendet jedes vorher).
@@ -59,10 +61,7 @@ const MAX_ROUNDS: u32 = 60;
 
 fn apply(battle: &mut Battle, step: Move) -> Result<Vec<BattleEvent>, RuleError> {
     match step {
-        Move::Card(card, target) => {
-            let index = battle.hand.iter().position(|&held| held == card);
-            battle.play_card(index.expect("Karte in der Hand"), target)
-        }
+        Move::Card(index, _, target) => battle.play_card(index, target),
         Move::Station(station, target) => battle.run_station(station, target),
     }
 }
@@ -86,15 +85,37 @@ fn targets(battle: &Battle, kind: CardTarget) -> Vec<Target> {
 }
 
 fn moves(battle: &Battle) -> Vec<Move> {
-    let mut moves = Vec::new();
-    let mut cards: Vec<DeckCard> = Vec::new();
-    for &card in &battle.hand {
-        if card.cost() <= battle.points && !cards.contains(&card) {
-            cards.push(card);
-            let targets = targets(battle, card.id.target());
-            moves.extend(targets.into_iter().map(|target| Move::Card(card, target)));
+    let mut card_moves: Vec<(usize, DeckCard, Target)> = Vec::new();
+    let mut seen: Vec<(DeckCard, bool)> = Vec::new();
+    for pass in [true, false] {
+        for (index, &card) in battle.hand.iter().enumerate() {
+            let retained_free = card.id == CardId::StandbyFire && battle.is_retained(index);
+            if retained_free != pass {
+                continue;
+            }
+            if battle.card_cost(index) <= battle.points && !seen.contains(&(card, retained_free)) {
+                seen.push((card, retained_free));
+                for target in targets(battle, card.id.target()) {
+                    card_moves.push((index, card, target));
+                }
+            }
         }
     }
+    if battle.flagship.clockwork_discount > 0 && !battle.flagship.tactic_discount_used {
+        card_moves.sort_by_key(|&(_, card, _)| {
+            if matches!(card.id.card_type(), CardType::Tactic | CardType::Debuff)
+                && card.cost() == 0
+            {
+                1u8
+            } else {
+                0u8
+            }
+        });
+    }
+    let mut moves: Vec<Move> = card_moves
+        .into_iter()
+        .map(|(index, card, target)| Move::Card(index, card, target))
+        .collect();
     for station in STATIONS {
         if battle.station_open(station).is_ok() {
             let targets = targets(battle, battle.station_target(station));
@@ -113,11 +134,27 @@ fn key(battle: &Battle) -> u64 {
     let mut hasher = DefaultHasher::new();
     battle.flagship.hash(&mut hasher);
     battle.enemies.hash(&mut hasher);
-    let mut hand = battle.hand.clone();
-    hand.sort_by_key(|card| (card.id as u8, card.upgraded));
+    let mut hand: Vec<(u8, bool, bool)> = battle
+        .hand
+        .iter()
+        .enumerate()
+        .map(|(i, card)| (card.id as u8, card.upgraded, battle.is_retained(i)))
+        .collect();
+    hand.sort();
     hand.hash(&mut hasher);
-    let piles = (battle.draw_pile.len(), battle.replacements.len());
-    let ends = (battle.result.is_some(), battle.breach.is_some());
+    let piles = (
+        battle.draw_pile.len(),
+        battle.discard_pile.len(),
+        battle.spent.len(),
+        battle.doctrines.len(),
+        battle.replacements.len(),
+        battle.reinforcements.len(),
+    );
+    let ends = (
+        battle.result.is_some(),
+        battle.breach.is_some(),
+        battle.clock_offset,
+    );
     (battle.points, battle.kills, ends, piles).hash(&mut hasher);
     battle.emergency_generator_used.hash(&mut hasher);
     hasher.finish()
@@ -172,7 +209,12 @@ fn eval(battle: &Battle) -> f64 {
     match battle.result {
         Some(BattleResult::Lost) => -1000.0,
         Some(BattleResult::Won) => hull + 1.0,
-        None => hull - THREAT * threat(battle) - IDLE * standing(battle),
+        None => {
+            let retained = (0..battle.hand.len())
+                .filter(|&i| battle.is_retained(i))
+                .count() as f64;
+            hull - THREAT * threat(battle) - IDLE * standing(battle) + RETAIN * retained
+        }
     }
 }
 
@@ -280,7 +322,10 @@ fn threat(battle: &Battle) -> f64 {
     let attack = battle.flagship_attack();
     let (card_damage, card_block) = card_power(battle);
     let ours = attack as f64 + card_damage;
-    let block = card_block + flagship.battle_stations as f64;
+    let block = card_block
+        + flagship.battle_stations as f64
+        + 0.5 * flagship.assault_shield as f64
+        + 0.25 * flagship.ember_kill_shield as f64;
     let shooters = battle.enemies.iter().filter(|e| !e.id.support()).count();
     let mut foes: Vec<Foe> = (battle.enemies.iter())
         .map(|enemy| {
@@ -379,20 +424,63 @@ fn schedule(foes: &[Foe], breach: Option<&Foe>, ours: f64, attack: i32, block: f
 /// Was die Karten des Decks je Runde etwa bringen, soweit die Befehlspunkte reichen: Schaden der Angriffskarten und
 /// Schild der Schildkarten.
 fn card_power(battle: &Battle) -> (f64, f64) {
+    let enemy_burn = (if battle.flagship.admiral == AdmiralId::Reyes {
+        rules().battle.ember_burn_damage
+    } else {
+        rules().battle.burn_damage
+    } + battle.flagship.ember_burn_bonus) as f64;
     let cards = (battle.hand.iter())
-        .chain(&battle.draw_pile)
-        .chain(&battle.discard_pile);
-    let (mut damage, mut block, mut cost, mut count) = (0.0, 0.0, 0.0, 0.0);
-    for card in cards {
+        .enumerate()
+        .map(|(i, &card)| (card, battle.card_cost(i) as f64))
+        .chain(
+            (battle.draw_pile.iter().chain(&battle.discard_pile))
+                .map(|&card| (card, card.cost() as f64)),
+        );
+    let (mut damage, mut block, mut cost, mut count, mut discounted) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for (card, card_cost) in cards {
         count += 1.0;
-        cost += card.cost() as f64;
+        cost += card_cost;
+        if matches!(card.id.card_type(), CardType::Tactic | CardType::Debuff) && card.cost() > 0 {
+            discounted += 1.0;
+        }
         let value = (card.value() + battle.card_bonus(card.id)) as f64;
         match card.id {
-            CardId::EmergencyShields | CardId::HoldTheLine => block += value,
+            CardId::EmergencyShields | CardId::HoldTheLine | CardId::Bulwark => {
+                block += value + battle.flagship.bastion_shield as f64;
+                damage += 0.5 * battle.flagship.bastion_counterfire as f64;
+            }
             CardId::VolleyFire => damage += value * battle.enemies.len() as f64,
+            CardId::Wildfire => damage += (value + enemy_burn) * battle.enemies.len().max(1) as f64,
             CardId::Barrage => damage += value * 0.5,
             CardId::CollisionCourse => damage += value + 2.0 * battle.flagship_attack() as f64,
-            CardId::Firebomb => damage += value + 2.0 * rules().battle.burn_damage as f64,
+            CardId::Firebomb => damage += value + 2.0 * enemy_burn,
+            CardId::FlakBreaker => damage += 2.0 * value + card.extra() as f64,
+            CardId::AutocannonSalvo => damage += card.extra() as f64 * value,
+            CardId::ShieldBash => {
+                damage += (battle.flagship.admiral.shield_station() as f64 * 0.6)
+                    + battle.card_bonus(card.id) as f64
+            }
+            CardId::Onslaught => damage += value + 2.0 * battle.flagship.momentum as f64,
+            CardId::MeltdownSalvo => {
+                let burning = battle.enemies.iter().filter(|e| e.burning).count() as f64;
+                let burning = if battle.flagship.admiral == AdmiralId::Reyes {
+                    burning.max(1.0)
+                } else {
+                    burning
+                };
+                damage += value + burning * card.extra() as f64;
+            }
+            CardId::ChronoStrike => damage += value * 1.25,
+            CardId::ArmorPiercer => damage += value + 1.5,
+            CardId::Accelerant => {
+                if battle.enemies.iter().any(|e| e.burning)
+                    || battle.flagship.admiral == AdmiralId::Reyes
+                {
+                    damage += (card.value() as f64 * enemy_burn) * 0.75 + 2.0;
+                }
+            }
+            CardId::PrecisionLock | CardId::TargetPainter => damage += 3.0,
+            CardId::TimeWindow => damage += 5.0,
             _ if card.id.card_type() == CardType::Attack => damage += value,
             _ => {}
         }
@@ -400,8 +488,19 @@ fn card_power(battle: &Battle) -> (f64, f64) {
     if count == 0.0 {
         return (0.0, 0.0);
     }
-    let hand = rules().battle.hand_size as f64 / count;
-    let points = rules().battle.command_points as f64;
+    let hand_cards = (if battle.has(ModuleId::SupplyPod) {
+        rules().modules.supply_pod_hand
+    } else {
+        rules().battle.hand_size
+    } + battle.flagship.clockwork_draw
+        + battle.flagship.bridge_coordination) as f64;
+    let hand = hand_cards / count;
+    let discount = if battle.flagship.clockwork_discount > 0 {
+        (battle.flagship.clockwork_discount as f64) * ((discounted / count) * hand_cards).min(1.0)
+    } else {
+        0.0
+    };
+    let points = rules().battle.command_points as f64 + discount;
     let played = hand * (points / (cost * hand).max(points));
     (damage * played, block * played)
 }
@@ -501,7 +600,7 @@ pub fn fight(battle: &mut Battle, log: &mut RunLog) {
             trace(battle, &steps);
         }
         for step in steps {
-            if let Move::Card(card, _) = step {
+            if let Move::Card(_, card, _) = step {
                 *log.played.entry(card.id).or_default() += 1;
             }
             let events = apply(battle, step).expect("geplanter Schritt gilt");

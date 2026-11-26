@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 7,
+  "upgraded": { "value": 10 },
+  "text": {
+    "de": { "name": "Bereitschaftsfeuer", "effect": "{v} Schaden auf ein gewähltes Schiff. Behalten; kostet 0 BP, wenn sie eine Runde behalten wurde." },
+    "en": { "name": "Standby Fire", "effect": "{v} damage to a chosen ship. Retain; costs 0 command points if retained for one round." }
+  }
+}

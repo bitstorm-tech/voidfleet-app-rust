@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 0,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Schildstoß", "effect": "Schaden in Höhe der aktuellen Schilde deines Flaggschiffs{bonus} auf ein gewähltes Schiff. Zielsuchend." },
+    "en": { "name": "Shield Bash", "effect": "Damage equal to your flagship's current shields{bonus} to a chosen ship. Homing." }
+  }
+}

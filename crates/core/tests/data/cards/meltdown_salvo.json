@@ -1,0 +1,12 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 2,
+  "value": 5,
+  "extra": 4,
+  "upgraded": { "value": 7, "extra": 5 },
+  "text": {
+    "de": { "name": "Schmelzsalve", "effect": "{v} Schaden plus {extra} je brennendem Gegner auf ein gewähltes Schiff. Zielsuchend." },
+    "en": { "name": "Meltdown Salvo", "effect": "{v} damage plus {extra} per burning enemy to a chosen ship. Homing." }
+  }
+}

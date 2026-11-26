@@ -16,9 +16,7 @@ use voidfleet_core::cards::DeckCard;
 
 use super::{
     Fonts, HandCardPressed, HudState, UiIcons,
-    card::{
-        CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card_with_bonus,
-    },
+    card::{CARD_WIDTH, CardAssets, CardDraw, CardHover, HAND_ZOOM, Marked, command_card_in_hand},
     stations, theme,
     theme::UiOpacity,
 };
@@ -47,6 +45,7 @@ enum PileText {
     PointsLabel,
     Draw,
     Discard,
+    Spent,
 }
 
 /// Eine Karte der Hand: ein Stapel gleicher Karten mit ihren Hand-Indizes.
@@ -61,6 +60,18 @@ struct ShownHand {
     round: u32,
     /// Je Karte der Zuschlag auf ihren Wert (Feuerleitdoktrin).
     bonuses: Vec<i32>,
+    /// Je Karte die effektiven Kosten in der Hand.
+    costs: Vec<u32>,
+    /// Je Karte, ob sie aus einer früheren Runde behalten wurde.
+    retained: Vec<bool>,
+}
+
+/// Schlüssel zum Stapeln: Karten mit unterschiedlichen effektiven Kosten oder Behalten-Stand stapeln nicht.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CardKey {
+    card: DeckCard,
+    cost: u32,
+    retained: bool,
 }
 
 /// Die neue Runde ist gerechnet, aber noch nicht abgespielt: Die alte Hand ist abgeworfen, die neue wartet.
@@ -112,6 +123,7 @@ fn spawn(mut commands: Commands, fonts: Res<Fonts>, icons: Res<UiIcons>) {
                     ),
                     pile(PileText::Draw, fonts.body(14.0), palette::TEXT_DIM),
                     pile(PileText::Discard, fonts.body(14.0), palette::TEXT_DIM),
+                    pile(PileText::Spent, fonts.body(14.0), palette::TEXT_DIM),
                 ],
             ),
             (
@@ -151,6 +163,9 @@ fn update_piles(
                     locale.hud_discard_pile(),
                     battle.discard_pile.len()
                 )
+            }
+            (PileText::Spent, Some(battle)) => {
+                format!("{} {}", locale.hud_spent_pile(), battle.spent.len())
             }
         };
         if text.0 != content {
@@ -267,16 +282,39 @@ fn rebuild_row(
                 .iter()
                 .map(|card| battle.card_bonus(card.id))
                 .collect(),
+            costs: (0..battle.hand.len())
+                .map(|i| battle.card_cost(i))
+                .collect(),
+            retained: (0..battle.hand.len())
+                .map(|i| battle.is_retained(i))
+                .collect(),
         },
     };
     if *shown == next && !assets.locale.is_changed() {
         return;
     }
     let drawn = drawn_indices(&shown.cards, &next.cards);
+    let keys: Vec<_> = next
+        .cards
+        .iter()
+        .enumerate()
+        .map(|(i, &card)| CardKey {
+            card,
+            cost: next.costs[i],
+            retained: next.retained[i],
+        })
+        .collect();
     commands.entity(*row).despawn_related::<Children>();
-    for (card, indices) in stacks_of(&next.cards) {
+    for (key, indices) in stacks_of(&keys) {
         let mut entity = commands.spawn((
-            command_card_with_bonus(&assets, card, next.bonuses[indices[0]], HAND_ZOOM),
+            command_card_in_hand(
+                &assets,
+                key.card,
+                next.bonuses[indices[0]],
+                key.cost,
+                key.retained,
+                HAND_ZOOM,
+            ),
             HandStack(indices.clone()),
             UiOpacity(1.0),
             CardHover::Zoom {
@@ -335,10 +373,8 @@ fn mark_cards(
         } else if !marked && was {
             commands.entity(card).remove::<Marked>();
         }
-        let affordable = battle
-            .hand
-            .get(stack.0[0])
-            .is_some_and(|card| card.cost() <= battle.points);
+        let affordable =
+            stack.0[0] < battle.hand.len() && battle.card_cost(stack.0[0]) <= battle.points;
         let alpha = if hud.planning && affordable {
             1.0
         } else {
@@ -446,5 +482,31 @@ mod tests {
         assert_eq!(draw_delay(&[0, 1], &[1, 3]), Some(0.0));
         assert_eq!(draw_delay(&[3], &[1, 3]), Some(DRAW_STAGGER));
         assert_eq!(draw_delay(&[2], &[1, 3]), None);
+    }
+
+    #[test]
+    fn retained_and_fresh_standby_fire_do_not_merge() {
+        let card = DeckCard::new(CardId::StandbyFire);
+        let keys = [
+            CardKey {
+                card,
+                cost: 0,
+                retained: true,
+            },
+            CardKey {
+                card,
+                cost: 1,
+                retained: false,
+            },
+            CardKey {
+                card,
+                cost: 1,
+                retained: false,
+            },
+        ];
+        assert_eq!(
+            stacks_of(&keys),
+            vec![(keys[0], vec![0]), (keys[1], vec![1, 2])]
+        );
     }
 }

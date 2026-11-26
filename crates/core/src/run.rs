@@ -5,14 +5,14 @@
 //! und `rolls`, also ist ein Run mit Seed und denselben Karten wiederholbar und nach dem Laden derselbe.
 
 use rand::rngs::StdRng;
-use rand::seq::IndexedRandom;
+use rand::seq::{IndexedRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::AdmiralId;
 use crate::battle::{Battle, BattleResult, BattleSetup, Encounter};
 use crate::board::MAX_ENEMIES;
-use crate::cards::{CardId, DeckCard, LOOT_POOL, starter_deck};
+use crate::cards::{CardId, DeckCard, NEUTRAL_POOL, admiral_pool, starter_deck};
 use crate::data::{rules, span};
 use crate::enemies::Unit;
 use crate::modules::ModuleId;
@@ -342,9 +342,10 @@ impl Run {
             NodeKind::Event => Stage::Event(*EventId::ALL.choose(&mut rng).expect("drei")),
             NodeKind::Shipyard => Stage::Shipyard,
             NodeKind::Market => Stage::Market(Market {
-                cards: LOOT_POOL
-                    .choose_multiple(&mut rng, rules().run.market_cards)
-                    .map(|&card| (card, rng.random_range(span(rules().run.card_price))))
+                cards: self
+                    .offer_cards(&mut rng, rules().run.market_cards)
+                    .into_iter()
+                    .map(|card| (card, rng.random_range(span(rules().run.card_price))))
                     .collect(),
                 modules: self
                     .missing_modules()
@@ -606,13 +607,34 @@ impl Run {
         MODULES.into_iter().filter(|&m| !self.has(m)).collect()
     }
 
+    /// Wählt `size` verschiedene Karten aus dem Pool des aktuellen Admirals (mindestens 1 garantierte
+    /// Admiral-Karte + weitere aus dem verbleibenden Admiral-Pool und dem neutralen Sockel), gemischt.
+    pub fn offer_cards(&self, rng: &mut StdRng, size: usize) -> Vec<CardId> {
+        if size == 0 {
+            return Vec::new();
+        }
+        let pool = admiral_pool(self.admiral);
+        let guaranteed = *pool.choose(rng).expect("Admiral-Pool hat 5 Karten");
+        let rest: Vec<CardId> = pool
+            .into_iter()
+            .filter(|&card| card != guaranteed)
+            .chain(NEUTRAL_POOL)
+            .collect();
+        let extra = (size - 1).min(rest.len());
+        let mut offer = Vec::with_capacity(1 + extra);
+        offer.push(guaranteed);
+        offer.extend(rest.choose_multiple(rng, extra).copied());
+        offer.shuffle(rng);
+        offer
+    }
+
     fn card_offer(&self, rng: &mut StdRng) -> Vec<CardId> {
         let size = if self.has(ModuleId::CombatSimulator) {
             rules().run.combat_simulator_offer
         } else {
             rules().run.card_offer
         };
-        LOOT_POOL.choose_multiple(rng, size).copied().collect()
+        self.offer_cards(rng, size)
     }
 
     fn add_module(&mut self, module: ModuleId) {

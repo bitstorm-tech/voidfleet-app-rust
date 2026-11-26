@@ -11,10 +11,10 @@ use bevy::{
     input_focus::tab_navigation::TabIndex,
     prelude::*,
     text::{EditableText, TextCursorStyle, TextEditChange},
-    ui_widgets::{Activate, TextInput, observe},
+    ui_widgets::{Activate, ScrollArea, TextInput, observe},
     window::PrimaryWindow,
 };
-use voidfleet_core::cards::{CardTarget, CardType, DeckCard, LOOT_POOL};
+use voidfleet_core::cards::{CardId, CardTarget, CardType, DeckCard};
 
 use super::{
     map_editor::{bar, caption, frame, gap, grid, label, root},
@@ -171,10 +171,15 @@ fn show(
                 Pickable::IGNORE,
             ))
             .with_children(|main| {
-                main.spawn(frame(Node {
-                    padding: UiRect::all(px(12)),
-                    ..default()
-                }))
+                main.spawn((
+                    frame(Node {
+                        max_height: px((overlay.1.y - 200.0).max(260.0)),
+                        overflow: Overflow::scroll_y(),
+                        padding: UiRect::all(px(12)),
+                        ..default()
+                    }),
+                    ScrollArea,
+                ))
                 .with_children(|list| card_list(list, fonts, locale, editor));
                 main.spawn((
                     frame(Node {
@@ -240,11 +245,11 @@ fn status(bar: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, editor
     bar.spawn(label(fonts, text, color));
 }
 
-/// Alle Karten in der Farbe ihrer Art, zwei Spalten.
+/// Alle Karten in der Farbe ihrer Art, drei Spalten.
 fn card_list(list: &mut ChildSpawnerCommands, fonts: &Fonts, locale: &Locale, editor: &CardEditor) {
-    list.spawn(grid(vec![RepeatedGridTrack::flex(2, 1.0)]))
+    list.spawn(grid(vec![RepeatedGridTrack::flex(3, 1.0)]))
         .with_children(|grid| {
-            for id in LOOT_POOL {
+            for id in CardId::ALL {
                 let look = Key::tinted(palette::card_type_color(editor.cards[&id].card_type));
                 let name = editor.text(locale.language, id, TextField::Name);
                 let lit = editor.selected == id;
@@ -329,9 +334,13 @@ fn card_panel(
             Some((Field::UpgradedValue, card.upgraded.value)),
         ),
     ];
-    let extra = card
-        .extra
-        .map(|extra| (locale.card_editor_extra(), (Field::Extra, extra), None));
+    let extra = card.extra.map(|extra| {
+        (
+            locale.card_editor_extra(),
+            (Field::Extra, extra),
+            Some((Field::UpgradedExtra, card.upgraded.extra)),
+        )
+    });
     panel
         .spawn(grid(vec![
             RepeatedGridTrack::auto(1),

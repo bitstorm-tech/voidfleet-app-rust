@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "enemy",
+  "cost": 2,
+  "value": 2,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Präzisionsmarkierung", "effect": "Ein gewähltes Schiff wird Markiert. Befehle ziehen: {v}. Behalten." },
+    "en": { "name": "Precision Lock", "effect": "A chosen ship becomes Marked. Draw commands: {v}. Retain." }
+  }
+}

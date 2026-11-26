@@ -1,0 +1,12 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 2,
+  "value": 3,
+  "extra": 1,
+  "upgraded": { "value": 4 },
+  "text": {
+    "de": { "name": "Flakbrecher", "effect": "2× {v} Schaden auf ein gewähltes Schiff; senkt seine Panzerung dauerhaft um {extra}." },
+    "en": { "name": "Flak Breaker", "effect": "2× {v} damage to a chosen ship; lowers its armor permanently by {extra}." }
+  }
+}

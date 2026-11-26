@@ -15,7 +15,7 @@ pub enum Card {
 
 /// Alle Karten mit eigenem Bild.
 pub fn cards() -> impl Iterator<Item = Card> {
-    voidfleet_core::cards::LOOT_POOL
+    CardId::ALL
         .into_iter()
         .map(Card::Command)
         .chain(FLAGSHIPS.into_iter().map(Card::Flagship))

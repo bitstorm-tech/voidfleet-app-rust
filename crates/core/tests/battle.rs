@@ -302,6 +302,7 @@ fn damage_order_with_evade_cover_shield_and_armor() {
         evaded: 5,
         armor: 2,
         covered: Some((cruiser, 3)),
+        marked: 0,
         shielded: 1,
         countermeasures: 0,
         hull: 0,
@@ -571,7 +572,7 @@ fn order_matters() {
     let after = b.preview_card(0, Target::Enemy(cruiser)).unwrap()[0]
         .breakdown
         .base;
-    assert_eq!(after - before, CardId::CoupDeGrace.extra());
+    assert_eq!(after - before, CardId::CoupDeGrace.extra(false));
 
     // Energiestoß nach dem Schuss ändert ihn nicht mehr, davor schon.
     let shot = |boost_first: bool| {

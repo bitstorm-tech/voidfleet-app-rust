@@ -84,6 +84,10 @@ const ICONS: &[(&str, &str)] = &[
         "silenced",
         r#"<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9M19.1 4.9C23 8.8 23 15.1 19.1 19M3 3l18 18" /><circle cx="12" cy="12" r="2" />"#,
     ),
+    (
+        "marked",
+        r#"<circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />"#,
+    ),
     // Stationen Schadenskontrolle (Lucide „wrench“) und Manöver (Lucide „move-horizontal“).
     (
         "repair",

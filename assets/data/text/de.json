@@ -81,7 +81,7 @@
   "card_editor_name": "Name",
   "card_editor_effect": "Effekt",
   "card_editor_valid": "Alle Karten stimmen. Speichern setzt die Änderungen sofort im Spiel ein.",
-  "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {bonus} der Wert als „ +2“ oder nichts.",
+  "card_editor_hint": "Platzhalter im Effekt: {v} Wert, {extra} Zweitwert, {evading} und {emergency} beide zusammen, {double} doppelter Wert plus Bonus, {draw} Zusatzbefehle ziehen, {bonus} der Wert als „ +2“ oder nichts.",
   "card_editor_error_text": "{card} ({language}): Der Name ist leer oder ein Platzhalter im Effekt geht nicht auf.",
   "card_editor_error_numbers": "{card}: Eine Zahl ist kleiner als 0 oder der Zweitwert fehlt.",
   "settings_admiral_editor": "Admirals-Editor",
@@ -150,6 +150,44 @@
   "hud_points": "Befehlspunkte",
   "hud_draw_pile": "Nachziehstapel",
   "hud_discard_pile": "Ablagestapel",
+  "hud_spent_pile": "Verbraucht",
+  "badge_retain": "Behalten",
+  "badge_retained": "Behalten",
+  "badge_exhaust": "Einmalig",
+  "effect_draw": {
+    "one": ", 1 Befehl ziehen",
+    "other": ", {count} Befehle ziehen"
+  },
+  "hud_buff_double_next": {
+    "one": "Nächste Karte ×2",
+    "other": "Nächste {count} Karten ×2"
+  },
+  "hud_buff_double_next_hint": {
+    "one": "Die nächste Karte dieser Runde wirkt zweimal.",
+    "other": "Die nächsten {count} Karten dieser Runde wirken zweimal."
+  },
+  "hud_buff_clockwork_discount": "Taktik/Schw. −{amount} BP",
+  "hud_buff_clockwork_discount_hint": "Die erste Taktik oder Schwächung dieser Runde kostet {amount} BP weniger.",
+  "hud_buff_station_slots": "Stationen {used}/{slots}",
+  "hud_buff_station_slots_hint": "Alarmstufe Rot: In dieser Runde lassen sich {slots} verschiedene Stationen auslösen.",
+  "hud_buff_attack": "+{amount} ATK",
+  "hud_buff_attack_hint": "Aktiver Angriffsbonus in dieser Runde: +{amount} ATK.",
+  "hud_buff_overcharge": "Überladung {amount}",
+  "hud_buff_overcharge_hint": "Das Flaggschiff nimmt am Zugende {amount} Hüllenschaden durch Überladung.",
+  "hud_buff_countermeasures": "Gegenmaßnahmen ×{count}",
+  "hud_buff_countermeasures_hint": "Halbiert die nächsten {count} gegnerischen Angriffe in dieser Runde.",
+  "hud_buff_hold_the_line": "Abwehrfeuer {amount}",
+  "hud_buff_hold_the_line_hint": "Jeder Schütze, der dein Flaggschiff trifft, verliert {amount} Hülle.",
+  "hud_buff_counterfire": "Gegenfeuer {amount}",
+  "hud_buff_counterfire_hint": "Gegenfeuer: Jeder Schütze, der dein Flaggschiff trifft, verliert {amount} Hülle.",
+  "hud_buff_jammer": "Störsender −{amount} ATK",
+  "hud_buff_jammer_hint": "Gegnerische Schüsse richten in dieser Runde {amount} weniger Schaden an.",
+  "hud_buff_momentum": "Vorstoß +{amount}",
+  "hud_buff_momentum_hint": "Aktiver Vorstoß von Vance: +{amount} ATK.",
+  "hud_buff_follow_up": "Nachsetzen +{bonus}",
+  "hud_buff_follow_up_hint": "Angriffskarten auf brennende Gegner richten in dieser Runde +{bonus} Schaden an.",
+  "hud_buff_focus_vulnerable": "Fokusfeuer +{amount} erl.",
+  "hud_buff_focus_vulnerable_hint": "Fokusfeuer: Dein Flaggschiff nimmt im nächsten Gegnerzug je Treffer {amount} mehr Schaden.",
   "hud_stations": "Stationen",
   "checklist_free_stations": {
     "one": "1 Station frei",
@@ -196,7 +234,7 @@
       "heading": "Schaden",
       "paragraphs": [
         "Jeder Schuss trifft, und jede Zahl steht fest: Was die Vorschau zeigt, geschieht.",
-        "Vom Schaden eines Schusses geht in dieser Reihenfolge ab: Ausweichen halbiert, Panzerung zieht ab, Deckung gibt die Hälfte an den Vordermann, Schilde schlucken den Rest, bis sie aufgebraucht sind.",
+        "Vom Schaden eines Schusses geht in dieser Reihenfolge ab: Ausweichen halbiert, Deckung gibt die Hälfte an den Vordermann, Markiert erhöht um +50 % (aufgerundet), Schilde schlucken und Panzerung zieht den Rest ab.",
         "Spaltenfeuer und Rammkurs treffen voll oder gar nicht; Ausweichen zählt für sie nicht."
       ]
     },
@@ -205,6 +243,7 @@
       "paragraphs": [
         "Brand: Ein Treffer, der eine Einheit auf {rules.battle.burn_percent} % Hülle oder weniger bringt, setzt sie in Brand. Wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle; den eigenen Brand löschen Schadenskontrolle und Reparaturtrupp.",
         "Notfall: Bei {rules.battle.emergency_percent} % Hülle oder weniger feuert eine Einheit mit halber ATK und weicht nicht mehr aus. Dein Flaggschiff kann dann seine Admiralsstation nicht auslösen.",
+        "Markiert: Ein markierter Gegner nimmt in dieser Runde +50 % Schaden (aufgerundet) von jedem Treffer.",
         "Zerstört: Ein Gegner mit Hülle 0 fällt sofort und handelt nie mehr. Fällt dein Flaggschiff, ist das Gefecht verloren."
       ]
     },
@@ -222,7 +261,7 @@
       "paragraphs": [
         "Jede Runde ziehst du {rules.battle.hand_size} Befehle. Angriffskarten treffen mit festem Schaden und den üblichen Abzügen; Verstärkungen stärken dein Flaggschiff, Schwächungen einen Gegner, Taktiken verändern das Brett. Doktrinen bleiben bis zum Gefechtsende liegen.",
         "Jeder Admiral beginnt mit zehn Karten: dreimal Torpedo, dreimal Notschilde, Reparaturtrupp, Plündern und zwei Kennkarten. Aufgewertete Karten (+) sind stärker oder kosten weniger; die Karte zeigt, was sich ändert.",
-        "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle."
+        "Schlüsselwörter: Zielsuchend – Ausweichen zählt nicht. Durchschlagend – Deckung zählt nicht. Schilde N – schluckt N Schaden im folgenden Gegnerzug. Panzerung N – jeder Treffer macht N weniger. Abwehrfeuer N – jeder Schütze, der dein Flaggschiff trifft, verliert N Hülle. Brand – wer brennt, verliert in jeder Auflösung {rules.battle.burn_damage} Hülle. Einmalig – nach dem Spielen bis zum Gefechtsende aus dem Spiel. Behalten – bleibt in der Auflösung auf der Hand. Markiert – nimmt diese Runde +50 % Schaden (aufgerundet). Panzerbruch – senkt Panzerung dauerhaft."
       ]
     },
     "enemies": {
@@ -454,6 +493,22 @@
     {
       "word": "Doktrin",
       "text": "Gilt für den Rest des Gefechts."
+    },
+    {
+      "word": "Einmalig",
+      "text": "Wird nach dem Spielen bis zum Gefechtsende aus dem Spiel genommen."
+    },
+    {
+      "word": "Behalten",
+      "text": "Bleibt in der Auflösung auf der Hand, statt abgeworfen zu werden."
+    },
+    {
+      "word": "Markiert",
+      "text": "Nimmt in dieser Runde +50 % Schaden (aufgerundet) von jedem Treffer."
+    },
+    {
+      "word": "Panzerbruch",
+      "text": "Senkt die gegnerische Panzerung dauerhaft für das Gefecht."
     }
   ],
   "card_type": {
@@ -545,6 +600,7 @@
     "emergency": "Notfall",
     "stasis": "Stillstand",
     "silenced": "Funkstille",
+    "marked": "Markiert",
     "covered": "Deckung"
   },
   "action_hint": {
@@ -563,6 +619,7 @@
     "emergency": "Hülle bei {rules.battle.emergency_percent} % oder weniger: halbe ATK, kein Ausweichen; dein Flaggschiff verliert die Admiralsstation.",
     "stasis": "Handelt in dieser Runde nicht.",
     "silenced": "Feuert in dieser Runde nicht und setzt seine Sonderaktion aus.",
+    "marked": "Markiert: nimmt in dieser Runde +50 % Schaden (aufgerundet) von jedem Treffer.",
     "covered": "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
   },
   "armor_hint": "Panzerung: Jeder Treffer macht {amount} weniger Schaden.",
@@ -616,7 +673,8 @@
     "armor": "Panzerung",
     "covered": "gedeckt",
     "shield": "Schild",
-    "lethal": "tödlich"
+    "lethal": "tödlich",
+    "marked": "markiert"
   },
   "log_battle_started": "Gefechtsstationen — {admiral} übernimmt das Kommando.",
   "log_card": {
@@ -633,6 +691,12 @@
   "log_healed": "{target} repariert {amount} Hülle",
   "log_ignited": "{target} brennt",
   "log_extinguished": "Brand auf {target} gelöscht",
+  "log_marked": "{target} ist markiert",
+  "log_armor_broken": "{target} verliert {amount} Panzerung",
+  "log_points_gained": {
+    "one": "+1 Befehlspunkt",
+    "other": "+{amount} Befehlspunkte"
+  },
   "log_emergency": {
     "on": "{target} im Notfall",
     "off": "{target} aus dem Notfall"
@@ -806,7 +870,10 @@
   "mark_countermeasures": "Gegenmaßnahmen −{amount}",
   "mark_armor": "Panzerung −{amount}",
   "mark_covered": "gedeckt: {amount} → {by}",
+  "mark_marked": "markiert +{amount}",
   "mark_shielded": "Schild schluckt {amount}",
+  "report_armor_broken": "−{amount} Panzerung",
+  "report_points_gained": "+{amount} BP",
   "report_missed": "ins Leere",
   "report_burned_out": "{unit} ausgebrannt",
   "report_breach": "Das Siegel bricht",

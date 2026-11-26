@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "none",
+  "cost": 1,
+  "value": 3,
+  "upgraded": { "value": 5 },
+  "text": {
+    "de": { "name": "Flächenbrand", "effect": "{v} Schaden auf jede gegnerische Einheit, Brand. Durchschlagend." },
+    "en": { "name": "Wildfire", "effect": "{v} damage to every enemy unit, burning. Piercing." }
+  }
+}

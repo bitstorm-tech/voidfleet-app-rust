@@ -137,6 +137,23 @@ pub struct Flagship {
     pub stasis_recharging: bool,
     /// Fokusfeuer: im folgenden Gegnerzug je Treffer 2 mehr.
     pub focus_vulnerable: bool,
+    /// Zeitfenster: die nächste Karte dieser Runde wirkt zweimal (Zähler).
+    pub double_next: u32,
+    /// Uhrwerkdoktrin: Ermäßigung auf die erste Taktik oder Schwächung dieser Runde schon genutzt.
+    pub tactic_discount_used: bool,
+    /// Bastionsdoktrin: zusätzliche Schilde und Abwehrfeuer je gespielter Schild-Karte.
+    pub bastion_shield: i32,
+    pub bastion_counterfire: i32,
+    /// Offensivdoktrin: Schilde nach Waffen oder Fokusfeuer.
+    pub assault_shield: i32,
+    /// Uhrwerkdoktrin: zusätzliche Karten zu Rundenbeginn und BP-Nachlass auf erste Taktik/Schwächung.
+    pub clockwork_draw: usize,
+    pub clockwork_discount: u32,
+    /// Glutdoktrin: zusätzlicher Brandschaden bei Gegnern und Schilde beim Fall eines brennenden Gegners.
+    pub ember_burn_bonus: i32,
+    pub ember_kill_shield: i32,
+    /// Brückenkoordination: gezogene Karten je ausgelöster Station.
+    pub bridge_coordination: usize,
 }
 
 impl Flagship {
@@ -166,6 +183,7 @@ pub struct Enemy {
     pub armor: i32,
     pub pattern: Vec<Step>,
     pub burning: bool,
+    pub marked: bool,
     pub shield: i32,
     pub charged: bool,
     pub intents: [Action; 2],
@@ -240,7 +258,8 @@ pub struct Battle {
     pub discard_pile: Vec<DeckCard>,
     /// Gespielte Doktrinen, sie wirken bis zum Gefechtsende.
     pub doctrines: Vec<DeckCard>,
-    /// Gespielte Karten, die es je Gefecht nur einmal gibt (Kurzsprung): bis zum Gefechtsende aus dem Spiel.
+    /// Gespielte Karten, die es je Gefecht nur einmal gibt (z. B. Kurzsprung, Notenergie): bis zum Gefechtsende aus
+    /// dem Spiel.
     pub spent: Vec<DeckCard>,
     pub points: u32,
     pub kills: u32,
@@ -254,6 +273,7 @@ pub struct Battle {
     /// Die Runde des Durchbruchs: Die Gefechtsuhr zählt erst die Runden danach.
     pub clock_offset: u32,
     pub result: Option<BattleResult>,
+    retained: Vec<bool>,
     next_uid: u32,
     rng: StdRng,
 }
@@ -290,6 +310,16 @@ impl Battle {
                 counterfire: false,
                 stasis_recharging: false,
                 focus_vulnerable: false,
+                double_next: 0,
+                tactic_discount_used: false,
+                bastion_shield: 0,
+                bastion_counterfire: 0,
+                assault_shield: 0,
+                clockwork_draw: 0,
+                clockwork_discount: 0,
+                ember_burn_bonus: 0,
+                ember_kill_shield: 0,
+                bridge_coordination: 0,
             },
             enemies: Vec::new(),
             hand: Vec::new(),
@@ -306,6 +336,7 @@ impl Battle {
             breach: setup.encounter.breach.clone(),
             clock_offset: 0,
             result: None,
+            retained: Vec::new(),
             next_uid: 1,
             rng: StdRng::seed_from_u64(seed),
             modules: setup.modules,
@@ -393,12 +424,36 @@ impl Battle {
         ]
     }
 
+    /// Ob die Handkarte an `hand_index` aus der vorigen Runde behalten wurde.
+    pub fn is_retained(&self, hand_index: usize) -> bool {
+        self.retained.get(hand_index).copied().unwrap_or(false)
+    }
+
+    /// Effektive BP-Kosten der Handkarte an `hand_index` (inklusive Behalten- und Doktrin-Rabatt).
+    pub fn card_cost(&self, hand_index: usize) -> u32 {
+        let Some(&card) = self.hand.get(hand_index) else {
+            return 0;
+        };
+        if card.id == CardId::StandbyFire && self.is_retained(hand_index) {
+            return 0;
+        }
+        let mut cost = card.cost();
+        if !self.flagship.tactic_discount_used
+            && self.flagship.clockwork_discount > 0
+            && matches!(card.id.card_type(), CardType::Tactic | CardType::Debuff)
+        {
+            cost = cost.saturating_sub(self.flagship.clockwork_discount);
+        }
+        cost
+    }
+
     fn hand_size(&self) -> usize {
-        if self.has(ModuleId::SupplyPod) {
+        let base = if self.has(ModuleId::SupplyPod) {
             rules().modules.supply_pod_hand
         } else {
             rules().battle.hand_size
-        }
+        };
+        base + self.flagship.clockwork_draw
     }
 
     fn index(&self, uid: u32) -> Option<usize> {
@@ -487,17 +542,55 @@ impl Battle {
         target: Target,
     ) -> Result<Vec<BattleEvent>, RuleError> {
         self.check_card(hand_index, target)?;
+        let cost = self.card_cost(hand_index);
+        self.retained.resize(self.hand.len(), false);
         let card = self.hand.remove(hand_index);
-        self.points -= card.cost();
+        self.retained.remove(hand_index);
+        self.points -= cost;
+        if self.flagship.clockwork_discount > 0
+            && matches!(card.id.card_type(), CardType::Tactic | CardType::Debuff)
+        {
+            self.flagship.tactic_discount_used = true;
+        }
         if card.id.card_type() == CardType::Doctrine {
             self.doctrines.push(card);
-        } else if card.id == CardId::MicroJump {
+        } else if card.id.exhaust() {
             self.spent.push(card);
         } else {
             self.discard_pile.push(card);
         }
         let mut events = vec![BattleEvent::CardPlayed { card, target }];
-        self.apply_card(card, target, &mut events);
+        let times = if self.flagship.double_next > 0 {
+            self.flagship.double_next -= 1;
+            2
+        } else {
+            1
+        };
+        for i in 0..times {
+            if i > 0 {
+                if self.result.is_some() || card.id == CardId::TractorBeam {
+                    break;
+                }
+                if let Target::Enemy(uid) = target
+                    && self.enemy(uid).is_none()
+                {
+                    break;
+                }
+            }
+            self.apply_card(card, target, &mut events);
+        }
+        if self.result.is_none()
+            && (self.flagship.bastion_shield > 0 || self.flagship.bastion_counterfire > 0)
+            && matches!(
+                card.id,
+                CardId::EmergencyShields | CardId::HoldTheLine | CardId::Bulwark
+            )
+        {
+            if self.flagship.bastion_shield > 0 {
+                self.shield_flagship(self.flagship.bastion_shield, &mut events);
+            }
+            self.flagship.hold_the_line += self.flagship.bastion_counterfire;
+        }
         Ok(events)
     }
 
@@ -588,6 +681,9 @@ impl Battle {
                 AdmiralStation::FollowUp => {
                     let amount = 2 * self.enemy_burn_damage();
                     for uid in self.uids() {
+                        if self.result.is_some() {
+                            break;
+                        }
                         let Some(i) = self.index(uid) else { continue };
                         if !self.enemies[i].burning {
                             continue;
@@ -614,6 +710,17 @@ impl Battle {
                 }
             },
         }
+        if self.result.is_none()
+            && self.flagship.assault_shield > 0
+            && (station == Station::Weapons
+                || (station == Station::Admiral
+                    && self.flagship.admiral.station() == AdmiralStation::FocusFire))
+        {
+            self.shield_flagship(self.flagship.assault_shield, events);
+        }
+        if self.result.is_none() && self.flagship.bridge_coordination > 0 {
+            self.draw(self.flagship.bridge_coordination, events);
+        }
     }
 
     /// Waffen-Station oder Fokusfeuer auf `uid`.
@@ -633,8 +740,8 @@ impl Battle {
         if self.result.is_some() {
             return Err(RuleError::BattleOver);
         }
-        let card = self.hand[hand_index];
-        if card.cost() > self.points {
+        let card = *self.hand.get(hand_index).ok_or(RuleError::TargetInvalid)?;
+        if self.card_cost(hand_index) > self.points {
             return Err(RuleError::NotEnoughPoints);
         }
         if self.flagship.jumped
@@ -710,15 +817,7 @@ impl Battle {
             }
             CardId::HeatSeeker => {
                 let evading = target_enemy.expect("geprüft").is_evading();
-                let base = self.card_damage(
-                    value
-                        + if evading {
-                            CardId::HeatSeeker.extra()
-                        } else {
-                            0
-                        },
-                    uid,
-                );
+                let base = self.card_damage(value + if evading { card.extra() } else { 0 }, uid);
                 let shot = Shot {
                     ignore_evade: true,
                     ignore_cover: true,
@@ -728,15 +827,7 @@ impl Battle {
             }
             CardId::CoupDeGrace => {
                 let emergency = target_enemy.expect("geprüft").emergency();
-                let base = self.card_damage(
-                    value
-                        + if emergency {
-                            CardId::CoupDeGrace.extra()
-                        } else {
-                            0
-                        },
-                    uid,
-                );
+                let base = self.card_damage(value + if emergency { card.extra() } else { 0 }, uid);
                 self.shoot(uid, plain(base), events);
             }
             CardId::Firebomb => {
@@ -752,6 +843,9 @@ impl Battle {
             }
             CardId::VolleyFire | CardId::Barrage | CardId::Bombardment => {
                 for uid in self.uids() {
+                    if self.result.is_some() {
+                        break;
+                    }
                     let Some(enemy) = self.enemy(uid) else {
                         continue;
                     };
@@ -790,16 +884,27 @@ impl Battle {
                 };
                 self.shoot(uid, shot, events);
                 self.hit_flagship(enemy.unit(), enemy_attack, false, false, events);
+                if self.result.is_none() && self.enemy(uid).is_none() {
+                    if matches!(enemy.id, EnemyId::Seal | EnemyId::UnknownContact) {
+                        self.end(BattleResult::Won, events);
+                    } else {
+                        self.check_won(events);
+                    }
+                    if self.result.is_none() && enemy.burning && self.flagship.ember_kill_shield > 0
+                    {
+                        self.shield_flagship(self.flagship.ember_kill_shield, events);
+                    }
+                }
             }
             CardId::EmergencyShields => self.shield_flagship(value, events),
             CardId::HoldTheLine => {
-                self.flagship.hold_the_line += CardId::HoldTheLine.extra();
+                self.flagship.hold_the_line += card.extra();
                 self.shield_flagship(value, events);
             }
             CardId::AblativeArmor => self.flagship.ablative += value,
             CardId::Overcharge => {
                 self.flagship.attack_bonus += value;
-                self.flagship.overcharge += CardId::Overcharge.extra();
+                self.flagship.overcharge += card.extra();
             }
             CardId::PowerSurge => self.flagship.attack_bonus += value,
             CardId::RepairCrew => self.repair(value, events),
@@ -816,28 +921,238 @@ impl Battle {
             }
             CardId::TractorBeam => {
                 let i = self.index(uid).expect("geprüft");
-                let from = self.enemies[i].slot;
-                self.enemies[i].slot = self.tractor_slot(&self.enemies[i]).expect("geprüft");
-                events.push(BattleEvent::Tractored {
-                    unit: self.enemies[i].unit(),
-                    from,
-                });
+                if let Some(slot) = self.tractor_slot(&self.enemies[i]) {
+                    let from = self.enemies[i].slot;
+                    self.enemies[i].slot = slot;
+                    events.push(BattleEvent::Tractored {
+                        unit: self.enemies[i].unit(),
+                        from,
+                    });
+                }
             }
             CardId::MicroJump => {
-                self.flagship.jumped = true;
-                events.push(BattleEvent::Jumped);
+                if !self.flagship.jumped {
+                    self.flagship.jumped = true;
+                    events.push(BattleEvent::Jumped);
+                }
             }
             CardId::EvasiveAction => {
                 let Target::Column(column) = target else {
                     unreachable!("geprüft")
                 };
-                self.maneuver(column, events);
+                if self.flagship.column != column {
+                    self.maneuver(column, events);
+                }
             }
             CardId::Countermeasures => self.flagship.countermeasures += 1,
-            CardId::Scavenge => self.draw(CardId::Scavenge.extra() as usize, events),
+            CardId::Scavenge => self.draw(card.extra() as usize, events),
             CardId::RedAlert => self.flagship.station_slots += 1,
             CardId::FireControlDoctrine => self.flagship.fire_control += value,
             CardId::BattleStations => self.flagship.battle_stations += value,
+            CardId::ShieldBash => {
+                let base = self.card_damage(self.flagship.shield, uid);
+                self.shoot(
+                    uid,
+                    Shot {
+                        ignore_evade: true,
+                        ..plain(base)
+                    },
+                    events,
+                );
+            }
+            CardId::Bulwark => self.shield_flagship(value, events),
+            CardId::FlakBreaker => {
+                for _ in 0..2 {
+                    if self.result.is_some() || self.enemy(uid).is_none() {
+                        break;
+                    }
+                    let base = self.card_damage(value, uid);
+                    self.shoot(uid, plain(base), events);
+                }
+                if self.result.is_none() {
+                    self.break_armor(uid, card.extra(), events);
+                }
+            }
+            CardId::BastionDoctrine => {
+                self.flagship.bastion_shield += value;
+                self.flagship.bastion_counterfire += card.extra();
+            }
+            CardId::Onslaught => {
+                let base = self.card_damage(value + 2 * self.flagship.momentum, uid);
+                self.shoot(
+                    uid,
+                    Shot {
+                        ignore_cover: true,
+                        ..plain(base)
+                    },
+                    events,
+                );
+            }
+            CardId::BreakthroughVolley => {
+                let base = self.card_damage(value, uid);
+                self.shoot(uid, plain(base), events);
+                if self.result.is_none() && self.enemy(uid).is_none() {
+                    let gained = card.extra() as u32;
+                    if gained > 0 {
+                        self.points += gained;
+                        events.push(BattleEvent::PointsGained { amount: gained });
+                    }
+                    self.draw(1, events);
+                }
+            }
+            CardId::ArmorPiercer => {
+                let base = self.card_damage(value, uid);
+                self.shoot(
+                    uid,
+                    Shot {
+                        ignore_cover: true,
+                        ..plain(base)
+                    },
+                    events,
+                );
+                if self.result.is_none() {
+                    self.mark_enemy(uid, events);
+                    self.break_armor(uid, card.extra(), events);
+                }
+            }
+            CardId::AssaultDoctrine => self.flagship.assault_shield += value,
+            CardId::TimeWindow => self.flagship.double_next += 1,
+            CardId::PrecisionLock => {
+                self.mark_enemy(uid, events);
+                self.draw(value as usize, events);
+            }
+            CardId::ChronoStrike => {
+                let enemy = target_enemy.expect("geprüft");
+                let doubled = enemy.stasis
+                    || (!enemy.silenced && enemy.intents[0] == Action::Charge)
+                    || enemy.charged;
+                let raw = if doubled { 2 * value } else { value };
+                let base = self.card_damage(raw, uid);
+                self.shoot(
+                    uid,
+                    Shot {
+                        ignore_evade: true,
+                        ignore_cover: true,
+                        ..plain(base)
+                    },
+                    events,
+                );
+            }
+            CardId::ClockworkDoctrine => {
+                self.flagship.clockwork_draw += value as usize;
+                self.flagship.clockwork_discount += card.extra() as u32;
+            }
+            CardId::Wildfire => {
+                for uid in self.uids() {
+                    if self.result.is_some() {
+                        break;
+                    }
+                    if self.enemy(uid).is_none() {
+                        continue;
+                    }
+                    let base = self.card_damage(value, uid);
+                    self.shoot(
+                        uid,
+                        Shot {
+                            base,
+                            ignore_cover: true,
+                            ignite: true,
+                            ..Shot::default()
+                        },
+                        events,
+                    );
+                }
+            }
+            CardId::Accelerant => {
+                if let Some(i) = self.index(uid)
+                    && self.enemies[i].burning
+                {
+                    let amount = value * self.enemy_burn_damage();
+                    self.enemies[i].hit = true;
+                    self.drain(
+                        i,
+                        amount,
+                        DestroyCause::Shot,
+                        events,
+                        |target, lost, after| BattleEvent::Hit {
+                            source: UnitRef::Flagship,
+                            target,
+                            breakdown: Breakdown {
+                                base: amount,
+                                hull: lost,
+                                lethal: after.hull == 0,
+                                ..Breakdown::default()
+                            },
+                            after,
+                        },
+                    );
+                }
+                if self.result.is_none() {
+                    self.mark_enemy(uid, events);
+                }
+            }
+            CardId::MeltdownSalvo => {
+                let burning = self.enemies.iter().filter(|e| e.burning).count() as i32;
+                let base = self.card_damage(value + burning * card.extra(), uid);
+                self.shoot(
+                    uid,
+                    Shot {
+                        ignore_evade: true,
+                        ..plain(base)
+                    },
+                    events,
+                );
+            }
+            CardId::EmberDoctrine => {
+                self.flagship.ember_burn_bonus += value;
+                self.flagship.ember_kill_shield += card.extra();
+            }
+            CardId::EmergencyPower => {
+                let gained = value as u32;
+                if gained > 0 {
+                    self.points += gained;
+                    events.push(BattleEvent::PointsGained { amount: gained });
+                }
+                let draw = card.extra() as usize;
+                if draw > 0 {
+                    self.draw(draw, events);
+                }
+            }
+            CardId::AutocannonSalvo => {
+                for _ in 0..card.extra() {
+                    if self.result.is_some() || self.enemy(uid).is_none() {
+                        break;
+                    }
+                    let base = self.card_damage(value, uid);
+                    self.shoot(
+                        uid,
+                        Shot {
+                            ignore_evade: true,
+                            ..plain(base)
+                        },
+                        events,
+                    );
+                }
+            }
+            CardId::TargetPainter => {
+                self.mark_enemy(uid, events);
+                self.break_armor(uid, value, events);
+            }
+            CardId::StandbyFire => {
+                let base = self.card_damage(value, uid);
+                self.shoot(uid, plain(base), events);
+            }
+            CardId::ChainCommand => {
+                self.draw(value as usize, events);
+                if !self.flagship.stations_used.is_empty() {
+                    let gained = card.extra() as u32;
+                    if gained > 0 {
+                        self.points += gained;
+                        events.push(BattleEvent::PointsGained { amount: gained });
+                    }
+                }
+            }
+            CardId::BridgeCoordination => self.flagship.bridge_coordination += value as usize,
         }
     }
 
@@ -912,6 +1227,33 @@ impl Battle {
         events.push(BattleEvent::Maneuvered { from, to });
     }
 
+    fn mark_enemy(&mut self, uid: u32, events: &mut Vec<BattleEvent>) {
+        if let Some(i) = self.index(uid)
+            && !self.enemies[i].marked
+        {
+            self.enemies[i].marked = true;
+            events.push(BattleEvent::Marked {
+                target: self.enemies[i].unit(),
+            });
+        }
+    }
+
+    fn break_armor(&mut self, uid: u32, amount: i32, events: &mut Vec<BattleEvent>) {
+        if amount <= 0 {
+            return;
+        }
+        if let Some(i) = self.index(uid) {
+            let lost = self.enemies[i].armor.min(amount);
+            if lost > 0 {
+                self.enemies[i].armor -= lost;
+                events.push(BattleEvent::ArmorBroken {
+                    target: self.enemies[i].unit(),
+                    amount: lost,
+                });
+            }
+        }
+    }
+
     // --- Schaden ---
 
     /// Schuss auf eine gegnerische Einheit: Ausweichen, Deckung, Schild, Panzerung (`docs/gefecht.md`).
@@ -946,7 +1288,9 @@ impl Battle {
             ..Breakdown::default()
         };
         self.land(uid, breakdown, rest, shot.ignite, cause, events);
-        if let Some((front, part)) = covered {
+        if self.result.is_none()
+            && let Some((front, part)) = covered
+        {
             let breakdown = Breakdown {
                 base: part,
                 ..Breakdown::default()
@@ -967,12 +1311,16 @@ impl Battle {
         let Some(i) = self.index(uid) else { return };
         let enemy = &mut self.enemies[i];
         let was = enemy.emergency();
+        breakdown.marked = if enemy.marked { half_up(rest) } else { 0 };
+        let rest = rest + breakdown.marked;
         breakdown.shielded = enemy.shield.min(rest);
         breakdown.armor = enemy.armor.min(rest - breakdown.shielded);
         breakdown.hull = (rest - breakdown.shielded - breakdown.armor).min(enemy.hull);
         enemy.shield -= breakdown.shielded;
         enemy.hull -= breakdown.hull;
-        enemy.hit = true;
+        if breakdown.base > 0 {
+            enemy.hit = true;
+        }
         breakdown.lethal = enemy.hull == 0;
         let ignite = ignite
             || (breakdown.hull > 0
@@ -1037,37 +1385,51 @@ impl Battle {
         });
         self.kills += 1;
         // Mit dem Siegel fällt die Gegenflotte, mit dem Unbekannten Kontakt seine Brut.
+        // Beim Rammkurs endet das Gefecht erst nach dem Gegenschlag am Flaggschiff.
         if matches!(enemy.id, EnemyId::Seal | EnemyId::UnknownContact) {
-            return self.end(BattleResult::Won, events);
-        }
-        for king in self
-            .enemies
-            .iter_mut()
-            .filter(|e| e.id == EnemyId::ScrapKing)
-        {
-            let was = king.emergency();
-            let amount = rules()
+            if cause != DestroyCause::Rammed {
+                self.end(BattleResult::Won, events);
+            }
+        } else {
+            for king in self
                 .enemies
-                .cannibalize_heal
-                .min(king.max_hull - king.hull);
-            king.hull += amount;
-            events.push(BattleEvent::Cannibalized {
-                unit: king.unit(),
-                amount,
-                after: king.stats(),
-            });
-            if king.emergency() != was {
-                events.push(BattleEvent::Emergency {
-                    target: king.unit(),
-                    active: !was,
+                .iter_mut()
+                .filter(|e| e.id == EnemyId::ScrapKing)
+            {
+                let was = king.emergency();
+                let amount = rules()
+                    .enemies
+                    .cannibalize_heal
+                    .min(king.max_hull - king.hull);
+                king.hull += amount;
+                events.push(BattleEvent::Cannibalized {
+                    unit: king.unit(),
+                    amount,
+                    after: king.stats(),
                 });
+                if king.emergency() != was {
+                    events.push(BattleEvent::Emergency {
+                        target: king.unit(),
+                        active: !was,
+                    });
+                }
+            }
+            if !self.replacements.is_empty() {
+                let unit = self.replacements.remove(0);
+                self.spawn(&unit, enemy.slot, true, events);
+            }
+            if cause != DestroyCause::Rammed {
+                self.check_won(events);
             }
         }
-        if !self.replacements.is_empty() {
-            let unit = self.replacements.remove(0);
-            self.spawn(&unit, enemy.slot, true, events);
+        if cause != DestroyCause::Rammed
+            && self.result.is_none()
+            && cause != DestroyCause::BurnedOut
+            && enemy.burning
+            && self.flagship.ember_kill_shield > 0
+        {
+            self.shield_flagship(self.flagship.ember_kill_shield, events);
         }
-        self.check_won(events);
     }
 
     /// Treffer am Flaggschiff. `shields`: Gegenmaßnahmen und Schild zählen (nur im Gegnerzug).
@@ -1405,6 +1767,8 @@ impl Battle {
         f.hold_the_line = 0;
         f.counterfire = false;
         f.focus_vulnerable = false;
+        f.double_next = 0;
+        f.tactic_discount_used = false;
 
         self.round += 1;
         events.push(BattleEvent::RoundStarted { round: self.round });
@@ -1424,6 +1788,7 @@ impl Battle {
                 }
             }
             enemy.hit = false;
+            enemy.marked = false;
             enemy.stasis = false;
             enemy.silenced = false;
             enemy.arrived = false;
@@ -1432,7 +1797,19 @@ impl Battle {
             self.push_intents(uid, events);
         }
 
-        self.discard_pile.append(&mut self.hand);
+        self.retained.resize(self.hand.len(), false);
+        let mut kept_hand = Vec::new();
+        let mut kept_retained = Vec::new();
+        for card in self.hand.drain(..) {
+            if card.id.retain() {
+                kept_hand.push(card);
+                kept_retained.push(true);
+            } else {
+                self.discard_pile.push(card);
+            }
+        }
+        self.hand = kept_hand;
+        self.retained = kept_retained;
         self.draw(self.hand_size(), events);
         self.points = rules().battle.command_points;
     }
@@ -1447,11 +1824,12 @@ impl Battle {
     }
 
     fn enemy_burn_damage(&self) -> i32 {
-        if self.flagship.admiral == AdmiralId::Reyes {
+        let base = if self.flagship.admiral == AdmiralId::Reyes {
             rules().battle.ember_burn_damage
         } else {
             rules().battle.burn_damage
-        }
+        };
+        base + self.flagship.ember_burn_bonus
     }
 
     // --- Hilfen ---
@@ -1498,6 +1876,7 @@ impl Battle {
             attack: unit.attack,
             armor: unit.armor,
             burning: false,
+            marked: false,
             shield: 0,
             charged: false,
             intents: [action(&pattern, 0, column), action(&pattern, 1, column)],
@@ -1537,7 +1916,9 @@ impl Battle {
             }
             cards.push(self.draw_pile.pop().expect("nicht leer"));
         }
+        self.retained.resize(self.hand.len(), false);
         self.hand.extend_from_slice(&cards);
+        self.retained.resize(self.hand.len(), false);
         events.push(BattleEvent::Drawn { cards });
     }
 }

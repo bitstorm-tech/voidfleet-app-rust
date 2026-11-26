@@ -81,7 +81,7 @@
   "card_editor_name": "Name",
   "card_editor_effect": "Effect",
   "card_editor_valid": "All cards are valid. Saving applies the changes in the game at once.",
-  "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {bonus} the value as “ +2” or nothing.",
+  "card_editor_hint": "Placeholders in the effect: {v} value, {extra} second value, {evading} and {emergency} both added up, {double} double value plus bonus, {draw} draw extra commands, {bonus} the value as “ +2” or nothing.",
   "card_editor_error_text": "{card} ({language}): the name is empty or a placeholder in the effect does not resolve.",
   "card_editor_error_numbers": "{card}: a number is below 0 or the second value is missing.",
   "settings_admiral_editor": "Admiral editor",
@@ -150,6 +150,44 @@
   "hud_points": "Command points",
   "hud_draw_pile": "Draw pile",
   "hud_discard_pile": "Discard pile",
+  "hud_spent_pile": "Exhausted",
+  "badge_retain": "Retain",
+  "badge_retained": "Retained",
+  "badge_exhaust": "Exhaust",
+  "effect_draw": {
+    "one": ", draw 1 command",
+    "other": ", draw {count} commands"
+  },
+  "hud_buff_double_next": {
+    "one": "Next card ×2",
+    "other": "Next {count} cards ×2"
+  },
+  "hud_buff_double_next_hint": {
+    "one": "The next card played this round takes effect twice.",
+    "other": "The next {count} cards played this round take effect twice."
+  },
+  "hud_buff_clockwork_discount": "Tactic/Debuff −{amount} CP",
+  "hud_buff_clockwork_discount_hint": "The first tactic or debuff played this round costs {amount} command point less.",
+  "hud_buff_station_slots": "Stations {used}/{slots}",
+  "hud_buff_station_slots_hint": "Red Alert: up to {slots} different stations can be triggered this round.",
+  "hud_buff_attack": "+{amount} ATK",
+  "hud_buff_attack_hint": "Active attack bonus this round: +{amount} ATK.",
+  "hud_buff_overcharge": "Overcharge {amount}",
+  "hud_buff_overcharge_hint": "The flagship takes {amount} hull damage at the end of the turn from overcharge.",
+  "hud_buff_countermeasures": "Countermeasures ×{count}",
+  "hud_buff_countermeasures_hint": "Halves the next {count} enemy attacks this turn.",
+  "hud_buff_hold_the_line": "Retaliation {amount}",
+  "hud_buff_hold_the_line_hint": "Every shooter that hits your flagship loses {amount} hull.",
+  "hud_buff_counterfire": "Counterfire {amount}",
+  "hud_buff_counterfire_hint": "Counterfire: every shooter that hits your flagship loses {amount} hull.",
+  "hud_buff_jammer": "Jammer −{amount} ATK",
+  "hud_buff_jammer_hint": "Enemy shots deal {amount} less damage this turn.",
+  "hud_buff_momentum": "Momentum +{amount}",
+  "hud_buff_momentum_hint": "Vance's active momentum: +{amount} ATK.",
+  "hud_buff_follow_up": "Follow-up +{bonus}",
+  "hud_buff_follow_up_hint": "Attack cards on burning enemies deal +{bonus} damage this round.",
+  "hud_buff_focus_vulnerable": "Focus fire +{amount} taken",
+  "hud_buff_focus_vulnerable_hint": "Focus fire: your flagship takes {amount} more damage per hit in the next enemy turn.",
   "hud_stations": "Stations",
   "checklist_free_stations": {
     "one": "1 station free",
@@ -196,7 +234,7 @@
       "heading": "Damage",
       "paragraphs": [
         "Every shot hits and every number is fixed: what the preview shows is what happens.",
-        "From the damage of a shot come off, in this order: evading halves it, armor subtracts, cover passes half to the unit in front, shields absorb the rest until they are spent.",
+        "From the damage of a shot come off, in this order: evading halves it, cover passes half to the unit in front, Marked adds +50 % (rounded up), shields absorb and armor subtracts the rest.",
         "Column fire and ramming hit fully or not at all; evading does not count against them."
       ]
     },
@@ -205,6 +243,7 @@
       "paragraphs": [
         "Burning: a hit that brings a unit to {rules.battle.burn_percent} % hull or less sets it on fire. A burning unit loses {rules.battle.burn_damage} hull in each resolution; your own fire is put out by damage control or the repair crew.",
         "Emergency: at {rules.battle.emergency_percent} % hull or less a unit fires with half ATK and no longer evades. Your flagship cannot trigger its admiral station.",
+        "Marked: a marked enemy takes +50 % damage (rounded up) from every hit this round.",
         "Destroyed: an enemy at 0 hull falls at once and never acts again. If your flagship falls, the battle is lost."
       ]
     },
@@ -222,7 +261,7 @@
       "paragraphs": [
         "Every round you draw {rules.battle.hand_size} commands. Attack cards hit with fixed damage and the usual deductions; buffs strengthen your flagship, debuffs weaken an enemy, tactics change the board. Doctrines stay in play until the battle ends.",
         "Each admiral starts with ten cards: three torpedoes, three emergency shields, a repair crew, scavenge and two signature cards. Upgraded cards (+) are stronger or cost less; the card shows what changes.",
-        "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses {rules.battle.burn_damage} hull in each resolution."
+        "Keywords: Homing – evading does not count. Piercing – cover does not count. Shields N – absorbs N damage in the next enemy turn. Armor N – every hit deals N less. Retaliation N – every shooter that hits your flagship loses N hull. Burning – a burning unit loses {rules.battle.burn_damage} hull in each resolution. Exhaust – removed from play for the rest of the battle. Retain – stays in hand at resolution. Marked – takes +50 % damage (rounded up) this round. Armor Break – lowers armor permanently."
       ]
     },
     "enemies": {
@@ -454,6 +493,22 @@
     {
       "word": "Doctrine",
       "text": "Lasts for the rest of the battle."
+    },
+    {
+      "word": "Exhaust",
+      "text": "Removed from play for the rest of the battle after use."
+    },
+    {
+      "word": "Retain",
+      "text": "Stays in your hand at the end of the round instead of being discarded."
+    },
+    {
+      "word": "Marked",
+      "text": "Takes +50 % damage (rounded up) from every hit this round."
+    },
+    {
+      "word": "Armor Break",
+      "text": "Lowers enemy armor permanently for the rest of the battle."
     }
   ],
   "card_type": {
@@ -545,6 +600,7 @@
     "emergency": "Emergency",
     "stasis": "Stasis",
     "silenced": "Silenced",
+    "marked": "Marked",
     "covered": "Cover"
   },
   "action_hint": {
@@ -563,6 +619,7 @@
     "emergency": "Hull at {rules.battle.emergency_percent} % or less: half ATK, no evading; your flagship loses its admiral station.",
     "stasis": "Does not act this round.",
     "silenced": "Holds fire and skips its special action this round.",
+    "marked": "Marked: takes +50 % damage (rounded up) from every hit this round.",
     "covered": "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
   },
   "armor_hint": "Armor: every hit deals {amount} less damage.",
@@ -616,7 +673,8 @@
     "armor": "armor",
     "covered": "covered",
     "shield": "shield",
-    "lethal": "lethal"
+    "lethal": "lethal",
+    "marked": "marked"
   },
   "log_battle_started": "Battle stations — {admiral} takes command.",
   "log_card": {
@@ -633,6 +691,12 @@
   "log_healed": "{target} repairs {amount} hull",
   "log_ignited": "{target} is burning",
   "log_extinguished": "Fire on {target} is out",
+  "log_marked": "{target} is marked",
+  "log_armor_broken": "{target} loses {amount} armor",
+  "log_points_gained": {
+    "one": "+1 command point",
+    "other": "+{amount} command points"
+  },
   "log_emergency": {
     "on": "{target} in emergency",
     "off": "{target} out of emergency"
@@ -806,7 +870,10 @@
   "mark_countermeasures": "countermeasures −{amount}",
   "mark_armor": "armor −{amount}",
   "mark_covered": "covered: {amount} → {by}",
+  "mark_marked": "marked +{amount}",
   "mark_shielded": "shield absorbs {amount}",
+  "report_armor_broken": "−{amount} Armor",
+  "report_points_gained": "+{amount} CP",
   "report_missed": "into the void",
   "report_burned_out": "{unit} burned out",
   "report_breach": "The seal breaks",

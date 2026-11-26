@@ -1,0 +1,11 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 1,
+  "value": 0,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Zeitfenster", "effect": "Die nächste Karte dieser Runde wirkt zweimal. Behalten." },
+    "en": { "name": "Time Window", "effect": "The next card played this round takes effect twice. Retain." }
+  }
+}

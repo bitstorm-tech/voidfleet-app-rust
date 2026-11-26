@@ -169,31 +169,57 @@ fn card_text(
     )
 }
 
+/// Ob `text` mit `keyword` beginnt (ohne Rücksicht auf Groß- und Kleinschreibung) und danach kein Wortzeichen folgt;
+/// gibt die Byte-Länge des Treffers in `text` zurück.
+fn match_keyword_at(text: &str, keyword: &str) -> Option<usize> {
+    let mut text_chars = text.char_indices();
+    for kw_char in keyword.chars() {
+        let (_, t_char) = text_chars.next()?;
+        if !t_char.to_lowercase().eq(kw_char.to_lowercase()) {
+            return None;
+        }
+    }
+    match text_chars.next() {
+        Some((_, next)) if next.is_alphanumeric() => None,
+        Some((end, _)) => Some(end),
+        None => Some(text.len()),
+    }
+}
+
 /// Zerlegt einen Effekttext an seinen Schlüsselwörtern: je Stück der Text und, bei einem Schlüsselwort, seine
-/// Erklärung. Ein Schlüsselwort ist ein ganzes Wort, Groß- und Kleinschreibung zählt nicht.
+/// Erklärung. Ein Schlüsselwort ist ein ganzes Wort (auch mehrteilig, etwa „Armor Break“), Groß- und Kleinschreibung
+/// zählt nicht; bei mehreren Treffern gewinnt der längste.
 fn keyword_chunks<'a>(
     effect: &'a str,
     keywords: &[(&'static str, &'static str)],
 ) -> Vec<(&'a str, Option<&'static str>)> {
     let mut chunks = Vec::new();
     let mut plain = 0;
-    let mut start = None;
-    for (at, c) in effect.char_indices().chain([(effect.len(), ' ')]) {
-        match (start, c.is_alphanumeric()) {
-            (None, true) => start = Some(at),
-            (Some(from), false) => {
-                start = None;
-                let word = effect[from..at].to_lowercase();
-                if let Some((_, explanation)) = keywords
-                    .iter()
-                    .find(|(name, _)| name.to_lowercase() == word)
-                {
-                    chunks.push((&effect[plain..from], None));
-                    chunks.push((&effect[from..at], Some(*explanation)));
-                    plain = at;
-                }
-            }
-            _ => {}
+    let mut at = 0;
+    let mut prev_alnum = false;
+    while let Some(c) = effect[at..].chars().next() {
+        let matched = if !prev_alnum && c.is_alphanumeric() {
+            keywords
+                .iter()
+                .filter_map(|&(name, explanation)| {
+                    match_keyword_at(&effect[at..], name).map(|len| (len, explanation))
+                })
+                .max_by_key(|(len, _)| *len)
+        } else {
+            None
+        };
+        if let Some((len, explanation)) = matched {
+            chunks.push((&effect[plain..at], None));
+            chunks.push((&effect[at..at + len], Some(explanation)));
+            plain = at + len;
+            at = plain;
+            prev_alnum = effect[..at]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_alphanumeric);
+        } else {
+            prev_alnum = c.is_alphanumeric();
+            at += c.len_utf8();
         }
     }
     chunks.push((&effect[plain..], None));
@@ -226,13 +252,26 @@ pub fn command_card_with_bonus(
     bonus: i32,
     scale: f32,
 ) -> impl Bundle {
+    command_card_in_hand(assets, card, bonus, card.cost(), false, scale)
+}
+
+/// Eine Befehlskarte auf der Hand mit effektivem `cost` und aktivem `retained`-Zustand.
+pub fn command_card_in_hand(
+    assets: &CardAssets,
+    card: DeckCard,
+    bonus: i32,
+    cost: u32,
+    retained: bool,
+    scale: f32,
+) -> impl Bundle {
     let text = assets.locale.card_with_bonus(card, bonus);
     let face = Face {
         name: text.name,
         effect: text.effect,
-        cost: card.cost(),
+        cost,
         card_type: card.id.card_type(),
         target: card.id.target(),
+        retained,
     };
     card_face(
         &assets.fonts,
@@ -252,6 +291,162 @@ pub struct Face {
     pub cost: u32,
     pub card_type: CardType,
     pub target: CardTarget,
+    pub retained: bool,
+}
+
+/// Ein Wort im Effekttext einer Karte mit seinen einzeln gefärbten Abschnitten und ob es einen Tooltip trägt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EffectWord<'a> {
+    pub spans: Vec<(&'a str, bool)>,
+    pub tooltip: bool,
+}
+
+/// Zerlegt den Effekttext in die erklärenden Tooltip-Zeilen der Schlüsselwörter und ihre Byte-Bereiche.
+fn keyword_analysis(
+    effect: &str,
+    keywords: &[(&'static str, &'static str)],
+) -> (Vec<String>, Vec<std::ops::Range<usize>>) {
+    let mut explained: Vec<String> = Vec::new();
+    let mut keyword_ranges: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut cursor = 0;
+    for (word, explanation) in keyword_chunks(effect, keywords) {
+        let next = cursor + word.len();
+        if let Some(explanation) = explanation {
+            keyword_ranges.push(cursor..next);
+            let line = format!("{}: {explanation}", capitalized(word));
+            if !explained.contains(&line) {
+                explained.push(line);
+            }
+        }
+        cursor = next;
+    }
+    (explained, keyword_ranges)
+}
+
+/// Richtet die Wörter von `boosted` an `unboosted` per längster gemeinsamer Teilfolge aus; `true` bedeutet unverändert.
+fn align_words(boosted: &[&str], unboosted: &[&str]) -> Vec<bool> {
+    let n = boosted.len();
+    let m = unboosted.len();
+    let mut dp = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            dp[i][j] = if boosted[i] == unboosted[j] {
+                1 + dp[i + 1][j + 1]
+            } else {
+                dp[i + 1][j].max(dp[i][j + 1])
+            };
+        }
+    }
+    let mut matched = vec![false; n];
+    let (mut i, mut j) = (0, 0);
+    while i < n && j < m {
+        if boosted[i] == unboosted[j] {
+            matched[i] = true;
+            i += 1;
+            j += 1;
+        } else if dp[i + 1][j] >= dp[i][j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    matched
+}
+
+/// Byte-Bereiche der Zahlen (samt vorangestelltem `+`, `-` oder `−`) innerhalb eines durch Bonus veränderten Worts.
+fn boosted_numeric_ranges(word: &str) -> Vec<std::ops::Range<usize>> {
+    let mut ranges = Vec::new();
+    let chars: Vec<(usize, char)> = word.char_indices().collect();
+    let mut idx = 0;
+    while idx < chars.len() {
+        let (byte_start, ch) = chars[idx];
+        let prev_alnum = idx > 0 && chars[idx - 1].1.is_alphanumeric();
+        let is_sign = matches!(ch, '+' | '-' | '−')
+            && !prev_alnum
+            && chars
+                .get(idx + 1)
+                .is_some_and(|(_, next)| next.is_ascii_digit());
+        if ch.is_ascii_digit() || is_sign {
+            idx += 1;
+            while idx < chars.len() && chars[idx].1.is_ascii_digit() {
+                idx += 1;
+            }
+            let byte_end = chars.get(idx).map_or(word.len(), |(pos, _)| *pos);
+            ranges.push(byte_start..byte_end);
+        } else {
+            idx += 1;
+        }
+    }
+    ranges
+}
+
+/// Zerlegt `effect` in Wörter samt Hervorhebungen (Schlüsselwörter aus `keyword_ranges` und geänderte Zahlen gegenüber `unboosted`).
+fn effect_words_with_ranges<'a>(
+    effect: &'a str,
+    unboosted: &str,
+    keyword_ranges: &[std::ops::Range<usize>],
+) -> Vec<EffectWord<'a>> {
+    let boosted_words: Vec<&str> = effect.split_whitespace().collect();
+    let matched = if effect == unboosted {
+        vec![true; boosted_words.len()]
+    } else {
+        let unboosted_words: Vec<&str> = unboosted.split_whitespace().collect();
+        align_words(&boosted_words, &unboosted_words)
+    };
+    let base_ptr = effect.as_ptr() as usize;
+    boosted_words
+        .into_iter()
+        .enumerate()
+        .map(|(i, word)| {
+            let start = word.as_ptr() as usize - base_ptr;
+            let mut ranges: Vec<std::ops::Range<usize>> = keyword_ranges
+                .iter()
+                .filter_map(|range| {
+                    let from = range.start.saturating_sub(start).min(word.len());
+                    let to = range.end.saturating_sub(start).min(word.len());
+                    (from < to).then_some(from..to)
+                })
+                .collect();
+            if !matched[i] {
+                ranges.extend(boosted_numeric_ranges(word));
+            }
+            ranges.sort_by_key(|range| (range.start, range.end));
+            let mut merged: Vec<std::ops::Range<usize>> = Vec::new();
+            for range in ranges {
+                if let Some(last) = merged.last_mut()
+                    && range.start <= last.end
+                {
+                    last.end = last.end.max(range.end);
+                } else {
+                    merged.push(range);
+                }
+            }
+            let tooltip = !merged.is_empty();
+            let mut spans = Vec::new();
+            let mut pos = 0;
+            for range in merged {
+                if pos < range.start {
+                    spans.push((&word[pos..range.start], false));
+                }
+                spans.push((&word[range.start..range.end], true));
+                pos = range.end;
+            }
+            if pos < word.len() {
+                spans.push((&word[pos..], false));
+            }
+            EffectWord { spans, tooltip }
+        })
+        .collect()
+}
+
+/// Berechnet je Wort des Effekttexts die hervorgehobenen Teilabschnitte (Schlüsselwörter und erhöhte Zahlen) samt Tooltip-Flag.
+pub fn effect_word_spans<'a>(
+    effect: &'a str,
+    unboosted: &str,
+    keywords: &[(&'static str, &'static str)],
+) -> Vec<EffectWord<'a>> {
+    let (_, keyword_ranges) = keyword_analysis(effect, keywords);
+    effect_words_with_ranges(effect, unboosted, &keyword_ranges)
 }
 
 /// Eine Befehlskarte mit dieser Aufschrift in der Sprache von `locale`; `bonus` wie bei [`command_card_with_bonus`].
@@ -267,48 +462,23 @@ pub fn card_face(
     let s = |value: f32| px(value * scale);
     let text = face;
     let keywords = locale.keywords();
-    // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“.
-    let mut explained: Vec<String> = Vec::new();
-    for (word, explanation) in keyword_chunks(&text.effect, &keywords) {
-        if let Some(explanation) = explanation {
-            let line = format!("{}: {explanation}", capitalized(word));
-            if !explained.contains(&line) {
-                explained.push(line);
-            }
-        }
-    }
+    // Jedes Schlüsselwort der Karte einmal, als Zeile „Wort: Erklärung“, samt Byte-Bereichen für mehrteilige Wörter.
+    let (mut explained, keyword_ranges) = keyword_analysis(&text.effect, &keywords);
     if bonus != 0 {
         explained.insert(0, locale.card_bonus(bonus));
     }
     let explained = explained.join("\n");
     // Was sich gegenüber dem Text ohne Zuschlag ändert, ist eine erhöhte Zahl und leuchtet wie ein Schlüsselwort.
-    let unboosted = if bonus == 0 {
-        text.effect.clone()
-    } else {
-        locale.card(card).effect
-    };
-    let unboosted: Vec<_> = unboosted.split_whitespace().collect();
+    let unboosted = (bonus != 0).then(|| locale.card(card).effect);
+    let unboosted = unboosted.as_deref().unwrap_or(&text.effect);
     // Je Wort ein Knoten, damit ein Schlüsselwort den Zeiger spürt; es zeigt sofort alle Schlüsselwörter der Karte.
     let effect_font = fonts.body(8.5 * scale);
-    let words: Vec<_> = text
-        .effect
-        .split_whitespace()
-        .enumerate()
-        .map(|(i, word)| {
-            let chunks: Vec<_> = if unboosted.get(i) == Some(&word) {
-                keyword_chunks(word, &keywords)
-                    .into_iter()
-                    .map(|(chunk, explanation)| (chunk, explanation.is_some()))
-                    .collect()
-            } else {
-                let end = word
-                    .find(|c: char| !c.is_alphanumeric())
-                    .unwrap_or(word.len());
-                vec![(&word[..end], true), (&word[end..], false)]
-            };
-            let keyword = chunks.iter().any(|&(_, highlighted)| highlighted);
+    let words: Vec<_> = effect_words_with_ranges(&text.effect, unboosted, &keyword_ranges)
+        .into_iter()
+        .map(|word| {
             let font = effect_font.clone();
-            let spans: Vec<_> = chunks
+            let spans: Vec<_> = word
+                .spans
                 .into_iter()
                 .map(|(chunk, highlighted)| {
                     let color = if highlighted {
@@ -327,13 +497,13 @@ pub fn card_face(
             (
                 Text::default(),
                 theme::text_shadow(0.9),
-                Tooltip(if keyword {
+                Tooltip(if word.tooltip {
                     explained.clone()
                 } else {
                     String::new()
                 }),
                 TooltipInstant,
-                if keyword {
+                if word.tooltip {
                     Pickable::default()
                 } else {
                     Pickable::IGNORE
@@ -349,6 +519,90 @@ pub fn card_face(
     );
     let tint = screen_color(text.card_type);
     let type_color = palette::card_type_color(text.card_type);
+    let discounted = text.cost < card.cost();
+    let cost_border = if discounted {
+        palette::HEAL
+    } else {
+        type_color
+    };
+    let cost_color = if discounted {
+        palette::HEAL
+    } else {
+        palette::TEXT
+    };
+    let keyword_hint = |word: &str| {
+        keywords
+            .iter()
+            .find(|(name, _)| name.to_lowercase() == word.to_lowercase())
+            .map(|(_, hint)| format!("{word}: {hint}"))
+            .unwrap_or_default()
+    };
+    let mut badges = Vec::new();
+    if card.id.retain() {
+        let label = if text.retained {
+            locale.badge_retained()
+        } else {
+            locale.badge_retain()
+        };
+        let color = if text.retained {
+            palette::SELECT
+        } else {
+            palette::PLAYER
+        };
+        badges.push((
+            label.to_owned(),
+            color,
+            keyword_hint(locale.badge_retain()),
+            text.retained,
+        ));
+    }
+    if card.id.exhaust() {
+        let label = locale.badge_exhaust();
+        badges.push((
+            label.to_owned(),
+            palette::DEBUFF,
+            keyword_hint(label),
+            false,
+        ));
+    }
+    let badge_nodes: Vec<_> = badges
+        .into_iter()
+        .map(|(label, color, hint, glow)| {
+            let shadow = if glow {
+                BoxShadow(vec![theme::glow(color.with_alpha(0.55), 8.0 * scale)])
+            } else {
+                BoxShadow::default()
+            };
+            (
+                Node {
+                    padding: UiRect::axes(s(5.0), s(1.5)),
+                    border: UiRect::all(px(1)),
+                    border_radius: BorderRadius::all(s(3.0)),
+                    ..default()
+                },
+                BackgroundColor(theme::SHADE.with_alpha(0.85)),
+                BorderColor::all(color.with_alpha(if glow { 0.95 } else { 0.7 })),
+                shadow,
+                Tooltip(hint),
+                TooltipInstant,
+                children![(
+                    theme::caps(fonts.display_bold(7.5 * scale), &label, 0.04, color),
+                    Pickable::IGNORE,
+                )],
+            )
+        })
+        .collect();
+    let badge_row = (!badge_nodes.is_empty()).then(|| {
+        (
+            Node {
+                justify_content: JustifyContent::Center,
+                column_gap: s(4.0),
+                ..default()
+            },
+            Pickable::IGNORE,
+            Children::spawn(SpawnIter(badge_nodes.into_iter())),
+        )
+    });
     let key = move |width: f32| {
         (
             Node {
@@ -389,9 +643,13 @@ pub fn card_face(
                 },
                 BoxShadow(vec![theme::ring(Color::BLACK.with_alpha(0.35), 1.0)]),
                 Pickable::IGNORE,
-                children![
-                    clipped_art(art.get(Card::Command(card.id)), 0.5, 2.0 * scale),
-                    shade(
+                Children::spawn((
+                    Spawn(clipped_art(
+                        art.get(Card::Command(card.id)),
+                        0.5,
+                        2.0 * scale,
+                    )),
+                    Spawn(shade(
                         &[
                             (tint.with_alpha(0.92), 0.0),
                             (tint.with_alpha(0.15), 30.0),
@@ -399,20 +657,21 @@ pub fn card_face(
                             (tint.with_alpha(0.94), 72.0),
                         ],
                         2.0 * scale,
-                    ),
-                    card_text(
+                    )),
+                    Spawn(card_text(
                         fonts.display_bold(15.0 * scale),
                         text.name.clone(),
                         theme::rgb(247, 252, 255),
-                        Justify::Center
-                    ),
-                    card_text(
+                        Justify::Center,
+                    )),
+                    Spawn(card_text(
                         fonts.body(9.0 * scale),
                         target,
                         theme::rgba(191, 224, 255, 0.9),
-                        Justify::Center
-                    ),
-                    (
+                        Justify::Center,
+                    )),
+                    SpawnIter(badge_row.into_iter()),
+                    Spawn((
                         Node {
                             margin: UiRect::top(Val::Auto),
                             flex_wrap: FlexWrap::Wrap,
@@ -423,8 +682,8 @@ pub fn card_face(
                         },
                         Pickable::IGNORE,
                         Children::spawn(SpawnIter(words.into_iter())),
-                    ),
-                ],
+                    )),
+                )),
             )),
             Spawn((
                 Node {
@@ -451,13 +710,13 @@ pub fn card_face(
                     ..default()
                 },
                 BackgroundColor(theme::SHADE),
-                BorderColor::all(type_color),
+                BorderColor::all(cost_border),
                 Pickable::IGNORE,
                 children![(
                     theme::text(
                         fonts.display_bold(15.0 * scale),
                         text.cost.to_string(),
-                        palette::TEXT
+                        cost_color
                     ),
                     Pickable::IGNORE,
                 )],
@@ -627,7 +886,18 @@ impl Plugin for CardPlugin {
 
 #[cfg(test)]
 mod tests {
-    use super::keyword_chunks;
+    use voidfleet_core::cards::{CardId, DeckCard};
+
+    use super::{EffectWord, effect_word_spans, keyword_chunks};
+    use crate::{i18n::Locale, settings::Language};
+
+    fn word<'a>(spans: Vec<(&'a str, bool)>, tooltip: bool) -> EffectWord<'a> {
+        EffectWord { spans, tooltip }
+    }
+
+    fn plain(text: &str) -> EffectWord<'_> {
+        word(vec![(text, false)], false)
+    }
 
     #[test]
     fn keywords_are_whole_words_in_any_case() {
@@ -640,6 +910,250 @@ mod tests {
                 (" 5, ", None),
                 ("brand", Some("brennt")),
                 (". Brandsatz", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn multi_word_keywords_match_longest_phrase_across_spaces() {
+        let keywords = [
+            ("Armor", "reduces damage"),
+            ("Armor Break", "lowers armor"),
+            ("Retain", "stays in hand"),
+        ];
+        assert_eq!(
+            keyword_chunks("Armor Break, armor 2. Retain.", &keywords),
+            [
+                ("", None),
+                ("Armor Break", Some("lowers armor")),
+                (", ", None),
+                ("armor", Some("reduces damage")),
+                (" 2. ", None),
+                ("Retain", Some("stays in hand")),
+                (".", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn shield_bash_bonus_zero_and_positive_en_and_de() {
+        let card = DeckCard::new(CardId::ShieldBash);
+        let en = Locale::new(Language::En);
+        let en_kw = en.keywords();
+        let en_base = en.card(card).effect;
+        let en_boosted = en.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&en_base, &en_base, &en_kw),
+            [
+                plain("Damage"),
+                plain("equal"),
+                plain("to"),
+                plain("your"),
+                plain("flagship's"),
+                plain("current"),
+                word(vec![("shields", true)], true),
+                plain("to"),
+                plain("a"),
+                plain("chosen"),
+                plain("ship."),
+                word(vec![("Homing", true), (".", false)], true),
+            ]
+        );
+        assert_eq!(
+            effect_word_spans(&en_boosted, &en_base, &en_kw),
+            [
+                plain("Damage"),
+                plain("equal"),
+                plain("to"),
+                plain("your"),
+                plain("flagship's"),
+                plain("current"),
+                word(vec![("shields", true)], true),
+                word(vec![("+3", true)], true),
+                plain("to"),
+                plain("a"),
+                plain("chosen"),
+                plain("ship."),
+                word(vec![("Homing", true), (".", false)], true),
+            ]
+        );
+
+        let de = Locale::new(Language::De);
+        let de_kw = de.keywords();
+        let de_base = de.card(card).effect;
+        let de_boosted = de.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&de_base, &de_base, &de_kw),
+            [
+                plain("Schaden"),
+                plain("in"),
+                plain("Höhe"),
+                plain("der"),
+                plain("aktuellen"),
+                word(vec![("Schilde", true)], true),
+                plain("deines"),
+                plain("Flaggschiffs"),
+                plain("auf"),
+                plain("ein"),
+                plain("gewähltes"),
+                plain("Schiff."),
+                word(vec![("Zielsuchend", true), (".", false)], true),
+            ]
+        );
+        assert_eq!(
+            effect_word_spans(&de_boosted, &de_base, &de_kw),
+            [
+                plain("Schaden"),
+                plain("in"),
+                plain("Höhe"),
+                plain("der"),
+                plain("aktuellen"),
+                word(vec![("Schilde", true)], true),
+                plain("deines"),
+                plain("Flaggschiffs"),
+                word(vec![("+3", true)], true),
+                plain("auf"),
+                plain("ein"),
+                plain("gewähltes"),
+                plain("Schiff."),
+                word(vec![("Zielsuchend", true), (".", false)], true),
+            ]
+        );
+    }
+
+    #[test]
+    fn collision_course_bonus_positive_en_and_de() {
+        let card = DeckCard::new(CardId::CollisionCourse);
+        let en = Locale::new(Language::En);
+        let en_kw = en.keywords();
+        let en_base = en.card(card).effect;
+        let en_boosted = en.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&en_boosted, &en_base, &en_kw),
+            [
+                plain("Ram"),
+                plain("a"),
+                plain("chosen"),
+                plain("ship:"),
+                plain("it"),
+                plain("takes"),
+                plain("twice"),
+                plain("your"),
+                plain("ATK"),
+                word(vec![("+3", true), (",", false)], true),
+                plain("your"),
+                plain("flagship"),
+                plain("takes"),
+                plain("its"),
+                plain("ATK."),
+                word(vec![("Homing", true), (",", false)], true),
+                word(vec![("piercing", true), (".", false)], true),
+            ]
+        );
+
+        let de = Locale::new(Language::De);
+        let de_kw = de.keywords();
+        let de_base = de.card(card).effect;
+        let de_boosted = de.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&de_boosted, &de_base, &de_kw),
+            [
+                plain("Rammt"),
+                plain("ein"),
+                plain("gewähltes"),
+                plain("Schiff:"),
+                plain("Es"),
+                plain("nimmt"),
+                plain("das"),
+                plain("Doppelte"),
+                plain("deiner"),
+                plain("ATK"),
+                word(vec![("+3", true), (",", false)], true),
+                plain("dein"),
+                plain("Flaggschiff"),
+                plain("seine"),
+                plain("ATK."),
+                word(vec![("Zielsuchend", true), (",", false)], true),
+                word(vec![("durchschlagend", true), (".", false)], true),
+            ]
+        );
+    }
+
+    #[test]
+    fn chrono_strike_bonus_positive_en_and_de() {
+        let card = DeckCard::new(CardId::ChronoStrike);
+        let boosted = (card.value() + 3).to_string();
+        let doubled = (2 * card.value() + 3).to_string();
+
+        let en = Locale::new(Language::En);
+        let en_kw = en.keywords();
+        let en_base = en.card(card).effect;
+        let en_boosted = en.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&en_boosted, &en_base, &en_kw),
+            [
+                word(vec![(&boosted, true)], true),
+                plain("damage"),
+                plain("to"),
+                plain("a"),
+                plain("chosen"),
+                plain("ship"),
+                word(vec![("(", false), (&doubled, true)], true),
+                plain("if"),
+                plain("it"),
+                plain("is"),
+                plain("in"),
+                plain("stasis"),
+                plain("or"),
+                plain("charging)."),
+                word(vec![("Homing", true), (",", false)], true),
+                word(vec![("piercing", true), (".", false)], true),
+            ]
+        );
+
+        let de = Locale::new(Language::De);
+        let de_kw = de.keywords();
+        let de_base = de.card(card).effect;
+        let de_boosted = de.card_with_bonus(card, 3).effect;
+
+        assert_eq!(
+            effect_word_spans(&de_boosted, &de_base, &de_kw),
+            [
+                word(vec![(&boosted, true)], true),
+                plain("Schaden"),
+                plain("auf"),
+                plain("ein"),
+                plain("gewähltes"),
+                plain("Schiff"),
+                word(vec![("(", false), (&doubled, true), (",", false)], true),
+                plain("wenn"),
+                plain("es"),
+                plain("im"),
+                plain("Stillstand"),
+                plain("ist"),
+                plain("oder"),
+                plain("auflädt)."),
+                word(vec![("Zielsuchend", true), (",", false)], true),
+                word(vec![("durchschlagend", true), (".", false)], true),
+            ]
+        );
+    }
+
+    #[test]
+    fn boosted_token_punctuation_edge_cases() {
+        assert_eq!(
+            effect_word_spans("(17) (17, +3, −5. (−5)", "(14) (14, −2. (−2)", &[]),
+            [
+                word(vec![("(", false), ("17", true), (")", false)], true),
+                word(vec![("(", false), ("17", true), (",", false)], true),
+                word(vec![("+3", true), (",", false)], true),
+                word(vec![("−5", true), (".", false)], true),
+                word(vec![("(", false), ("−5", true), (")", false)], true),
             ]
         );
     }

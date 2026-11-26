@@ -1,0 +1,12 @@
+{
+  "type": "tactic",
+  "target": "none",
+  "cost": 0,
+  "value": 2,
+  "extra": 0,
+  "upgraded": { "extra": 1 },
+  "text": {
+    "de": { "name": "Notenergie", "effect": "+{v} BP für diese Runde{draw}. Einmalig." },
+    "en": { "name": "Emergency Power", "effect": "+{v} command points this round{draw}. Exhaust." }
+  }
+}

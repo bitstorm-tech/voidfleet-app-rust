@@ -1,0 +1,11 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 2,
+  "value": 5,
+  "upgraded": { "value": 8 },
+  "text": {
+    "de": { "name": "Offensivdoktrin", "effect": "Doktrin: Immer wenn Waffen oder Fokusfeuer ausgelöst werden: Schilde {v}." },
+    "en": { "name": "Assault Doctrine", "effect": "Doctrine: whenever weapons or focus fire are triggered: shields {v}." }
+  }
+}

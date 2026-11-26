@@ -15,7 +15,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::admirals::{ADMIRAL_IDS, AdmiralId};
-use crate::cards::{CardId, CardTarget, CardType, EXTRA_CARDS, LOOT_POOL};
+use crate::cards::{CardId, CardTarget, CardType};
 use crate::enemies::{EnemyClass, EnemyId, Unit, valid_pattern};
 
 /// `enemies_defaults.json`: ein Gegner, seine Klasse und die Vorlage seiner Werte
@@ -48,9 +48,9 @@ pub enum Step {
 }
 
 /// `cards/<id>.json`: eine Karte. `value` ist der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung; 0 bei
-/// Karten ohne Zahl), `extra` der Zweitwert der Karten aus [`EXTRA_CARDS`], `upgraded` nennt, was die aufgewertete
-/// Fassung anders hat, `text` je Sprachkürzel (`en`, `de`) Name und Effekttext; welche Sprachen es gibt und was in den
-/// Texten steht, weiß der Client.
+/// Karten ohne Zahl), `extra` der Zweitwert der Karten aus [`crate::cards::EXTRA_CARDS`], `upgraded` nennt, was die
+/// aufgewertete Fassung anders hat, `text` je Sprachkürzel (`en`, `de`) Name und Effekttext; welche Sprachen es gibt
+/// und was in den Texten steht, weiß der Client.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CardData {
@@ -79,6 +79,8 @@ pub struct Upgrade {
     pub cost: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra: Option<i32>,
 }
 
 /// `admirals.json`: ein Admiral mit Hülle und ATK seines Flaggschiffs, dem Wert seiner Schild-Station, der
@@ -192,10 +194,17 @@ pub struct RunRules {
 }
 
 impl CardData {
-    /// Keine Zahl negativ, und `extra` steht genau dann, wenn die Karte einen Zweitwert hat.
+    /// Keine Zahl negativ, und `extra` (samt `upgraded.extra`) steht nur, wenn die Karte einen Zweitwert hat.
     pub fn check(&self, has_extra: bool) -> bool {
-        let values = [Some(self.value), self.extra, self.upgraded.value];
-        values.into_iter().flatten().all(|value| value >= 0) && self.extra.is_some() == has_extra
+        let values = [
+            Some(self.value),
+            self.extra,
+            self.upgraded.value,
+            self.upgraded.extra,
+        ];
+        values.into_iter().flatten().all(|value| value >= 0)
+            && self.extra.is_some() == has_extra
+            && (has_extra || self.upgraded.extra.is_none())
     }
 }
 
@@ -278,7 +287,7 @@ pub fn read<T: DeserializeOwned>(dir: &Path, file: &str) -> Result<T, String> {
 impl Data {
     /// Liest alle Dateien aus `dir` (`assets/data`) und prüft sie.
     pub fn load(dir: &Path) -> Result<Self, String> {
-        let cards = LOOT_POOL
+        let cards = CardId::ALL
             .iter()
             .map(|&id| Ok((id, read(dir, &id.file())?)))
             .collect::<Result<_, String>>()?;
@@ -307,9 +316,9 @@ impl Data {
                 ));
             }
         }
-        for id in LOOT_POOL {
+        for id in CardId::ALL {
             let card = self.cards.get(&id).ok_or(format!("{}: fehlt", id.file()))?;
-            if !card.check(EXTRA_CARDS.contains(&id)) {
+            if !card.check(id.has_extra()) {
                 return Err(format!(
                     "{}: Wert negativ oder `extra` fehlt bzw. steht, wo es keins gibt",
                     id.file()

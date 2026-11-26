@@ -1,0 +1,11 @@
+{
+  "type": "debuff",
+  "target": "enemy",
+  "cost": 2,
+  "value": 2,
+  "upgraded": { "cost": 1 },
+  "text": {
+    "de": { "name": "Brandbeschleuniger", "effect": "Ein brennendes gewähltes Schiff nimmt sofort {v}× seinen Brandschaden und wird Markiert." },
+    "en": { "name": "Accelerant", "effect": "A burning chosen ship takes {v}× its burn damage at once and becomes Marked." }
+  }
+}

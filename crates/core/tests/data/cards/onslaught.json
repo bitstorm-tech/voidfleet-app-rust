@@ -1,0 +1,11 @@
+{
+  "type": "attack",
+  "target": "enemy",
+  "cost": 1,
+  "value": 7,
+  "upgraded": { "value": 10 },
+  "text": {
+    "de": { "name": "Sturmlauf", "effect": "{v} Schaden plus doppelter Vorstoß auf ein gewähltes Schiff. Durchschlagend." },
+    "en": { "name": "Onslaught", "effect": "{v} damage plus double momentum to a chosen ship. Piercing." }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 3,
+  "value": 1,
+  "extra": 1,
+  "upgraded": { "cost": 2 },
+  "text": {
+    "de": { "name": "Uhrwerkdoktrin", "effect": "Doktrin: Zu Rundenbeginn +{v} Befehl; die erste Taktik oder Schwächung je Runde kostet {extra} BP weniger." },
+    "en": { "name": "Clockwork Doctrine", "effect": "Doctrine: at round start +{v} command; the first tactic or debuff each round costs {extra} command point less." }
+  }
+}

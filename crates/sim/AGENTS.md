@@ -1,6 +1,6 @@
 # Simulator (`voidfleet-sim`)
 
-- `just sim [runs|cards|modules|trace] [-n <runs je Admiral>] [--admiral <id>] [--seed <n>] [--data <ordner>]`; immer im Release-Build (der Dev-Build ist zehnmal langsamer). Rund 50 Runs je Sekunde auf acht Kernen; `cards` spielt 27-mal so viele Runs wie `runs`. Was die Zahlen bedeuten und welche Ziele gelten, steht in `docs/balance.md`.
+- `just sim [runs|cards|modules|trace] [-n <runs je Admiral>] [--admiral <id>] [--seed <n>] [--data <ordner>]`; immer im Release-Build (der Dev-Build ist zehnmal langsamer). Rund 50 Runs je Sekunde auf acht Kernen; `cards` spielt 49-mal so viele Runs wie `runs`. Was die Zahlen bedeuten und welche Ziele gelten, steht in `docs/balance.md`.
 - Abhängigkeiten nur `voidfleet-core`, `serde`, `serde_json` und `rand`. Der Simulator ändert nichts am Regelwerk: Er spielt `Battle` und `Run` über dieselbe Schnittstelle wie der Client.
 - `--data <ordner>` nimmt eine Kopie von `assets/data` (samt `maps/`), um Zahlen zu probieren, ohne die des Spiels anzufassen.
 

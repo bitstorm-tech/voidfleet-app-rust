@@ -1,0 +1,11 @@
+{
+  "type": "doctrine",
+  "target": "none",
+  "cost": 1,
+  "value": 1,
+  "upgraded": { "cost": 0 },
+  "text": {
+    "de": { "name": "Brückenkoordination", "effect": "Doktrin: Immer wenn eine Station ausgelöst wird: {v} Befehl ziehen." },
+    "en": { "name": "Bridge Coordination", "effect": "Doctrine: whenever a station is triggered: draw {v} command." }
+  }
+}

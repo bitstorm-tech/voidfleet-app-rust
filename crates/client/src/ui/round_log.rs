@@ -49,6 +49,11 @@ pub fn describe_event(locale: &Messages, event: &BattleEvent, admiral: AdmiralId
         BattleEvent::Healed { target, amount, .. } => locale.log_healed(&unit(*target), *amount),
         BattleEvent::Ignited { target } => locale.log_ignited(&unit(*target)),
         BattleEvent::Extinguished { target } => locale.log_extinguished(&unit(*target)),
+        BattleEvent::Marked { target } => locale.log_marked(&unit(*target)),
+        BattleEvent::ArmorBroken { target, amount } => {
+            locale.log_armor_broken(&unit(*target), *amount)
+        }
+        BattleEvent::PointsGained { amount } => locale.log_points_gained(*amount),
         BattleEvent::Emergency { target, active } => locale.log_emergency(&unit(*target), *active),
         BattleEvent::Destroyed { target, cause } => locale.log_destroyed(&unit(*target), *cause),
         BattleEvent::FireshipSpent { unit: spent } => locale.log_fireship_spent(&unit(*spent)),
@@ -168,6 +173,12 @@ mod tests {
             BattleEvent::Extinguished {
                 target: UnitRef::Flagship,
             },
+            BattleEvent::Marked { target: enemy },
+            BattleEvent::ArmorBroken {
+                target: enemy,
+                amount: 1,
+            },
+            BattleEvent::PointsGained { amount: 2 },
             BattleEvent::Emergency {
                 target: enemy,
                 active: true,

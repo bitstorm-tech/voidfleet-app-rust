@@ -107,17 +107,22 @@ fn shot_color(source: UnitRef, admiral: AdmiralId) -> bevy::prelude::Color {
 fn card_sound(card: CardId) -> Option<SoundId> {
     use CardId::*;
     Some(match card {
-        EmergencyShields | HoldTheLine | AblativeArmor | BattleStations => SoundId::ShieldUp,
+        EmergencyShields | HoldTheLine | AblativeArmor | BattleStations | ShieldBash | Bulwark
+        | BastionDoctrine => SoundId::ShieldUp,
         EmpBlast | Countermeasures => SoundId::Emp,
-        Overcharge | PowerSurge | MicroJump | TractorBeam | RedAlert | FireControlDoctrine => {
-            SoundId::PowerUp
+        Overcharge | PowerSurge | MicroJump | TractorBeam | RedAlert | FireControlDoctrine
+        | AssaultDoctrine | TimeWindow | ClockworkDoctrine | EmberDoctrine | EmergencyPower
+        | ChainCommand | BridgeCoordination => SoundId::PowerUp,
+        OrbitalStrike | Torpedo | CoupDeGrace | Bombardment | ChronoStrike => {
+            SoundId::OrbitalStrike
         }
-        OrbitalStrike | Torpedo | CoupDeGrace | Bombardment => SoundId::OrbitalStrike,
+        BreakthroughVolley => SoundId::CannonHeavy,
         RepairCrew => SoundId::Repair,
         Scavenge => SoundId::Scavenge,
-        TargetingJammer | RadioSilence => SoundId::Jammer,
-        VolleyFire | Barrage | HeatSeeker => SoundId::MissileVolley,
-        Firebomb | CollisionCourse | EvasiveAction => return None,
+        TargetingJammer | RadioSilence | PrecisionLock | TargetPainter => SoundId::Jammer,
+        VolleyFire | Barrage | HeatSeeker | MeltdownSalvo => SoundId::MissileVolley,
+        Firebomb | CollisionCourse | EvasiveAction | FlakBreaker | Onslaught | ArmorPiercer
+        | Wildfire | Accelerant | AutocannonSalvo | StandbyFire => return None,
     })
 }
 
@@ -432,10 +437,21 @@ impl Planner<'_> {
             CardId::Torpedo | CardId::HeatSeeker => shots(Weapon::Missile),
             CardId::OrbitalStrike => shots(Weapon::Orbital),
             CardId::CoupDeGrace => shots(Weapon::Lance),
+            CardId::ChronoStrike => shots(Weapon::Rail),
             CardId::Firebomb => shots(Weapon::Laser(Some(HitVariant::Fire))),
+            CardId::ShieldBash => shots(Weapon::Laser(Some(HitVariant::Sparks))),
+            CardId::Onslaught | CardId::ArmorPiercer => {
+                shots(Weapon::Laser(Some(HitVariant::Pierce)))
+            }
+            CardId::BreakthroughVolley => shots(Weapon::Laser(Some(HitVariant::Fireball))),
+            CardId::MeltdownSalvo => shots(Weapon::Plasma),
             CardId::VolleyFire => salvo(Weapon::Laser(None)),
+            CardId::FlakBreaker | CardId::AutocannonSalvo => {
+                salvo(Weapon::Laser(Some(HitVariant::Sparks)))
+            }
             CardId::Barrage => salvo(Weapon::Missile),
             CardId::Bombardment => salvo(Weapon::Orbital),
+            CardId::Wildfire => salvo(Weapon::Plasma),
             CardId::CollisionCourse => self.sequence(
                 rest,
                 Context {
@@ -443,6 +459,18 @@ impl Planner<'_> {
                     ..self.plain()
                 },
             ),
+            CardId::Accelerant => {
+                let has_effect = rest.iter().any(|event| {
+                    matches!(event, BattleEvent::Hit { .. } | BattleEvent::Marked { .. })
+                });
+                if has_effect {
+                    shots(Weapon::Contact(HitVariant::Fire))
+                } else if let Some(spot) = chosen {
+                    at_target(spot, palette::DEBUFF, None)
+                } else {
+                    buff()
+                }
+            }
             CardId::EmpBlast => match chosen {
                 Some(spot) => {
                     at_target(spot, palette::DEBUFF, Some(HitVariant::Discharge)).then(match spot {
@@ -459,6 +487,23 @@ impl Planner<'_> {
                 }),
                 None => buff(),
             },
+            CardId::PrecisionLock | CardId::TargetPainter => {
+                let has_target_event = rest.iter().any(|event| {
+                    matches!(
+                        event,
+                        BattleEvent::Marked { .. } | BattleEvent::ArmorBroken { .. }
+                    )
+                });
+                if has_target_event {
+                    Script::default()
+                        .then(sound.iter().map(clone_sound))
+                        .and(self.sequence(rest, self.plain()))
+                } else if let Some(spot) = chosen {
+                    at_target(spot, palette::DEBUFF, None).and(self.sequence(rest, self.plain()))
+                } else {
+                    buff()
+                }
+            }
             CardId::TargetingJammer => {
                 Script::default().then(sound.iter().map(clone_sound).chain([
                     Cue::Fx(Fx::Pulse {
@@ -474,16 +519,26 @@ impl Planner<'_> {
             | CardId::AblativeArmor
             | CardId::FireControlDoctrine
             | CardId::BattleStations
-            | CardId::HoldTheLine => doctrine(),
+            | CardId::HoldTheLine
+            | CardId::BastionDoctrine
+            | CardId::AssaultDoctrine
+            | CardId::ClockworkDoctrine
+            | CardId::EmberDoctrine
+            | CardId::BridgeCoordination => doctrine(),
             CardId::Countermeasures
             | CardId::Overcharge
             | CardId::PowerSurge
-            | CardId::Scavenge => buff(),
+            | CardId::Scavenge
+            | CardId::Bulwark
+            | CardId::TimeWindow
+            | CardId::EmergencyPower
+            | CardId::ChainCommand => buff(),
             CardId::EmergencyShields
             | CardId::RepairCrew
             | CardId::TractorBeam
             | CardId::MicroJump
-            | CardId::EvasiveAction => shots(Weapon::Laser(None)),
+            | CardId::EvasiveAction
+            | CardId::StandbyFire => shots(Weapon::Laser(None)),
         }
     }
 
@@ -867,6 +922,9 @@ impl Planner<'_> {
         if let (Some((_, amount)), Some(cover)) = (breakdown.covered, cover) {
             marks.push(locale.mark_covered(amount, &self.name(cover)));
         }
+        if breakdown.marked > 0 {
+            marks.push(locale.mark_marked(breakdown.marked));
+        }
         if breakdown.shielded > 0 {
             marks.push(locale.mark_shielded(breakdown.shielded));
         }
@@ -965,6 +1023,34 @@ impl Planner<'_> {
             BattleEvent::Extinguished { target } => beat.extend([
                 Cue::Unit(target, Job::Burning(false)),
                 pulse(Spot::Unit(target), palette::HEAL, 1.6),
+            ]),
+            BattleEvent::Marked { target } => beat.extend([
+                Cue::Fx(Fx::Ring {
+                    at: Spot::Unit(target),
+                    color: palette::DEBUFF,
+                }),
+                pulse(Spot::Unit(target), palette::DEBUFF, 1.8),
+                Cue::float(
+                    Spot::Unit(target),
+                    locale.condition(Condition::Marked),
+                    FloatTone::Debuff,
+                ),
+            ]),
+            BattleEvent::ArmorBroken { target, amount } => beat.extend([
+                pulse(Spot::Unit(target), palette::DEBUFF, 1.6),
+                Cue::float(
+                    Spot::Unit(target),
+                    locale.report_armor_broken(amount),
+                    FloatTone::Debuff,
+                ),
+            ]),
+            BattleEvent::PointsGained { amount } => beat.extend([
+                pulse(flagship, palette::BUFF, 1.6),
+                Cue::float(
+                    flagship,
+                    locale.report_points_gained(amount),
+                    FloatTone::Buff,
+                ),
             ]),
             BattleEvent::Emergency { target, active } => {
                 let tone = if active {
@@ -1165,6 +1251,8 @@ fn units(event: &BattleEvent) -> Vec<UnitRef> {
         | BattleEvent::Healed { target, .. }
         | BattleEvent::Ignited { target }
         | BattleEvent::Extinguished { target }
+        | BattleEvent::Marked { target }
+        | BattleEvent::ArmorBroken { target, .. }
         | BattleEvent::Emergency { target, .. }
         | BattleEvent::Destroyed { target, .. }
         | BattleEvent::Rammed { target }
@@ -1248,6 +1336,12 @@ mod tests {
             BattleEvent::Extinguished {
                 target: UnitRef::Flagship,
             },
+            BattleEvent::Marked { target: GUARD },
+            BattleEvent::ArmorBroken {
+                target: GUARD,
+                amount: 1,
+            },
+            BattleEvent::PointsGained { amount: 2 },
             BattleEvent::Emergency {
                 target: UnitRef::Flagship,
                 active: true,
@@ -1358,7 +1452,7 @@ mod tests {
             locale: &locale,
             admiral: AdmiralId::Osei,
         };
-        for id in voidfleet_core::cards::LOOT_POOL {
+        for id in CardId::ALL {
             let target = match id.target() {
                 voidfleet_core::cards::CardTarget::None => Target::None,
                 voidfleet_core::cards::CardTarget::Enemy => Target::Enemy(1),
@@ -1389,7 +1483,17 @@ mod tests {
                 | CardId::Firebomb
                 | CardId::VolleyFire
                 | CardId::Barrage
-                | CardId::Bombardment => Some(BattleEvent::Hit {
+                | CardId::Bombardment
+                | CardId::ShieldBash
+                | CardId::FlakBreaker
+                | CardId::Onslaught
+                | CardId::BreakthroughVolley
+                | CardId::ArmorPiercer
+                | CardId::ChronoStrike
+                | CardId::Wildfire
+                | CardId::MeltdownSalvo
+                | CardId::AutocannonSalvo
+                | CardId::StandbyFire => Some(BattleEvent::Hit {
                     source: UnitRef::Flagship,
                     target: GUARD,
                     breakdown: Breakdown::default(),
@@ -1458,5 +1562,39 @@ mod tests {
             .collect();
         assert_eq!(lasers, 1);
         assert_eq!(numbers, ["gedeckt: 4 → Wachkreuzer", ""]);
+    }
+
+    #[test]
+    fn marks_include_marked_damage_and_debuffs_animate_without_events() {
+        let locale = Locale::new(Language::En);
+        let planner = Planner {
+            locale: &locale,
+            admiral: AdmiralId::Kerr,
+        };
+        let marks = planner.marks(
+            &Breakdown {
+                base: 6,
+                marked: 3,
+                armor: 1,
+                hull: 8,
+                lethal: true,
+                ..Breakdown::default()
+            },
+            None,
+        );
+        assert_eq!(marks, "marked +3 · armor −1 · lethal");
+
+        for id in [
+            CardId::PrecisionLock,
+            CardId::TargetPainter,
+            CardId::Accelerant,
+        ] {
+            let step = [BattleEvent::CardPlayed {
+                card: DeckCard::new(id),
+                target: Target::Enemy(1),
+            }];
+            let script = planner.step(&step);
+            assert!(script.cues().into_iter().any(shows), "{id:?}");
+        }
     }
 }

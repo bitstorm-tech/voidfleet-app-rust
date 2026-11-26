@@ -6,12 +6,12 @@
 
 use bevy::{
     prelude::*,
-    ui_widgets::{Activate, observe},
+    ui_widgets::{Activate, ScrollArea, observe},
     window::PrimaryWindow,
 };
 use voidfleet_core::{
     admirals::ADMIRAL_IDS,
-    cards::{DeckCard, LOOT_POOL},
+    cards::{CardId, DeckCard},
 };
 
 use super::{
@@ -174,13 +174,18 @@ fn show(
                     editor.admiral(),
                     Density::Regular,
                 ));
-                main.spawn(frame(Node {
-                    width: px(PANEL),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(8),
-                    padding: UiRect::all(px(14)),
-                    ..default()
-                }))
+                main.spawn((
+                    frame(Node {
+                        width: px(PANEL),
+                        max_height: px((overlay.1.y - 200.0).max(260.0)),
+                        overflow: Overflow::scroll_y(),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(8),
+                        padding: UiRect::all(px(14)),
+                        ..default()
+                    }),
+                    ScrollArea,
+                ))
                 .with_children(|panel| admiral_panel(panel, fonts, locale, editor));
             });
         });
@@ -299,7 +304,7 @@ fn admiral_panel(
     panel
         .spawn(grid(vec![RepeatedGridTrack::flex(3, 1.0)]))
         .with_children(|grid| {
-            for card in LOOT_POOL {
+            for card in CardId::ALL {
                 let look = Key::tinted(palette::card_type_color(card.card_type()));
                 key(
                     grid,

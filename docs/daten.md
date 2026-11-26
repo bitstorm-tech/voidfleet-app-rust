@@ -48,10 +48,12 @@ Je Karte eine Datei `cards/<id>.json` mit allem, was auf der Karte steht; das Bi
 ```
 
 - `type`: `attack`, `buff`, `debuff`, `tactic` oder `doctrine`. `target`: `none`, `enemy` oder `column`.
-- `cost`: Befehlspunkte. `value`: der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung), 0 bei Karten ohne Zahl.
-- `extra`: der Zweitwert, nur bei diesen fünf Karten und bei ihnen Pflicht: Zuschlag des Wärmesuchers auf ein ausweichendes Ziel, des Gnadenstoßes auf eines im Notfall, Abwehrfeuer von Standhalten, Schaden der Überladung am eigenen Flaggschiff, Karten, die Plündern zieht.
-- `upgraded`: was die aufgewertete Fassung anders hat, `cost`, `value` oder beides; `{}` für keine Änderung.
-- `text`: je Sprache (`de`, `en`) der Name und der Effekttext; jede Sprache des Spiels ist Pflicht. Der Effekttext kennt `{v}` (Hauptwert, aufgewertet und mit Zuschlägen im Gefecht), `{extra}` (Zweitwert), `{evading}` und `{emergency}` (beide zusammen: der Wert gegen ein ausweichendes Ziel und eines im Notfall) und `{bonus}` (der Zuschlag auf den Rammkurs als „ +2“ oder nichts). Die Schlüsselwörter, die er nennt („Zielsuchend“), erklärt `keywords` in den Textdateien.
+- `cost`: Befehlspunkte. `value`: der Hauptwert (Schaden, Schild, Reparatur, ATK-Bonus, Panzerung, Treffer-, Karten- oder BP-Zahl), 0 bei Karten ohne Zahl.
+- `extra`: der Zweitwert, nur bei diesen 15 Karten und bei ihnen Pflicht: Zuschlag des Wärmesuchers auf ein ausweichendes Ziel, des Gnadenstoßes auf eines im Notfall, Abwehrfeuer von Standhalten und Bastionsdoktrin, Schaden der Überladung am eigenen Flaggschiff, Karten von Plündern und Notenergie, Panzerbruch von Flakbrecher und Brechergeschoss, BP von Durchbruchsalve und Kettenbefehl, Nachlass der Uhrwerkdoktrin, Treffer der Autokanonen-Salve, Zuschlag je brennendem Gegner bei Schmelzsalve, Schild der Glutdoktrin beim Fall eines brennenden Gegners.
+- `upgraded`: was die aufgewertete Fassung anders hat, `cost`, `value`, `extra` (nur bei Karten mit `extra`) oder eine Kombination daraus; `{}` für keine Änderung.
+- `text`: je Sprache (`de`, `en`) der Name und der Effekttext; jede Sprache des Spiels ist Pflicht. Der Effekttext kennt `{v}` (Hauptwert, aufgewertet und mit Zuschlägen im Gefecht), `{extra}` (Zweitwert), `{evading}` und `{emergency}` (beide zusammen: der Wert gegen ein ausweichendes Ziel und eines im Notfall), `{bonus}` (der Zuschlag auf den Rammkurs oder Schildstoß als „ +2“ oder nichts), `{double}` (verdoppelter Wert plus Zuschläge beim Chrono-Schlag) und `{draw}` (bei Notenergie leer, wenn `extra` 0 ist, sonst „, {extra} Befehl ziehen“ bzw. englisch „, draw {extra} command“). Die Schlüsselwörter, die er nennt („Zielsuchend“), erklärt `keywords` in den Textdateien.
+
+Die Poolzugehörigkeit (28 neutrale Karten in `NEUTRAL_POOL`, je 5 Admiral-Karten in `admiral_pool`) sowie die Karteneigenschaften **Einmalig** (`exhaust`) und **Behalten** (`retain`) stehen wie die Mechanik im Code (`crates/core/src/cards.rs`).
 
 ### Der Befehlskarten-Editor
 

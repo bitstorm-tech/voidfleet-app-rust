@@ -120,7 +120,7 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
         }
         Pick::Card(index) => match battle.hand.get(index) {
             None => Outcome::Nothing,
-            Some(card) if card.cost() > battle.points => {
+            Some(_) if battle.card_cost(index) > battle.points => {
                 Outcome::Reject(RuleError::NotEnoughPoints)
             }
             Some(_) => Selection::Card(index).choose(battle),
@@ -371,5 +371,25 @@ mod tests {
         assert!(hits.iter().any(|hit| unit_uid(hit.target) == uid));
         assert!(preview(&battle, Selection::Idle, Some(slot)).is_none());
         assert!(preview(&battle, Selection::Card(0), Some(SlotRef::player(0))).is_none());
+    }
+
+    #[test]
+    fn clockwork_discount_allows_selecting_discounted_card() {
+        let mut battle = battle();
+        let card = DeckCard::new(CardId::TimeWindow);
+        battle.hand = vec![card];
+        battle.points = card.cost() - 1;
+        assert_eq!(
+            click(&battle, Selection::Idle, Pick::Card(0)),
+            Outcome::Reject(RuleError::NotEnoughPoints)
+        );
+        battle.flagship.clockwork_discount = 1;
+        assert_eq!(
+            click(&battle, Selection::Idle, Pick::Card(0)),
+            Outcome::Act(PlayerAction::PlayCard {
+                hand_index: 0,
+                target: Target::None,
+            })
+        );
     }
 }
