@@ -44,3 +44,7 @@ Alle Einzelheiten in `crates/client/AGENTS.md` und den Modulkommentaren von `cra
 ## Linting und Formatierung
 
 `cargo fmt --all` formatiert (`rustfmt.toml`: Zeilenbreite 100; Kommentare von Hand bis 120 Zeichen umbrechen). Nach Änderungen müssen `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` und `cargo test --workspace` ohne Befund durchgehen. Die Lints stehen im Workspace (`Cargo.toml`): `unsafe_code` verboten, `clippy::all` als Warnung. Einzige Ausnahme ist das Crate-Attribut in `crates/client/src/lib.rs`, das `too_many_arguments` und `type_complexity` für Bevy-Systeme erlaubt; sonst keine `#[allow]`s.
+
+## Git
+
+Bei größeren Änderungen am Quellcode immer zuerst einen neuen Git-Worktree erstellen, statt direkt im Hauptverzeichnis zu arbeiten.
