@@ -47,4 +47,4 @@ Alle Einzelheiten in `crates/client/AGENTS.md` und den Modulkommentaren von `cra
 
 ## Git
 
-Bei größeren Änderungen am Quellcode immer zuerst einen neuen Git-Worktree unter `.worktrees/` erstellen, statt direkt im Hauptverzeichnis zu arbeiten.
+Bei jeder Änderung am Quellcode (unabhängig vom Umfang) immer zuerst einen neuen Git-Worktree mit eigenem Branch unter `.worktrees/` erstellen, statt direkt im Hauptverzeichnis zu arbeiten. Das Hauptverzeichnis bleibt auf `main`.
