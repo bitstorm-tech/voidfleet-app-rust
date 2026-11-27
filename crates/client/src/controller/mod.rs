@@ -116,7 +116,7 @@ fn can_act(battle: Option<&Battle>, mode: BoardMode) -> bool {
 
 // --- Gefecht ---
 
-/// Ein neues Gefecht: Auswahl und Log leer, Musik an, der Bordfunk meldet.
+/// Ein neues Gefecht: Auswahl und Log leer, Musik an, der Bordfunk meldet; bei Sektor-Bossen ein kurzes Intro-Banner.
 fn begin_battle(
     battle: Res<Battle>,
     locale: Res<Locale>,
@@ -125,6 +125,7 @@ fn begin_battle(
     mut mode: ResMut<NextState<BoardMode>>,
     mut clear: MessageWriter<ClearLog>,
     mut log: MessageWriter<AppendLog>,
+    mut banner: MessageWriter<ShowBanner>,
     mut say: MessageWriter<Say>,
     mut background: MessageWriter<ChangeBackground>,
 ) {
@@ -136,6 +137,17 @@ fn begin_battle(
         locale.log_battle_started(&locale.admiral_title(battle.flagship.admiral)),
         locale.log_round_header(battle.round),
     ]));
+    if let Some((boss, hint)) = battle
+        .enemies
+        .iter()
+        .find_map(|enemy| locale.boss_intro(enemy.id).map(|hint| (enemy.id, hint)))
+    {
+        banner.write(ShowBanner {
+            title: locale.enemy(boss).to_owned(),
+            subtitle: Some(hint.to_owned()),
+            admiral: None,
+        });
+    }
     say.write(Say::new(RadioCue::BattleStart));
     background.write(ChangeBackground);
 }

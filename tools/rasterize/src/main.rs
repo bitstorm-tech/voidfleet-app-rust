@@ -104,6 +104,24 @@ const ICONS: &[(&str, &str)] = &[
         "armor",
         r#"<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="m12 8 3.5 2v4L12 16l-3.5-2v-4z" />"#,
     ),
+    // Passiven der Gegner: Kannibalisieren (Sog-Kreis mit Reparatur-Kreuz), Unbeweglich (Anker),
+    // Plasmageschütze (Plasmakern mit Plus), Ausweichreflex (Rücksprung-Pfeil).
+    (
+        "cannibalize",
+        r#"<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /><path d="M12 8v8M8 12h8" />"#,
+    ),
+    (
+        "immovable",
+        r#"<path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3" /><circle cx="12" cy="5" r="3" />"#,
+    ),
+    (
+        "plasma_burn",
+        r#"<path d="M12 3c.5 2.5 2 4.5 4 6a6 6 0 1 1-8 0c2-1.5 3.5-3.5 4-6z" /><path d="M12 13v4M10 15h4" />"#,
+    ),
+    (
+        "evade_reflex",
+        r#"<path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11" />"#,
+    ),
 ];
 
 /// Gefüllte Icons.

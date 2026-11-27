@@ -11,13 +11,22 @@ use voidfleet_core::{
     battle::{Battle, RuleError, Target},
     board::COLUMNS,
     cards::CardTarget,
-    events::{Hit, UnitRef},
+    events::{BattleEvent, Hit, UnitRef},
 };
 
 use crate::{
     game::PlayerAction,
     scene::coords::{Side, SlotRef},
 };
+
+/// Die Vorschau einer gezielten Aktion auf den Gegner `target`: alle Treffer und drohende Kannibalisieren-Heilungen
+/// (`(uid, amount)` je Schrottkönig, der dadurch Hülle zurückerhält).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TargetPreview {
+    pub target: u32,
+    pub hits: Vec<Hit>,
+    pub cannibalize: Vec<(u32, i32)>,
+}
 
 /// Was gerade gewählt ist.
 #[derive(bevy::prelude::Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -62,12 +71,12 @@ impl Selection {
         }
     }
 
-    /// Die Treffer auf einer Kopie; `None`, wenn das Ziel nicht gilt.
-    fn preview(self, battle: &Battle, target: Target) -> Option<Vec<Hit>> {
+    /// Die Ereignisse auf einer Kopie; `None`, wenn das Ziel nicht gilt.
+    fn preview_events(self, battle: &Battle, target: Target) -> Option<Vec<BattleEvent>> {
         match self {
             Self::Idle => None,
-            Self::Card(index) => battle.preview_card(index, target).ok(),
-            Self::Station(station) => battle.preview_station(station, target).ok(),
+            Self::Card(index) => battle.preview_card_events(index, target).ok(),
+            Self::Station(station) => battle.preview_station_events(station, target).ok(),
         }
     }
 
@@ -139,7 +148,7 @@ pub fn click(battle: &Battle, selection: Selection, pick: Pick) -> Outcome {
 /// Gültige Ziele des Gewählten: Gegner bzw. eigene Spalten (nie die, in der das Flaggschiff steht), für die die
 /// Vorschau gelingt.
 pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
-    let valid = |target| selection.preview(battle, target).is_some();
+    let valid = |target| selection.preview_events(battle, target).is_some();
     match selection.target_kind(battle) {
         CardTarget::Enemy => battle
             .enemies
@@ -155,15 +164,38 @@ pub fn highlights(battle: &Battle, selection: Selection) -> Vec<SlotRef> {
     }
 }
 
-/// Die Vorschau unter dem Zeiger: die Treffer des Gewählten auf den Gegner unter dem Zeiger, samt dessen Kennung.
-/// Gerechnet auf einer Kopie, also genau wie die Ausführung.
+/// Die Vorschau unter dem Zeiger: Treffer und drohende Kannibalisieren-Heilungen des Gewählten auf den Gegner unter
+/// dem Zeiger, gerechnet auf einer Kopie — also genau wie die Ausführung.
 pub fn preview(
     battle: &Battle,
     selection: Selection,
     hover: Option<SlotRef>,
-) -> Option<(u32, Vec<Hit>)> {
-    let uid = enemy_at(battle, hover?)?;
-    Some((uid, selection.preview(battle, Target::Enemy(uid))?))
+) -> Option<TargetPreview> {
+    let target = enemy_at(battle, hover?)?;
+    let events = selection.preview_events(battle, Target::Enemy(target))?;
+    let mut hits = Vec::new();
+    let mut cannibalize: Vec<(u32, i32)> = Vec::new();
+    for event in events {
+        match event {
+            BattleEvent::Hit {
+                target, breakdown, ..
+            } => hits.push(Hit { target, breakdown }),
+            BattleEvent::Cannibalized { unit, amount, .. } if amount > 0 => {
+                let uid = unit_uid(unit);
+                if let Some((_, total)) = cannibalize.iter_mut().find(|(id, _)| *id == uid) {
+                    *total += amount;
+                } else {
+                    cannibalize.push((uid, amount));
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(TargetPreview {
+        target,
+        hits,
+        cannibalize,
+    })
 }
 
 /// Wo der Geist des Flaggschiffs steht: in der eigenen Spalte unter dem Zeiger, wenn das Gewählte eine Spalte braucht
@@ -172,7 +204,7 @@ pub fn ghost(battle: &Battle, selection: Selection, hover: Option<SlotRef>) -> O
     let target @ Target::Column(column) = selection.target_at(battle, hover?)? else {
         return None;
     };
-    selection.preview(battle, target)?;
+    selection.preview_events(battle, target)?;
     Some(SlotRef::player(column))
 }
 
@@ -306,9 +338,9 @@ mod tests {
             click(&battle, weapons, Pick::Station(Station::Weapons)),
             Outcome::Select(Selection::Idle)
         );
-        let (focus, hits) = preview(&battle, weapons, Some(slot)).unwrap();
-        assert_eq!(focus, uid);
-        assert_eq!(hits[0].breakdown.base, battle.flagship_attack());
+        let preview = preview(&battle, weapons, Some(slot)).unwrap();
+        assert_eq!(preview.target, uid);
+        assert_eq!(preview.hits[0].breakdown.base, battle.flagship_attack());
     }
 
     #[test]
@@ -367,10 +399,71 @@ mod tests {
     fn preview_shows_card_hits() {
         let battle = battle();
         let (uid, slot) = enemy_slot(&battle, 0);
-        let (_, hits) = preview(&battle, Selection::Card(0), Some(slot)).unwrap();
-        assert!(hits.iter().any(|hit| unit_uid(hit.target) == uid));
+        let result = preview(&battle, Selection::Card(0), Some(slot)).unwrap();
+        assert!(result.hits.iter().any(|hit| unit_uid(hit.target) == uid));
         assert!(preview(&battle, Selection::Idle, Some(slot)).is_none());
         assert!(preview(&battle, Selection::Card(0), Some(SlotRef::player(0))).is_none());
+    }
+
+    #[test]
+    fn preview_reports_cannibalize_only_when_scrap_king_heals() {
+        use voidfleet_core::{
+            battle::{Battle as CoreBattle, BattleSetup, Encounter},
+            enemies::EnemyId,
+        };
+
+        let encounter = Encounter {
+            front: [
+                Some(EnemyId::Raiders.into()),
+                Some(EnemyId::ScrapKing.into()),
+                None,
+            ],
+            ..Encounter::default()
+        };
+        let mut battle = CoreBattle::new(
+            BattleSetup {
+                admiral: AdmiralId::Vance,
+                hull: AdmiralId::Vance.hull(),
+                max_hull: AdmiralId::Vance.hull(),
+                deck: voidfleet_core::cards::starter_deck(AdmiralId::Vance),
+                modules: Vec::new(),
+                emergency_generator_available: false,
+                encounter,
+            },
+            1,
+        );
+        let raiders = battle
+            .enemies
+            .iter()
+            .find(|e| e.id == EnemyId::Raiders)
+            .unwrap()
+            .slot;
+        let king_uid = battle
+            .enemies
+            .iter()
+            .find(|e| e.id == EnemyId::ScrapKing)
+            .unwrap()
+            .uid;
+        let weapons = Selection::Station(Station::Weapons);
+        // Volle Hülle: keine Kannibalisieren-Vorschau.
+        let full = preview(&battle, weapons, Some(SlotRef::enemy(raiders))).unwrap();
+        assert!(full.cannibalize.is_empty());
+
+        // Angeschlagen: Kannibalisieren-Heilung steht in der Vorschau.
+        battle
+            .enemies
+            .iter_mut()
+            .find(|e| e.uid == king_uid)
+            .unwrap()
+            .hull = 40;
+        let damaged = preview(&battle, weapons, Some(SlotRef::enemy(raiders))).unwrap();
+        assert_eq!(
+            damaged.cannibalize,
+            vec![(
+                king_uid,
+                voidfleet_core::data::rules().enemies.cannibalize_heal
+            )]
+        );
     }
 
     #[test]

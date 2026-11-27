@@ -627,7 +627,21 @@
     "covered": "Gedeckt: Der Vordermann in der Spalte fängt die Hälfte jedes Schadens ab (aufgerundet); durchschlagend übergeht das."
   },
   "armor_hint": "Panzerung: Jeder Treffer macht {amount} weniger Schaden.",
+  "regeneration_name": "Lebende Hülle",
   "regeneration_hint": "Lebende Hülle: wächst in der Auflösung um {amount} nach, wenn sie in dieser Runde kein Treffer erreicht. Brand hält sie an.",
+  "cannibalize_name": "Kannibalisieren",
+  "cannibalize_hint": "Kannibalisieren: Jedes zerstörte Schiff auf dem Brett repariert ihn um {amount} Hülle.",
+  "cannibalize_preview": "Kannibalisieren +{amount}",
+  "passive_immovable_hint": "Unbeweglich: Kein Traktorstrahl verschiebt diese Einheit.",
+  "passive_flagship_hint": "Flaggschiff: Fällt das Siegel, fällt die gesamte Gegenflotte.",
+  "passive_brood_link_hint": "Brutverbindung: Fällt der Unbekannte Kontakt, vergeht seine Brut.",
+  "passive_plasma_hint": "Plasmageschütze: Treffer zünden Brand schon ab {rules.enemies.plasma_burn_percent} % Hülle.",
+  "passive_evade_reflex_hint": "Ausweichreflex: Wurde sie in dieser Runde getroffen, sagt sie für die nächste Ausweichen an.",
+  "boss_intro": {
+    "scrap_king": "Kannibalisieren: Jedes zerstörte Schiff repariert ihn um {rules.enemies.cannibalize_heal} Hülle.",
+    "warden": "Unbewegliche Verteidigungsstation — gepanzert, mit zweispurigem Hauptgeschütz.",
+    "seal": "Flaggschiff von Kommandantin Vey — fällt das Siegel, fällt die Gegenflotte."
+  },
   "burn_hint": {
     "ticking": "Verliert {amount} Hülle in jeder Auflösung.",
     "suppressed": "Brandschutz: Der Brand tickt nicht."

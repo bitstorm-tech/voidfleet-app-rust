@@ -128,6 +128,10 @@ pub struct UiIcons {
     pub armor: Handle<Image>,
     pub repair: Handle<Image>,
     pub maneuver: Handle<Image>,
+    pub cannibalize: Handle<Image>,
+    pub immovable: Handle<Image>,
+    pub plasma_burn: Handle<Image>,
+    pub evade_reflex: Handle<Image>,
 }
 
 impl FromWorld for UiIcons {
@@ -159,6 +163,10 @@ impl FromWorld for UiIcons {
                 armor: icon("armor"),
                 repair: icon("repair"),
                 maneuver: icon("maneuver"),
+                cannibalize: icon("cannibalize"),
+                immovable: icon("immovable"),
+                plasma_burn: icon("plasma_burn"),
+                evade_reflex: icon("evade_reflex"),
             }
         })
     }

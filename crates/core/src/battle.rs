@@ -11,7 +11,7 @@ use crate::admirals::{AdmiralId, AdmiralStation, Station};
 use crate::board::{COLUMNS, EnemySlot, MAX_ENEMIES, Row};
 use crate::cards::{CardId, CardTarget, CardType, DeckCard};
 use crate::data::{Step, rules};
-use crate::enemies::{Action, EnemyClass, EnemyId, Unit, action, step_index};
+use crate::enemies::{Action, EnemyId, Unit, action, step_index};
 use crate::events::{
     BattleEvent, Breakdown, DestroyCause, Hit, IdleReason, Intent, MissReason, UnitRef, UnitStats,
 };
@@ -635,13 +635,29 @@ impl Battle {
     // --- Vorschau ---
 
     pub fn preview_station(&self, station: Station, target: Target) -> Result<Vec<Hit>, RuleError> {
-        let mut copy = self.clone();
-        copy.run_station(station, target).map(hits)
+        self.preview_station_events(station, target).map(hits)
     }
 
     pub fn preview_card(&self, hand_index: usize, target: Target) -> Result<Vec<Hit>, RuleError> {
+        self.preview_card_events(hand_index, target).map(hits)
+    }
+
+    pub fn preview_station_events(
+        &self,
+        station: Station,
+        target: Target,
+    ) -> Result<Vec<BattleEvent>, RuleError> {
         let mut copy = self.clone();
-        copy.play_card(hand_index, target).map(hits)
+        copy.run_station(station, target)
+    }
+
+    pub fn preview_card_events(
+        &self,
+        hand_index: usize,
+        target: Target,
+    ) -> Result<Vec<BattleEvent>, RuleError> {
+        let mut copy = self.clone();
+        copy.play_card(hand_index, target)
     }
 
     // --- Stationen und Karten ---
@@ -759,9 +775,7 @@ impl Battle {
         if card.id == CardId::TractorBeam
             && let Target::Enemy(uid) = target
             && let Some(enemy) = self.enemy(uid)
-            && (enemy.id.class() == EnemyClass::Flagship
-                || enemy.id == EnemyId::UnknownContact
-                || self.tractor_slot(enemy).is_none())
+            && (enemy.id.immovable() || self.tractor_slot(enemy).is_none())
         {
             return Err(RuleError::TargetInvalid);
         }
@@ -1396,11 +1410,14 @@ impl Battle {
                 .iter_mut()
                 .filter(|e| e.id == EnemyId::ScrapKing)
             {
-                let was = king.emergency();
                 let amount = rules()
                     .enemies
                     .cannibalize_heal
                     .min(king.max_hull - king.hull);
+                if amount <= 0 {
+                    continue;
+                }
+                let was = king.emergency();
                 king.hull += amount;
                 events.push(BattleEvent::Cannibalized {
                     unit: king.unit(),

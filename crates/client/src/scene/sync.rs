@@ -20,6 +20,8 @@ use bevy::prelude::*;
 use voidfleet_core::{
     admirals::AdmiralId,
     battle::{Battle as CoreBattle, Enemy},
+    data::rules,
+    enemies::EnemyId,
     events::{Hit, UnitRef, UnitStats},
 };
 
@@ -28,7 +30,7 @@ use super::{
     aura::ShipAura,
     board::{BoardEntities, OnSlot, place},
     coords::{Side, SlotRef},
-    labels::ShipCaption,
+    labels::{Passive, ShipCaption},
     motion::Arrive,
     ship::{Ghost, Ship, ToonState, spawn_ghost, spawn_ship},
     status::ShipStatus,
@@ -36,7 +38,10 @@ use super::{
 };
 use crate::{
     assets::AppState,
-    controller::{Scripted, selection::unit_uid},
+    controller::{
+        Scripted,
+        selection::{TargetPreview, unit_uid},
+    },
     data::ship_models::{ShipKind, ShipModels},
     game::Battle,
     i18n::{Condition, Locale, Messages},
@@ -52,11 +57,11 @@ pub enum BoardMode {
     Playback,
 }
 
-/// Was der Controller unter dem Zeiger zeigt: die Treffer der gewählten Karte bzw. Station auf den Gegner `uid` und
-/// die Spalte, in der der Geist des Flaggschiffs steht.
+/// Was der Controller unter dem Zeiger zeigt: Treffer und Kannibalisieren-Heilungen der gewählten Karte bzw. Station
+/// sowie die Spalte, in der der Geist des Flaggschiffs steht.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct BoardFocus {
-    pub preview: Option<(u32, Vec<Hit>)>,
+    pub preview: Option<TargetPreview>,
     pub ghost: Option<SlotRef>,
 }
 
@@ -118,6 +123,23 @@ struct Wanted {
     aura: ShipAura,
 }
 
+/// Dauerhafte passive Sonderfähigkeiten einer gegnerischen Einheit.
+fn enemy_passives(enemy: &Enemy) -> Vec<Passive> {
+    let mut passives = Vec::new();
+    match enemy.id {
+        EnemyId::ScrapKing => passives.push(Passive::Cannibalize(rules().enemies.cannibalize_heal)),
+        EnemyId::Seal => passives.push(Passive::Flagship),
+        EnemyId::UnknownContact => passives.push(Passive::BroodLink),
+        EnemyId::PlasmaCruiser => passives.push(Passive::PlasmaBurn),
+        EnemyId::Raiders => passives.push(Passive::EvadeReflex),
+        _ => {}
+    }
+    if enemy.id.immovable() {
+        passives.push(Passive::Immovable);
+    }
+    passives
+}
+
 /// Zustände einer gegnerischen Einheit als Icons (der Brand kommt mit seiner Zahl eigens).
 fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
     [
@@ -135,15 +157,12 @@ fn enemy_conditions(battle: &CoreBattle, enemy: &Enemy) -> Vec<Condition> {
 /// Was auf dem Brett stehen soll.
 fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> Vec<Wanted> {
     let preview_text = |uid: u32| {
-        let Some((_, hits)) = focus
-            .preview
-            .as_ref()
-            .filter(|(focused, _)| *focused == uid)
-        else {
+        let Some(preview) = focus.preview.as_ref().filter(|p| p.target == uid) else {
             return String::new();
         };
         let mut groups: Vec<(String, usize)> = Vec::new();
-        for line in hits
+        for line in preview
+            .hits
             .iter()
             .filter(|hit| unit_uid(hit.target) == uid)
             .map(|hit| locale.breakdown(&hit.breakdown))
@@ -166,6 +185,19 @@ fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> V
             .collect::<Vec<_>>()
             .join("\n")
     };
+    let heal_preview_text = |uid: u32| {
+        focus
+            .preview
+            .as_ref()
+            .and_then(|preview| {
+                preview
+                    .cannibalize
+                    .iter()
+                    .find(|(id, amount)| *id == uid && *amount > 0)
+            })
+            .map(|(_, amount)| locale.cannibalize_preview(*amount))
+            .unwrap_or_default()
+    };
     // Der Uhrmacher sieht zwei Runden voraus.
     let clockwork = battle.flagship.admiral == AdmiralId::Kerr;
     let mut ships: Vec<Wanted> = battle
@@ -180,13 +212,16 @@ fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> V
                 stats: enemy.stats(),
                 max_hull: enemy.max_hull,
                 caption: ShipCaption {
+                    name: locale.enemy(enemy.id).to_owned(),
                     intent: Some(first),
                     next: clockwork.then_some(second),
                     burning: enemy.burning.then(|| battle.burn_damage(enemy.unit())),
                     armor: enemy.armor,
                     regeneration: enemy.regeneration(),
+                    passives: enemy_passives(enemy),
                     conditions: enemy_conditions(battle, enemy),
                     preview: preview_text(enemy.uid),
+                    heal_preview: heal_preview_text(enemy.uid),
                 },
                 aura: ShipAura {
                     burning: enemy.burning,
@@ -205,6 +240,7 @@ fn wanted_ships(battle: &CoreBattle, locale: &Messages, focus: &BoardFocus) -> V
             stats: flagship.stats(),
             max_hull: flagship.max_hull,
             caption: ShipCaption {
+                name: locale.flagship(flagship.admiral.flagship()).to_owned(),
                 burning: flagship
                     .burning
                     .then(|| battle.burn_damage(UnitRef::Flagship)),
@@ -262,7 +298,10 @@ pub fn sync_ships(
     let wanted = battle
         .as_ref()
         .map_or_else(Vec::new, |battle| wanted_ships(battle, &locale, &focus));
-    let hits: &[Hit] = focus.preview.as_ref().map_or(&[], |(_, hits)| hits);
+    let hits: &[Hit] = focus
+        .preview
+        .as_ref()
+        .map_or(&[], |preview| preview.hits.as_slice());
     let mut kept = Vec::new();
     for (entity, ship, on, mut status, caption, aura) in &mut ships {
         let Some(want) = wanted
@@ -389,7 +428,7 @@ fn mark_target(
     children: Query<&Children>,
     mut contours: Query<&mut Visibility, With<ToonOutline>>,
 ) {
-    let target = focus.preview.as_ref().map(|(uid, _)| *uid);
+    let target = focus.preview.as_ref().map(|preview| preview.target);
     for (entity, ship, on) in &ships {
         let targeted = on.0.side == Side::Enemy && target == Some(ship.uid);
         let visibility = if targeted {
@@ -411,6 +450,9 @@ fn clear_preview(mut ships: Query<(&mut ShipStatus, &mut ShipCaption)>) {
         status.doomed = false;
         if !caption.preview.is_empty() {
             caption.preview.clear();
+        }
+        if !caption.heal_preview.is_empty() {
+            caption.heal_preview.clear();
         }
     }
 }
@@ -462,7 +504,10 @@ mod tests {
         };
         let (aimed, other) = (contour_of(1, 0), contour_of(2, 1));
         world.insert_resource(BoardFocus {
-            preview: Some((1, Vec::new())),
+            preview: Some(TargetPreview {
+                target: 1,
+                ..default()
+            }),
             ghost: None,
         });
         world.run_system_once(mark_target).unwrap();
@@ -524,7 +569,11 @@ mod tests {
             ..repeated
         };
         let focus = BoardFocus {
-            preview: Some((uid, vec![repeated, repeated, distinct])),
+            preview: Some(TargetPreview {
+                target: uid,
+                hits: vec![repeated, repeated, distinct],
+                cannibalize: Vec::new(),
+            }),
             ghost: None,
         };
         let ships = wanted_ships(&battle, &locale, &focus);
@@ -534,5 +583,77 @@ mod tests {
             target.caption.preview,
             "2× 2 · marked +1 → 3\n4 · armor −1 → 3"
         );
+    }
+
+    #[test]
+    fn enemy_passives_and_cannibalize_preview_appear_in_captions() {
+        use voidfleet_core::battle::{BattleSetup, Encounter};
+
+        let locale = Locale::new(Language::De);
+        let encounter = Encounter {
+            front: [
+                Some(EnemyId::Raiders.into()),
+                Some(EnemyId::PlasmaCruiser.into()),
+                Some(EnemyId::Warden.into()),
+            ],
+            back: [Some(EnemyId::ScrapKing.into()), None, None],
+            ..Encounter::default()
+        };
+        let battle = CoreBattle::new(
+            BattleSetup {
+                admiral: AdmiralId::Vance,
+                hull: AdmiralId::Vance.hull(),
+                max_hull: AdmiralId::Vance.hull(),
+                deck: voidfleet_core::cards::starter_deck(AdmiralId::Vance),
+                modules: Vec::new(),
+                emergency_generator_available: false,
+                encounter,
+            },
+            1,
+        );
+        let king_uid = battle
+            .enemies
+            .iter()
+            .find(|e| e.id == EnemyId::ScrapKing)
+            .unwrap()
+            .uid;
+        let raiders_uid = battle
+            .enemies
+            .iter()
+            .find(|e| e.id == EnemyId::Raiders)
+            .unwrap()
+            .uid;
+        let focus = BoardFocus {
+            preview: Some(TargetPreview {
+                target: raiders_uid,
+                hits: Vec::new(),
+                cannibalize: vec![(king_uid, 8)],
+            }),
+            ghost: None,
+        };
+        let ships = wanted_ships(&battle, &locale, &focus);
+        let king = ships.iter().find(|s| s.uid == king_uid).unwrap();
+        assert_eq!(king.caption.name, "Schrottkönig");
+        assert!(
+            king.caption
+                .passives
+                .contains(&Passive::Cannibalize(rules().enemies.cannibalize_heal))
+        );
+        assert_eq!(king.caption.heal_preview, "Kannibalisieren +8");
+
+        let warden = ships
+            .iter()
+            .find(|s| s.kind == ShipKind::Enemy(EnemyId::Warden))
+            .unwrap();
+        assert!(warden.caption.passives.contains(&Passive::Immovable));
+
+        let plasma = ships
+            .iter()
+            .find(|s| s.kind == ShipKind::Enemy(EnemyId::PlasmaCruiser))
+            .unwrap();
+        assert!(plasma.caption.passives.contains(&Passive::PlasmaBurn));
+
+        let raiders = ships.iter().find(|s| s.uid == raiders_uid).unwrap();
+        assert!(raiders.caption.passives.contains(&Passive::EvadeReflex));
     }
 }

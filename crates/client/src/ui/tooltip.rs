@@ -35,6 +35,14 @@ pub struct Glyph {
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct TooltipGlyphs(pub Vec<(Glyph, String)>);
 
+/// Tooltip für ein überfahrenes 3D-Schiff auf dem Brett (Schiffsname + Icons/Erklärungen); gilt als Fallback,
+/// wenn der Zeiger kein UI-Element mit eigenem Tooltip trifft.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub struct BoardTooltip {
+    pub title: String,
+    pub glyphs: TooltipGlyphs,
+}
+
 /// So lange (Sekunden) muss der Zeiger ruhen, bis ein Text-Feld erscheint, und sein Abstand zum Bild des Zeigers.
 const DELAY: f32 = 0.5;
 const GAP: f32 = 6.0;
@@ -121,10 +129,11 @@ fn follow_pointer(
         Option<&TooltipGlyphs>,
         Has<TooltipInstant>,
     )>,
+    board_tooltip: Res<BoardTooltip>,
     window: Single<&Window, With<PrimaryWindow>>,
     settings: Res<Settings>,
     tooltip_box: Single<(&mut Node, &mut Visibility, &ComputedNode), With<TooltipBox>>,
-    text: Single<(&mut Text, &mut Node), (With<TooltipText>, Without<TooltipBox>)>,
+    text: Single<(&mut Text, &mut Node, &mut TextFont), (With<TooltipText>, Without<TooltipBox>)>,
     rows: Single<Entity, With<TooltipRows>>,
     fonts: Res<Fonts>,
     mut commands: Commands,
@@ -153,21 +162,37 @@ fn follow_pointer(
         hover.since = now;
     }
     let (mut node, mut visibility, computed) = tooltip_box.into_inner();
-    let (Some((_, _, tooltip, glyphs, instant)), Some(cursor)) =
-        (hovered, window.cursor_position())
-    else {
+    let Some(cursor) = window.cursor_position() else {
         visibility.set_if_neq(Visibility::Hidden);
         return;
     };
-    // Die Icons über den Schiffen (Glyphen) erklären sich sofort.
-    if glyphs.is_none() && !instant && now - hover.since < DELAY {
+    let (content, glyphs) = if let Some((_, _, tooltip, glyphs, instant)) = hovered {
+        // Die Icons über den Schiffen (Glyphen) erklären sich sofort.
+        if glyphs.is_none() && !instant && now - hover.since < DELAY {
+            visibility.set_if_neq(Visibility::Hidden);
+            return;
+        }
+        (
+            tooltip.map_or("", |tooltip| tooltip.0.as_str()),
+            glyphs.cloned().unwrap_or_default(),
+        )
+    } else if !board_tooltip.title.is_empty() || !board_tooltip.glyphs.0.is_empty() {
+        (board_tooltip.title.as_str(), board_tooltip.glyphs.clone())
+    } else {
         visibility.set_if_neq(Visibility::Hidden);
         return;
-    }
-    let content = tooltip.map_or("", |tooltip| tooltip.0.as_str());
-    let (mut text, mut text_node) = text.into_inner();
+    };
+    let (mut text, mut text_node, mut text_font) = text.into_inner();
     if text.0 != content {
         text.0 = content.to_owned();
+    }
+    let wanted_font = if !content.is_empty() && !glyphs.0.is_empty() {
+        fonts.display_bold(15.0)
+    } else {
+        fonts.body(13.0)
+    };
+    if *text_font != wanted_font {
+        *text_font = wanted_font;
     }
     let display = if content.is_empty() {
         Display::None
@@ -177,7 +202,6 @@ fn follow_pointer(
     if text_node.display != display {
         text_node.display = display;
     }
-    let glyphs = glyphs.cloned().unwrap_or_default();
     if hover.glyphs != glyphs {
         let rows = rows.into_inner();
         commands.entity(rows).despawn_related::<Children>();
@@ -285,6 +309,7 @@ pub(super) struct TooltipPlugin;
 impl Plugin for TooltipPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TooltipHover>()
+            .init_resource::<BoardTooltip>()
             .add_systems(Startup, spawn)
             .add_systems(Update, follow_pointer);
     }

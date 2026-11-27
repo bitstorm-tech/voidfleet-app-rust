@@ -627,7 +627,21 @@
     "covered": "Covered: the unit in front in this column takes half of every hit (rounded up); piercing ignores it."
   },
   "armor_hint": "Armor: every hit deals {amount} less damage.",
+  "regeneration_name": "Living hull",
   "regeneration_hint": "Living hull: regrows {amount} in the resolution unless it is hit this round. Burning stops it.",
+  "cannibalize_name": "Cannibalize",
+  "cannibalize_hint": "Cannibalize: every destroyed ship on the board repairs it by {amount} hull.",
+  "cannibalize_preview": "Cannibalize +{amount}",
+  "passive_immovable_hint": "Immovable: no tractor beam can move this unit.",
+  "passive_flagship_hint": "Flagship: when the Seal falls, the entire opposing fleet falls.",
+  "passive_brood_link_hint": "Brood link: when the Unknown Contact falls, its brood perishes.",
+  "passive_plasma_hint": "Plasma guns: hits ignite fire at {rules.enemies.plasma_burn_percent} % hull or less.",
+  "passive_evade_reflex_hint": "Evade reflex: if hit this round, it announces Evade for the next.",
+  "boss_intro": {
+    "scrap_king": "Cannibalize: every destroyed ship repairs it by {rules.enemies.cannibalize_heal} hull.",
+    "warden": "Immovable defense station — armored, with a two-column main gun.",
+    "seal": "Commander Vey's flagship — when the Seal falls, the opposing fleet falls."
+  },
   "burn_hint": {
     "ticking": "Loses {amount} hull in each resolution.",
     "suppressed": "Fire suppression: the fire does not tick."
