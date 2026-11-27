@@ -130,6 +130,7 @@ fn card_sound(card: CardId) -> Option<SoundId> {
 pub(super) struct Planner<'a> {
     pub locale: &'a Messages,
     pub admiral: AdmiralId,
+    pub flagship_column: usize,
 }
 
 /// Was eine Kette von Folgen über ihre Ereignisse hinweg weiß.
@@ -217,7 +218,7 @@ impl Planner<'_> {
                     .collect(),
             )])
         };
-        let say = radio_cue(step, self.admiral).map(Cue::Say);
+        let say = radio_cue(step, self.admiral, self.flagship_column).map(Cue::Say);
         Script::default()
             .then([Cue::Scope(scope), Cue::Log(log)].into_iter().chain(say))
             .and(body)
@@ -1430,6 +1431,7 @@ mod tests {
             let planner = Planner {
                 locale: &locale,
                 admiral,
+                flagship_column: 1,
             };
             for event in all_events() {
                 let script = planner.step(std::slice::from_ref(&event));
@@ -1451,6 +1453,7 @@ mod tests {
         let planner = Planner {
             locale: &locale,
             admiral: AdmiralId::Osei,
+            flagship_column: 1,
         };
         for id in CardId::ALL {
             let target = match id.target() {
@@ -1515,6 +1518,7 @@ mod tests {
         let planner = Planner {
             locale: &locale,
             admiral: AdmiralId::Osei,
+            flagship_column: 1,
         };
         let back = UnitRef::Enemy {
             uid: 2,
@@ -1570,6 +1574,7 @@ mod tests {
         let planner = Planner {
             locale: &locale,
             admiral: AdmiralId::Kerr,
+            flagship_column: 1,
         };
         let marks = planner.marks(
             &Breakdown {
