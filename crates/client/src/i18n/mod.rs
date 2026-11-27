@@ -395,6 +395,9 @@ plain! {
     stats_hull stats_atk
     /// Vor der zweiten Absicht im Tooltip (Uhrwerk).
     caption_next
+    /// Namen und Tooltip-Hinweise passiver Gegnerfähigkeiten.
+    regeneration_name cannibalize_name passive_immovable_hint passive_flagship_hint
+    passive_brood_link_hint passive_plasma_hint passive_evade_reflex_hint
     log_jumped log_returned log_emergency_generator log_shuffled log_breach
     /// Ein Schuss geht ins Leere (Kurzsprung, Manöver).
     report_missed
@@ -491,6 +494,9 @@ filled! {
     armor_hint(amount: i32)
     /// Tooltip am Icon der Lebenden Hülle.
     regeneration_hint(amount: i32)
+    /// Tooltip und Vorschau von Kannibalisieren (Schrottkönig).
+    cannibalize_hint(amount: i32)
+    cannibalize_preview(amount: i32)
 
     // --- Log, je Ereignis eine Zeile; Einheiten kommen schon benannt ---
     log_round_header(round: u32)
@@ -747,6 +753,13 @@ impl Messages {
     pub fn card_bonus(&self, bonus: i32) -> String {
         let card = self.card_name(CardId::FireControlDoctrine);
         self.fill("card_bonus", &[("card", &card), ("bonus", &bonus)])
+    }
+
+    /// Kurzer Regelhinweis für das Intro-Banner der Sektor-Bosse (Schrottkönig, Wächter, Siegel).
+    /// Der Unbekannte Kontakt bleibt außen vor: Er hat sein eigenes Durchbruch-Banner.
+    pub fn boss_intro(&self, enemy: EnemyId) -> Option<&'static str> {
+        matches!(enemy, EnemyId::ScrapKing | EnemyId::Warden | EnemyId::Seal)
+            .then(|| self.text(&format!("boss_intro.{}", snake(enemy))))
     }
 
     /// Was die Admiralswahl über einen Admiral sagt.
@@ -1353,6 +1366,9 @@ mod tests {
             }
             for enemy in EnemyId::ALL {
                 plain(locale.enemy(enemy));
+                if let Some(intro) = locale.boss_intro(enemy) {
+                    plain(intro);
+                }
             }
             for action in [
                 Action::Fire,

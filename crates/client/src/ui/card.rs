@@ -1271,6 +1271,10 @@ mod tests {
             armor: Handle::default(),
             repair: Handle::default(),
             maneuver: Handle::default(),
+            cannibalize: Handle::default(),
+            immovable: Handle::default(),
+            plasma_burn: Handle::default(),
+            evade_reflex: Handle::default(),
         };
         let art = CardArt::placeholder();
         let locale = Locale::new(Language::De);

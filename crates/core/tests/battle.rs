@@ -734,14 +734,48 @@ fn scrap_king_cannibalizes() {
             (EnemyId::ScrapKing, Row::Front, 1),
         ],
     );
+    let raiders = uid(&b, EnemyId::Raiders);
+    // Bei voller Hülle wird kein leeres Kannibalisieren-Ereignis ausgelöst.
+    let preview_full = b
+        .preview_station_events(Station::Weapons, Target::Enemy(raiders))
+        .unwrap();
+    assert!(
+        !preview_full
+            .iter()
+            .any(|e| matches!(e, BattleEvent::Cannibalized { .. }))
+    );
+
     unit(&mut b, EnemyId::ScrapKing).hull = 40;
+    let preview = b
+        .preview_station_events(Station::Weapons, Target::Enemy(raiders))
+        .unwrap();
+    assert!(
+        preview
+            .iter()
+            .any(|e| matches!(e, BattleEvent::Cannibalized { amount: 8, .. }))
+    );
     let events = b
-        .run_station(Station::Weapons, Target::Enemy(uid(&b, EnemyId::Raiders)))
+        .run_station(Station::Weapons, Target::Enemy(raiders))
         .unwrap();
     assert!(
         events
             .iter()
             .any(|e| matches!(e, BattleEvent::Cannibalized { amount: 8, .. }))
+    );
+}
+
+#[test]
+fn warden_is_immovable() {
+    let mut b = battle(AdmiralId::Kerr, &[(EnemyId::Warden, Row::Back, 1)]);
+    let warden = uid(&b, EnemyId::Warden);
+    give(&mut b, &[CardId::TractorBeam]);
+    assert!(EnemyId::Warden.immovable());
+    assert!(EnemyId::Seal.immovable());
+    assert!(EnemyId::UnknownContact.immovable());
+    assert!(!EnemyId::ScrapKing.immovable());
+    assert_eq!(
+        b.play_card(0, Target::Enemy(warden)),
+        Err(RuleError::TargetInvalid)
     );
 }
 

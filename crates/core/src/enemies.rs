@@ -96,6 +96,12 @@ impl EnemyId {
     pub fn support(self) -> bool {
         self == EnemyId::Spotter
     }
+
+    /// Kein Traktorstrahl verschiebt diese Einheit (Flaggschiff, Wächter, Unbekannter Kontakt).
+    pub fn immovable(self) -> bool {
+        self.class() == EnemyClass::Flagship
+            || matches!(self, EnemyId::Warden | EnemyId::UnknownContact)
+    }
 }
 
 /// Eine Einheit eines Verbands mit allen Werten, wie sie in der Kartendatei des Sektors steht; nur dort stehen die

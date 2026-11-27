@@ -143,6 +143,8 @@ struct Context {
     ramming: bool,
     /// Wer eintrifft, löst sich von dieser Einheit, statt aus dem Hyperraum zu fallen (die Brut des Fremden).
     launcher: Option<UnitRef>,
+    /// Zuletzt zerstörte Einheit dieser Kette, damit Kannibalisieren sichtbar von ihrem Wrack aus anzieht.
+    wreck: Option<UnitRef>,
 }
 
 impl Planner<'_> {
@@ -367,6 +369,7 @@ impl Planner<'_> {
             covering: None,
             ramming: false,
             launcher: None,
+            wreck: None,
         }
     }
 
@@ -801,6 +804,44 @@ impl Planner<'_> {
                         )])
                         .then([Cue::Release]);
                 }
+                BattleEvent::Cannibalized {
+                    unit,
+                    amount,
+                    after,
+                } => {
+                    let at = Spot::Unit(unit);
+                    if let Some(wreck) = context.wreck {
+                        script = script.then([
+                            Cue::Sound(SoundId::Repair, at),
+                            Cue::Fx(Fx::Beam {
+                                from: Spot::Unit(wreck),
+                                to: at,
+                                color: palette::HEAL,
+                                width: 0.75,
+                                miss: false,
+                            }),
+                        ]);
+                    }
+                    let mut heal_beat = vec![
+                        Cue::Fx(Fx::Pulse {
+                            at,
+                            color: palette::HEAL,
+                            size: 1.8,
+                            duration: 0.6,
+                        }),
+                        Cue::Unit(unit, Job::Stats(after)),
+                        Cue::Float {
+                            at,
+                            text: format!("+{amount}"),
+                            detail: self.locale.cannibalize_name().to_owned(),
+                            tone: FloatTone::Heal,
+                        },
+                    ];
+                    if context.wreck.is_none() {
+                        heal_beat.insert(0, Cue::Sound(SoundId::Repair, at));
+                    }
+                    script = script.then(heal_beat);
+                }
                 _ => script = script.then(self.consequence(event, &mut context)),
             }
         }
@@ -996,12 +1037,38 @@ impl Planner<'_> {
                 unit,
                 amount,
                 after,
+            } => {
+                let at = Spot::Unit(unit);
+                beat.extend([
+                    Cue::Sound(SoundId::Repair, at),
+                    pulse(at, palette::HEAL, 1.8),
+                    Cue::Unit(unit, Job::Stats(after)),
+                    Cue::Float {
+                        at,
+                        text: format!("+{amount}"),
+                        detail: locale.cannibalize_name().to_owned(),
+                        tone: FloatTone::Heal,
+                    },
+                ]);
             }
-            | BattleEvent::Regenerated {
+            BattleEvent::Regenerated {
                 unit,
                 amount,
                 after,
-            } => beat.extend(gain(unit, amount, after, palette::HEAL, FloatTone::Heal)),
+            } => {
+                let at = Spot::Unit(unit);
+                beat.extend([
+                    Cue::Sound(SoundId::Repair, at),
+                    pulse(at, palette::HEAL, 1.8),
+                    Cue::Unit(unit, Job::Stats(after)),
+                    Cue::Float {
+                        at,
+                        text: format!("+{amount}"),
+                        detail: locale.regeneration_name().to_owned(),
+                        tone: FloatTone::Heal,
+                    },
+                ]);
+            }
             // Der Durchbruch ist ein eigener Schritt ([`Planner::breach`]).
             BattleEvent::Breach => {}
             BattleEvent::Ignited { target } => {
@@ -1076,6 +1143,7 @@ impl Planner<'_> {
                 }
             }
             BattleEvent::Destroyed { target, cause } => {
+                context.wreck = Some(target);
                 beat.push(Cue::Unit(target, Job::Destroy));
                 if cause == voidfleet_core::events::DestroyCause::BurnedOut {
                     beat.push(self.banner(
@@ -1601,5 +1669,69 @@ mod tests {
             let script = planner.step(&step);
             assert!(script.cues().into_iter().any(shows), "{id:?}");
         }
+    }
+
+    #[test]
+    fn cannibalize_draws_beam_from_wreck_and_labels_heal() {
+        let locale = Locale::new(Language::De);
+        let planner = Planner {
+            locale: &locale,
+            admiral: AdmiralId::Vance,
+            flagship_column: 1,
+        };
+        let king = UnitRef::Enemy {
+            uid: 2,
+            id: EnemyId::ScrapKing,
+            slot: EnemySlot::new(Row::Back, 1),
+        };
+        let step = [
+            BattleEvent::StationTriggered {
+                station: Station::Weapons,
+            },
+            BattleEvent::Destroyed {
+                target: GUARD,
+                cause: DestroyCause::Shot,
+            },
+            BattleEvent::Cannibalized {
+                unit: king,
+                amount: 8,
+                after: STATS,
+            },
+        ];
+        let script = planner.step(&step);
+        let cues = script.cues();
+        assert!(cues.iter().any(|cue| matches!(
+            cue,
+            Cue::Fx(Fx::Beam {
+                from,
+                to,
+                miss: false,
+                ..
+            }) if *from == Spot::Unit(GUARD) && *to == Spot::Unit(king)
+        )));
+        assert!(cues.iter().any(|cue| matches!(
+            cue,
+            Cue::Float {
+                at,
+                text,
+                detail,
+                tone: FloatTone::Heal,
+            } if *at == Spot::Unit(king) && text == "+8" && detail == "Kannibalisieren"
+        )));
+
+        let regen = planner.step(&[BattleEvent::Regenerated {
+            unit: GUARD,
+            amount: 6,
+            after: STATS,
+        }]);
+        assert!(regen.cues().iter().any(|cue| matches!(
+            cue,
+            Cue::Float {
+                text,
+                detail,
+                tone: FloatTone::Heal,
+                ..
+            } if text == "+6" && detail == "Lebende Hülle"
+        )));
     }
 }
