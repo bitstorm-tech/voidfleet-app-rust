@@ -145,7 +145,10 @@ fn drive(
     if !scripts.is_empty() {
         return;
     }
-    let Some(admiral) = battle.map(|battle| battle.flagship.admiral) else {
+    let Some((admiral, flagship_column)) = battle
+        .as_deref()
+        .map(|battle| (battle.flagship.admiral, battle.flagship.column))
+    else {
         playback.steps.clear();
         return finish(&mut commands, &mut clock, &mut camera, &mut finished);
     };
@@ -158,6 +161,7 @@ fn drive(
     let planner = Planner {
         locale: &locale,
         admiral,
+        flagship_column,
     };
     if let Some(step) = playback.steps.pop_front() {
         commands.spawn((Name::new("Wiedergabe"), planner.step(&step)));

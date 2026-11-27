@@ -21,8 +21,13 @@ use crate::audio::RadioCue;
 /// So viel Hüllenschaden macht ein eigener Treffer, damit die Geschützleitung „Volltreffer“ meldet.
 const DIRECT_HIT: i32 = 12;
 
-/// Der Funkspruch zu einem Schritt.
-pub fn radio_cue(step: &[BattleEvent], admiral: AdmiralId) -> Option<RadioCue> {
+/// Der Funkspruch zu einem Schritt. `flagship_column` ist die Spalte des Flaggschiffs, damit Spaltenfeuer auf eine
+/// andere Spalte stumm bleibt.
+pub fn radio_cue(
+    step: &[BattleEvent],
+    admiral: AdmiralId,
+    flagship_column: usize,
+) -> Option<RadioCue> {
     let kills = step
         .iter()
         .filter(|event| {
@@ -32,10 +37,23 @@ pub fn radio_cue(step: &[BattleEvent], admiral: AdmiralId) -> Option<RadioCue> {
             )
         })
         .count();
+    let arrived = |unit| {
+        step.iter()
+            .any(|event| matches!(event, BattleEvent::Arrived { unit: u } if *u == unit))
+    };
     let breaking = (kills >= 2).then_some(RadioCue::EnemyBreaking);
     breaking
         .into_iter()
-        .chain(step.iter().filter_map(|event| event_cue(event, admiral)))
+        .chain(step.iter().filter_map(|event| {
+            // Neu eingetroffene Einheiten handeln erst in der nächsten Runde; ihre erste Absicht gilt noch nicht für
+            // diesen Zug.
+            if let BattleEvent::Intents { unit, .. } = *event
+                && arrived(unit)
+            {
+                return None;
+            }
+            event_cue(event, admiral, flagship_column)
+        }))
         .reduce(|best, cue| {
             if cue.priority() > best.priority() {
                 cue
@@ -53,7 +71,7 @@ fn human(unit: UnitRef) -> bool {
     }
 }
 
-fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
+fn event_cue(event: &BattleEvent, admiral: AdmiralId, flagship_column: usize) -> Option<RadioCue> {
     use BattleEvent as E;
     use UnitRef::{Enemy, Flagship};
     Some(match *event {
@@ -121,18 +139,20 @@ fn event_cue(event: &BattleEvent, admiral: AdmiralId) -> Option<RadioCue> {
             Action::Call(_) if human(unit) => RadioCue::EnemyCallsReinforcements,
             _ => return None,
         },
-        // Angesagt für den nächsten Gegnerzug: Schaden am Flaggschiff heißt, es steht in der Schusslinie.
-        E::Intents { unit, intents } => {
-            intents
-                .iter()
-                .filter(|intent| intent.damage > 0)
-                .find_map(|intent| match intent.action {
-                    Action::ColumnFire { .. } => Some(RadioCue::ColumnFireIncoming),
-                    // Der Spruch nennt den Brander; die Brut rammt ohne Meldung.
-                    Action::Ram if human(unit) => Some(RadioCue::RamIncoming),
-                    _ => None,
-                })?
-        }
+        // Nur die Absicht dieses Zugs (`intents[0]`), nicht die Vorschau auf die nächste Runde (`intents[1]`).
+        E::Intents {
+            unit,
+            intents: [first, _],
+        } if first.damage > 0 => match first.action {
+            Action::ColumnFire { columns }
+                if columns.get(flagship_column).copied().unwrap_or(false) =>
+            {
+                RadioCue::ColumnFireIncoming
+            }
+            // Der Spruch nennt den Brander; die Brut rammt ohne Meldung.
+            Action::Ram if human(unit) => RadioCue::RamIncoming,
+            _ => return None,
+        },
         _ => return None,
     })
 }
@@ -368,7 +388,7 @@ mod tests {
             ),
         ];
         for (step, admiral, cue) in &triggers {
-            assert_eq!(radio_cue(step, *admiral), Some(*cue), "{step:?}");
+            assert_eq!(radio_cue(step, *admiral, 0), Some(*cue), "{step:?}");
         }
         for &cue in RadioCue::ALL {
             assert!(
@@ -376,8 +396,71 @@ mod tests {
                 "{cue:?}"
             );
         }
-        // Spaltenfeuer auf eine andere Spalte schweigt.
-        assert_eq!(radio_cue(&[intents(column, 0)], AdmiralId::Osei), None);
+        // Spaltenfeuer ohne Schaden oder auf eine andere Spalte schweigt.
+        assert_eq!(radio_cue(&[intents(column, 0)], AdmiralId::Osei, 0), None);
+        assert_eq!(radio_cue(&[intents(column, 6)], AdmiralId::Osei, 1), None);
+    }
+
+    /// Warnungen über Absichten gelten nur für diesen Zug (`intents[0]`), nicht für die Vorschau auf den nächsten
+    /// (`intents[1]`) und nicht für Einheiten, die gerade erst eintreffen und in dieser Runde noch nicht handeln.
+    #[test]
+    fn intents_only_warn_for_current_turn() {
+        let evade = Intent {
+            action: Action::Evade,
+            damage: 0,
+        };
+        let charge = Intent {
+            action: Action::Charge,
+            damage: 0,
+        };
+        let ram = Intent {
+            action: Action::Ram,
+            damage: 10,
+        };
+        let column = Intent {
+            action: Action::ColumnFire {
+                columns: [false, true, false],
+            },
+            damage: 14,
+        };
+        let pair = |first, second| BattleEvent::Intents {
+            unit: ENEMY,
+            intents: [first, second],
+        };
+
+        // Erst im nächsten Zug: schweigt.
+        assert_eq!(radio_cue(&[pair(evade, ram)], AdmiralId::Osei, 1), None);
+        assert_eq!(radio_cue(&[pair(charge, column)], AdmiralId::Osei, 1), None);
+        assert_eq!(radio_cue(&[pair(evade, column)], AdmiralId::Osei, 1), None);
+
+        // In diesem Zug: warnt (Spaltenfeuer nur auf der eigenen Spalte).
+        assert_eq!(
+            radio_cue(&[pair(ram, evade)], AdmiralId::Osei, 1),
+            Some(RadioCue::RamIncoming)
+        );
+        assert_eq!(
+            radio_cue(&[pair(column, evade)], AdmiralId::Osei, 1),
+            Some(RadioCue::ColumnFireIncoming)
+        );
+        assert_eq!(radio_cue(&[pair(column, evade)], AdmiralId::Osei, 0), None);
+
+        // Neu eingetroffene Verstärkung handelt erst im nächsten Zug: nur Verstärkung melden.
+        assert_eq!(
+            radio_cue(
+                &[BattleEvent::Arrived { unit: ENEMY }, pair(column, evade)],
+                AdmiralId::Osei,
+                1,
+            ),
+            Some(RadioCue::ReinforcementsSighted)
+        );
+        assert_eq!(
+            radio_cue(
+                &[BattleEvent::Arrived { unit: ENEMY }, pair(ram, ram)],
+                AdmiralId::Osei,
+                1,
+            ),
+            Some(RadioCue::ReinforcementsSighted)
+        );
     }
 
     /// Das Fremde funkt nicht: Lädt es auf, ruft es Brut oder gerät es in den Notfall, bleibt der Gegnerfunk still;
@@ -399,18 +482,18 @@ mod tests {
             panic,
         ] {
             assert_eq!(
-                radio_cue(std::slice::from_ref(&event), AdmiralId::Osei),
+                radio_cue(std::slice::from_ref(&event), AdmiralId::Osei, 1),
                 None,
                 "{event:?}"
             );
         }
         assert_eq!(
-            radio_cue(&[act(Action::Fire)], AdmiralId::Osei),
+            radio_cue(&[act(Action::Fire)], AdmiralId::Osei, 1),
             Some(RadioCue::IncomingFire)
         );
         let breach = [E::Breach, kill(1), kill(2), E::Arrived { unit: CONTACT }];
         assert_eq!(
-            radio_cue(&breach, AdmiralId::Osei),
+            radio_cue(&breach, AdmiralId::Osei, 1),
             Some(RadioCue::SealBroken)
         );
     }
@@ -422,7 +505,7 @@ mod tests {
             result: BattleResult::Won,
         };
         assert_eq!(
-            radio_cue(&[kill(1), won], AdmiralId::Osei),
+            radio_cue(&[kill(1), won], AdmiralId::Osei, 1),
             Some(RadioCue::Victory)
         );
     }
